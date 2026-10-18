@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.23", date: "18 October 2026", title: "Building out",
+    items: [
+      "Campaign 3D map: you can watch a town grow. When its people grow at the turn of a season, new houses rise out of the ground at its edge one after another; when it loses people, the outermost come down. The old town stays as it was.",
+      "Campaign 3D map: a town reaching a river or a lake bridges it, on stone piers over the water, and goes on building on the far bank. It won't cross open sea or a wide bay.",
+      "Campaign 3D map: port towns have their docks: a stone quay along the shore, wooden jetties out into the water and boats tied up alongside. A walled port's wall stops at the water.",
+      "Campaign 3D map: the fields don't look like tiles any more. Their colours are closer kin, each parcel blends into the next at its edge, there are furrows down them close in, and the hedges are thin and broken.",
+      "Campaign 3D map: a town on a coast with hills behind no longer squeezes onto the shore; only real cliffs stop it.",
+      "Campaign 3D map: opening it takes about a second, where it took two, and laying out the towns again after a conquest is several times quicker.",
+    ],
+  },
+  {
     v: "1.90.22", date: "18 October 2026", title: "Towns in the round",
     items: [
       "Campaign 3D map: a town grows as a lump, not along lines. Past its old town it spreads further one way than another, bulging in a direction or two of its own, its streets running on out and lanes round between. It spreads least toward water and steep ground, and as its people grow it keeps the same shape, only larger.",

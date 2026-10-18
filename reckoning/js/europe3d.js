@@ -40,6 +40,8 @@ function landAt(g, lon, lat) {
   const L = (x, y) => (g[y] && g[y][x] ? 1 : 0);
   return L(x0, y0) * (1 - fx) * (1 - fy) + L(x0 + 1, y0) * fx * (1 - fy) + L(x0, y0 + 1) * (1 - fx) * fy + L(x0 + 1, y0 + 1) * fx * fy;
 }
+// (each range's reach, a box round it: as far out as it lifts the ground at all)
+const RBOX = RANGES.map(([pts, , w]) => { const xs = pts.map(p => p[0] * K), ys = pts.map(p => p[1]), m = w * 3; return [Math.min(...xs) - m, Math.max(...xs) + m, Math.min(...ys) - m, Math.max(...ys) + m]; });
 // height in km (below 0: sea)
 export function heightAt(g, lon, lat) {
   const land = landAt(g, lon, lat) + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45;
@@ -47,7 +49,11 @@ export function heightAt(g, lon, lat) {
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
   let h = 0.02 + ease * (0.04 + fbm(lon * 1.3, lat * 1.3, 3) * 0.28);
-  for (const [pts, km, w] of RANGES) {
+  const px = lon * K;
+  for (let ri = 0; ri < RANGES.length; ri++) {
+    // (a range is reckoned with only where it could reach: outside its box, it adds nothing)
+    const bb = RBOX[ri]; if (px < bb[0] || px > bb[1] || lat < bb[2] || lat > bb[3]) continue;
+    const [pts, km, w] = RANGES[ri];
     let d = Infinity;
     for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(lon * K, lat, pts[i - 1][0] * K, pts[i - 1][1], pts[i][0] * K, pts[i][1]));
     if (d < w * 3) h += ease * km * Math.exp(-(d * d) / (2 * w * w)) * (0.6 + fbm(lon * 4, lat * 4, 11) * 0.7);
@@ -127,6 +133,7 @@ float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 
   float a = ih(c, s), b = ih(c + ivec2(1, 0), s), d = ih(c + ivec2(0, 1), s), e = ih(c + ivec2(1, 1), s);
   return a + (b - a) * f.x + (d - a) * f.y + (a - b - d + e) * f.x * f.y; }
 float woodN(vec2 p) { float v = (inz(p * 0.16, 7) - 0.5) * 0.4, a = 0.5, f = ${WOOD_F.toFixed(3)}; for (int i = 0; i < 4; i++) { v += a * inz(p * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
+vec3 cropOf(float c) { return c < 0.26 ? vec3(0.76, 0.66, 0.34) : c < 0.46 ? vec3(0.52, 0.63, 0.30) : c < 0.64 ? vec3(0.58, 0.66, 0.34) : c < 0.8 ? vec3(0.70, 0.63, 0.37) : c < 0.92 ? vec3(0.62, 0.55, 0.36) : vec3(0.56, 0.50, 0.34); }
 float gh(vec2 p) { p = mod(p, 512.0); vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(gh(i), gh(i + vec2(1, 0)), f.x), mix(gh(i + vec2(0, 1)), gh(i + vec2(1, 1)), f.x), f.y); }`;
@@ -141,19 +148,23 @@ const GROUND_MIX = `
   // (parcels of no set shape or size — each the nearest of a scatter of points — longer one way than the other, and
   //  lying this way in one district, that way in the next)
   float dn = gn(wp * 0.45 + 4.0) * 0.6 + gn(wp * 1.1) * 0.4, fa = dn < 0.4 ? 0.45 : dn < 0.6 ? 2.0 : 1.2; mat2 fr = mat2(cos(fa), sin(fa), -sin(fa), cos(fa));
-  vec2 q = (fr * wp) * vec2(7.0, 18.0) + fa * 37.0, qi = floor(q), qf = q - qi, fid = qi; float d1 = 9.0, d2 = 9.0;
+  vec2 q = (fr * wp) * vec2(7.0, 18.0) + fa * 37.0, qi = floor(q), qf = q - qi, fid = qi, fid2 = qi; float d1 = 9.0, d2 = 9.0;
   for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
     vec2 g = vec2(float(i), float(j)), o = vec2(gh(qi + g + 31.0), gh(qi + g + 57.0)) * 0.85 + 0.075, rr = g + o - qf; float d = dot(rr, rr);
-    if (d < d1) { d2 = d1; d1 = d; fid = qi + g; } else if (d < d2) d2 = d;
+    if (d < d1) { d2 = d1; fid2 = fid; d1 = d; fid = qi + g; } else if (d < d2) { d2 = d; fid2 = qi + g; }
   }
-  float cell = gh(fid + 17.0);
-  vec3 crop = cell < 0.24 ? vec3(0.82, 0.68, 0.30) : cell < 0.42 ? vec3(0.44, 0.60, 0.24) : cell < 0.6 ? vec3(0.55, 0.67, 0.32) : cell < 0.72 ? vec3(0.72, 0.62, 0.34) : cell < 0.86 ? vec3(0.54, 0.42, 0.27) : vec3(0.40, 0.31, 0.22);
-  crop *= 0.93 + 0.14 * gh(fid + 3.0);
-  crop = mix(vec3(0.60, 0.58, 0.31), crop, mid);
-  float hedge = (1.0 - smoothstep(0.0, 0.09, sqrt(d2) - sqrt(d1))) * fine;
+  // (each its crop — the colours of a summer's fields, close kin, not paving stones — the edge between two blended,
+  //  furrows drawn down its length close in, and a hedge along some edges, ragged, with gaps)
+  vec3 c1 = cropOf(gh(fid + 17.0)) * (0.95 + 0.1 * gh(fid + 3.0)), c2 = cropOf(gh(fid2 + 17.0)) * (0.95 + 0.1 * gh(fid2 + 3.0));
+  float edge = sqrt(d2) - sqrt(d1);
+  vec3 crop = mix((c1 + c2) * 0.5, c1, smoothstep(0.0, 0.3, edge));
+  float fur = sin(dot(fr * wp, gh(fid + 9.0) < 0.5 ? vec2(0.0, 1.0) : vec2(1.0, 0.0)) * 520.0) * 0.5 + 0.5;
+  crop *= 1.0 - 0.07 * fur * fine * step(0.3, gh(fid + 5.0));
+  crop = mix(vec3(0.60, 0.59, 0.33), crop, mid * 0.8 + 0.2);
+  float hedge = (1.0 - smoothstep(0.0, 0.06, edge)) * fine * step(0.45, gh(fid + fid2 + 11.0)) * smoothstep(0.35, 0.6, gn(wp * 70.0));
   float wood = woodN(wp) - (1.0 - vT.x) * 0.6;
   float open = vT.y * (1.0 - clamp((wood - 0.38) * 8.0, 0.0, 1.0)) * (0.75 + 0.25 * smoothstep(0.3, 0.6, n1));
-  col = mix(col, mix(crop, vec3(0.30, 0.38, 0.20), hedge * 0.6), open * 0.72);
+  col = mix(col, mix(crop, vec3(0.27, 0.36, 0.18), hedge * 0.75), open * 0.7);
   // the woods: dark where the trees stand, the edge crisp and a little ragged; a canopy's dapple close in
   float w = smoothstep(0.5, 0.515, wood + (n1 - 0.5) * 0.02);
   float crown = mix(0.5, mix(gn(wp * 13.0), gn(wp * 13.0) * 0.55 + gn(wp * 31.0) * 0.45, mid), far);
@@ -178,13 +189,19 @@ function groundMaterial() {
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground8";
+  m.customProgramCacheKey = () => "ground9";
   return m;
 }
 const EXAG = 10 / 111 * U;
 // a town's people when nobody's counting (the campaign's own reckoning of a town of its rank, as it starts)
 const POP0 = [0, 8000, 24000, 70000];
 const popEst = (name, rank) => { let h = 7; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return Math.round(POP0[rank] * (0.7 + (h % 600) / 1000) / 100) * 100; };
+// a town's houses for its people (one for every hundred and seventy or so), and the widest water it will bridge
+const CLEAR_CELL = 0.2;
+const houseCount = pop => Math.max(14, Math.min(1000, Math.round(pop / 170)));
+const BRIDGE = 0.32, ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _m4 = new THREE.Matrix4(), _m5 = new THREE.Matrix4();
+// (how many of a town's things in order are built for so many houses: its bridges with them, as it reaches them)
+const shownFor = (items, n) => { let h = 0, i = 0; for (; i < items.length; i++) { if (items[i].house) { if (h >= n) break; h++; } } return i; };
 // how far a town spreads, by its rank (in units: a degree of latitude is ten)
 const TOWN_R = { 1: 0.15, 2: 0.24, 3: 0.36 };
 // a gable roof: unit wide, high and long, the ridge running along z, sitting on y = 0
@@ -245,11 +262,15 @@ export class EuropeView3D {
   setMap(E, homePop = 2, homeName = "Forester's Clearing", walls = null, pops = null) {
     sync();
     const wk = walls ? Object.keys(walls).filter(n => walls[n] > 0).sort().map(n => n + walls[n]).join() : "";
-    // (rebuilt when a town has grown or shrunk by a quarter or so, not at every head counted)
-    let pk = 0; if (pops) for (const n in pops) pk = (pk * 31 + Math.round(Math.log2(Math.max(1, pops[n])) * 4) + n.length) >>> 0;
+    // (a house more or less in any town: built or pulled down, as it happens)
+    let pk = 0; if (pops) for (const n in pops) pk = (pk * 31 + houseCount(pops[n]) + n.length) >>> 0;
     const cq = E.conq, last = cq.length ? cq[cq.length - 1] : null, key = SHEET + (E.rev | 0) + ":" + cq.length + ":" + (last ? last.c + "," + last.r + last.to : "") + "|" + homeName + "|" + wk + "|" + pk;
     const g = buildGrid(E);
     if (this.g && this.mapKey === key) return;
+    // (only the towns' people changed: each town builds out to its new size where you can see it, or a house or two
+    //  comes down — not the whole map laid out afresh)
+    const base = key.slice(0, key.lastIndexOf("|"));
+    if (this.g && this.mapKey && this.mapKey.slice(0, this.mapKey.lastIndexOf("|")) === base && pops && this.grow(pops)) { this.mapKey = key; this.pops = pops; return; }
     this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName; this.walls = walls || {}; this.pops = pops;
     // (the ground itself doesn't change with a conquest — only who holds it: raised once for the sheet)
     if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.baseSheet = SHEET; }
@@ -314,13 +335,45 @@ export class EuropeView3D {
     // the coarse ground under the patch's middle goes under the water, so its rougher coast can't show through the fine one
     this.sinkBase(cx - size / 2 + 6.5, cx + size / 2 - 6.5, cz - size / 2 + 6.5, cz + size / 2 - 6.5);
   }
+  // the towns' people counted afresh: what each has built since shown rising, what it's lost coming down — false if a
+  // town has outgrown what was laid out for it, and the map wants laying out again
+  grow(pops) {
+    for (const [name, T] of this.towns) if (pops[name] && houseCount(pops[name]) > T.cap) return false;
+    const now = performance.now();
+    for (const [name, T] of this.towns) {
+      if (!pops[name]) continue;
+      const to = shownFor(T.items, houseCount(pops[name])); if (to === T.shown) continue;
+      // (one after another, a little apart, the nearest the old town first as they're raised and the last raised first as they fall)
+      const up = to > T.shown, n = Math.abs(to - T.shown), gap = Math.min(220, 4000 / n);
+      for (let j = 0; j < n; j++) { const i = up ? T.shown + j : T.shown - 1 - j, it = T.items[i]; this.growing = this.growing.filter(g => g.it !== it); this.growing.push({ it, t0: now + j * gap, up }); }
+      T.shown = to;
+    }
+    return true;
+  }
+  // (each frame: the houses going up, walls rising out of the ground and the roof on them; or coming down)
+  raise() {
+    if (!this.growing || !this.growing.length) return;
+    const now = performance.now(), dirty = new Set();
+    this.growing = this.growing.filter(g => {
+      let p = Math.max(0, Math.min(1, (now - g.t0) / 1400)); p = p * p * (3 - 2 * p);
+      const s = g.up ? p : 1 - p;
+      for (const [b, k] of g.it.parts) {
+        if (s <= 0.001) b.im.setMatrixAt(k, ZERO);
+        else { _m4.makeTranslation(0, g.it.py, 0).multiply(_m5.makeScale(1, s, 1)).multiply(_m5.makeTranslation(0, -g.it.py, 0)).multiply(b.mats[k]); b.im.setMatrixAt(k, _m4); }
+        dirty.add(b.im);
+      }
+      return now - g.t0 < 1400;
+    });
+    for (const im of dirty) im.instanceMatrix.needsUpdate = true;
+  }
   // the trodden earth of a town's streets and yards: a disc laid over the ground, fading out at its rim
-  townGround(x, z, R, out, rings = 5, seg = 28, a0 = 0.7) {
+  townGround(x, z, R, out, rings = 5, seg = 28, a0 = 0.7, flatY = null) {
     const n0 = out.pos.length / 3;
     for (let i = 0; i <= rings; i++) for (let k = 0; k < (i ? seg : 1); k++) {
       const d = R * i / rings * (i === rings ? 1 : 1 + (hash(i, k, 5) - 0.5) * 0.12), a = k / seg * 6.283, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
-      out.pos.push(px, this.groundY(px, pz) + 0.003, pz);
-      const t = i / rings; out.col.push(0.50, 0.44, 0.35, a0 * (1 - t * t * t));
+      const gy = flatY ?? this.groundY(px, pz); out.pos.push(px, Math.max(0, gy) + 0.003, pz);
+      // (none of it out on the water)
+      const t = i / rings; out.col.push(0.50, 0.44, 0.35, gy < 0.004 ? 0 : a0 * (1 - t * t * t));
     }
     for (let k = 0; k < seg; k++) out.idx.push(n0, n0 + 1 + (k + 1) % seg, n0 + 1 + k);
     for (let i = 1; i < rings; i++) for (let k = 0; k < seg; k++) {
@@ -328,11 +381,11 @@ export class EuropeView3D {
       out.idx.push(a, b, c, b, d, c);
     }
   }
-  // ground kept clear of trees (a town's, its fields close round it): circles, filed by the unit square they touch
+  // ground kept clear of trees (a town's, its fields close round it): circles, filed by the small square they touch
   clear(x, z, r) {
-    for (let gx = Math.floor(x - r); gx <= Math.floor(x + r); gx++) for (let gz = Math.floor(z - r); gz <= Math.floor(z + r); gz++) { const k = gx + "," + gz; (this.clearings.get(k) || this.clearings.set(k, []).get(k)).push([x, z, r]); }
+    const C = CLEAR_CELL; for (let gx = Math.floor((x - r) / C); gx <= Math.floor((x + r) / C); gx++) for (let gz = Math.floor((z - r) / C); gz <= Math.floor((z + r) / C); gz++) { const k = gx * 65536 + gz; (this.clearings.get(k) || this.clearings.set(k, []).get(k)).push([x, z, r]); }
   }
-  cleared(x, z) { const L = this.clearings && this.clearings.get(Math.floor(x) + "," + Math.floor(z)); return !!L && L.some(([cx, cz, cr]) => (x - cx) * (x - cx) + (z - cz) * (z - cz) < cr * cr); }
+  cleared(x, z) { const L = this.clearings && this.clearings.get(Math.floor(x / CLEAR_CELL) * 65536 + Math.floor(z / CLEAR_CELL)); return !!L && L.some(([cx, cz, cr]) => (x - cx) * (x - cx) + (z - cz) * (z - cz) < cr * cr); }
   // how near a town a point is, for its fields: 1 close round it, falling to nought a few of its widths out
   townNear(x, z) {
     if (!this.townSpots || this.townSheet !== SHEET) {
@@ -434,7 +487,10 @@ export class EuropeView3D {
     const grp = this.cityGroup = new THREE.Group();
     // (the thousands of houses, roofs, walls and stakes: one instanced draw for each kind, not a mesh apiece — the
     //  scene's thousands of objects were most of a frame's work)
-    const kinds = new Map(), put = (m, col) => { m.updateMatrix(); const k = m.geometry.uuid + m.material.uuid; let b = kinds.get(k); if (!b) kinds.set(k, b = { geo: m.geometry, mat: m.material, mats: [], cols: [] }); b.mats.push(m.matrix.clone()); b.cols.push(col ?? 0xffffff); };
+    const kinds = new Map(), put = (m, col) => { m.updateMatrix(); const k = m.geometry.uuid + m.material.uuid; let b = kinds.get(k); if (!b) kinds.set(k, b = { geo: m.geometry, mat: m.material, mats: [], cols: [] }); b.mats.push(m.matrix.clone()); b.cols.push(col ?? 0xffffff); return [b, b.mats.length - 1]; };
+    // (the same, with no mesh made for it: the hot path, thousands of times over)
+    const _d = new THREE.Object3D(), putM = (geo, mat, x, y, z, ry, sx, sy, sz, col) => { _d.geometry = geo; _d.material = mat; _d.position.set(x, y, z); _d.rotation.set(0, ry, 0); _d.scale.set(sx, sy, sz); return put(_d, col); };
+    this.towns = new Map(); this.growing = [];
     // (a house a unit box, sized each its own; its roof a gable, the ridge along its length, the eaves a little over the walls)
     const house = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), roof = gable();
     const plaster = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), roofing = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
@@ -456,9 +512,11 @@ export class EuropeView3D {
       if (y0 < -0.1) return;
       // (its people: the campaign's count, or what a town of its rank would have — and the houses as many as house them)
       const pop = isHome ? 0 : (this.pops && this.pops[name]) || popEst(name, rank);
-      const NH = isHome ? 5 : Math.max(14, Math.min(700, Math.round(pop / 170)));
-      // (the old town, inside its walls if it has them: about half the houses, packed close)
-      const spread = isHome ? 0.07 : 0.025 + 0.0105 * Math.sqrt(NH);
+      const NH = isHome ? 5 : houseCount(pop), NH0 = isHome ? 5 : houseCount(popEst(name, rank));
+      // (as many again laid out as it has now, or twice what it started with, for it to grow into — hidden till it does)
+      const CAP = isHome ? 5 : Math.min(1000, Math.max(Math.round(NH * 1.4) + 10, NH0 * 2));
+      // (the old town, inside its walls if it has them: as it was at the start, however the town has grown since)
+      const spread = isHome ? 0.07 : 0.025 + 0.0105 * Math.sqrt(NH0);
       // (a town of the woods' nations: longhouses of bark inside a ring of palisade, no church)
       const woods = own && NATIONS[own] && NATIONS[own].nw;
       if (woods) {
@@ -472,24 +530,35 @@ export class EuropeView3D {
         // it grew most, the streets running on out from the old ones and lanes round between; and least toward the
         // water and the steep ground, where it can't build
         const north = lat > 52 || lon < -45, south = lat < 44, R = spread, S = isHome ? 2 : 5 + rank, a0 = r() * 6.28;
-        const sq = R * 0.13, slots = [], ok = (px, pz, py) => py >= 0.025;
+        const sq = R * 0.13, slots = [], ok = (px, pz, py) => py >= 0.006;
         // (its outline: lumpy, a bulge or two in no set direction, drawn in toward bad ground)
         const p1 = r() * 6.28, p2 = r() * 6.28, lobes = Array.from({ length: 1 + ((r() * 3) | 0) }, () => [r() * 6.283, 0.9 + r() * 1.5, 0.35 + r() * 0.4]);
-        const RMAX = isHome ? R : R * 4.2, land = [];
-        for (let k = 0; k < 16; k++) {
-          const a = k / 16 * 6.283; let good = 0, py = this.groundY(x, z);
-          for (let st = 1; st <= 6; st++) { const d = R * 0.6 + (RMAX - R * 0.6) * st / 6, qx = x + Math.cos(a) * d, qz = z + Math.sin(a) * d, qy = this.groundY(qx, qz); if (!ok(qx, qz, qy) || Math.abs(qy - py) > 0.06 * (RMAX / 6) / 0.1) break; good++; py = qy; }
-          land.push(0.25 + 0.75 * good / 6);
+        const RMAX = isHome ? R : R * 5.2, land = [], reach = [], gaps = [], harb = [], RAYS = 24, RS = Math.max(0.04, RMAX / 22);
+        // (out from the middle each way: how far there's ground to build on — over a river or a lake, if it's narrow enough
+        //  to bridge, but not over the sea; nor up a cliff)
+        for (let k = 0; k < RAYS; k++) {
+          const a = k / RAYS * 6.283, ca = Math.cos(a), sa = Math.sin(a); let good = 0, n = 0, py = this.groundY(x, z), wet = -1, lastDry = 0, far = RMAX;
+          for (let d = R * 0.5; d < RMAX; d += RS) {
+            const qy = this.groundY(x + ca * d, z + sa * d); n++;
+            if (qy < 0.004) { if (wet < 0) wet = lastDry; if (d - wet > BRIDGE) { far = wet; harb[k] = wet; break; } continue; }
+            if (wet >= 0) { if (d - wet > 0.05) gaps.push([a, wet, d, d - wet]); wet = -1; py = qy; }
+            if (Math.abs(qy - py) / RS > 1.25) { far = d; break; }
+            good++; py = qy; lastDry = d;
+          }
+          if (wet >= 0) { far = Math.min(far, wet); harb[k] = wet; }
+          reach.push(far); land.push(0.25 + 0.75 * good / Math.max(1, n));
         }
+        const at = (L, a) => { const f = ((a / 6.283 % 1 + 1) % 1) * RAYS, k = Math.floor(f) % RAYS, t = f - Math.floor(f); return L[k] * (1 - t) + L[(k + 1) % RAYS] * t; };
+        const reachAt = a => { const f = ((a / 6.283 % 1 + 1) % 1) * RAYS, k = Math.round(f) % RAYS; return Math.min(reach[k], reach[(k + 1) % RAYS], reach[(k + RAYS - 1) % RAYS] * 1.2); };
         const shape = a => {
           let v = 0.45 + 0.25 * Math.sin(2 * a + p1) + 0.15 * Math.sin(3 * a + p2);
           for (const [la, ls, lw] of lobes) { let da = Math.abs(a - la) % 6.283; if (da > Math.PI) da = 6.283 - da; v += ls * Math.exp(-(da * da) / (lw * lw)); }
-          const f = ((a / 6.283 % 1 + 1) % 1) * 16, k = Math.floor(f) % 16, t = f - Math.floor(f);
-          return Math.max(0.2, v * (land[k] * (1 - t) + land[(k + 1) % 16] * t));
+          return Math.max(0.2, v * at(land, a));
         };
         // (inside the old town, first; out past it, in the order the outline grows — so more people, the same shape larger)
         const lot = (hx, hz, ang, d, nx = 0, nz = 0) => {
-          const a = Math.atan2(hz - z, hx - x), score = d < R ? d * 0.5 : R * 0.5 + (d - R) / shape(a) * (0.94 + r() * 0.12);
+          const a = Math.atan2(hz - z, hx - x); if (d > R && d > reachAt(a)) return;
+          const score = d < R ? d * 0.5 : R * 0.5 + (d - R) / shape(a) * (0.94 + r() * 0.12);
           slots.push([hx, hz, ang, score, nx, nz, d / R]);
         };
         for (let k = 0; k < S; k++) {
@@ -499,35 +568,80 @@ export class EuropeView3D {
             lot(x + ca * d - sa * off * side, z + sa * d + ca * off * side, -a, d, -sa * side, ca * side);
           }
         }
+        // (a bridge or two over the water it reaches: the narrowest crossings, well apart — each with its street on over it,
+        //  built when the town reaches the far bank)
+        const bridges = [];
+        for (const g of gaps.sort((p, q) => p[3] - q[3])) {
+          if (bridges.length >= 3 || bridges.some(b => { let da = Math.abs(b[0] - g[0]) % 6.283; if (da > Math.PI) da = 6.283 - da; return da < 1.1; })) continue;
+          bridges.push(g); const [a, d1, d2] = g, ca = Math.cos(a), sa = Math.sin(a);
+          slots.push([x + ca * d2, z + sa * d2, -a, (d2 < R ? d2 * 0.5 : R * 0.5 + (d2 - R) / shape(a)) - 0.001, 0, 0, d2 / R, g]);
+          for (let d = d2 + 0.03; d < Math.min(RMAX, d2 + R * 2); d += 0.036) for (const side of [-1, 1]) lot(x + ca * d - sa * 0.015 * side, z + sa * d + ca * 0.015 * side, -a, d, -sa * side, ca * side);
+        }
         // (the lanes round: close in the old town, wider apart out past it, wandering a little)
-        for (let rr = R * (NH > 60 ? 0.42 : 0.55); rr < RMAX; rr += rr < R ? R * 0.3 : 0.075 + r() * 0.03) {
+        for (let rr = R * (NH0 > 60 ? 0.42 : 0.55); rr < RMAX; rr += rr < R ? R * 0.3 : 0.075 + r() * 0.03) {
           const N = Math.round(6.283 * rr / 0.034), wob = r() * 6.28;
           for (let i = 0; i < N; i++) for (const side of [-1, 1]) { const a = i / N * 6.283 + r() * 0.05, d = rr * (1 + Math.sin(a * 3 + wob) * 0.05) + side * 0.013, ca = Math.cos(a), sa = Math.sin(a); lot(x + ca * d, z + sa * d, -a + Math.PI / 2, d, ca * side, sa * side); }
         }
         // (and the blocks between filled in)
-        for (let i = 0; i < (isHome ? 0 : NH * 1.2); i++) { const a = r() * 6.283, d = sq + 0.03 + Math.sqrt(r()) * (RMAX - sq); lot(x + Math.cos(a) * d, z + Math.sin(a) * d, -a + (r() < 0.5 ? 0 : Math.PI / 2), d); }
+        for (let i = 0; i < (isHome ? 0 : CAP * 1.2); i++) { const a = r() * 6.283, d = sq + 0.03 + Math.sqrt(r()) * (RMAX - sq); lot(x + Math.cos(a) * d, z + Math.sin(a) * d, -a + (r() < 0.5 ? 0 : Math.PI / 2), d); }
         slots.sort((p, q) => p[3] - q[3]);
-        const kept = [], keptAt = new Map();
-        for (let [hx, hz, ang, , nx, nz, t] of slots) {
-          if (kept.length >= NH) break;
+        const kept = [], keptAt = new Map(), items = []; let miss = 0;
+        for (let [hx, hz, ang, , nx, nz, t, br] of slots) {
+          if (kept.length >= CAP || miss > 260) break;
+          if (br) {
+            // (a bridge: its deck from bank to bank, a little over the higher of them, on piers stood in the water)
+            const [a, d1, d2] = br, ca = Math.cos(a), sa = Math.sin(a), y1 = this.groundY(x + ca * d1, z + sa * d1), y2 = this.groundY(x + ca * d2, z + sa * d2);
+            const dy = Math.max(y1, y2, 0.02) + 0.008, len = d2 - d1 + 0.04, mx = x + ca * (d1 + d2) / 2, mz = z + sa * (d1 + d2) / 2, parts = [];
+            parts.push(putM(house, plaster, mx, dy - 0.006, mz, -a, len, 0.006, 0.024, 0xa89e8c));
+            for (let d = d1 + 0.04; d < d2 - 0.02; d += 0.05) parts.push(putM(house, plaster, x + ca * d, -0.06, z + sa * d, -a, 0.009, dy + 0.054, 0.028, 0x958b7a));
+            items.push({ parts, py: -0.06, house: false });
+            continue;
+          }
           const gk = (Math.floor(hx / 0.03) + 9999) * 99991 + Math.floor(hz / 0.03); let near = false;
           for (let u = -1; u <= 1 && !near; u++) for (let v = -1; v <= 1 && !near; v++) { const L = keptAt.get(gk + u * 99991 + v); if (L) near = L.some(([kx, kz]) => (kx - hx) * (kx - hx) + (kz - hz) * (kz - hz) < 0.00045); }
           if (near) continue;
           const core = Math.max(0, 1 - t * 1.4), w = 0.022 + r() * 0.008, l = 0.03 + r() * 0.016 + core * 0.01;
           hx += nx * l / 2; hz += nz * l / 2; const hy = this.groundY(hx, hz);
           // (no house in the water, nor hung on a cliff)
-          if (!ok(hx, hz, hy) || Math.abs(hy - this.groundY(hx + nx * 0.03, hz + nz * 0.03)) > 0.02) continue;
-          kept.push([hx, hz]); (keptAt.get(gk) || keptAt.set(gk, []).get(gk)).push([hx, hz]);
+          if (!ok(hx, hz, hy) || t > 1 && Math.abs(hy - this.groundY(hx + nx * 0.03, hz + nz * 0.03)) > 0.04) { miss++; continue; }
+          miss = 0; kept.push([hx, hz]); (keptAt.get(gk) || keptAt.set(gk, []).get(gk)).push([hx, hz]);
           const ht = 0.018 + core * (0.016 + r() * 0.012) + r() * 0.005;
-          const hm = new THREE.Mesh(house, plaster); hm.position.set(hx, hy - 0.004, hz); hm.rotation.y = ang; hm.scale.set(w, ht + 0.004, l);
-          put(hm, WALLS[(r() * WALLS.length) | 0]);
+          const parts = [putM(house, plaster, hx, hy - 0.004, hz, ang, w, ht + 0.004, l, WALLS[(r() * WALLS.length) | 0])];
           const pal = north ? (r() < 0.55 ? SLATES : TILES) : t > 0.9 && r() < 0.35 ? THATCH : TILES;
-          const rm = new THREE.Mesh(roof, roofing); rm.position.set(hx, hy + ht, hz); rm.rotation.y = ang; rm.scale.set(w * 1.18, (south ? 0.45 : 0.75) * w, l * 1.08);
-          put(rm, pal[(r() * pal.length) | 0]);
-                    // (out past the old town, a yard's trodden ground round each house)
-          if (Math.hypot(hx - x, hz - z) > R) { this.clear(hx, hz, 0.09); this.townGround(hx, hz, 0.05, groundBits, 1, 8, 0.45); }
+          parts.push(putM(roof, roofing, hx, hy + ht, hz, ang, w * 1.18, (south ? 0.45 : 0.75) * w, l * 1.08, pal[(r() * pal.length) | 0]));
+          items.push({ parts, py: hy - 0.004, house: true });
+          // (out past the old town, a yard's trodden ground round each house — the fields kept clear for those to come)
+          if (Math.hypot(hx - x, hz - z) > R) { this.clear(hx, hz, 0.09); if (kept.length <= NH) this.townGround(hx, hz, 0.05, groundBits, 1, 8, 0.45, hy); }
         }
+        this.towns.set(name, { items, cap: CAP, shown: shownFor(items, NH) });
         this.clear(x, z, R * 1.15 + 0.04);
+        // the docks, where the town comes down to open water: a stone quay along the shore, wooden jetties run out from
+        // it into the water, and boats tied up alongside them
+        if (!isHome) {
+          const shore = [];
+          for (let k = 0; k < RAYS; k++) {
+            if (harb[k] == null || harb[k] > R * 1.9) continue;
+            const a = k / RAYS * 6.283, ca = Math.cos(a), sa = Math.sin(a); let d = Math.max(0.01, harb[k] - RS);
+            while (d < harb[k] + RS * 2 && this.groundY(x + ca * d, z + sa * d) >= 0.004) d += 0.006;
+            shore[k] = [x + ca * d, z + sa * d, a];
+          }
+          let jet = 0;
+          for (let k = 0; k < RAYS; k++) {
+            const p0 = shore[k]; if (!p0) continue;
+            const p1 = shore[(k + 1) % RAYS];
+            if (p1) { const dx = p1[0] - p0[0], dz = p1[1] - p0[1], len = Math.hypot(dx, dz); if (len < 0.18) putM(house, plaster, (p0[0] + p1[0]) / 2, -0.03, (p0[1] + p1[1]) / 2, -Math.atan2(dz, dx), len + 0.01, 0.042, 0.016, 0x8f877a); }
+            if (k % 2 || jet >= 6) continue; jet++;
+            const [sx, sz, a] = p0, ca = Math.cos(a), sa = Math.sin(a), L = 0.06 + r() * 0.06;
+            putM(house, plaster, sx + ca * L / 2, -0.03, sz + sa * L / 2, -a, L, 0.038, 0.011, 0x6e5640);
+            // (a boat or two at it: a hull, and its mast)
+            for (const side of [-1, 1]) {
+              if (r() < 0.35) continue;
+              const t = L * (0.45 + r() * 0.4), bx = sx + ca * t - sa * 0.017 * side, bz = sz + sa * t + ca * 0.017 * side;
+              putM(house, plaster, bx, -0.004, bz, -a, 0.034, 0.009, 0.011, 0x4e3a2a);
+              putM(house, plaster, bx, 0.004, bz, -a, 0.0025, 0.045, 0.0025, 0x3b2c20);
+            }
+          }
+        }
         // the trodden ground of the streets and yards under it all
         this.townGround(x, z, R * 1.1, groundBits);
       }
@@ -539,10 +653,11 @@ export class EuropeView3D {
         for (let i = 0; i < N; i++) {
           const a = (i + 0.5) / N * 6.283; if (Math.abs(Math.sin(a)) < 0.05 && Math.cos(a) > 0) continue;
           const sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R, m = new THREE.Mesh(curtain, masonry);
+          if (this.groundY(sx, sz) < 0.004) continue;                    // (no wall out in the water: the harbour's open)
           m.scale.x = seg; m.position.set(sx, this.groundY(sx, sz) - 0.004, sz); m.rotation.y = -a - Math.PI / 2; put(m);
         }
         const B = wl >= 2 ? 8 : 6;
-        for (let i = 0; i < B; i++) { const a = i / B * 6.283 + 0.3, bx = x + Math.cos(a) * (R + (wl >= 2 ? 0.012 : 0.004)), bz = z + Math.sin(a) * (R + (wl >= 2 ? 0.012 : 0.004)), m = new THREE.Mesh(bastion, masonry); m.position.set(bx, this.groundY(bx, bz) - 0.004, bz); m.rotation.y = -a + Math.PI / 4; if (wl >= 2) m.scale.set(1.4, 1, 1.4); put(m); }
+        for (let i = 0; i < B; i++) { const a = i / B * 6.283 + 0.3, bx = x + Math.cos(a) * (R + (wl >= 2 ? 0.012 : 0.004)), bz = z + Math.sin(a) * (R + (wl >= 2 ? 0.012 : 0.004)), m = new THREE.Mesh(bastion, masonry); if (this.groundY(bx, bz) < 0.004) continue; m.position.set(bx, this.groundY(bx, bz) - 0.004, bz); m.rotation.y = -a + Math.PI / 4; if (wl >= 2) m.scale.set(1.4, 1, 1.4); put(m); }
       }
       // a church, or a cathedral
       // (on the square: its nave, long under its roof, and the tower at the west end — a cathedral's twice the size)
@@ -569,7 +684,9 @@ export class EuropeView3D {
     for (const ct of CITIES) place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false);
     // (your own clearing — not on a campaign's map, which has none)
     if (this.homeName !== null) { const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL); place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true); }
-    for (const b of kinds.values()) { const im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => { im.setMatrixAt(i, m); if (b.mat === plaster || b.mat === roofing) im.setColorAt(i, _c.setHex(b.cols[i])); }); im.computeBoundingSphere(); grp.add(im); }
+    for (const b of kinds.values()) { const im = b.im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => { im.setMatrixAt(i, m); if (b.mat === plaster || b.mat === roofing) im.setColorAt(i, _c.setHex(b.cols[i])); }); im.computeBoundingSphere(); grp.add(im); }
+    // (what a town hasn't built yet, out of sight till it does)
+    for (const T of this.towns.values()) for (let i = T.shown; i < T.items.length; i++) for (const [b, k] of T.items[i].parts) b.im.setMatrixAt(k, ZERO);
     if (groundBits.pos.length) {
       const gg = new THREE.BufferGeometry(); gg.setAttribute("position", new THREE.Float32BufferAttribute(groundBits.pos, 3)); gg.setAttribute("color", new THREE.Float32BufferAttribute(groundBits.col, 4)); gg.setIndex(groundBits.idx); gg.computeVertexNormals();
       const gm = new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
@@ -704,7 +821,7 @@ export class EuropeView3D {
     // (the near plane drawn back as the eye goes up, so the sea and the low coast don't fight over the same depth)
     const nr = Math.max(0.01, this.dist * 0.004); if (Math.abs(this.camera.near - nr) > nr * 0.1) { this.camera.near = nr; this.camera.updateProjectionMatrix(); }
     if (!this.visible || !this.g) return;
-    this.buildDetail(); this.treesNear();
+    this.buildDetail(); this.treesNear(); this.raise();
     const ty = Math.max(0, this.groundY(this.target.x, this.target.z));
     // from the south, looking north and down; lower and flatter as you come in close
     const pitch = 0.55 + Math.min(1, this.dist / 40) * 0.5;
