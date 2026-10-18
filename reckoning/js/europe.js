@@ -586,7 +586,7 @@ function drawCities(c, g, S, v, W, H, opt = {}) {
   // (the pictures drawn north to south, so a town further down the sheet stands in front of the one behind it; a
   //  little larger close in)
   const u = k * Math.min(2.3, 1.15 + v.z / (opt.zf || 1) * 0.22);
-  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 4.5 : ct[3] === 2 ? 2.5 : 2) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]], pop: opt.pop && opt.pop[ct[0]] }); taken.push([x - hw, y - hw, x + hw, y + hw]); }
+  for (const [ct, x, y] of [...at].sort((a, b) => a[2] - b[2])) { const own = cityOwner(g, ct), hw = (ct[3] === 3 ? 4.5 : ct[3] === 2 ? 2.5 : 2) * u; townGlyph(c, x, y, u, ct[3], own, { mine: opt.me && own === opt.me, walled: opt.walled && opt.walled[ct[0]], walledKnown: !!opt.walled, pop: opt.pop && opt.pop[ct[0]] }); taken.push([x - hw, y - hw, x + hw, y + hw]); }
   for (const [ct, x, y] of at) {
     const [n, , , rank] = ct;
     c.font = rank === 3 ? `${Math.round(k * 15)}px ${FELL}` : `italic ${Math.round(k * (rank === 2 ? 14 : 13))}px ${FELL}`;
@@ -615,10 +615,14 @@ function townGlyph(c, x, y, u, rank, own, opt = {}) {
     c.save(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
     if (rank === 3) { c.strokeStyle = INK; c.lineWidth = Math.max(0.6, u * 0.45); c.beginPath(); c.arc(x, y, r + 1.3 * u, 0, 7); c.stroke(); }
     if (opt.mine) { c.strokeStyle = "#b8862a"; c.lineWidth = Math.max(0.8, u * 0.7); c.beginPath(); c.arc(x, y, r + (rank === 3 ? 2.6 : 1.2) * u, 0, 7); c.stroke(); }
+    // (walled: the outline of a star fort round the dot — its bastions' points — so walls show even zoomed out)
+    if (opt.walledKnown ? opt.walled : false) { const R0 = r + (rank === 3 ? 3.6 : 2.4) * u, R1 = R0 * 0.72; c.strokeStyle = INK; c.fillStyle = "rgba(120,110,95,0.35)"; c.lineWidth = Math.max(0.7, u * 0.55); c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2 - Math.PI / 2, rr = i % 2 ? R1 : R0; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } c.closePath(); c.fill(); c.stroke(); c.fillStyle = INK; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
     c.restore(); return;
   }
-  const woods = own && NATIONS[own] && NATIONS[own].nw, walled = !woods && (opt.walled || rank === 3);
-  const lw = Math.max(0.7, u * 0.75), roof = "rgba(150,72,48,0.92)", wall = "#efe4c6", stone = "#d8ccb0";
+  // (on a campaign's map, walls only where they stand — the card and the picture agree; elsewhere a crown's seat is
+  //  drawn walled, as the old sheets drew it)
+  const woods = own && NATIONS[own] && NATIONS[own].nw, walled = !woods && (opt.walledKnown ? !!opt.walled : (opt.walled || rank === 3));
+  const lw = Math.max(0.7, u * 0.75), roof = "rgba(150,72,48,0.92)", wall = "#efe4c6", stone = "#9d9381";
   c.save(); c.lineJoin = "round"; c.lineCap = "round"; c.strokeStyle = INK; c.lineWidth = lw;
   const base = y + 2.5 * u;
   // (its shadow on the paper: a soft smudge to the south-east, so it stands up off the map)
@@ -650,10 +654,10 @@ function townGlyph(c, x, y, u, rank, own, opt = {}) {
     }
   } else if (rank === 2) {
     house(x - 4.2 * u, 3.6 * u, 4 * u); house(x + 4 * u, 3.4 * u, 3.6 * u); top = church(x, 5.2 * u, 5 * u);
-    if (walled) { c.fillStyle = stone; c.beginPath(); c.rect(x - 7 * u, base - 2.2 * u, 14 * u, 2.2 * u); c.fill(); c.stroke(); for (let m = -6; m <= 6; m += 2) { c.beginPath(); c.rect(x + m * u - 0.45 * u, base - 2.9 * u, 0.9 * u, 0.7 * u); c.fill(); c.stroke(); } }
+    if (walled) { c.fillStyle = stone; c.beginPath(); c.rect(x - 7 * u, base - 2.6 * u, 14 * u, 2.6 * u); c.fill(); c.stroke(); for (let m = -5; m <= 5; m += 2) { c.beginPath(); c.rect(x + m * u - 0.45 * u, base - 3.3 * u, 0.9 * u, 0.7 * u); c.fill(); c.stroke(); } for (const tx of [-7.5, 7.5]) { c.beginPath(); c.rect(x + tx * u - 1.4 * u, base - 4.6 * u, 2.8 * u, 4.6 * u); c.fill(); c.stroke(); } }
   } else {
     house(x - 2.4 * u, 3.2 * u, 3.2 * u); top = church(x + 2 * u, 3.8 * u, 3.6 * u);
-    if (walled) { c.fillStyle = stone; c.beginPath(); c.rect(x - 5 * u, base - 1.8 * u, 10 * u, 1.8 * u); c.fill(); c.stroke(); }
+    if (walled) { c.fillStyle = stone; c.beginPath(); c.rect(x - 5 * u, base - 2.2 * u, 10 * u, 2.2 * u); c.fill(); c.stroke(); for (const tx of [-5.5, 5.5]) { c.beginPath(); c.rect(x + tx * u - 1.2 * u, base - 3.8 * u, 2.4 * u, 3.8 * u); c.fill(); c.stroke(); } }
   }
   // the ground line it stands on
   c.beginPath(); c.moveTo(x - (rank === 3 ? 10 : rank === 2 ? 8 : 6) * u, base); c.lineTo(x + (rank === 3 ? 10 : rank === 2 ? 8 : 6) * u, base); c.stroke();

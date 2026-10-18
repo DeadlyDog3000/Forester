@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.89.3", date: "18 October 2026", title: "Battles at sea, walls you can see",
+    items: [
+      "Campaign: fleets at war fight when they meet. An enemy fleet that sails up to yours always attacks; before, it often just lay alongside. Two fleets at war that end the year beside each other fight, whoever sailed to whom.",
+      "Campaign: a fleet can't slip past an enemy fleet any more. If its course passes yours anywhere along the way (the Channel, say), it's stopped there and the two fight. The same goes for your own fleets sailing past theirs, and the order tells you so.",
+      "Campaign: an enemy crossing to your shores is stopped by any fleet of yours in that stretch of sea, not only one lying right on its course. Transports without an escort are caught at sea and lose men, and the rest put back to port.",
+      "Campaign: an enemy fleet too weak to fight yours no longer sails up to it only to sit there.",
+      "Campaign map: walled towns have a ring of grey stone and battlements round their badge, and the new star forts have points. A crown's capital is no longer drawn walled when it has no walls, so the map and the town's card agree.",
+      "Campaign 3D map: ports whose spot fell on the water (Moose Factory, New York, Stockholm, Copenhagen and others) now stand on the nearest shore, houses and all, instead of in the bay.",
+    ],
+  },
+  {
     v: "1.89.2", date: "18 October 2026", title: "Names in view",
     items: [
       "Campaign: on the 3D map, the town names come down toward the roofs as you zoom in, so a town's name stays in view close up instead of floating off the top of the screen.",

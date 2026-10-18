@@ -460,6 +460,15 @@ const worth = ct => { const n = ct[0]; let inc = ct[3] * 22 * clamp(Math.sqrt(po
 function garrison(ct) { const n = ct[0], v = govOf(n), o = cityOwner(grid(), ct), sl = o === C.me ? C : o && isHuman(o) ? sliceOf(o) : null; return Math.round(garUnits(n, sl ? sl.units : null).reduce((t, u) => t + u.hp, 0)) + ct[3] * 4 + 2 + (CHAINS.walls.levels[lvOf(n, "walls")].gar || 0) + (CHAINS.army.levels[lvOf(n, "army")].gar || 0) + (v ? v.st[2] - 2 : 0); }
 // (walls only where they've been built — by you, or by the crown that holds the town — save a crown's last town,
 //  which every man in it holds to the end behind whatever they can throw up)
+// (a walled town's badge on the map: a ring of grey stone round it, with its battlements — a star fort's points for the
+//  new works — so a wall can be told at a glance)
+function wallRing(c, x, y, rr, k, lv) {
+  const R = rr + 2.6 * k; c.save(); c.strokeStyle = "#2a2018"; c.fillStyle = "#9d9381"; c.lineWidth = 1 * k;
+  if (lv >= 2) { c.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2 - Math.PI / 2, r2 = i % 2 ? R + 0.6 * k : R + 3.6 * k; c.lineTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2); } c.closePath(); c.fill(); c.stroke(); }
+  c.beginPath(); c.arc(x, y, R + 1.6 * k, 0, 7); c.arc(x, y, rr + 0.6 * k, 0, 7, true); c.fill("evenodd"); c.beginPath(); c.arc(x, y, R + 1.6 * k, 0, 7); c.stroke(); c.beginPath(); c.arc(x, y, rr + 0.6 * k, 0, 7); c.stroke();
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, mx = x + Math.cos(a) * (R + 2.3 * k), my = y + Math.sin(a) * (R + 2.3 * k); c.save(); c.translate(mx, my); c.rotate(a); c.fillRect(-0.9 * k, -1.1 * k, 1.8 * k, 2.2 * k); c.strokeRect(-0.9 * k, -1.1 * k, 1.8 * k, 2.2 * k); c.restore(); }
+  c.restore();
+}
 function hasWalls(ct, owner, g = grid()) { return lvOf(ct[0], "walls") >= 1 || (!!owner && !NATIONS[owner].nw && citiesOfNow(g, owner).length === 1); }
 // (a town of the woods' nations: a palisade round it, fought in as a village)
 const isVillage = ct => { const o = cityOwner(grid(), ct); return !!o && !!NATIONS[o].nw && !lvOf(ct[0], "walls"); };
@@ -973,6 +982,11 @@ function alongPts(P, f) {
 }
 // (as far along it as a year's sailing goes: the New World drawn larger, as for marches)
 function sailAlong(path, range = SAIL) { let d = 0, i = 1; for (; i < path.length; i++) { const st = dist2(path[i - 1], path[i]) / magAt(path[i]); if (d + st > range) break; d += st; } return { at: path[i - 1], arrived: i >= path.length, len: path.reduce((t, p, j) => j ? t + dist2(path[j - 1], p) / magAt(p) : 0, 0) }; }
+// (a voyage that passes within hail of a fleet it's at war with, anywhere along the way it sails this year: stopped
+//  there, and the two fight — a fleet can't slip through the Channel past the enemy's lying in it)
+function crossed(p, st, others) { const end = p.indexOf(st.at), last = end < 0 ? p.length - 1 : end; for (let i = 0; i <= last; i++) for (const o of others) if (dist2(p[i], o.pos) <= CONTACT) return { at: p[i], o }; return null; }
+const foesAfloat = () => Object.entries(C.foeFleets || {}).filter(([id, F]) => F && F.ships && F.ships.length && atWar(id)).map(([id, F]) => ({ pos: F.pos, id }));
+function metAtSea(f, cut) { f.pos = { x: cut.at.x, y: cut.at.y }; f.go = null; if (!C.events.some(e => !e.done && e.kind === "seabattle" && e.foe === cut.o.id)) { C.events.push({ kind: "seabattle", foe: cut.o.id, fid: f.id }); say(`The ${fleetName(f).toLowerCase()} meets ${poss(the(cut.o.id))} fleet`, "They sight each other's topsails and close: a battle at sea."); } }
 const fleetById = id => (C.fleets || []).find(f => f.id === id);
 const fleetCap = f => f.ships.reduce((t, s) => t + SHIPS[s.k].cap, 0);
 const gunsOf = ships => ships.reduce((t, s) => t + SHIPS[s.k].guns * (0.4 + 0.6 * s.hp), 0);
@@ -1019,7 +1033,7 @@ function fleetsStart(g) {
     // (sent to join another fleet: following it wherever it has gone)
     const J = f.joinTo != null && C.fleets.find(x => x.id === f.joinTo && x !== f); if (f.joinTo != null && !J) f.joinTo = null;
     if (J && dist2(J.pos, f.pos) > 4) f.go = { x: J.pos.x, y: J.pos.y };
-    if (f.go) { const p = seaPath(g, f.pos, f.go); if (!p) { f.go = null; continue; } const st = sailAlong(p); f.pos = { x: st.at.x, y: st.at.y }; if (st.arrived && !J) { f.go = null; say(`The ${fleetName(f).toLowerCase()} arrives`, "It's where you sent it."); } f.moved = true; syncAboard(f); }
+    if (f.go) { const p = seaPath(g, f.pos, f.go); if (!p) { f.go = null; continue; } const st = sailAlong(p), cut = crossed(p, st, foesAfloat()); if (cut) { metAtSea(f, cut); f.moved = true; syncAboard(f); continue; } f.pos = { x: st.at.x, y: st.at.y }; if (st.arrived && !J) { f.go = null; say(`The ${fleetName(f).toLowerCase()} arrives`, "It's where you sent it."); } f.moved = true; syncAboard(f); }
   }
   for (const f of [...(C.fleets || [])]) { const J = f.joinTo != null && C.fleets.find(x => x.id === f.joinTo && x !== f); if (J && dist2(J.pos, f.pos) <= 4) { mergeFleet(f, J); say(`The ${fleetName(f).toLowerCase()} joins the ${fleetName(J).toLowerCase()}`, `${J.ships.length} ships now sail together.`); } }
 }
@@ -1027,7 +1041,9 @@ function fleetsStart(g) {
 function sail(fid, t) {
   const g = grid(), f = fleetById(fid); if (!f) return "No such fleet."; if (f.moved) return "That fleet has already sailed this year.";
   const p = seaPath(g, f.pos, t); if (!p) return onLake(g, f.pos) ? "The fleet can't sail there: its lake doesn't reach it." : "The fleet can't sail there: the sea doesn't reach it.";
-  const st = sailAlong(p); f.pos = { x: st.at.x, y: st.at.y }; f.go = st.arrived ? null : { x: p[p.length - 1].x, y: p[p.length - 1].y }; f.moved = true; syncAboard(f); persist();
+  const st = sailAlong(p), cut = crossed(p, st, foesAfloat());
+  if (cut) { metAtSea(f, cut); f.moved = true; syncAboard(f); persist(); return null; }
+  f.pos = { x: st.at.x, y: st.at.y }; f.go = st.arrived ? null : { x: p[p.length - 1].x, y: p[p.length - 1].y }; f.moved = true; syncAboard(f); persist();
   return null;
 }
 // (two fleets of yours made one: the ships, and any army aboard, into the other; the first fleet struck from the list)
@@ -1099,9 +1115,27 @@ function navyHunt(g, ids) {
   const mine = (C.fleets || []).filter(f => f.ships.length); if (!mine.length) return;
   for (const id of ids) {
     const F = C.foeFleets && C.foeFleets[id]; if (!F || !F.ships.length || !atWar(id) || F.hunt === C.year || (C.mp && F.prey !== C.me)) continue;
-    const tg = mine.reduce((b, f) => (dist2(f.pos, F.pos) < dist2(b.pos, F.pos) ? f : b)), p = seaPath(g, F.pos, tg.pos); if (!p) continue;
-    const st = sailAlong(p, SAIL * 0.8); F.pos = { x: st.at.x, y: st.at.y }; F.hunt = C.year;
-    if (st.arrived && gunsOf(F.ships) > gunsOf(tg.ships) * 0.7 && R() < 0.6 && !C.events.some(e => !e.done && e.kind === "seabattle" && e.foe === id)) C.events.push({ kind: "seabattle", foe: id, fid: tg.id });
+    const tg = mine.reduce((b, f) => (dist2(f.pos, F.pos) < dist2(b.pos, F.pos) ? f : b));
+    // (a fleet too weak to seek a battle keeps to its own waters: it doesn't sail up to yours only to lie there)
+    if (gunsOf(F.ships) <= gunsOf(tg.ships) * 0.7) continue;
+    const p = seaPath(g, F.pos, tg.pos); if (!p) continue;
+    const st = sailAlong(p, SAIL * 0.8), cut = crossed(p, st, mine.map(f => ({ pos: f.pos, f }))); F.hunt = C.year;
+    // (come up with yours — the one it sought, or another lying on its way: it falls on it, always; a fleet doesn't
+    //  sail up to an enemy's to look at it)
+    F.pos = cut ? { x: cut.at.x, y: cut.at.y } : { x: st.at.x, y: st.at.y };
+    const hit = cut ? cut.o.f : st.arrived || dist2(F.pos, tg.pos) <= CONTACT ? tg : null;
+    if (hit && !C.events.some(e => !e.done && e.kind === "seabattle" && e.foe === id)) C.events.push({ kind: "seabattle", foe: id, fid: hit.id });
+  }
+}
+// (two fleets at war that end the year alongside each other, whoever sailed up to whom: a battle, not a year of the
+//  two lying a cable apart)
+const CONTACT = 8;
+function seaContact(ids) {
+  const mine = (C.fleets || []).filter(f => f.ships.length); if (!mine.length) return;
+  for (const id of ids) {
+    const F = C.foeFleets && C.foeFleets[id]; if (!F || !F.ships.length || !atWar(id) || C.events.some(e => !e.done && e.kind === "seabattle" && e.foe === id)) continue;
+    const near = mine.filter(f => dist2(f.pos, F.pos) <= CONTACT).sort((a, b) => dist2(a.pos, F.pos) - dist2(b.pos, F.pos))[0];
+    if (near) C.events.push({ kind: "seabattle", foe: id, fid: near.id });
   }
 }
 // (an enemy fleet your fleet can fall on this year)
@@ -1159,6 +1193,8 @@ function seaEnd(fid, foe, res) {
 }
 // ---- an invasion over the narrow seas: an enemy army taking ship for a town of yours across the Channel, the North Sea or
 //  the Mediterranean — and turned back by a fleet of yours that lies in its way ----
+// (how far off the crossing a fleet of yours still stands in its way: the same stretch of sea, not only the line)
+const GUARD_SEA = 60;
 const narrowSea = (a, b) => seaSide(a) === seaSide(b) && mdist(a, b) <= MARCH * 2.5;
 // (how near a point lies to the crossing, from one shore to the other)
 const offLine = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy || 1, t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / L, 0, 1); return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t); };
@@ -1166,9 +1202,9 @@ function invade(id, fp, ct) {
   const tc = cellXY(ct); if (!narrowSea(fp, tc)) return false;
   if (C.invade && C.invade.foe === id) { if (C.events.some(e => !e.done && e.kind === "seabattle" && e.foe === id)) return true; C.invade = null; }
   // (your fleet in the way: the nearest of yours to the crossing, if any lies close to it)
-  const guard = (C.fleets || []).filter(f => f.ships.length && offLine(f.pos, fp, tc) <= 14).sort((a, b) => offLine(a.pos, fp, tc) - offLine(b.pos, fp, tc))[0];
+  const guard = (C.fleets || []).filter(f => f.ships.length && offLine(f.pos, fp, tc) <= GUARD_SEA).sort((a, b) => offLine(a.pos, fp, tc) - offLine(b.pos, fp, tc))[0];
   const F = C.foeFleets && C.foeFleets[id];
-  if (guard && !(F && F.ships.length)) { say(`Your ${fleetName(guard).toLowerCase()} turns back ${poss(the(id))} transports`, `${The(id)} ${v3(id, "gathers")} ships to carry ${NATIONS[id].nw ? "its warriors" : "its army"} over to ${ct[0]}, but with no fleet of ${NATIONS[id].nw ? "their" : "its"} own to beat yours off, the crossing can't be made.`); return true; }
+  if (guard && !(F && F.ships.length)) { const lost = Math.max(1, Math.round((C.foes[id] | 0) * 0.12)); C.foes[id] = Math.max(0, (C.foes[id] | 0) - lost); (C.foeBeat ||= {})[id] = C.year; say(`Your ${fleetName(guard).toLowerCase()} falls on ${poss(the(id))} transports`, `${The(id)} ${v3(id, "tries")} to carry ${NATIONS[id].nw ? "its warriors" : "its army"} over to ${ct[0]} with no fleet to cover the crossing. Your ships catch the transports at sea: ${knowsArmy(id) ? `${lost} regiments` : "many of its men"} drowned or taken, and the rest put back to port.`); return true; }
   if (guard) {
     // (their fleet must beat yours first: the battle at sea, and the crossing on its outcome)
     F.pos = { x: guard.pos.x + 0.6, y: guard.pos.y + 0.6 }; C.invade = { foe: id, ct: ct[0], fid: guard.id };
@@ -1863,7 +1899,7 @@ function endSeason(part = {}) {
   // (the year's works finished first: what was put in hand this year stands at its end)
   if (world) realmWorld(g, ids);
   if (world) foeNavies(g, ids);
-  if (mine && !C.over) { C.gold += income(g) - upkeep(); vassalsYear(g); realmMine(g); missionsCheck(true); govYear(g); launchShips(g); fleetsYear(g); navyHunt(g, ids);
+  if (mine && !C.over) { C.gold += income(g) - upkeep(); vassalsYear(g); realmMine(g); missionsCheck(true); govYear(g); launchShips(g); fleetsYear(g); navyHunt(g, ids); seaContact(ids);
   if (C.gold < 0) { const lose = Math.ceil(-C.gold / REGIMENT); C.army = Math.max(0, C.army - lose); C.gold = 0; moraleMove(-15); say("The pay chest is empty", `${lose} regiments desert for want of pay.`); } }
   if (world) coloniesYear(g);
   // (the other crowns: their armies made up again; their tempers going back to where their faith puts them)
@@ -2367,7 +2403,7 @@ function paint() {
   const c = cv.getContext("2d"), S = cv.width / MG_W, k = cv.width / 1300, at = ct => { const [x, y] = gridOf(ct[1], ct[2]); return [(x * S - view.ox) * view.z, (y * S - view.oy) * view.z]; };
   if (loyMap) paintLoyalty(c, g, S, k, at);
   // (close in: each town's good, small, beside its dot; a port of yours shut by an enemy fleet, a red ring round it)
-  if (view.z >= 2.2) { const sz = Math.min(28, 12 + view.z * 2) * k; c.save(); c.globalAlpha = 1; c.globalCompositeOperation = "source-over"; c.setTransform(1, 0, 0, 1, 0, 0); for (const ct of CITIES) { const [x, y] = at(ct); if (x < -20 || y < -20 || x > cv.width + 20 || y > cv.height + 20) continue; const im = goodPic(goodOf(ct)); if (im.complete && im.naturalWidth) { const bx = x + 6 * k + sz / 2, by = y - sz / 2 - 4 * k, rr = sz * 0.62; c.fillStyle = "rgba(30,22,14,0.82)"; c.strokeStyle = "#c9a45a"; c.lineWidth = 1.3 * k; c.beginPath(); c.arc(bx, by, rr, 0, 7); c.fill(); c.stroke(); c.drawImage(im, bx - sz * 0.48, by - sz * 0.48, sz * 0.96, sz * 0.96); } } c.restore(); }
+  if (view.z >= 2.2) { const sz = Math.min(28, 12 + view.z * 2) * k; c.save(); c.globalAlpha = 1; c.globalCompositeOperation = "source-over"; c.setTransform(1, 0, 0, 1, 0, 0); for (const ct of CITIES) { const [x, y] = at(ct); if (x < -20 || y < -20 || x > cv.width + 20 || y > cv.height + 20) continue; const im = goodPic(goodOf(ct)); if (im.complete && im.naturalWidth) { const bx = x + 6 * k + sz / 2, by = y - sz / 2 - 4 * k, rr = sz * 0.62; c.fillStyle = "rgba(30,22,14,0.82)"; c.strokeStyle = "#c9a45a"; c.lineWidth = 1.3 * k; c.beginPath(); c.arc(bx, by, rr, 0, 7); c.fill(); c.stroke(); { const wl = lvOf(ct[0], "walls"); if (wl) wallRing(c, bx, by, rr, k, wl); } c.drawImage(im, bx - sz * 0.48, by - sz * 0.48, sz * 0.96, sz * 0.96); } } c.restore(); }
   for (const ct of citiesOfNow(g, C.me)) if (blockader(ct)) { const [x, y] = at(ct); c.save(); c.strokeStyle = "#c0281a"; c.lineWidth = 2.2 * k; c.setLineDash([3 * k, 2 * k]); c.beginPath(); c.arc(x, y, 9 * k, 0, 7); c.stroke(); c.restore(); }
   const threat = new Set(C.events.filter(e => e.kind === "attack" && !e.done).map(e => e.ct));
   // (crossed swords, drawn: two blades and their guards)
@@ -3014,7 +3050,7 @@ function apply(actor, a) {
     if (a.k === "ship") { const why = buildShip(a.t, a.u); return why ? { note: why } : { sfx: [["coin", 0.45], ["hammer", 0.3, 300]] }; }
     if (a.k === "unship") { unbuildShip(a.t); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "fjoin") { const f = fleetById(a.id), T = fleetById(a.to); if (!f || !T) return null; const nm = fleetName(T).toLowerCase(), why = fleetJoin(a.id, a.to); if (why) return { note: why }; return fleetById(a.id) ? { note: `The ${fleetName(f).toLowerCase()} is under sail to join the ${nm}, and joins it when it gets there.`, sfx: [["bell", 0.35]] } : { note: `The two fleets sail as one: the ${nm}, ${T.ships.length} ships.`, sfx: [["bell", 0.4]] }; }
-    if (a.k === "sail") { { const f = fleetById(a.id); if (f) f.joinTo = null; } W0(); const why = sail(a.id, { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }); return why ? { note: why } : { note: (f => f && f.go ? `The fleet is under sail: more than a year's sailing, it will be there in the years after.` : "The fleet sails, and is there by the year's end.")(fleetById(a.id)), sfx: [["bell", 0.3]] }; }
+    if (a.k === "sail") { { const f = fleetById(a.id); if (f) f.joinTo = null; } W0(); const why = sail(a.id, { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }); const met = C.events.find(e => !e.done && e.kind === "seabattle" && e.fid === a.id); return why ? { note: why } : met ? { note: `On the way, the fleet meets ${poss(the(met.foe))} fleet, and they close for battle. Fight it yourself, or leave it to your admirals.`, sfx: [["bell", 0.3], ["guns", 0.5, 700]] } : { note: (f => f && f.go ? `The fleet is under sail: more than a year's sailing, it will be there in the years after.` : "The fleet sails, and is there by the year's end.")(fleetById(a.id)), sfx: [["bell", 0.3]] }; }
     if (a.k === "embark") { const n0 = field().length, why = embark(a.id); return why ? { note: why } : { note: field().length < n0 || (C.armies || []).length && n0 !== field().length ? `${field().length} regiments go aboard the fleet, all it can carry, as the ${armyName(C.ar | 0).toLowerCase()}; the rest stay ashore. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.` : "Your army goes aboard the fleet. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.", sfx: [["drum", 0.35]] }; }
     if (a.k === "land") { const why = land(); return why ? { note: why } : { note: "Your army is put ashore. It can march again next year.", sfx: [["drum", 0.4]] }; }
     if (a.k === "seafight") {

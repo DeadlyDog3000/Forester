@@ -269,7 +269,11 @@ export class EuropeView3D {
     this.labels = [];
     this.clearings = [];
     const place = (name, lon, lat, rank, own, isHome) => {
-      const [x, z] = toWorld(lon, lat), r = rng(Math.round(lon * 100 + lat * 7)), y0 = this.groundY(x, z);
+      let [x, z] = toWorld(lon, lat); const r = rng(Math.round(lon * 100 + lat * 7));
+      // (a port whose spot falls on the water at this map's grain — an inlet, a river mouth: the nearest dry ground
+      //  round it, so the town stands on its shore, not out in the bay)
+      if (this.groundY(x, z) < 0.02) { found: for (let d = 0.04; d <= 0.8; d += 0.04) for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283, nx = x + Math.cos(a) * d, nz = z + Math.sin(a) * d; if (this.groundY(nx, nz) >= 0.02) { x = nx; z = nz; break found; } } }
+      const y0 = this.groundY(x, z);
       this.clearings.push([x, z, (rank === 3 ? 0.45 : rank === 2 ? 0.34 : 0.24) + (own && NATIONS[own] && NATIONS[own].nw ? 0.08 : 0)]);
       if (y0 < -0.1) return;
       const n = isHome ? 5 : rank === 3 ? 80 : rank === 2 ? 44 : 16, spread = rank === 3 ? 0.32 : rank === 2 ? 0.22 : 0.12;
