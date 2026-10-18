@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.85.0", date: "17 October 2026", title: "Occupy or sack",
+    items: [
+      "Campaign: take a town from another crown and you choose what becomes of it, as in Empire: Total War. Occupy it, and its people are spared and its trade goes on. Sack it, and your soldiers carry off thalers (more from a big, crowded town), but a third of its people are killed or flee.",
+      "Campaign: a sacked town's people don't forget it. Its loyalty suffers for ten years, worst in the first four, and crowns of its faith think worse of you. A sacked town is quick to riot: garrison it, or lighten its taxes.",
+    ],
+  },
+  {
     v: "1.84.1", date: "17 October 2026", title: "The help page brought up to date",
     items: [
       "Campaign: How the campaign works now covers victory and the three years' grace after your last town falls, generals' traits, the other crowns' offers and demands, and the great powers. It no longer speaks of hired transports, which are gone.",
