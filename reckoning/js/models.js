@@ -432,7 +432,8 @@ export function makePerson(o = {}) {
       // (a long arm, placed at the shoulder; a body of the model's own bends its arms to it after its clip, below)
       if (!this.bones && this.aimH) aimPlace(this, dt);
     },
-    setPose(p) { if (p !== this.pose) { this.pose = p; this.poseT = 0; if (p === "punch") this.thrustT = 0; } },
+    setPose(p) { if (p === "armsCrossed") p = "idle";   // (the arms-crossed stance came out as both hands raised: retired, they stand at ease)
+      if (p !== this.pose) { this.pose = p; this.poseT = 0; if (p === "punch") this.thrustT = 0; } },
     // a child's head is big for the body; it evens out as they grow
     setHeadScale(k) { this.headK = k; neck.scale.setScalar(k); if (this.headBone) this.headBone.scale.setScalar(k); },
   };

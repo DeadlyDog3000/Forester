@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.3", date: "18 October 2026", title: "Hands down",
+    items: [
+      "Nobody stands with both hands raised by their shoulders any more. That was meant to be arms folded but never looked it. Henning, the townsfolk and everyone else who stood like that now stands at ease.",
+    ],
+  },
+  {
     v: "1.90.2", date: "18 October 2026", title: "At the burner's door",
     items: [
       "The charcoal burner waits outside his hut, at the door toward his fire, instead of stuck inside its walls when you come to speak to him.",
