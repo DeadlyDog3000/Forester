@@ -1829,10 +1829,11 @@ async function ch8(w, opts = {}) {
     G.lockMove = true;
     bark("The charcoal buyer", "There. Two of you. Just as they said.", 2.5);
     await wait(1.4);
+    G.sneakEase = Math.max(0.6, (G.sneakEase || 1) - 0.1);   // (caught again: the next try a little kinder)
     await caughtScreen(TIPS_WOODS);
     return startChapter(8, { retry: true });
   }
-  k.a.remove(); cart.visible = false;
+  k.a.remove(); cart.visible = false; G.sneakEase = undefined;
   UI.objective(null);
   await wait(2);
   sib.walkTo(pl.pos.x + 1.2, pl.pos.z + 0.8, 1.4);

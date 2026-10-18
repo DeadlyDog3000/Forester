@@ -507,7 +507,7 @@ function genMark(o, won) {
 // (a year in the camp: a vice taken up now and then; a long service unbeaten makes him loved)
 function genYear(G) {
   if (!G) return;
-  if (R() < 0.015) giveT(G, "drunk"); else if (R() < 0.01) giveT(G, "harsh");
+  if (!G.hist) { if (R() < 0.015) giveT(G, "drunk"); else if (R() < 0.01) giveT(G, "harsh"); }   // (never a real man of history)
   if ((G.served | 0) >= 5 && !(G.losses | 0) && !hasT(G, "harsh") && R() < 0.25) giveT(G, "beloved");
 }
 function genWin() {
@@ -524,7 +524,9 @@ const moraleBase = () => clamp(30 + trSum(C.gen, "mor") + (minSk("war") - 3) * 2
 const moraleK = () => 0.85 + clamp(C.morale ?? 50, 0, 100) * 0.003;
 const moraleMove = d => { C.morale = clamp(Math.round((C.morale ?? 50) + d), 0, 100); };
 const moraleWord = v => v >= 85 ? "Eager for battle" : v >= 68 ? "Confident" : v >= 50 ? "Steady" : v >= 32 ? "Shaken" : v >= 15 ? "Wavering" : "Broken";
-const genOf = id => id === C.me ? C.gen : isHuman(id) ? as(id, () => C.gen) : (C.foeGen && C.foeGen[id]) || null;
+const genOf = id => id === C.me ? C.gen : isHuman(id) ? as(id, () => C.gen) : foeTraits((C.foeGen && C.foeGen[id]) || null);
+// (another crown's general: a trait of his own, half the time, given him once — so you know whom you face)
+function foeTraits(m) { if (m && !m.trRolled) { m.trRolled = true; if (R() < 0.5) m.tr = [pick(m.hist ? ["bold", "cautious", "engineer", "hero"] : ["bold", "cautious", "engineer", "drunk", "hero"])]; } return m; }  // (a real man of history is never made a drunkard by the dice)
 // what a town of yours can build next, chain by chain: the next level, its cost, and the learning it waits on
 function buildable(ct) {
   const n = ct[0], out = [];
@@ -798,7 +800,7 @@ function strikeBack(foe) {
   selCity = t; sel = foe; note = `${poss(The(foe))} army is beaten back and weakened. Strike back while it's down: ${t[0]} is within your reach.`;
 }
 function auto(o) {
-  const mine = cmdMul(C.gen) * (1 + trSum(C.gen, o.attack ? "att" : "def")) * moraleK(), theirs = cmdMul(genOf(o.foe)), p = odds(o.att * (o.attack ? mine : theirs), o.def * (o.attack ? theirs : mine), o.walls && !o.breach ? (o.attack && hasT(C.gen, "engineer") ? 1.15 : true) : false), attWins = R() < p, won = o.attack ? attWins : !attWins;
+  const mine = cmdMul(C.gen) * (1 + trSum(C.gen, o.attack ? "att" : "def")) * moraleK(), theirs = cmdMul(genOf(o.foe)) * (1 + trSum(genOf(o.foe), o.attack ? "def" : "att")), p = odds(o.att * (o.attack ? mine : theirs), o.def * (o.attack ? theirs : mine), o.walls && !o.breach ? ((o.attack ? hasT(C.gen, "engineer") : hasT(genOf(o.foe), "engineer")) ? 1.15 : true) : false), attWins = R() < p, won = o.attack ? attWins : !attWins;
   settle(o, won, won ? 0.08 + R() * 0.1 : 0.25 + R() * 0.2, won ? 0.3 + R() * 0.2 : 0.08 + R() * 0.1);
   return won;
 }
@@ -2823,7 +2825,7 @@ function drawSide() {
       <div class="cmp-rel"><i style="left:${(r[id] + 100) / 2}%"></i><span>Their view of you: ${r[id] > 0 ? "+" : ""}${Math.round(r[id])}</span></div>
       ${(() => { const m = muster(id, 100); return `<div class="cmp-farmy">${Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, n]) => { const nm = NATIONS[id].nw ? ({ axe: "War club", bow: "Bow", musketeer: "Trade musket" }[k] || TROOPS[k].name) : TROOPS[k].name; return `<span title="${esc(nm)}: about ${n}% of their army">${unitImg(k, "", id)}<small>${esc(nm)}</small></span>`; }).join("")}</div>`; })()}
       ${NATIONS[id].nw ? `<p class="cmp-help">A nation of the woods. Their towns stand behind wooden palisades, with no stone walls to besiege; a palisade can be set alight and burnt through. Their warriors fight with the bow and the war club, a few with trade muskets. They have no guns and no horse.</p>` : ""}
-      ${C.foeGen && C.foeGen[id] ? `<div class="cmp-foegen">${face(C.foeGen[id], "sm")}<span><b>${esc(C.foeGen[id].name)}</b><small>Their general · command ${"●".repeat(C.foeGen[id].st[0])}${"○".repeat(5 - C.foeGen[id].st[0])} · ${(C.fguns[id] | 0) ? `${C.fguns[id]} gun${C.fguns[id] > 1 ? "s" : ""}: they can besiege walled towns` : "no guns: walled towns are safe from them"}</small></span></div>` : ""}
+      ${C.foeGen && C.foeGen[id] && genOf(id) ? `<div class="cmp-foegen">${face(C.foeGen[id], "sm")}<span><b>${esc(C.foeGen[id].name)}</b><small>Their general · command ${"●".repeat(C.foeGen[id].st[0])}${"○".repeat(5 - C.foeGen[id].st[0])} · ${(C.fguns[id] | 0) ? `${C.fguns[id]} gun${C.fguns[id] > 1 ? "s" : ""}: they can besiege walled towns` : "no guns: walled towns are safe from them"}</small>${(C.foeGen[id].tr || []).length ? `<span class="cmp-traits">${C.foeGen[id].tr.map(t => TRAITS[t] ? `<i class="${TRAITS[t].bad ? "bad" : ""}" title="${esc(TRAITS[t].d)}">${esc(TRAITS[t].n)}</i>` : "").join("")}</span>` : ""}</span></div>` : ""}
       <div class="cmp-acts">${war ? `<button class="btn" data-dip="peace" ${did.peace ? "disabled" : ""}>Offer peace</button><button class="btn" data-dip="demand" ${did.peace || citiesOfNow(g, id).length < 2 ? "disabled" : ""} title="Peace, if they give up their town nearest your lands. The worse the war has gone for them, the likelier.">Demand a town for peace</button>${C.spies && C.spies[id] ? "" : `<button class="btn" data-dip="bribe" ${C.gold < SPY_COST ? `disabled title="The treasury hasn't ${SPY_COST} thalers"` : `title="Buy a politician at their court: he tells you how big their army is, from now on"`}>Corrupt a politician · ${SPY_COST}</button>`}` : `${C.spies && C.spies[id] ? "" : `<button class="btn" data-dip="bribe" ${C.gold < SPY_COST ? `disabled title="The treasury hasn't ${SPY_COST} thalers"` : `title="Buy a politician at their court: he tells you how big their army is, from now on"`}>Corrupt a politician · ${SPY_COST}</button>`}
         <button class="btn" data-dip="envoy" ${did.envoy || C.gold < 40 ? "disabled" : ""}>Send an envoy · 40</button>
         <button class="btn" data-dip="gift" ${did.gift || C.gold < 150 ? "disabled" : ""}>A gift · 150</button>

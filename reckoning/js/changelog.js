@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.86.2", date: "17 October 2026", title: "Know your enemy",
+    items: [
+      "Campaign: the other crowns' generals have traits of their own now, about half of them: Bold, Cautious, Siege engineer, Hero of the nation, or Drunkard. They show on the crown's card under its general, and count in battles left to the generals. An enemy siege engineer makes your walls count for half.",
+      "Campaign: the real men of history, yours and theirs, are never made drunkards or floggers by chance.",
+      "Story: hiding from the charcoal buyer in the woods gets a little kinder each time he finds you, as the marsh gate does.",
+    ],
+  },
+  {
     v: "1.86.1", date: "17 October 2026", title: "Idle scholars",
     items: [
       "Campaign: when your scholars have nothing to study, a card at the top of the panel says so, with a button that opens Learning. Their year's work no longer goes to waste unnoticed, and a new campaign shows you where to begin.",
