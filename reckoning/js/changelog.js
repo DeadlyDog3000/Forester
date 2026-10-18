@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.83.0", date: "17 October 2026", title: "The other crowns propose",
+    items: [
+      "Campaign: the other crowns come to you now, as in Empire: Total War, where before only you went to them. A crown that thinks well of you offers a trade agreement. A friend of your faith, or one fighting your enemies, offers an alliance. Accept, or decline and be thought a little worse of.",
+      "Campaign: a strong neighbour that dislikes you may demand tribute: thalers, or war. Pay, and it leaves you in peace five years. Refuse, and it may declare war on you, or it may back down.",
+      "Campaign: one proposal a year at most, and none in a crown's first two years.",
+    ],
+  },
+  {
     v: "1.82.3", date: "17 October 2026", title: "Smoother panning",
     items: [
       "Campaign: the map draws three to four times faster as you pan and zoom, about a hundredth of a second a frame where it was a thirtieth. The light wash over the crown under your mouse, and the crossed swords over crowns at war, are worked out once each time the map changes instead of every frame.",

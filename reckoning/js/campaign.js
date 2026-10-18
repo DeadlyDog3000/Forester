@@ -1758,6 +1758,26 @@ function diplo(id, what) {
 const buyable = id => { const g = grid(), L = citiesOfNow(g, id); if (L.length < 3) return null; return L.filter(ct => ct[3] < 3).sort((a, b) => distFrom(g, C.me, a) - distFrom(g, C.me, b))[0] || null; };
 const buyPrice = ct => Math.round(worth(ct) * 14 / 10) * 10;
 const courtOf = id => { const c = citiesOfNow(grid(), id).sort((a, b) => b[3] - a[3])[0]; return c ? c[0] : the(id); };
+// ---- the other crowns' own proposals, as Empire's: a trade agreement offered, an alliance, or a strong neighbour's
+//  demand for tribute — pay, or have war. One a year at most ----
+function aiOffers(g, ids) {
+  if (C.year - 1683 < 2 || C.events.some(e => !e.done && (e.kind === "offer" || e.kind === "tribute"))) return;
+  const nb = neighbours(g, C.me), live = ids.filter(id => alive(g, id) && !atWar(id) && NATIONS[id]);
+  const foeOf = id => Object.keys(C.E.war).some(f => C.E.war[f] && C.E.wars.some(w => (w.a === id && w.b === f) || (w.b === id && w.a === f)));
+  const R0 = R();
+  if (R0 < 0.07) {
+    const bully = live.filter(id => nb.has(id) && !C.ally[id] && (C.truce[id] || 0) <= 0 && C.E.rel[id] < 0 && (C.foes[id] | 0) > allArmies() * 1.6);
+    if (bully.length && C.gold >= 100) { const id = pick(bully), amt = Math.min(C.gold, clamp(Math.round(C.gold * 0.25 / 10) * 10, 100, 600)); C.events.push({ kind: "tribute", foe: id, amt }); say(`${The(id)} ${v3(id, "demands")} tribute`, `${amt} thalers, or war.`); return; }
+  }
+  if (R0 < 0.2) {
+    const al = live.filter(id => !C.ally[id] && C.E.rel[id] >= 45 && (NATION_FAITH[id] === NATION_FAITH[C.me] || foeOf(id)));
+    if (al.length) { const id = pick(al); C.events.push({ kind: "offer", w: "ally", foe: id }); return; }
+  }
+  if (R0 < 0.32) {
+    const tr = live.filter(id => !C.E.pact[id] && C.E.rel[id] >= 15);
+    if (tr.length) { const id = pick(tr); C.events.push({ kind: "offer", w: "pact", foe: id }); }
+  }
+}
 function declare(id, by) {
   C.E.war[id] = true; C.warT[id] = 0; C.E.pact[id] = false; C.ally[id] = false; if (C.E.access) delete C.E.access[id]; if (C.E.grant) delete C.E.grant[id];
   C.E.rel[id] = Math.min(C.E.rel[id], -40);
@@ -1797,6 +1817,7 @@ function endSeason(part = {}) {
   }
   // (and they at each other: their wars begun, fought and ended, and the borders moving)
   if (world) crownsWar(g, ids);
+  if (world && mine && !C.mp) aiOffers(g, ids);
   if (world) raiseWalls(g, ids);
   if (mine && !C.over) {
   const g2 = grid(), mine = citiesOfNow(g2, C.me), nb = neighbours(g2, C.me), big = mine.length;
@@ -2705,6 +2726,8 @@ function drawSide() {
     if (e.kind === "seabattle") { const f = fleetById(e.fid), F = C.foeFleets && C.foeFleets[e.foe]; if (!f || !F) { e.done = true; continue; } h += `<div class="cmp-ev war"><b>${esc(poss(The(e.foe)))} fleet falls on your ${esc(fleetName(f).toLowerCase())}!</b><small>${F.ships.length} ships of war against your ${f.ships.length}${aboardRegs(f.id) ? `, with ${aboardRegs(f.id)} regiments aboard yours` : ""}. Your odds: ${Math.round(odds(gunsOf(f.ships), gunsOf(F.ships), false) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Command the fleet</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your admirals</button></span></div>`; continue; }
     if (e.kind === "scandal") { const m = govOf_().min[e.post], title = POSTS.find(x => x[0] === e.post)[1]; h += `<div class="cmp-ev"><b>Scandal: ${esc(m.name)}</b><small>Your minister of ${title === "Treasury" ? "the Treasury" : title} has been taking money: ${e.lost} thalers gone from the treasury. Turn him out and a new man takes his place (he may be honester, or not), or keep him: he knows his work.</small><span><button class="btn primary" data-ev="${i}" data-how="sack">Turn him out</button><button class="btn" data-ev="${i}" data-how="keep">Keep him</button></span></div>`; continue; }
     if (e.kind === "revolution") { h += `<div class="cmp-ev war"><b>Revolution!</b><small>Two years of unrest across your towns, and now the people are in the streets demanding ${e.to === "republic" ? "a republic" : "a constitution"}. Grant it, and you rule as a ${GOVS[e.to].n.toLowerCase()}: ${esc(GOVS[e.to].d)} Crush it, and a quarter of your army is lost putting it down, its spirit with it.</small><span><button class="btn primary" data-ev="${i}" data-how="grant">Grant ${e.to === "republic" ? "the republic" : "a constitution"}</button><button class="btn" data-ev="${i}" data-how="crush">Crush it</button></span></div>`; continue; }
+    if (e.kind === "offer") { const ally = e.w === "ally"; h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "offers")} ${ally ? "an alliance" : "a trade agreement"}</b><small>${ally ? `${esc(The(e.foe))} would stand with you in your wars, and you with ${NATIONS[e.foe].people ? "them" : "it"} in ${NATIONS[e.foe].people ? "theirs" : "its"}.` : `Their merchants and yours, each in the other's markets: more trade for both crowns.`} Refused, they'll think a little worse of you.</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Accept</button><button class="btn" data-ev="${i}" data-how="no">Decline</button></span></div>`; continue; }
+    if (e.kind === "tribute") { h += `<div class="cmp-ev war"><b>${esc(The(e.foe))} ${v3(e.foe, "demands")} tribute</b><small>${e.amt} thalers, and ${NATIONS[e.foe].people ? "they" : "it"} will leave you in peace five years. Refuse, and ${NATIONS[e.foe].people ? "they" : "it"} may well make war on you: ${knowsArmy(e.foe) ? `${C.foes[e.foe] | 0} regiments against your ${allArmies()}` : "a great army, by all accounts"}.</small><span><button class="btn primary" data-ev="${i}" data-how="yes"${C.gold < e.amt ? " disabled" : ""}>Pay ${e.amt}</button><button class="btn" data-ev="${i}" data-how="no">Refuse</button></span></div>`; continue; }
     if (e.kind === "passage") { h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "asks")} leave to cross your land</b><small>${NATIONS[e.foe].nw ? "Their war parties march" : "Its army marches"} against ${esc(the(e.vs))}, toward ${esc(e.ct)}, and the road runs through your country. Granted, the leave holds until you revoke it; refused, they'll think worse of you, and must go another way.</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Grant passage</button><button class="btn" data-ev="${i}" data-how="no">Refuse</button></span></div>`; continue; }
     if (e.kind === "rising") { const ct = CITIES.find(c => c[0] === e.ct); h += `<div class="cmp-ev war"><b>${esc(e.ct)} rises!</b><small>A second year of riots, and the town is up in arms: some ${e.att} companies of townsmen against its garrison of ${ct ? garrison(ct) : 0}.${(() => { const old = ct && peopleOf(ct); return old && old !== C.me && NATIONS[old] && alive(grid(), old) ? ` If it wins, the town goes over to ${esc(the(old))}.` : ""; })()} Put it down by force, or buy peace with concessions${ct ? ` (${worth(ct) * 2} thalers)` : ""}.</small><span><button class="btn primary" data-ev="${i}" data-how="crush">Put it down</button><button class="btn" data-ev="${i}" data-how="concede">Grant concessions</button></span></div>`; continue; }
     if (e.kind === "fieldatk" && e.human) { h += `<div class="cmp-ev war"><b>${esc(nameOf(e.foe))} ${v3(e.foe, "falls")} on ${e.ar ? `your ${esc(armyName(e.ar).toLowerCase())}` : "your army"}!</b><small>${e.att} regiments of ${esc(NATIONS[e.foe].name)} against your ${e.def}, in the open near ${esc(e.ct)}. Meet them in the field yourself, the two of you in one battle, or leave it to your general.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Meet them in the field</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to your general</button></span></div>`; continue; }
@@ -3025,6 +3048,18 @@ function apply(actor, a) {
         const G = govOf_(); G.unrest = 0;
         if (a.how === "grant") { G.type = ev.to; G.since = C.year; for (const [p] of POSTS) if (R() < 0.5) G.min[p] = minister(p); say(`A ${GOVS[ev.to].n.toLowerCase()}`, `The ${ev.to === "republic" ? "republic is proclaimed" : "constitution is sworn"}, and the streets go quiet. ${GOVS[ev.to].d}`); return done({ note: `You rule now as a ${GOVS[ev.to].n.toLowerCase()}.`, sfx: [["bell", 0.5], ["quill", 0.4, 600]] }); }
         const n0 = allField().length; eachArmy(() => { reconcile(); const F = field().sort((x, y) => x.hp - y.hp), gone = new Set(F.slice(0, Math.round(F.length * 0.25))); C.units = C.units.filter(u => !gone.has(u)); C.army = Math.round(unitSum()); }); moraleMove(-15); say("The revolution is crushed", `Soldiers clear the streets; ${n0 - allField().length} regiments are lost, and the army's heart with them.`); return done({ note: "The revolution is crushed, at a heavy price.", sfx: [["guns", 0.5], ["drum", 0.5, 400]] });
+      }
+      if (ev.kind === "offer") {
+        if (!alive(g, ev.foe) || atWar(ev.foe)) return done({});
+        if (a.how === "yes") { if (ev.w === "ally") C.ally[ev.foe] = true; else C.E.pact[ev.foe] = true; C.E.rel[ev.foe] = clamp(Math.max(C.E.rel[ev.foe] + 8, ev.w === "ally" ? 40 : 15), -100, 100); say(ev.w === "ally" ? `An alliance with ${the(ev.foe)}` : `A trade agreement with ${the(ev.foe)}`); return done({ note: ev.w === "ally" ? `${The(ev.foe)} ${v3(ev.foe, "is")} your ally.` : `A trade agreement with ${the(ev.foe)}.`, sfx: [["quill", 0.5], ["seal", 0.6, 850]] }); }
+        C.E.rel[ev.foe] = clamp(C.E.rel[ev.foe] - 4, -100, 100); return done({ sfx: [["quill", 0.4]] });
+      }
+      if (ev.kind === "tribute") {
+        if (!alive(g, ev.foe) || atWar(ev.foe)) return done({});
+        if (a.how === "yes" && C.gold >= ev.amt) { C.gold -= ev.amt; C.truce[ev.foe] = Math.max(C.truce[ev.foe] || 0, 5); C.E.rel[ev.foe] = clamp(C.E.rel[ev.foe] + 15, -100, 100); say(`Tribute paid to ${the(ev.foe)}`, `${ev.amt} thalers: five years' peace bought.`); return done({ note: `${ev.amt} thalers paid. ${The(ev.foe)} will leave you be for five years.`, sfx: [["coin", 0.6]] }); }
+        C.E.rel[ev.foe] = clamp(C.E.rel[ev.foe] - 12, -100, 100);
+        if (R() < 0.55) { declare(ev.foe, ev.foe); return done({ note: `You refuse. ${The(ev.foe)} ${v3(ev.foe, "declares")} war!`, sfx: [["drum", 0.55]] }); }
+        say(`You refuse ${poss(the(ev.foe))} demand`, "For now, they do nothing."); return done({ note: `You refuse, and ${the(ev.foe)} ${v3(ev.foe, "backs")} down — for now.`, sfx: [["quill", 0.4]] });
       }
       if (ev.kind === "passage") {
         const G = (C.E.grant ||= {});
