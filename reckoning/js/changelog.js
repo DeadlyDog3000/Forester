@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.85.1", date: "17 October 2026", title: "Smaller saves",
+    items: [
+      "Campaign: saves are about a sixth of the size. Sixty years of conquest came to nearly a megabyte a campaign; now it's about 150 KB. A long campaign, or several, could fill the space the game is given and stop saving without a word. Older saves load as before.",
+    ],
+  },
+  {
     v: "1.85.0", date: "17 October 2026", title: "Occupy or sack",
     items: [
       "Campaign: take a town from another crown and you choose what becomes of it, as in Empire: Total War. Occupy it, and its people are spared and its trade goes on. Sack it, and your soldiers carry off thalers (more from a big, crowded town), but a third of its people are killed or flee.",

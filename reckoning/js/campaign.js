@@ -59,7 +59,11 @@ const MPKEY = "reckoning.campaign.mp.v1";
 const SLOTS = 3, SLOTKEY = "reckoning.campaign.slot", slotKey = i => i ? `${KEY}.${i + 1}` : KEY;
 let slot = (() => { try { return Math.min(SLOTS - 1, Math.max(0, +localStorage.getItem(SLOTKEY) || 0)); } catch (e) { return 0; } })();
 const campaigns = () => { const out = []; for (let i = 0; i < SLOTS; i++) { const c = load(i); if (c && c.me && NATIONS[c.me]) out.push({ i, c }); } return out.sort((a, b) => (b.c.at || 0) - (a.c.at || 0)); };
-const save = () => { try { if (!C) return; if (C.mp) { if (mp && mp.host) localStorage.setItem(MPKEY, JSON.stringify({ partner: mp.foe.pid || "", partnerName: mp.foe.name || "", C })); return; } C.at = Date.now(); C.towns = citiesOfNow(grid(), C.me).length; localStorage.setItem(slotKey(slot), JSON.stringify(C)); localStorage.setItem(SLOTKEY, String(slot)); } catch (e) {} };
+const save = () => { try { if (!C) return; if (C.mp) { if (mp && mp.host) localStorage.setItem(MPKEY, JSON.stringify({ partner: mp.foe.pid || "", partnerName: mp.foe.name || "", C })); return; } C.at = Date.now(); C.towns = citiesOfNow(grid(), C.me).length; localStorage.setItem(slotKey(slot), JSON.stringify({ ...C, own: packOwn(C.own), E: { ...C.E, conq: [] } })); localStorage.setItem(SLOTKEY, String(slot)); } catch (e) {} };
+// (the map's changed squares kept small: by crown, each a run of "col,row;" — and the map's own copy of them left out,
+//  made again from these when the campaign is opened. Sixty years of conquest was near a megabyte, written as it was)
+function packOwn(L) { if (!Array.isArray(L)) return L; const by = {}; for (const [k, to] of L) (by[to] ||= []).push(k); for (const t in by) by[t] = by[t].join(";"); return { packed: 1, by }; }
+function unpackOwn(x) { if (!x) return []; if (Array.isArray(x)) return x; const out = []; for (const [to, s2] of Object.entries(x.by || {})) for (const k of s2.split(";")) if (k) out.push([k, to]); return out; }
 const load = (i = slot) => { try { return JSON.parse(localStorage.getItem(slotKey(i))); } catch (e) { return null; } };
 
 // ---- a campaign of two: each player's crown its own treasury, army, dealings with the others, wars and news ----
@@ -222,7 +226,7 @@ function begin(me, into = slot) {
   save();
 }
 function resume() {
-  C = load(); if (!C) return false; own = new Map(C.own || []); C._dirty = true; toWorldGrid(); ensureRealm();
+  C = load(); if (!C) return false; C.own = unpackOwn(C.own); own = new Map(C.own); C._dirty = true; toWorldGrid(); ensureRealm();
   // (a save from before 1.44.2: a crown that had towns in 1683, has none now, yet still holds land — its taker
   //  was never told so; the land goes to you if you fought it, else to its strongest neighbour)
   if (!C.lastBy) {
@@ -3375,7 +3379,7 @@ function broadcast() {
 // (on the other player's game: the campaign as the host has it, turned round to your own crown)
 function takeState(S) {
   const sel0 = selCity && selCity[0], sel1 = sel;
-  C = S; own = new Map(C.own || []); C._dirty = true; toWorldGrid();
+  C = S; C.own = unpackOwn(C.own); own = new Map(C.own); C._dirty = true; toWorldGrid();
   const me = humans()[1]; if (C.me !== me && C.H && C.H[me]) { stash(C.me); unstash(me); }
   selCity = sel0 ? CITIES.find(c => c[0] === sel0) || null : null; sel = sel1;
   const onMap = !$("campaign").classList.contains("hidden");
@@ -3413,7 +3417,7 @@ function maybeBegin() {
 function savedMp() { try { const j = JSON.parse(localStorage.getItem(MPKEY)); return j && j.C && j.C.mp && j.partner && mp && j.partner === mp.foe.pid ? j : null; } catch (e) { return null; } }
 function resumeMp() {
   const j = savedMp(); if (!j) return;
-  C = j.C; own = new Map(C.own || []); C._dirty = true; toWorldGrid();
+  C = j.C; C.own = unpackOwn(C.own); own = new Map(C.own); C._dirty = true; toWorldGrid();
   if (C.me !== C.mp.humans[0] && C.H && C.H[C.mp.humans[0]]) { stash(C.me); unstash(C.mp.humans[0]); }
   C.mp.names[C.mp.humans[1]] = mp.foe.name || C.mp.names[C.mp.humans[1]]; C.mp.ready = {}; ensureRealm();
   sfx("drum", 0.4); broadcast(); drawMap(true);
