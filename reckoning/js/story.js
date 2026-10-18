@@ -168,7 +168,19 @@ async function fade(to, s = 1) { const g = GEN; await UI.fade(to, s); if (g !== 
 async function narrate(t, s) { const g = GEN; await UI.narrate(t, s); if (g !== GEN) throw ABORT; }
 async function card(k, t, s) { const g = GEN; await UI.card(k, t, s); if (g !== GEN) throw ABORT; }
 function look(target, speed = 2.5) { G.cine = target ? { look: target.isVector3 ? target : target.headPos(), speed } : null; }
-function lookAt(actor, speed) { G.cine = { speed: speed ?? 2.5, get look() { return actor.headPos(); } }; }
+// (turned to someone to talk: if you'd walked right up to them — their face the whole screen — a step back first, to
+//  a talking distance, where there's room behind you)
+function lookAt(actor, speed) {
+  const pl = G.player, w = G.world;
+  if (pl && actor.pos && !pl.seated && !pl.horse && G.mode === "play") {
+    const dx = pl.pos.x - actor.pos.x, dz = pl.pos.z - actor.pos.z, d = Math.hypot(dx, dz);
+    if (d > 0.01 && d < 1.2) {
+      const x = actor.pos.x + dx / d * 1.45, z = actor.pos.z + dz / d * 1.45, y = w && w.heightAt ? w.heightAt(x, z) : pl.pos.y;
+      if (!(w && w.col && w.col.solidAt(x, y + 1, z, 0.25)) && Math.abs(y - pl.pos.y) < 0.5) { const p = pl.pitch; pl.place(x, z, Math.atan2(dx, dz)); pl.pitch = p; }
+    }
+  }
+  G.cine = { speed: speed ?? 2.5, get look() { return actor.headPos(); } };
+}
 function mark(m) { G.marker = m ? (m.person ? { actor: m } : Array.isArray(m) ? { x: m[0], z: m[1], y: m[2] ?? 1.6 } : m) : null; }
 function spawn(opts, x, z, yaw = 0) { const a = new Actor(opts, x, z, yaw); if (opts === LOOKS.brother || opts === LOOKS.sister) a.isSibling = true; return a; }
 
@@ -1076,8 +1088,12 @@ async function ch4(w, opts) {
     return startChapter(4, { retry: true });
   }
   guards.forEach(g => g.a.remove()); G.sneakEase = undefined;
+  w.posternGlow.visible = false;
   // the one who went over the yards is already there
   G.lockMove = true; mark(null); UI.objective(null);
+  // (stood up, and a step back from the wall, so the two of you are face to face and not the camera in the stones)
+  pl.crouched = false; pl.lean = 0;
+  if (Math.hypot(pl.pos.x + 26.4, pl.pos.z - 67.2) < 1.5 || pl.pos.z > 67.2) pl.place(-24.4, 66.2);
   const s2 = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], -26.4, 67.2, -Math.PI / 2);
   s2.facePlayer(); s2.lookAtPlayer(true);
   lookAt(s2, 3);
@@ -1109,7 +1125,8 @@ async function ch5(w) {
   UI.objective(`Follow the road north-east — your ${P.sibLower} knows the way at the forks`);
   // one voice at a time: lines wait for the last to finish
   let voiceLine = Promise.resolve();
-  const barkQ = (who, text) => (voiceLine = voiceLine.then(() => bark(who, text)));
+  // (and a line that's no longer true by its turn — the fork it was about already behind you — is let go)
+  const barkQ = (who, text, still) => (voiceLine = voiceLine.then(() => (!still || still()) ? bark(who, text) : null));
   // at every fork, which way — and a call back from the wrong one
   const FORK_LINES = [
     ["{Keep} here. The {track} road goes round to Altona — they'll have riders on it.", "Not that way! That's the Altona road. Every rider out of the city uses it."],
@@ -1120,17 +1137,26 @@ async function ch5(w) {
     ["{Keep}. The deer go this way, and the deer know where it's quiet.", "It only gets thicker that way. Come on — follow the deer."],
     ["{Keep}, I think. ...Yes. {Keep}.", "No — {keep}. I'm sure of it."],
   ];
-  const told = new Set(), called = {};
+  const told = new Set(), called = {}; let forkMark = false, roadDone = false;
   const fillFork = (text, f) => { const keep = f.side === 1 ? "left" : "right", track = f.side === 1 ? "right" : "left"; return text.replace(/\{Keep\}/g, keep[0].toUpperCase() + keep.slice(1)).replace(/\{keep\}/g, keep).replace(/\{track\}/g, track); };
   const forks = onFrame(() => {
     const on = w.anyRoadDist(pl.pos.x, pl.pos.z), t = w.progress();
     FORKS.forEach((f, n) => {
       if (!told.has(n) && !on.branch && t > f.t - 0.03 && t < f.t) {
-        told.add(n); barkQ(P.sib, fillFork(FORK_LINES[n][0], f));
+        told.add(n); barkQ(P.sib, fillFork(FORK_LINES[n][0], f), () => w.progress() < f.t + 0.015);
         if (n === 0) tutor("map", "", [["J", "the map — every fork is on it"]], 7);
       }
       if (on.branch && on.branch.n === n && on.i > 4 && (!called[n] || G.time - called[n] > 9)) { called[n] = G.time; bark(P.sib, fillFork(FORK_LINES[n][1], f), 3.2); }
     });
+    // the marker, only about the forks: on the road a little past one as you come up to it, and back to it from the
+    // wrong track — the rest of the way, the road is the guide
+    const R = w.road, at = k => R[Math.max(0, Math.min(R.length - 1, k))];
+    let want = null;
+    if (roadDone) return;
+    if (on.branch && on.i > 2) { const p = at(Math.floor(FORKS[on.branch.n].t * (R.length - 1))); want = { x: p.x, z: p.z, y: 1.4, hideWithin: 3 }; }
+    else { const f = FORKS.find(f => t > f.t - 0.035 && t < f.t + 0.012); if (f) { const p = at(Math.floor(f.t * (R.length - 1)) + 10); want = { x: p.x, z: p.z, y: 1.4, hideWithin: 3 }; } }
+    if (want) { if (!G.marker || G.marker.x !== want.x) mark(want); forkMark = true; }
+    else if (forkMark) { forkMark = false; mark(null); }
   });
   // bells behind you, fainter every time
   let bellT = 2;
@@ -1159,22 +1185,26 @@ async function ch5(w) {
     [0.78, P.sib, "Nobody comes this deep. No tracks but deer. No one to know us."],
     [0.86, P.sib, "Wait — through the trees. There's light."],
   ];
-  const run = async list => { for (const [at, who, text] of list) { await until(() => w.progress() > at); await barkQ(who, text); } };
-  await run(lines);
-  AUDIO.music("woods");
+  // (a stretch's lines are said as you come to them, and the ones you've outrun are let go — the road waits for no one)
+  let stretch = 0;
+  const run = async list => { const s = ++stretch; for (const [at, who, text] of list) { await until(() => w.progress() > at || s !== stretch); if (s !== stretch) return; await barkQ(who, text); } };
+  run(lines).then(() => { if (stretch === 1) AUDIO.music("woods"); });
   await until(() => w.progress() > 0.48);
+  stretch++; AUDIO.music("woods");
   // three days pass
   G.lockMove = true;
   await fade(1, 1.8);
   await narrate("Far, far away, the old woods swallowed the road, and the city's bells faded behind us.", 4.5);
   await narrate("We walked for three days. We ate blackberries, and what the farms we passed would not miss.", 4.5);
   // on a little way, so the walk picks up somewhere new
-  const k = Math.floor(w.road.length * 0.52), p = w.road[k], q = w.road[k + 3];
+  // (or wherever you'd got to, if that's further: never back the way you came)
+  const k = Math.max(Math.floor(w.road.length * 0.52), Math.min(w.road.length - 4, Math.floor(w.progress() * (w.road.length - 1)))), p = w.road[k], q = w.road[k + 3];
   pl.place(p.x, p.z, Math.atan2(-(q.x - p.x), -(q.z - p.z)));
   sib.place(p.x + 1, p.z + 1.5); pl.trail = [{ x: p.x, z: p.z }];
   G.lockMove = false;
   await fade(0, 1.8);
-  await run(later);
+  { const l2 = run(later); await until(() => w.progress() > 0.86); await Promise.race([l2, wait(8)]); stretch++; }
+  roadDone = true;
   UI.objective("Leave the road and go towards the light");
   mark([CLEARING.x, CLEARING.z, 2]);
   await until(() => Math.hypot(pl.pos.x - CLEARING.x, pl.pos.z - CLEARING.z) < CLEARING.r - 4);
@@ -1187,7 +1217,7 @@ async function ch5(w) {
   await say(P.sib, "There's — someone lived here.");
   G.lockMove = false; look(null);
   UI.objective("Look at the ruin");
-  mark([CABIN.x, CABIN.z, 2.4]);
+  mark([CABIN.x + Math.sin(CABIN.ry) * 3.2, CABIN.z + Math.cos(CABIN.ry) * 3.2, 1.8]);   // (the doorway, where you look in from)
   let looked = false;
   const it = w.addInteract({ x: CABIN.x + Math.sin(CABIN.ry) * 3.2, y: 1.2, z: CABIN.z + Math.cos(CABIN.ry) * 3.2, reach: 3, label: "Look at the ruin", use: () => { looked = true; } });
   await until(() => looked);
@@ -1856,7 +1886,8 @@ async function ch8(w, opts = {}) {
   setAtmo("firelight"); w.lightFire(true); SFX.fireLoop(true);
   pl.place(FIRE.x - 1.9, FIRE.z + 0.3, Math.PI / 2 - 0.25); pl.seated = true;
   sib.path = []; sib.person.sitting = 1; sib.person.setPose("sit"); sib.place(FIRE.x + 1.9, FIRE.z + 0.4, -Math.PI / 2); sib.faceTo(FIRE.x, FIRE.z);
-  const henning = spawn(HENNING, FIRE.x + 0.4, FIRE.z - 2.6, 0);
+  // (stood round the fire to your left, so you see him past it and not through it — the flames at the edge of the frame)
+  const henning = spawn(HENNING, FIRE.x - 1.3, FIRE.z - 2.7, 0);
   henning.faceTo(FIRE.x, FIRE.z);
   look(new THREE.Vector3(henning.pos.x, w.cy + 1.5, henning.pos.z), 2);
   await fade(0, 2);
@@ -1985,7 +2016,7 @@ async function ch9(w, opts = {}) {
     inPile.add(b.build(MAT.rough));
   };
   setInPile(wood);
-  pl.place(ix, iz, Math.atan2(-(hx - ix), -(hz - iz)));
+  pl.place(ix, iz, Math.atan2(-(hx - ix), -(hz - iz))); pl.pitch = -0.3;   // (looking down into the fire, not at the chimney breast)
   const sb = w.bedSpot(1);
   sib.path = []; sib.person.sitting = 1; sib.person.setPose("grieve"); sib.place(sb.x, sb.z); sib.faceTo(hx, hz);
   await fade(0, 2);
@@ -2315,7 +2346,10 @@ async function ch11(w) {
   const need = () => { if (!T.reaped && !ripeNow()) { T.reaped = true; persistT(); } return needNow(); };
   T.stone = saved.stone || 0;
   G.emitMine = kind => { if (kind === "stone") { T.stone++; persistT(); } };
-  const needNow = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), store: town.has("storehouse"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2, cabin: S.buildings.filter(b => b.type === "cabin" && b.done).length >= 2, pick: G.body.tools.pick >= 1, stone: T.stone >= 3 || G.body.tools.pick >= 2 });
+  // (Marta's, and one for Tomas and Grete: one more than stood when the chapter began — begun without Marta's, as a
+  //  settlement that never had her, Tomas and Grete's is the one)
+  const CABINS_WANTED = Math.min(2, S.buildings.filter(b => b.type === "cabin" && b.done).length + 1);
+  const needNow = () => ({ reap: T.reaped, well: town.has("well"), shed: town.has("woodshed"), store: town.has("storehouse"), field: S.buildings.filter(b => b.type === "field" && b.done).length >= 2, cabin: S.buildings.filter(b => b.type === "cabin" && b.done).length >= CABINS_WANTED, pick: G.body.tools.pick >= 1, stone: T.stone >= 3 || G.body.tools.pick >= 2 });
   const obj = onFrame(() => {
     const n = need(), parts = [];
     if (!n.reap) parts.push("Reap the rye");

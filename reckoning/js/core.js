@@ -221,9 +221,12 @@ export const RELIEF = { value: 1 };
 export const RIM = { value: new THREE.Color(0, 0, 0) };   // (the graphics setting: 0 turns the relief off)
 // (local: the grain laid on in the thing's own space, not the world's — for what's carried in your hands, which
 //  would otherwise slide through the world's grain as you turn)
-export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false } = {}) {
+// (limbs: a tree's own branches — whatever of its bark stands further than this from its axis, in its own space — thin
+//  away right up against the eye, as its needles do: stood at the trunk with an axe, you'd otherwise be looking out
+//  through a cage of bare poles)
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false, limbs = 0 } = {}) {
   const surf = SURFACE[surface] ?? -1;
-  material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local };
+  material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local, limbs };
   const lit = material.isMeshStandardMaterial || material.isMeshLambertMaterial || material.isMeshPhongMaterial;
   material.onBeforeCompile = sh => {
     detailCompile(sh);
@@ -262,6 +265,11 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         // leaves and needles right up against the eye (standing inside a tree) are gone, so you see out through them;
         // only a narrow edge a little further off thins away in a fine dither — a wide band of it, never quite clear,
         // laid a screen of dots over the whole view in among the trees
+        ${limbs > 0 && local ? `if (length(vDWorld.xz) * 0.5 > ${limbs.toFixed(3)}) {
+          float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(1.5, 2.25, dd);   // (just as far as the needles thin, or they go first and leave the poles)
+          if (kNear >= 1.0) discard;
+          if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear) discard; }
+        }` : ""}
         if (dNear > 0.0) {
           float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.42, dNear * 0.6, dd);
           if (kNear >= 1.0) discard;
@@ -361,6 +369,17 @@ export function ownGrain(m) {
   let c = OWN_GRAIN.get(m);
   if (!c) { c = m.clone(); c.color = m.color; if (m.emissive) c.emissive = m.emissive; addDetail(c, { ...m.userData.detail, local: true, snow: false }); OWN_GRAIN.set(m, c); }
   return c;
+}
+// a tree's branches let go of close up (its bark, own-grained, copied once more with its limbs to thin away)
+const LIMBS = new Map();
+export function fadeLimbs(obj, r = 0.27) {
+  obj.traverse(o => {
+    const m = o.isMesh && o.material, d = m && m.userData && m.userData.detail;
+    if (!d || d.surface !== "bark" || !d.local || d.limbs) return;
+    let c = LIMBS.get(m);
+    if (!c) { c = m.clone(); c.color = m.color; addDetail(c, { ...d, limbs: r }); LIMBS.set(m, c); }
+    o.material = c;
+  });
 }
 export function ownGrainAll(obj) { obj.traverse(o => { if (o.isMesh && o.material) o.material = Array.isArray(o.material) ? o.material.map(ownGrain) : ownGrain(o.material); }); }
 

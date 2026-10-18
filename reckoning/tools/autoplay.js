@@ -8,6 +8,10 @@
 (async () => {
   const O = Object.assign({ chapter: 1, secs: 240, who: "brother", stuck: 150 }, globalThis.AUTO || {});
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+  // (a breath between steps that isn't a timer: a hidden tab's timers are held to one a second, which made a run in a
+  //  background tab crawl)
+  const ch = new MessageChannel(), waiting = []; ch.port1.onmessage = () => { const r = waiting.shift(); r && r(); };
+  const breath = () => new Promise(r => { waiting.push(r); ch.port2.postMessage(0); });
   const errors = [];
   addEventListener("error", e => errors.push(`${e.message} @ ${(e.filename || "").split("/").pop()}:${e.lineno}`));
   addEventListener("unhandledrejection", e => { const m = String(e.reason && e.reason.stack || e.reason); if (e.reason !== "stop" && !/^Error: abort/.test(m)) errors.push(m.slice(0, 300)); });
@@ -18,7 +22,7 @@
   window.__manual = true;
   window.__play(O.chapter, O.who);
   const obj = () => ((document.getElementById("objText") || {}).textContent || "").trim();
-  const seen = [], log = [];
+  const seen = [], log = [], shot = { n: 0, t: -99, said: "" }, shotLog = [];
   const hist = []; let shotT = 0; let bestKey = "", bestD = Infinity, bestT = 0; let tries = 0, atMark = 0, lastDir = null, last = "", lastT = 0, simT = 0, lastUse = new Map(), t0 = performance.now(), lastChange = performance.now(), stuck = null;
   const labelOf = it => { try { return typeof it.label === "function" ? it.label() : it.label; } catch (e) { return "?"; } };
   const markerAt = () => {
@@ -100,6 +104,15 @@
     // (told to hide: down, as a player told to would)
     if (G.player) G.player.crouched = /\bhid(e|den)\b|crouch|unseen/i.test(last);
     const o = obj();
+    // (pictures, when asked: at every new objective and every new line of talk, and every so often between — drawn and sent to O.shots)
+    if (O.shots) {
+      const said = UI.dialogOpen ? ((document.getElementById("dlgText") || document.getElementById("dialog") || {}).textContent || "").slice(0, 40) : "";
+      if (o !== last || (said && said !== shot.said) || simT - shot.t > (O.every || 20)) {
+        shot.said = said; shot.t = simT; shot.n++;
+        E.frame(1 / 60, false);
+        try { const c = document.querySelector("canvas"); fetch(O.shots, { method: "POST", body: JSON.stringify({ name: `${O.tag || "c" + O.chapter}_${String(shot.n).padStart(3, "0")}.jpg`, data: c.toDataURL("image/jpeg", 0.55) }) }); } catch (e) {}
+        shotLog.push(`${shot.n} ${Math.round(simT)}s ${said ? "talk: " + said : o}`);
+      } }
     if (o !== last) { seen.push([Math.round(simT), o]); last = o; lastT = simT; lastChange = performance.now(); }
     const w = G.world, pl = G.player;
     // rocks to break: up to the marked one, the pickaxe out, and swing
@@ -111,7 +124,7 @@
           if (k >= 0 && !hb[k].classList.contains("sel")) for (const t of ["keydown", "keyup"]) document.dispatchEvent(new KeyboardEvent(t, { code: "Digit" + (k + 1), key: String(k + 1), bubbles: true }));
           else if ((shotT = (shotT || 0) - dt * 6) <= 0) { shotT = 0.9; input.click = true; }
         }
-        await sleep(2); continue;
+        await breath(); continue;
       } }
     if (w && pl && !G.lockMove && !G.cine && !UI.dialogOpen) {
       const m = markerAt();
@@ -199,10 +212,10 @@
         people: G.town ? G.town.actors.map(a => `${a.settler && a.settler.name}/${a.settler && a.settler.job}: ${a.doing}`) : null, lockMove: !!G.lockMove, progress: w.progress ? +w.progress().toFixed(3) : null, cine: !!G.cine, dialog: !!UI.dialogOpen, onSwing: !!G.onSwing };
       break;
     }
-    await sleep(2);
+    await breath();
   }
   // a frame drawn, for the picture
   for (let i = 0; i < 3; i++) { E.frame(1 / 60, false); await sleep(16); }
   return JSON.stringify({ chapter: O.chapter, finished: G.chapter !== O.chapter, nowChapter: G.chapter, simSecs: Math.round(simT), realSecs: Math.round((performance.now() - t0) / 1000),
-    objectives: seen, used: log.slice(-25), stuck, errors: [...new Set(errors)] }, null, 1);
+    objectives: seen, shots: O.shots ? shotLog : undefined, used: log.slice(-25), stuck, errors: [...new Set(errors)] }, null, 1);
 })()

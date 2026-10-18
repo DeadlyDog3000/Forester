@@ -140,11 +140,22 @@ const finalM = new THREE.ShaderMaterial({
     float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
     void main() {
       // (a lens's faint fringe toward the corners: the red and the blue a hair apart)
+      // (taken from the broad shapes of the picture, not its finest grain: the thinned leaves right up against the eye are
+      //  a fine dither of dark needles and bright sky, and the red and the blue taken a pixel or two apart from it, each
+      //  on the sky where the green was on the needles, came out in purple smears)
       vec2 fo = (vUv - 0.5) * fringe;
-      vec3 c = vec3(texture2D(tScene, vUv + fo).r, texture2D(tScene, vUv).g, texture2D(tScene, vUv - fo).b);
-      // (sharpened as much as the anti-aliasing softened it, less where the edge is already hard — no halos)
       vec2 px = 1.0 / res;
       vec3 n4 = texture2D(tScene, vUv + vec2(px.x, 0.0)).rgb + texture2D(tScene, vUv - vec2(px.x, 0.0)).rgb + texture2D(tScene, vUv + vec2(0.0, px.y)).rgb + texture2D(tScene, vUv - vec2(0.0, px.y)).rgb;
+      vec3 c = texture2D(tScene, vUv).rgb;
+      if (fringe > 0.0) {
+        vec2 dx = vec2(px.x * 1.5, 0.0), dy = vec2(0.0, px.y * 1.5);
+        float rS = (texture2D(tScene, vUv + fo + dx).r + texture2D(tScene, vUv + fo - dx).r + texture2D(tScene, vUv + fo + dy).r + texture2D(tScene, vUv + fo - dy).r) * 0.25;
+        float bS = (texture2D(tScene, vUv - fo + dx).b + texture2D(tScene, vUv - fo - dx).b + texture2D(tScene, vUv - fo + dy).b + texture2D(tScene, vUv - fo - dy).b) * 0.25;
+        float rC = (texture2D(tScene, vUv + dx).r + texture2D(tScene, vUv - dx).r + texture2D(tScene, vUv + dy).r + texture2D(tScene, vUv - dy).r) * 0.25;
+        float bC = (texture2D(tScene, vUv + dx).b + texture2D(tScene, vUv - dx).b + texture2D(tScene, vUv + dy).b + texture2D(tScene, vUv - dy).b) * 0.25;
+        c.r = max(c.r + rS - rC, 0.0); c.b = max(c.b + bS - bC, 0.0);
+      }
+      // (sharpened as much as the anti-aliasing softened it, less where the edge is already hard — no halos)
       vec3 edge = c - n4 * 0.25;
       c = max(c + edge * sharp / (1.0 + abs(edge) * 6.0), 0.0);
       // the shade where things meet (darkening toward the shade's own colour, not toward black: it's light kept out)

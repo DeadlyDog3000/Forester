@@ -7,6 +7,22 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.15", date: "18 October 2026", title: "Seen properly",
+    items: [
+      "IX. The First Winter: the fire you keep alive through the blizzard burns where you can see it. The hearth had been set back inside the cabin's stone chimney, so the fire burned in the stones, and the firebox looked black and cold all night. It now stands out from the chimney face, with its hearthstone, mantel and kettle. You look down into it, not at the chimney breast.",
+      "Felling: standing at a spruce with the axe, its low branches thin away close to your eyes, as its needles do. Before, you looked out through a cage of bare poles round the trunk. The same goes for hiding in among the trees in VIII. Martinmas.",
+      "Among the trees, the dither where needles thin out close to your eyes no longer shows purple smears against the sky. The lens's faint colour fringe was splitting the dither's dots into red and blue.",
+      "Talking to someone you've walked right up to, you take a step back first. Their face no longer fills the whole screen for the conversation, as the charcoal burner's did in VII.",
+      "V. Far, Far Away: as you come to each fork, a marker shows the road on, and points you back if you've taken the wrong track. The hint had always said to go the way the marker points, but there was no marker.",
+      "V. Far, Far Away: your sibling's advice at a fork is dropped once you've passed it. Before, it could come late, at the next fork, and tell you the wrong way. And if you walk faster than the talk on the road, the \"three days pass\" moment no longer pulls you back to the middle of the road.",
+      "V. Far, Far Away: the \"Look at the ruin\" marker is at the doorway, where you look in, not in the middle of the burned cabin.",
+      "IV. The Marsh Gate: the green glow round the little door fades as you come up to it. At the door it had covered half the screen while your sibling spoke. You also stand back from the wall to talk, not with your face in the stones.",
+      "VIII. Martinmas: at the fire that night, Henning stands round to your left, and you see him past the flames, not through them.",
+      "I. The House by the Harbour: supper has a round rye loaf on a board and pewter plates, where there was a block and white slabs. The candle and the loaf no longer stand between you and Father.",
+      "XI. Forester: a settlement begun without Marta's cabin wants only Tomas and Grete's, not a second one for them.",
+    ],
+  },
+  {
     v: "1.90.14", date: "18 October 2026", title: "Follow the marker",
     items: [
       "XI. Forester and XII. Harvest Home: the marker goes where the next piece of work is done. While a site still wants logs and your arms are empty, it's on the log stack (or the woodshed). Once the walls are up and the cabin wants a door, it's on the sawhorse. Before, it stayed on the building site, so following it left you standing there with nothing to do.",

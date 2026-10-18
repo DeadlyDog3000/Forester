@@ -5,7 +5,7 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel, SWAY, swayGeo, addSway } from "./models.js";
 import { grassTexture } from "./hamburg.js";
@@ -882,7 +882,7 @@ export class Woods extends WorldBase {
     if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); cabinModel.scene.add(chinking()); this.cabinChimney = new THREE.Object3D(); this.cabinChimney.position.set(-1.2, 5.88, -3.3); cabinModel.scene.add(this.cabinChimney); }
     // the door hangs on its own hinge in the model, so it can be swung
     this.cabinY = y0;
-    this.doorNode = cabinModel ? cabinModel.scene.getObjectByName("door") : null;
+    this.doorNode = cabinModel ? cabinModel.scene.getObjectByName("door") : null; this.cabinModelOn = !!cabinModel;
     this.doorBase = this.doorNode ? this.doorNode.rotation.y : 0;
     this.doorA = 0; this.doorOpen = false;
     // a window with light in it, for the last evening
@@ -948,7 +948,7 @@ export class Woods extends WorldBase {
       const ty = this.heightAt(tx, tz);
       g.position.set(tx, ty - 0.1, tz);
       root.add(g);
-      ownGrainAll(g);
+      ownGrainAll(g); fadeLimbs(g);
       const t = { g, x: tx, z: tz, y: ty, h, hp: 4, state: "up", angle: a, col: this.col.addCircle(tx, tz, 0.32, ty + 12), fall: 0, claimed: null };
       this.fellable.push(t);
     }
@@ -1061,7 +1061,7 @@ export class Woods extends WorldBase {
       else g = makeSpruce(s.h, Math.floor(s.x * 7));
     }
     g.position.set(s.x, s.y - 0.1, s.z);
-    this.root.add(g); ownGrainAll(g);
+    this.root.add(g); ownGrainAll(g); fadeLimbs(g);
     const t = { g, x: s.x, z: s.z, y: s.y, h: s.h, hp: s.kind === "birch" ? 3 : 4, state: "up", angle: Math.atan2(s.z - CLEARING.z, s.x - CLEARING.x), col: s.col && !s.col.disabled ? s.col : this.col.addCircle(s.x, s.z, s.kind === "birch" ? 0.24 : 0.32, s.y + 12), fall: 0, claimed: null, src: s };
     s.adopted = t;
     this.fellable.push(t);
@@ -1541,7 +1541,9 @@ export class Woods extends WorldBase {
   // going up into the chimney; iron dogs with the logs across them, and a crane with the kettle swung over the fire
   // (in the log cabin it stands against the back wall, under the stone chimney outside; in the house, against the
   //  front of the brick stack that comes up through the floor, between the kitchen range and the door)
-  fireSpot() { return (this.homeTier || 1) >= 2 && this.cabinUp ? { CX: -1.0, ZB: -2.06, W: 0.7 } : { CX: -1.2, ZB: -2.78, W: 0.95 }; }
+  // (in the Blender cabin, the firebox stands out from the face of its stone chimney — set back in it, the fire burned
+  //  inside the stones, and the hearth looked black and cold)
+  fireSpot() { return (this.homeTier || 1) >= 2 && this.cabinUp ? { CX: -1.0, ZB: -2.06, W: 0.7 } : { CX: -1.2, ZB: this.cabinModelOn ? -2.3 : -2.78, W: 0.95 }; }
   buildFireplace(again = false) {
     if (!this.cabinFrame) return;
     const spot = this.fireSpot(), key = JSON.stringify(spot);

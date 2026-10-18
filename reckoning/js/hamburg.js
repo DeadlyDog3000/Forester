@@ -320,7 +320,7 @@ export class Hamburg extends WorldBase {
     root.add(headB.build(this.lampHeadMat, { shadow: false }));
 
     // ---- candles: a holder, the wax, and (added below) the flame ----
-    this.candleSpots = [[10.3, 0.82, -13.6], [12.2, 0.82, -6.35], [13.2, 0.82, -6.05], [8.75, 1.32, -5.65], [8.75, 1.32, -6.75], [14.3, 1.55, -3.52]];
+    this.candleSpots = [[10.3, 0.82, -13.6], [11.75, 0.82, -6.4], [13.0, 0.82, -6.15], [8.75, 1.32, -5.65], [8.75, 1.32, -6.75], [14.3, 1.55, -3.52]];
     for (const [x, y, z] of this.candleSpots) {
       props.add(new THREE.CylinderGeometry(0.055, 0.065, 0.03, 10), 0xb08a3a, x, y + 0.015, z);
       props.add(new THREE.CylinderGeometry(0.024, 0.024, 0.17, 8), 0xf0e6cc, x, y + 0.115, z);
@@ -442,8 +442,14 @@ export class Hamburg extends WorldBase {
     P.bench(props, 12.7, -5.3, 2.2); P.bench(props, 12.7, -7.1, 2.2);
     P.hearth(props, 8.7, -6.2, Math.PI / 2);
     P.barrel(props, 17.2, -8.4); P.sack(props, 16.9, -4.1); P.sack(props, 17.3, -4.4, 0, 1);
-    props.box(0.5, 0.3, 0.35, 12.3, 0.95, -6.1, 0xa87a4a);   // a loaf on the table
-    props.box(0.25, 0.08, 0.25, 13.3, 0.86, -6.0, 0xd8d0c0); props.box(0.25, 0.08, 0.25, 12.0, 0.86, -6.3, 0xd8d0c0);
+    // a round rye loaf on its board, at the end of the table (out of the line between your seat and Father's), and a
+    // pewter plate at each place
+    props.add(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 14), 0x8a5e36, 13.55, 0.84, -6.45);
+    props.add(new THREE.SphereGeometry(0.15, 16, 10, 0, TAU, 0, Math.PI / 2), 0x7a4a26, 13.55, 0.85, -6.45, 0, 0.3, 0, 1.15, 0.62, 0.95);
+    for (const [x, z] of [[12.0, -5.85], [13.4, -5.85], [12.7, -6.6]]) {
+      props.add(new THREE.CylinderGeometry(0.115, 0.09, 0.018, 16), 0x9c9a90, x, 0.835, z);
+      props.add(new THREE.CylinderGeometry(0.07, 0.07, 0.004, 16), 0xb4b2a8, x, 0.845, z);
+    }
     this.col.addRect(12.7, -6.2, 2.4, 1.0, 0.85);
     this.col.addRect(8.7, -6.2, 0.9, 1.9, 3);
     this.col.addCircle(17.2, -8.4, 0.35, 1);
@@ -687,9 +693,11 @@ export class Hamburg extends WorldBase {
       this.water.geometry.computeVertexNormals();
     }
     if (this.posternGlow.visible) {
-      const k = 0.55 + Math.sin(this.t * 3) * 0.45;
-      this.posternGlow.children[0].material.opacity = 0.1 + k * 0.18;
-      this.posternGlow.children[1].material.opacity = 0.45 + k * 0.5;
+      // (it fades as you come up to it — close by, you can see the door itself, and it isn't a green sheet over the screen)
+      const k = 0.55 + Math.sin(this.t * 3) * 0.45, pl = G.player;
+      const near = pl ? Math.min(1, Math.max(0, (Math.hypot(pl.pos.x + 27.5, pl.pos.z - 67.7) - 3) / 5)) : 1;
+      this.posternGlow.children[0].material.opacity = (0.1 + k * 0.18) * near;
+      this.posternGlow.children[1].material.opacity = (0.45 + k * 0.5) * near;
     }
     for (const s of this.ships) {
       s.position.y = -1.3 + Math.sin(this.t * 0.7 + s.userData.bob) * 0.1;
