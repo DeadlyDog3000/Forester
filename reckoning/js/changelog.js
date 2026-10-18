@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.83.2", date: "17 October 2026", title: "An easier chase",
+    items: [
+      "Story: the chase through Hamburg is easier. The watch start slower and gain on you more gently, you have a longer start, the man who runs to cut you off from the alley reacts later, the one from the north street comes later, and your breath lasts longer. They must be closer to catch you, too.",
+      "Story: each time the watch catches you, the next try is a little easier still: they're a step slower, and you get a step more start.",
+    ],
+  },
+  {
     v: "1.83.1", date: "17 October 2026", title: "Not lost in a day",
     items: [
       "Campaign: losing your last town no longer ends the campaign at once while your army is still in the field. You have three years to take a town back, with a red card at the top of the panel counting them down; retake one and the crown is saved.",

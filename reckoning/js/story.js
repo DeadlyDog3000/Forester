@@ -92,6 +92,7 @@ const CAUGHT = [
   "They drag you back toward the square. Not like this.",
   "You were seen. In this city, being seen is enough.",
 ];
+let chaseTries = 0;   // (how many times the watch has caught you this sitting)
 const TIPS_CHASE = ["Hold Shift and make for the narrow alley west of the square — and don't stop until you're out the far end.", "The watchman in the street lunges for where you're going: swing wide round him, along the far side.", "Save your breath for the alley: let go of Shift for a moment when nobody is close.", "A fourth comes down the north street — don't dawdle in the square."];
 const TIPS_STEALTH = ["Crouch with C, and wait for the lantern to swing away.", "Keep a crate between you and the watch. Nobody sees through wood.", "Lean round a corner with Q and E before you step out.", "Watch the eye at the top of the screen — when it opens, get out of sight.", "The watch at the gate looks west and east in turn. Move when he looks away.", "Walking is quiet. Running is heard."];
 const QUOTES = [
@@ -786,7 +787,9 @@ async function ch3(w, opts) {
   sib.followPlayer(1.6);
   G.sprintSpeed = 6.2;
   G.stamina = 1;                 // running costs breath now
-  G.staminaMul = 0.72;           // (fear keeps you going: breath lasts a little longer in the chase)
+  G.staminaMul = 0.55;           // (fear keeps you going: breath lasts longer in the chase)
+  // (each time they've caught you, the next run a little easier: they're a step slower, and you've a step more start)
+  const tries = Math.min(4, chaseTries), ease = 1 - tries * 0.04;
   G.tension = 1;                 // (and you can hear yourself breathing)
   // they come on, around what is in their way, faster the longer it goes
   const chasers = [cg1, cg2, cg3, cg4];
@@ -794,27 +797,27 @@ async function ch3(w, opts) {
   // the mouth of the alley, and where it comes out at the far end
   const MOUTH = [-24.8, 43.2], END_Z = 52.5;
   const inAlley = () => pl.pos.x < -23 && pl.pos.x > -26.4 && pl.pos.z > 42.6;
-  let caught = false, grace = 0.6, elapsed = 0, cutOff = false, north = false, entered = false;
+  let caught = false, grace = 1.4 + tries * 0.3, elapsed = 0, cutOff = false, north = false, entered = false;
   const chase = onFrame(dt => {
     grace -= dt; elapsed += dt;
     if (!entered && inAlley()) { entered = true; mark([-24.8, END_Z + 1]); UI.objective("Up the alley — don't stop"); }
     for (const g of chasers) {
       if (grace > 0) continue;
       const dx = pl.pos.x - g.pos.x, dz = pl.pos.z - g.pos.z, d = Math.hypot(dx, dz);
-      let spd = Math.min(6.0, 5.1 + elapsed * 0.11);
+      let spd = Math.min(5.6, 4.7 + elapsed * 0.07) * ease;
       let tx = dx, tz = dz;
       if (g === cg3) {
         // he waits in the street until you come, then lunges for where you are going
         // he hears you coming, and runs for the alley to cut you off; you have to get there first
         if (!cutOff && pl.pos.x > -9) { g.targetYaw = Math.atan2(dx, dz); continue; }
-        if (!cutOff) { cutOff = true; g.react = 0.25; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
+        if (!cutOff) { cutOff = true; g.react = 0.6; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
         if ((g.react -= dt) > 0) continue;
-        spd = 5.3;
+        spd = 4.8 * ease;
       }
       if (g === cg4) {
-        if (elapsed < 2.2) continue;
+        if (elapsed < 3.4) continue;
         if (!north) { north = true; AUDIO.shout(); bark("Watchman", "Down here! Cut them off!", 1.8); }
-        spd = Math.min(5.9, 5.4 + elapsed * 0.05);
+        spd = Math.min(5.5, 5.0 + elapsed * 0.04) * ease;
       }
       const l = Math.hypot(tx, tz) || 1;
       g.pos.x += tx / l * spd * dt; g.pos.z += tz / l * spd * dt;
@@ -825,7 +828,7 @@ async function ch3(w, opts) {
         if (md < 3.2) { g.pos.x = MOUTH[0] + mx / (md || 1) * 3.2; g.pos.z = MOUTH[1] + mz / (md || 1) * 3.2; }
       }
       g.targetYaw = Math.atan2(dx, dz); g.forcedSpeed = spd;
-      if (d < 1.3) caught = true;
+      if (d < 1.1) caught = true;
     }
   });
   const ok = await Promise.race([
@@ -837,6 +840,7 @@ async function ch3(w, opts) {
   if (!ok) {
     G.lockMove = true;
     AUDIO.shout();
+    chaseTries++;
     await caughtScreen(TIPS_CHASE);
     return startChapter(3, { chase: true });
   }
