@@ -49,9 +49,9 @@ export function initLobby(c) {
   $("mpHostSeed").onclick = () => { seedNow = Math.floor(Math.random() * 2 ** 31); drawKindPreview(); };
   $("mpBuildBack").onclick = () => { if (story) { const s = story; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.cancel && s.cancel(); return; } closePreview(); ctx.screen("mpLobby"); };
   $("mpBuildGo").onclick = () => {
-    if (story) { const s = story, look = { ...me.look }; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.done(look); return; } const n = $("mpName").value.trim().slice(0, 24); if (!n) { $("mpName").focus(); $("mpName").classList.add("want"); return; } me.name = n; saveLook(me.name, me.look); try { localStorage.setItem("reckoning.mp.name", n); } catch (e) {} closePreview(); const f = afterBuild; afterBuild = null; if (f) f(); else ctx.screen("mpLobby"); };
+    if (story) { const s = story, look = { ...me.look }; story = null; me.look = s.keep; closePreview(); document.getElementById("mpBuilder").classList.remove("story"); s.done(look); return; } const n = $("mpName").value.trim().slice(0, 24); if (!n) { $("mpName").focus(); $("mpName").classList.add("want"); $("mpName").placeholder = "Give them a name first"; return; } me.name = n; saveLook(me.name, me.look); try { localStorage.setItem("reckoning.mp.name", n); } catch (e) {} closePreview(); const f = afterBuild; afterBuild = null; if (f) f(); else ctx.screen("mpLobby"); };
   $("mpRandom").onclick = () => { me.look = story ? { ...randomLook(), body: story.body } : randomLook(); buildControls(); showLook(); };
-  $("mpName").addEventListener("input", () => $("mpName").classList.remove("want"));
+  $("mpName").addEventListener("input", () => { $("mpName").classList.remove("want"); $("mpName").placeholder = "Who do you play this time?"; });
 }
 // the username: asked once (the first time the game is opened), kept, and changed only on purpose
 export function askUser(then, changing = false) {

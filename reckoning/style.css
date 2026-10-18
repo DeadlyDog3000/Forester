@@ -876,6 +876,7 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 .mp-namerow { display: grid; grid-template-columns: 90px 1fr; gap: 12px; align-items: center; font: 600 13px var(--sans); color: var(--ink-dim); }
 .mp-namerow input { font: 18px var(--serif); }
 .mp-namerow input.want { border-color: #e0713a; box-shadow: 0 0 0 2px rgba(224, 113, 58, 0.35); }
+.mp-namerow input.want::placeholder { color: #f0a070; opacity: 1; }
 .mp-row { display: grid; grid-template-columns: 90px 1fr; gap: 12px; align-items: center; font: 600 13px var(--sans); color: var(--ink-dim); }
 .mp-row > span { text-align: right; }
 .mp-sw { display: flex; flex-wrap: wrap; gap: 6px; }

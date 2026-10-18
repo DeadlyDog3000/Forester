@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.12", date: "18 October 2026", title: "Name them first",
+    items: [
+      "Character builder: pressing Into the game without a roleplay name now says \"Give them a name first\" in the name box. Before, the box only turned orange and nothing happened.",
+    ],
+  },
+  {
     v: "1.90.11", date: "18 October 2026", title: "Face to face",
     items: [
       "Character builder: on Face, your character turns to look at you and stays there, instead of slowly spinning until you're looking at the back of their head. Whole still turns slowly, so you can see the clothes all round.",
