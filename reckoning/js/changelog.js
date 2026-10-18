@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.84.0", date: "17 October 2026", title: "The great powers",
+    items: [
+      "Campaign: a new card in the panel, The great powers, ranks the crowns of the world as Empire: Total War's faction summary does, by their towns and the people in them. The top six are shown, with yours in gold, and yours below them if you're further down. Its heading says where you stand: 5th of 48, say.",
+    ],
+  },
+  {
     v: "1.83.3", date: "17 October 2026", title: "An easier creep to the marsh gate",
     items: [
       "Story: creeping past the watch is easier. A watchman takes longer to be sure of what he saw, a good deal longer when you're crouched, and forgets you sooner once you're out of sight. He hears a runner from less far off.",

@@ -1695,6 +1695,18 @@ function tradeOf(g) {
   return { have, goods, pacts, pactV: pacts.reduce((t, p) => t + p.v, 0), shut };
 }
 const income = g => { const k = govType().inc * (1 + (minSk("treasury") - 3) * 0.03) * (1 - corLoss()), T = tradeOf(g); return 40 + Math.round((citiesOfNow(g, C.me).reduce((t, ct) => t + worth(ct) * TAX[taxAt(ct)].k, 0) + T.goods + T.pactV) * k); };
+// ---- the great powers, ranked, as Empire's faction summary: by their towns and the people in them (their armies you
+//  can't know) ----
+function rankHtml() {
+  if (C.mp) return "";
+  const g = grid(), score = {}, towns = {};
+  for (const ct of CITIES) { const o = cityOwner(g, ct); if (!o || !NATIONS[o]) continue; towns[o] = (towns[o] || 0) + 1; score[o] = (score[o] || 0) + 20 + popOf(ct) / 1000; }
+  const L = Object.keys(score).sort((a, b) => score[b] - score[a]), mine = L.indexOf(C.me), top = L.slice(0, 6);
+  const row = (id, i) => `<div class="cmp-rank${id === C.me ? " me" : ""}"><em>${i + 1}</em><i style="background:${NATIONS[id].color}"></i><b>${esc(id === C.me ? NATIONS[id].name + " (you)" : NATIONS[id].name)}</b><small>${towns[id]} town${towns[id] === 1 ? "" : "s"}</small></div>`;
+  return fold("rank", `<span class="cmp-h"><b>The great powers</b><small>${mine >= 0 ? `yours is ${ordinal(mine + 1)} of ${L.length}` : ""}</small></span>`,
+    `<div class="cmp-ranks">${top.map((id, i) => row(id, i)).join("")}${mine >= 6 ? `<div class="cmp-rank gap">…</div>${row(C.me, mine)}` : ""}</div>`);
+}
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
 function tradeHtml() {
   const T = tradeOf(grid()), ks = Object.keys(T.have).sort((a, b) => GOODS[b].v * T.have[b] - GOODS[a].v * T.have[a]);
   return fold("trade", `<span class="cmp-h"><b>Trade</b><small>${T.goods + T.pactV} thalers a year${T.shut.length ? ` · <em class="down">${T.shut.length} port${T.shut.length > 1 ? "s" : ""} blockaded</em>` : ""}</small></span>`,
@@ -2834,6 +2846,7 @@ function drawSide() {
   h += missionsHtml();
   h += govHtml();
   h += tradeHtml();
+  h += rankHtml();
   h += fold("army", `<span class="cmp-h"><b>${(C.armies || []).length ? esc(armyName(C.ar | 0)) : "Your army"}</b><small>${field().length} regiment${field().length === 1 ? "" : "s"}${C.levyQ ? ` (+${C.levyQ} raising)` : ""}${C.units.some(u => u.at) ? ` · ${C.units.filter(u => u.at).length} in garrisons` : ""} · ${C.guns} gun${C.guns === 1 ? "" : "s"} · ${moraleWord(C.morale ?? 50).toLowerCase()} · ${C.siege ? `besieging ${esc(C.siege.ct)}` : C.go ? "on the march" : C.moved ? "marched this year" : "ready"}</small></span>`, `
     <div class="cmp-morale"><small>Morale</small><b>${moraleWord(C.morale ?? 50)}</b><i><u style="width:${C.morale ?? 50}%"></u></i><small>${C.morale ?? 50}</small></div>
     ${(C.armies || []).length ? `<div class="cmp-armies">${armyIds().map(id => { const n2 = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length, A = id === (C.ar | 0) ? C : C.armies.find(a => a.id === id) || {}, at = A.pos ? nearTown(A.pos)[0] : ""; return `<button class="btn${id === (C.ar | 0) ? " on" : ""}" data-army="${id}"${id === (C.ar | 0) ? " disabled" : ""} title="${esc(`${armyName(id)}: ${n2} regiments, near ${at}${A.gen ? `, under ${A.gen.name}` : ", no general"} · ${A.siege ? `besieging ${A.siege.ct}` : A.go ? "on the march" : A.moved ? "marched this year" : "ready"}`)}">${esc(armyName(id))} · ${n2}<small>${esc(at)}</small></button>`; }).join("")}</div>` : ""}
