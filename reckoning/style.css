@@ -1599,6 +1599,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-top small { font: 600 10px var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-dim); }
 .cmp-top b { font: 600 15px var(--sans); }
 .cmp-top em { font-style: normal; font-size: 12px; } .cmp-top em.up, .cmp-side .up { color: var(--gold); } .cmp-top em.down, .cmp-side .down { color: #e07a6a; }
+@media (min-width: 900px) { #campaign .cmp-bar { flex-wrap: nowrap; } #campaign .cmp-top { flex-wrap: nowrap; flex: 1 1 auto; min-width: 0; } .cmp-bb { flex: none; } .cmp-top > span { flex: none; } .cmp-top > .cmp-wars { flex: 1 1 auto; min-width: 0; } .cmp-top > .cmp-wars b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; } }
 .cmp-top .cmp-crownname { flex-direction: row; align-items: center; gap: 8px; font: 20px var(--serif); }
 .cmp-crownname i, .cmp-h i { width: 12px; height: 20px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.4); display: inline-block; }
 .cmp-bb { display: flex; gap: 6px; }
@@ -2018,6 +2019,7 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-idle span { flex: 1; display: grid; gap: 2px; }
 .cmp-idle b { font: 600 13.5px var(--serif); color: #e8c96a; }
 .cmp-idle small { color: var(--ink-dim); font-size: 11.5px; }
+.cmp-idle .btn { flex: none; width: auto; min-width: 0; padding: 5px 12px; font-size: 12px; }
 /* the crown without a town */
 .cmp-exile { border-color: rgba(216,112,90,0.7); background: rgba(120,30,20,0.35); }
 .cmp-exile b { color: #f0b0a0; font: 600 14px var(--serif); display: block; }
@@ -2032,6 +2034,8 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-goals span.on { color: var(--ink); }
 .cmp-goals i { flex: none; width: 15px; height: 15px; border: 1.5px solid rgba(239,228,198,0.35); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--sans); font-style: normal; color: #9fd08a; }
 .cmp-goals span.on i { border-color: #9fd08a; background: rgba(120,180,100,0.18); }
+.cmp-goals .tm-lnk { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline dotted rgba(239,228,198,0.45); text-underline-offset: 3px; box-shadow: none; }
+.cmp-goals .tm-lnk:hover { color: #e8c96a; }
 .cmp-goals em { margin-left: auto; font-style: normal; color: var(--ink-dim); font-size: 11px; }
 .cmp-goalbox { width: min(440px, 100%); text-align: center; }
 .cmp-goalbox h2 { font-size: 34px; letter-spacing: 0.06em; }

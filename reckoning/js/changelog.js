@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.88.4", date: "17 October 2026", title: "A tidier bar",
+    items: [
+      "Campaign: the top bar stays on one line on smaller screens. A long list of enemies shows the first two and how many more, with the whole list when you hover it, and it no longer pushes the buttons onto a second row under the bar.",
+      "Campaign: the Learning button on the idle-scholars card is its proper size, not stretched across the card. The Victory card's towns read as links, not white boxes.",
+    ],
+  },
+  {
     v: "1.88.3", date: "17 October 2026", title: "Two crowns, two courts",
     items: [
       "Campaign with a friend: each player keeps their own government and ministers, spies, protectorates and scholars' exchanges, and their own army's state at sea. Before, the two players shared one government, and one player's bribes and protectorates counted for both.",
