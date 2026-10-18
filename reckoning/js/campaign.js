@@ -194,7 +194,12 @@ const alliesOf = id => [...new Set(LEAGUES_1683.filter(L => L.ids.includes(id)).
 // a new campaign, as a crown
 // (the great fortresses of 1683: walled from the first year, as they stood — Vienna that the Turks were sitting down
 //  before, the Danube and Dniester strongholds, Candia's Venetian bastions, Strasbourg and the Baltic ports)
-const FORTS_1683 = ["Wien", "Buda", "Belgrad", "Kamieniec", "Candia", "Azov", "Strassburg", "Antwerpen", "Hamburg", "Danzig", "Riga", "Kiøbenhavn"];
+const FORTS_1683 = ["Wien", "Buda", "Belgrad", "Kamieniec", "Candia", "Azov", "Strassburg", "Antwerpen", "Hamburg", "Danzig", "Riga", "Kiøbenhavn",
+  // (and the rest of the towns that stood behind walls in 1683: the old free cities, the fortress towns of the frontiers,
+  //  the great capitals' citadels, and the Spanish and French strongholds over the sea)
+  "Constantinopolis", "Prag", "Kraków", "Nürnberg", "Köln", "Magdeburg", "Lübeck", "Bremen", "Königsberg", "Reval", "Stettin", "Breslau",
+  "Lemberg", "Smolensk", "Kiev", "Novgorod", "Moskva", "Torino", "Milano", "Genova", "Ragusa", "Graz", "Pressburg", "Kaffa", "Oran", "Cádiz",
+  "Brest", "Göteborg", "La Habana", "Québec"];
 function fresh(me) {
   const rel = {}, army = {};
   for (const id of Object.keys(NATIONS)) {
@@ -217,7 +222,7 @@ function fresh(me) {
   return { v: 1, gridV: 6, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
     E: { rel, war, wars, conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
     foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [],
-    walls: Object.fromEntries(FORTS_1683.filter(n => CITIES.some(c => c[0] === n)).map(n => [n, 1])) };
+    walls: Object.fromEntries(FORTS_1683.filter(n => CITIES.some(c => c[0] === n)).map(n => [n, 1])), forts2: 1 };
 }
 function begin(me, into = slot) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map(); warmMaps();
@@ -592,6 +597,8 @@ function askGeneral() { if (C.gen || C.events.some(e => e.kind === "appoint" && 
 function ensureRealm() {
   if (!C) return;
   C.B ||= {}; C.Q ||= {}; C.walls ||= {}; C.foeGen ||= {}; C.fguns ||= {};
+  // (a campaign begun before the walled towns of 1683 were all counted: theirs given them, unless it's had its say over them since)
+  if (!C.forts2) { C.forts2 = 1; for (const n of FORTS_1683) if (CITIES.some(c => c[0] === n) && !(n in C.walls)) C.walls[n] = 1; }
   for (const ct of CITIES) popOf(ct);
   if (C.dev) { for (const [n, v] of Object.entries(C.dev)) (C.B[n] ||= {}).farm = Math.max(C.B[n].farm | 0, v | 0); delete C.dev; }
   if (C.raising) { for (const n of Object.keys(C.raising)) C.Q[n] = { chain: "walls", by: C.me, cost: 0 }; delete C.raising; }

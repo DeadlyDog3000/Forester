@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.22", date: "18 October 2026", title: "Towns in the round",
+    items: [
+      "Campaign 3D map: a town grows as a lump, not along lines. Past its old town it spreads further one way than another, bulging in a direction or two of its own, its streets running on out and lanes round between. It spreads least toward water and steep ground, and as its people grow it keeps the same shape, only larger.",
+      "Campaign 3D map: the fields don't show as tiles any more. They were a square grid; now they're parcels of uneven shape and size, longer one way than the other and lying in different directions from one district to the next.",
+      "Campaign: more towns start walled, as they stood in 1683: Constantinople, Prague, Kraków, Nuremberg, Cologne, Magdeburg, Lübeck, Bremen, Königsberg, Reval, Stettin, Breslau, Lemberg, Smolensk, Kiev, Novgorod, Moscow, Turin, Milan, Genoa, Ragusa, Graz, Pressburg, Kaffa, Oran, Cádiz, Brest, Gothenburg, Havana and Quebec, beside the twelve fortresses there already were. A campaign already under way gets them too.",
+    ],
+  },
+  {
     v: "1.90.21", date: "18 October 2026", title: "Towns that grow",
     items: [
       "Campaign 3D map: a town is as big as its people. A town of 8,000 is a few dozen houses round its church; a great city of 70,000 is hundreds, and it grows on the map as its people grow (and shrinks when they're levied or starved away).",

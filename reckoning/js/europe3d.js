@@ -138,13 +138,19 @@ const GROUND_MIX = `
   float n2 = mix(0.5, gn(wp * 41.0) * 0.6 + gn(wp * 97.0) * 0.4, fine);
   vec3 col = diffuseColor.rgb;
   // the fields: parcels and strips, their edges wandering, each its own crop; hedges dark between them
-  vec2 fw = wp + (vec2(gn(wp * 2.3), gn(wp * 2.3 + 9.0)) - 0.5) * 0.22;
-  vec2 fu = vec2(dot(fw, vec2(17.0, 3.6)), dot(fw, vec2(-2.8, 11.0)));
-  float cell = gh(floor(fu) + 17.0);
+  // (parcels of no set shape or size — each the nearest of a scatter of points — longer one way than the other, and
+  //  lying this way in one district, that way in the next)
+  float dn = gn(wp * 0.45 + 4.0) * 0.6 + gn(wp * 1.1) * 0.4, fa = dn < 0.4 ? 0.45 : dn < 0.6 ? 2.0 : 1.2; mat2 fr = mat2(cos(fa), sin(fa), -sin(fa), cos(fa));
+  vec2 q = (fr * wp) * vec2(7.0, 18.0) + fa * 37.0, qi = floor(q), qf = q - qi, fid = qi; float d1 = 9.0, d2 = 9.0;
+  for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+    vec2 g = vec2(float(i), float(j)), o = vec2(gh(qi + g + 31.0), gh(qi + g + 57.0)) * 0.85 + 0.075, rr = g + o - qf; float d = dot(rr, rr);
+    if (d < d1) { d2 = d1; d1 = d; fid = qi + g; } else if (d < d2) d2 = d;
+  }
+  float cell = gh(fid + 17.0);
   vec3 crop = cell < 0.24 ? vec3(0.82, 0.68, 0.30) : cell < 0.42 ? vec3(0.44, 0.60, 0.24) : cell < 0.6 ? vec3(0.55, 0.67, 0.32) : cell < 0.72 ? vec3(0.72, 0.62, 0.34) : cell < 0.86 ? vec3(0.54, 0.42, 0.27) : vec3(0.40, 0.31, 0.22);
-  crop *= 0.93 + 0.14 * gh(floor(fu) + 3.0);
+  crop *= 0.93 + 0.14 * gh(fid + 3.0);
   crop = mix(vec3(0.60, 0.58, 0.31), crop, mid);
-  vec2 fe = min(fract(fu), 1.0 - fract(fu)); float hedge = (1.0 - smoothstep(0.0, 0.05, min(fe.x, fe.y * 1.5))) * fine;
+  float hedge = (1.0 - smoothstep(0.0, 0.09, sqrt(d2) - sqrt(d1))) * fine;
   float wood = woodN(wp) - (1.0 - vT.x) * 0.6;
   float open = vT.y * (1.0 - clamp((wood - 0.38) * 8.0, 0.0, 1.0)) * (0.75 + 0.25 * smoothstep(0.3, 0.6, n1));
   col = mix(col, mix(crop, vec3(0.30, 0.38, 0.20), hedge * 0.6), open * 0.72);
@@ -172,7 +178,7 @@ function groundMaterial() {
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground6";
+  m.customProgramCacheKey = () => "ground8";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -452,7 +458,7 @@ export class EuropeView3D {
       const pop = isHome ? 0 : (this.pops && this.pops[name]) || popEst(name, rank);
       const NH = isHome ? 5 : Math.max(14, Math.min(700, Math.round(pop / 170)));
       // (the old town, inside its walls if it has them: about half the houses, packed close)
-      const spread = isHome ? 0.07 : 0.03 + 0.016 * Math.sqrt(NH);
+      const spread = isHome ? 0.07 : 0.025 + 0.0105 * Math.sqrt(NH);
       // (a town of the woods' nations: longhouses of bark inside a ring of palisade, no church)
       const woods = own && NATIONS[own] && NATIONS[own].nw;
       if (woods) {
@@ -461,60 +467,57 @@ export class EuropeView3D {
         for (let i = 0; i < 6 + rank * 5; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * R * 0.8, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz); const lh = new THREE.Mesh(longGeo, barkMat); lh.position.set(hx, hy, hz); lh.rotation.y = r() * 3; lh.scale.setScalar(1.25); put(lh); }
         const N = 40 + rank * 14; for (let i = 0; i < N; i++) { const a = i / N * 6.28, sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R; if (Math.abs(Math.sin(a)) < 0.06 && Math.cos(a) > 0) continue; const st = new THREE.Mesh(stakeGeo, stakeMat); st.position.set(sx, this.groundY(sx, sz) + 0.018, sz); st.scale.setScalar(1.2); put(st); }
       } else {
-        // the town laid out as a town grows: a market square, the old town's streets packed round it — and out past
-        // it the roads, a few, in no set directions, the houses strung along them, the longest where it grew most;
-        // each road bending round water and steep ground, and stopping where it can't go on
-        const north = lat > 52 || lon < -45, south = lat < 44, R = spread, S = isHome ? 2 : 4 + rank, a0 = r() * 6.28;
+        // the town laid out as a town grows: a market square, the old town's streets packed round it — and past it
+        // the newer town, spreading as a town does, unevenly: further one way than another, in a lump or two where
+        // it grew most, the streets running on out from the old ones and lanes round between; and least toward the
+        // water and the steep ground, where it can't build
+        const north = lat > 52 || lon < -45, south = lat < 44, R = spread, S = isHome ? 2 : 5 + rank, a0 = r() * 6.28;
         const sq = R * 0.13, slots = [], ok = (px, pz, py) => py >= 0.025;
-        const lot = (hx, hz, ang, score, nx = 0, nz = 0, t = 1) => slots.push([hx, hz, ang, score, nx, nz, t]);
+        // (its outline: lumpy, a bulge or two in no set direction, drawn in toward bad ground)
+        const p1 = r() * 6.28, p2 = r() * 6.28, lobes = Array.from({ length: 1 + ((r() * 3) | 0) }, () => [r() * 6.283, 0.9 + r() * 1.5, 0.35 + r() * 0.4]);
+        const RMAX = isHome ? R : R * 4.2, land = [];
+        for (let k = 0; k < 16; k++) {
+          const a = k / 16 * 6.283; let good = 0, py = this.groundY(x, z);
+          for (let st = 1; st <= 6; st++) { const d = R * 0.6 + (RMAX - R * 0.6) * st / 6, qx = x + Math.cos(a) * d, qz = z + Math.sin(a) * d, qy = this.groundY(qx, qz); if (!ok(qx, qz, qy) || Math.abs(qy - py) > 0.06 * (RMAX / 6) / 0.1) break; good++; py = qy; }
+          land.push(0.25 + 0.75 * good / 6);
+        }
+        const shape = a => {
+          let v = 0.45 + 0.25 * Math.sin(2 * a + p1) + 0.15 * Math.sin(3 * a + p2);
+          for (const [la, ls, lw] of lobes) { let da = Math.abs(a - la) % 6.283; if (da > Math.PI) da = 6.283 - da; v += ls * Math.exp(-(da * da) / (lw * lw)); }
+          const f = ((a / 6.283 % 1 + 1) % 1) * 16, k = Math.floor(f) % 16, t = f - Math.floor(f);
+          return Math.max(0.2, v * (land[k] * (1 - t) + land[(k + 1) % 16] * t));
+        };
+        // (inside the old town, first; out past it, in the order the outline grows — so more people, the same shape larger)
+        const lot = (hx, hz, ang, d, nx = 0, nz = 0) => {
+          const a = Math.atan2(hz - z, hx - x), score = d < R ? d * 0.5 : R * 0.5 + (d - R) / shape(a) * (0.94 + r() * 0.12);
+          slots.push([hx, hz, ang, score, nx, nz, d / R]);
+        };
         for (let k = 0; k < S; k++) {
-          const a = a0 + k / S * 6.283 + (r() - 0.5) * 0.4, len = R * (0.85 + r() * 0.25), ca = Math.cos(a), sa = Math.sin(a);
-          for (let d = sq + 0.02; d < len; d += 0.034 + d * 0.03) for (const side of [-1, 1]) {
+          const a = a0 + k / S * 6.283 + (r() - 0.5) * 0.4, ca = Math.cos(a), sa = Math.sin(a);
+          for (let d = sq + 0.02; d < RMAX; d += 0.034 + Math.min(d, R) * 0.03) for (const side of [-1, 1]) {
             const off = 0.013 + r() * 0.004;
-            lot(x + ca * d - sa * off * side, z + sa * d + ca * off * side, -a, d * 0.8, -sa * side, ca * side, d / R);
+            lot(x + ca * d - sa * off * side, z + sa * d + ca * off * side, -a, d, -sa * side, ca * side);
           }
         }
-        for (const f of NH > 60 ? [0.42, 0.72] : !isHome ? [0.55] : []) {
-          const rr = R * f, N = Math.round(6.283 * rr / 0.034);
-          for (let i = 0; i < N; i++) for (const side of [-1, 1]) { const a = i / N * 6.283 + r() * 0.05, d = rr + side * 0.013, ca = Math.cos(a), sa = Math.sin(a); lot(x + ca * d, z + sa * d, -a + Math.PI / 2, d * 0.8 + r() * 0.02, ca * side, sa * side, d / R); }
+        // (the lanes round: close in the old town, wider apart out past it, wandering a little)
+        for (let rr = R * (NH > 60 ? 0.42 : 0.55); rr < RMAX; rr += rr < R ? R * 0.3 : 0.075 + r() * 0.03) {
+          const N = Math.round(6.283 * rr / 0.034), wob = r() * 6.28;
+          for (let i = 0; i < N; i++) for (const side of [-1, 1]) { const a = i / N * 6.283 + r() * 0.05, d = rr * (1 + Math.sin(a * 3 + wob) * 0.05) + side * 0.013, ca = Math.cos(a), sa = Math.sin(a); lot(x + ca * d, z + sa * d, -a + Math.PI / 2, d, ca * side, sa * side); }
         }
-        for (let i = 0; i < (isHome ? 0 : NH * 0.4); i++) { const a = r() * 6.283, d = sq + 0.03 + Math.sqrt(r()) * R * 0.8; lot(x + Math.cos(a) * d, z + Math.sin(a) * d, -a + (r() < 0.5 ? 0 : Math.PI / 2), d * 0.85 + r() * 0.03, 0, 0, d / R); }
-        // (the roads out, and the houses along them)
-        const arms = isHome ? 0 : 2 + ((r() * 3) | 0) + (NH > 250 ? 1 : 0), STEP = 0.034;
-        for (let k = 0; k < arms; k++) {
-          let a = r() * 6.283, px = x + Math.cos(a) * R * 0.9, pz = z + Math.sin(a) * R * 0.9, py = this.groundY(px, pz), along = 0;
-          const pull = 0.35 + r() * r() * 1.6, len = R * (1.2 + pull * 2.6);
-          if (!ok(px, pz, py)) continue;
-          while (along < len) {
-            // (on, a little this way or that; round the water or a steep side if it must — or no further)
-            let moved = false;
-            for (const turn of [0, 0.45, -0.45, 0.9, -0.9]) {
-              const b = a + turn + (r() - 0.5) * 0.5, qx = px + Math.cos(b) * STEP, qz = pz + Math.sin(b) * STEP, qy = this.groundY(qx, qz);
-              if (!ok(qx, qz, qy) || Math.abs(qy - py) / STEP > 0.55) continue;
-              a = b; px = qx; pz = qz; py = qy; moved = true; break;
-            }
-            if (!moved) break;
-            along += STEP;
-            const ca = Math.cos(a), sa = Math.sin(a), score = (R * 0.9 + along / pull) * (0.9 + r() * 0.2);
-            for (const side of [-1, 1]) {
-              if (r() < 0.9 - along / len * 0.45) lot(px - sa * 0.015 * side, pz + ca * 0.015 * side, -a, score, -sa * side, ca * side, 1 + along / len);
-              // (and close in, a row behind, and another: the suburb broad where it meets the old town, a thread at its far end)
-              for (const [off, f] of [[0.062, 0.6], [0.11, 0.3]]) if (r() < 1 - along / (len * f)) lot(px - sa * off * side, pz + ca * off * side, -a, score + off, -sa * side, ca * side, 1 + along / len);
-            }
-            // (a lane off it, now and then)
-            if (r() < 0.08) { const b = a + (r() < 0.5 ? 1.57 : -1.57), cb = Math.cos(b), sb = Math.sin(b); for (let d = 0.04; d < 0.04 + r() * 0.12; d += STEP) for (const side of [-1, 1]) lot(px + cb * d - sb * 0.015 * side, pz + sb * d + cb * 0.015 * side, -b, score + d * 2, -sb * side, cb * side, 1.2); }
-          }
-        }
+        // (and the blocks between filled in)
+        for (let i = 0; i < (isHome ? 0 : NH * 1.2); i++) { const a = r() * 6.283, d = sq + 0.03 + Math.sqrt(r()) * (RMAX - sq); lot(x + Math.cos(a) * d, z + Math.sin(a) * d, -a + (r() < 0.5 ? 0 : Math.PI / 2), d); }
         slots.sort((p, q) => p[3] - q[3]);
-        const kept = [];
+        const kept = [], keptAt = new Map();
         for (let [hx, hz, ang, , nx, nz, t] of slots) {
           if (kept.length >= NH) break;
-          if (kept.some(([kx, kz]) => (kx - hx) * (kx - hx) + (kz - hz) * (kz - hz) < 0.00045)) continue;
+          const gk = (Math.floor(hx / 0.03) + 9999) * 99991 + Math.floor(hz / 0.03); let near = false;
+          for (let u = -1; u <= 1 && !near; u++) for (let v = -1; v <= 1 && !near; v++) { const L = keptAt.get(gk + u * 99991 + v); if (L) near = L.some(([kx, kz]) => (kx - hx) * (kx - hx) + (kz - hz) * (kz - hz) < 0.00045); }
+          if (near) continue;
           const core = Math.max(0, 1 - t * 1.4), w = 0.022 + r() * 0.008, l = 0.03 + r() * 0.016 + core * 0.01;
           hx += nx * l / 2; hz += nz * l / 2; const hy = this.groundY(hx, hz);
           // (no house in the water, nor hung on a cliff)
           if (!ok(hx, hz, hy) || Math.abs(hy - this.groundY(hx + nx * 0.03, hz + nz * 0.03)) > 0.02) continue;
-          kept.push([hx, hz]);
+          kept.push([hx, hz]); (keptAt.get(gk) || keptAt.set(gk, []).get(gk)).push([hx, hz]);
           const ht = 0.018 + core * (0.016 + r() * 0.012) + r() * 0.005;
           const hm = new THREE.Mesh(house, plaster); hm.position.set(hx, hy - 0.004, hz); hm.rotation.y = ang; hm.scale.set(w, ht + 0.004, l);
           put(hm, WALLS[(r() * WALLS.length) | 0]);
