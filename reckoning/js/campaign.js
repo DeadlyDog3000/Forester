@@ -1175,6 +1175,8 @@ function invade(id, fp, ct) {
   landFoe(id, ct); return true;
 }
 // (put ashore near a town of yours: on the march to it, at its walls the year after)
+// how far off a marching army still is, in years: told true, not always "next year"
+function marchOff(p, tc) { const n = Math.max(1, Math.ceil(mdist(p, tc) / MARCH)); return n === 1 ? "a year's march off. They'll be at its walls next year." : `${["", "", "two", "three", "four", "five"][n] || "many"} years' march off.`; }
 function landFoe(id, ct) { const t = cellXY(ct), sh = landNear(grid(), { x: t.x + 1.5, y: t.y + 1 }, 6) || t; C.foePos[id] = { x: sh.x, y: sh.y }; (C.foeGo ||= {})[id] = ct[0]; say(`${The(id)} ${v3(id, "lands")} an army near ${ct[0]}`, `${knowsArmy(id) ? `Some ${C.foes[id]} regiments` : "An army"} put ashore over the water, a march from its walls.`); }
 // (the battle at sea that decided an invasion: won, the crossing fails and the transports go down; lost, they land)
 function invasionAfter(foe, won) {
@@ -1914,7 +1916,7 @@ function endSeason(part = {}) {
     const near = mine.filter(c => !overSea(co.pos, cellXY(c)) && mdist(co.pos, cellXY(c)) <= MARCH * 3 && (!hasWalls(c, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length && !co.go) continue;
     const ct = (co.go && mine.find(c => c[0] === co.go)) || near.sort((a, b) => mdist(co.pos, cellXY(a)) - mdist(co.pos, cellXY(b)))[0]; if (!ct) { co.go = null; continue; }
     const tc = cellXY(ct);
-    if (mdist(co.pos, tc) > MARCH) { const st = stepToward(co.pos, tc, MARCH); co.pos = { x: st.x, y: st.y }; co.go = ct[0]; say(`${poss(The(id))} colonial army marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${co.n} regiments` : "An army of its colonists and soldiers"}, a year's march off. They'll be at its walls next year.`); continue; }
+    if (mdist(co.pos, tc) > MARCH) { const st = stepToward(co.pos, tc, MARCH); co.pos = { x: st.x, y: st.y }; co.go = ct[0]; say(`${poss(The(id))} colonial army marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${co.n} regiments` : "An army of its colonists and soldiers"}, ${marchOff(st, tc)}`); continue; }
     co.pos = { x: tc.x + 0.8, y: tc.y + 0.6 }; co.go = null;
     const att = Math.max(2, Math.round(co.n * (0.55 + R() * 0.25)));
     C.events.push({ kind: "attack", colo: true, foe: id, ct: ct[0], att, of: co.n, def: garrison(ct) + levy(mine.length) + helpNear(ct), walls: hasWalls(ct, C.me), army: helpNear(ct) > 0 });
@@ -1922,16 +1924,17 @@ function endSeason(part = {}) {
   // who marches on your towns: each crown at war with you, now and then, at a town of yours within its reach
   for (const id of ids) {
     if (C.events.some(e => !e.done && e.kind === "fieldatk" && e.foe === id)) continue;
-    if (!atWar(id) || C.foes[id] < 8 || R() > 0.5) continue;
+    // (an army already on the road keeps marching; a new march is begun now and then)
+    C.foeGo ||= {};
+    if (!atWar(id) || C.foes[id] < 8 || (!C.foeGo[id] && R() > 0.5)) continue;
     // (a walled town is only sat down before by a crown with guns to batter it)
     // (a town already marched toward: kept to; else one within its reach)
-    C.foeGo ||= {};
     let ct = C.foeGo[id] && mine.find(c => c[0] === C.foeGo[id]);
     if (!ct) { const fp0 = foeArmyPos(id), near = mine.filter(c => (fp0 && overSea(fp0, cellXY(c)) ? narrowSea(fp0, cellXY(c)) : inReach(g2, c, id)) && (!hasWalls(c, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length) continue; ct = pick(near); }
     // its army on the road: there this year if it's near enough, else a year's march nearer — seen coming
     const fp = foeArmyPos(id), tc = cellXY(ct);
     if (fp && overSea(fp, tc)) { if (!invade(id, fp, ct)) delete C.foeGo[id]; continue; }
-    if (fp && mdist(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${poss(The(id))} ${NATIONS[id].nw ? "war party" : "army"} marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${C.foes[id]} ${NATIONS[id].nw ? "bands of warriors" : "regiments"}` : NATIONS[id].nw ? "Its warriors" : "Its army"}, a year's march off. They'll be at its walls next year.`); continue; }
+    if (fp && mdist(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${poss(The(id))} ${NATIONS[id].nw ? "war party" : "army"} marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${C.foes[id]} ${NATIONS[id].nw ? "bands of warriors" : "regiments"}` : NATIONS[id].nw ? "Its warriors" : "Its army"}, ${marchOff(st, tc)}`); continue; }
     if (fp) C.foePos[id] = { x: tc.x, y: tc.y }; delete C.foeGo[id];
     const att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
     // (your army comes to its help only if it's near)

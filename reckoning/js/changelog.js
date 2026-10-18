@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.88.5", date: "18 October 2026", title: "Honest marching news",
+    items: [
+      "Campaign: an enemy army marching on one of your towns from far away now says how many years off it is (\"three years' march off\"), and counts down. Before, it said it would be at the walls next year, every year.",
+      "Campaign: an enemy army already on the road keeps marching each year until it arrives, so it comes when the news says it will.",
+    ],
+  },
+  {
     v: "1.88.4", date: "17 October 2026", title: "A tidier bar",
     items: [
       "Campaign: the top bar stays on one line on smaller screens. A long list of enemies shows the first two and how many more, with the whole list when you hover it, and it no longer pushes the buttons onto a second row under the bar.",
