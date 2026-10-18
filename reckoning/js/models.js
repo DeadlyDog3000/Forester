@@ -1287,11 +1287,22 @@ export function makeScroll() {
   const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 10), mat(0x9a1b1b)); seal.rotation.x = Math.PI / 2; seal.position.set(0, -0.13, 0.008); g.add(seal);
   return g;
 }
+// (held as a guard holds it: grounded and upright at his side, its point to the sky — kept so whatever the hand that
+//  holds it is doing, its blade turned the way he faces)
+const _hq = new THREE.Quaternion(), _hf = new THREE.Vector3(), _hy = new THREE.Vector3(0, 1, 0);
 export function makeHalberd() {
-  const g = new THREE.Group();
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.1, 6), mat(0x5a4030)); shaft.position.y = 0.6; g.add(shaft);
-  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.22), mat(0x9a9ea4, { metalness: 0.8, roughness: 0.4 })); blade.position.set(0, 1.5, 0.09); g.add(blade);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.28, 4), mat(0x9a9ea4, { metalness: 0.8, roughness: 0.4 })); tip.position.y = 1.78; g.add(tip);
+  const g = new THREE.Group(), s = new THREE.Group(); g.add(s);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 2.1, 6), mat(0x5a4030)); shaft.position.y = 0.6; s.add(shaft);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.22), mat(0x9a9ea4, { metalness: 0.8, roughness: 0.4 })); blade.position.set(0, 1.5, 0.09); s.add(blade);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.28, 4), mat(0x9a9ea4, { metalness: 0.8, roughness: 0.4 })); tip.position.y = 1.78; s.add(tip);
+  shaft.onBeforeRender = () => {
+    g.getWorldQuaternion(_hq);
+    // (the way the holder faces: the hand's own forward, laid flat)
+    _hf.set(0, 0, 1).applyQuaternion(_hq); _hf.y = 0; if (_hf.lengthSq() < 1e-6) _hf.set(0, 0, 1);
+    const yaw = Math.atan2(_hf.x, _hf.z);
+    s.quaternion.copy(_hq.invert()).multiply(new THREE.Quaternion().setFromAxisAngle(_hy, yaw));
+    s.updateMatrixWorld(true);
+  };
   return g;
 }
 

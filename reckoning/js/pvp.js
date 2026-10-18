@@ -1025,6 +1025,12 @@ class Arena {
       if (this.siege) this.spawns[this.siege.side] = { x: this.siege.anchor.x, z: this.siege.anchor.z };
       this.orders = this.custom ? this.cos.map((c, i) => new Orders(i)) : [new Orders(0), new Orders(1)]; this.sub = null; this.sel = null;
       if (this.custom) this.spawns = this.cos.map(c => this.clearSpot(c.x, c.z));
+      // (a battle of several companies a side: every company of the side holding the walls or the fort starts on them,
+      //  spread along them — not where the open field would have put it, back in among the houses)
+      if (this.custom && this.custom.length === 2) {
+        const at = this.siege ? { side: this.siege.side, p: this.siege.anchor } : this.field.fortAt ? { side: this.fortSide, p: this.field.fortAt.anchor } : null;
+        if (at) { const mine = this.cos.map((c, i) => [c, i]).filter(([c]) => c.al === at.side); mine.forEach(([, i], k) => { this.spawns[i] = this.clearSpot(at.p.x, at.p.z + (k - (mine.length - 1) / 2) * 9); }); }
+      }
       if (!this.battle) this.orders[1].form = "loose";
       // (the woods' warriors fight in open order, each man to his own cover, as they always did — not in ranks)
       if (this.battle) this.orders.forEach((O, t) => { const U = this.coUni && this.coUni[t] || (this.uni && this.uni[this.alOf(t)]); if (U && /^warrior/.test(U.body || "") && t !== 0) O.form = "loose"; });
@@ -1256,11 +1262,12 @@ class Arena {
     this.sub = null; this.sel = null;
     O0.mode = "follow"; O0.at = null; O1.mode = "hold"; O1.at = { x: theirs.x, z: theirs.z };
     // (holding your fort: your company on its front wall from the start)
-    if (this.fortSide === 0) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
+    if (this.fortSide === 0 || (this.siege && this.siege.side === 0)) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
     // (in the saddle, if you're riding into it)
     if (this.battle && riding()) { if (!pl.horse) pl.mount(); } else if (pl.horse) pl.dismount();
     // (a pace before the line where there are works ahead, so the battery's gabions are a few paces off and not in your face)
-    const lead0 = this.battle && this.fortSide == null && !this.siege ? 1 : 3;
+    // (on a town's wall walk, though: where the company stands, back from the parapet — not in it with your face to the stone)
+    const lead0 = this.siege && this.siege.side === 0 ? 0 : this.battle && this.fortSide == null && !this.siege ? 1 : 3;
     pl.place(mine.x + Math.sin(face0) * lead0, mine.z + Math.cos(face0) * lead0, face0 + Math.PI);
     const placing = this.custom ? this.cos.map((c, co) => { const at = this.spawns[co], tw = toward(at), O = this.orders[co]; if (co) { O.mode = "hold"; O.at = { x: at.x, z: at.z }; } return [co, at, Math.atan2(tw.x - at.x, tw.z - at.z), O, tw]; })
       : [[0, mine, face0, O0, theirs], [1, theirs, face1, O1, mine]];
@@ -1287,7 +1294,7 @@ class Arena {
         this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
           `${this.custom ? `${sidesWord(this.custom)} · ` : ""}${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
         // (your guns: yours to work, if you want them — said once a battle, after the opening)
-        if (this.field && !this.remote && this.field.guns.some(g => g.side === 0 && !g.dead)) setTimeout(() => G.arena === this && !this.gunMan && UI.hint("Your guns stand behind the gabions. Go to one and press F to take it: lay it with your eye and fire it yourself.", 6), 9000);
+        if (this.field && !this.remote && this.field.guns.some(g => g.side === 0 && !g.dead)) setTimeout(() => G.arena === this && !this.gunMan && UI.hint(`Your guns stand ${this.siege && this.siege.side === 0 ? "in the embrasures along the wall" : "behind the gabions"}. Go to one and press F to take it: lay it with your eye and fire it yourself.`, 6), 9000);
         // (a fort against a player: why it's theirs or yours, so it doesn't look like a coin that fell the other way)
         if (this.netBattle && this.fortSide != null) setTimeout(() => G.arena === this && UI.hint(this.fortSide === 0 ? "You hold the fort: your company's the smaller, so you have the walls to make up the numbers. Hold them." : "They hold the fort: theirs is the smaller company, so they have the walls to make up the numbers. Take it.", 7), 900);
       };
@@ -1310,7 +1317,9 @@ class Arena {
   // ---- deployment: your company put on the best ground near where it starts, by its officer, before the opening ----
   // (any battle of companies against bots — not one where you hold a fort, whose wall is your men's place; and not one
   //  against a player, whose field the host keeps as it was set)
-  canDeploy() { return this.battle && !this.net && this.fortSide !== 0 && !this.over; }
+  // (not for the side holding a fort or a walled town: its place is on its walls, not the best ground round about —
+  //  which in a town is in among the houses)
+  canDeploy() { return this.battle && !this.net && this.fortSide !== 0 && !(this.siege && this.siege.side === 0) && !this.over; }
   // the ground he picks: a little higher if there's height to have, with cover near to hand, out of the water, and no
   // nearer the enemy than where you started — looked over in a ring round your starting place
   autoDeploy() {

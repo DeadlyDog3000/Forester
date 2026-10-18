@@ -2770,9 +2770,10 @@ async function chReckoning(w) {
 // ===========================================================================
 const COLONEL = { model: "townsman", name: "Colonel Wendt", coat: 0x8a2622, legs: 0x2a2620, hair: 0x5a4a3a, hat: "hat", hatColor: 0x1e1a18, beard: 0x4a3a2a, seed: 88 };
 // (the settlement as it stands, its people about it, and your brother or sister at the fire)
-function settleScene(w, atmo) {
+function settleScene(w, atmo, day = 2) {
   setAtmo(atmo); G.bugs.setKind("flies"); AUDIO.music(null); AUDIO.wind(true, 0.3);
   const pl = G.player, town = startTown(w, Object.keys(BUILDINGS)), S = town.S;
+  town.day = day;   // (the season shown: these are summer's chapters — only shown, the settlement's own calendar untouched)
   S.name ??= "Forester's Clearing";
   town.spawnPeople(); town.sitesAll();
   w.lightFire(true); w.setFire(0.5);
@@ -2816,7 +2817,10 @@ async function chDanes(w) {
   // the battle: your company (the first of your side's, yours to command), the city's militia beside it, the Danes
   const H = battleById("hamburg");
   const mus = choice === 0 ? { musketeer: 12, pike: 4 } : { musketeer: 8, pike: 2, grenadier: 3 };
-  const b = { ...H, campaign: true,
+  // (the city itself at your back: Hamburg's stone walls, its defenders on the walk behind the parapet and its guns in the
+  //  embrasures — not a field redoubt — and the Danish tents across the field)
+  const b = { ...H, campaign: true, fort: null,
+    map: { ...H.map, things: [["town", -1, 3, 1, 1686, 0], ...H.map.things.filter(t => t[0] === "tents")] },
     sides: [{ ...H.sides[0], name: `The city's militia, and ${S.name}'s company`, cos: [{ uni: "hamburg", muster: mus, guns: 0, call: { musketeer: "Militiaman" } }, ...H.sides[0].cos] }, H.sides[1]],
     after: ["The works held. Days later the Duke of Celle's regiments came up the Elbe road, and King Christian struck his camp and went home. Hamburg stayed free.",
       "The Danes drove you off the works by the Elbe, but the city held behind its walls until the Duke of Celle's regiments came up the road. King Christian struck his camp and went home. Hamburg stayed free."],
@@ -2825,7 +2829,7 @@ async function chDanes(w) {
 }
 async function chCommission(w) {
   const P3 = (loadSave() || {}).part3 || {};
-  const { S, sib } = settleScene(w, "afternoon");
+  const { S, sib } = settleScene(w, "afternoon", 3);
   // (come back to once the commission is taken: the Emperor's army, or home)
   if (P3.commission) {
     await wait(0.2); fade(0, 1.5);

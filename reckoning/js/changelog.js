@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.1", date: "18 October 2026", title: "On the walls",
+    items: [
+      "Part Three: the Danes before Hamburg is fought from the city's own stone walls, not a field redoubt. You and the militia start up on the wall walk beside the gate tower, behind the battlements, with the Danish camp across the field.",
+      "Battles at a walled town (in the campaign too): the parapet is chest-high over the walk again. A miscalculation had stood it three metres over the defenders' heads, so all you saw was the stone in front of your face. Defenders now start on the walk and hold it, every company of them, instead of being moved off into the streets among the houses.",
+      "The Hamburg watch carry their halberds upright, point to the sky, instead of levelled at whoever is in front of them.",
+      "Part Three's chapters show summer in the settlement's bar, not spring.",
+    ],
+  },
+  {
     v: "1.90.0", date: "18 October 2026", title: "Part Three: The Wars",
     items: [
       "The story goes on past the Reckoning. Part Three opens in August 1686: the King of Denmark is before Hamburg, and the city calls on its charter. Choose who goes, then take your company onto the works by the Elbe and fight the Danes yourself, in a full battle with your company to command beside the city's militia.",

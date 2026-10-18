@@ -203,7 +203,10 @@ export function buildThings(w, C, b, flip) {
       const length = (va, vb, low = false, kind = "wall") => {
         const len = vb - va; if (len < 0.4) return;
         const grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
-        const vm = (va + vb) / 2, c = T(faceU, vm), G0 = ground(va, vb), y0 = G0.lo - 1.2, top = Math.max(Math.min(foot(va), foot(vb), foot(vm)) + Hr, G0.hi + 1.6) + (low ? 0.3 : 1.25);
+        // (its top: a man's chest over the walk behind it — the burial check, that the uphill end shows above a slope, taken
+        //  on the ground outside and at the face only; the rampart's own walk behind is what the parapet is to be over, not
+        //  a slope to clear by a man's height, which stood the parapet three metres over the defenders' heads)
+        const vm = (va + vb) / 2, c = T(faceU, vm), G0 = ground(va, vb), Go = ground(va, vb, faceU - 2.5, faceU), y0 = G0.lo - 1.2, top = Math.max(Math.min(foot(va), foot(vb), foot(vm)) + Hr, Go.hi + 1.6) + (low ? 0.3 : 1.25);
         box(M_.ashlar, c.x, (y0 + top) / 2, c.z, Th, top - y0, len); tops.push({ va, vb, top });
         const pl = T(faceU - 0.35, vm); box(M_.ashlar2, pl.x, y0 + 1.6, pl.z, Th + 0.7, 2.4, len + 0.02);
         const sc = T(faceU - 0.1, vm); box(M_.ashlar2, sc.x, top - 0.55, sc.z, Th + 0.3, 0.22, len + 0.02);
@@ -264,7 +267,8 @@ export function buildThings(w, C, b, flip) {
         box(M_.ashlar, x, (y0 + top) / 2, z, sx, top - y0, sz2); solid(x, z, sx / 2, sz2 / 2, 0, top);
       }
       // (for the field: where the defenders stand and their guns go — on the walk, behind the embrasures)
-      const ap = T(wallU + 2.4, 0);
+      // (on a plain length beside the gate tower, where the parapet is chest-high — not behind the gatehouse's arch)
+      const ap = T(wallU + 2.4, -(gate + 8));
       siege = { d: d * sg, anchor: { x: ap.x, z: ap.z }, guns: emb.map(e => T(wallU + 2.6, e)) };
       // (where the storming parties set their ladders: along the plain lengths of wall, clear of the towers, the gate
       //  and the gun embrasures — the foot out from the wall, its head on the parapet, and the walk behind it)
