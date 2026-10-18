@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.82.1", date: "17 October 2026", title: "The relief of Vienna",
+    items: [
+      "Campaign: the Sultan took Vienna within two years in most campaigns, and the Austrian Empire was often gone by 1690. Now the Holy League fights as one until 1700, as Sobieski's Poles came to Vienna with their whole army, and the Habsburgs are stronger. In six test campaigns Vienna held in five, and Austria usually pushed the Turk back down the Danube.",
+    ],
+  },
+  {
     v: "1.82.0", date: "17 October 2026", title: "Generals' traits",
     items: [
       "Campaign: generals earn traits, as in Empire: Total War, and they count in every battle after. Bold, for a win against the odds: better attacking. Cautious, after two defeats: better holding ground, worse attacking. Siege engineer, after storming walls twice: walls count for half against him. Hero of the nation, after six victories: better in every battle, with the men's spirits higher.",

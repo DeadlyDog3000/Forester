@@ -1897,9 +1897,11 @@ function crownsWar(g, ids) {
     //  Emperor's alone — a part of their strength, as they can spare it)
     // (and a crown with several wars on its hands has its armies divided among them: the Sultan's can't be at Vienna,
     //  Kraków and Venice at once with the whole of them)
+    // (the Holy League in its first years fought as one — Sobieski's Poles came to Vienna with the whole of their army)
+    const holyLeague = (x, y) => C.year < 1700 && (leagueOf(x, y) || {}).n === "the Holy League";
     const fronts = id => Math.max(1, W.filter(v => v.a === id || v.b === id).length);
     const pow = id => ((C.foes[id] || 0) + NATIONS[id].strength * 4) / Math.pow(fronts(id), 0.5);
-    const help = (x, foe) => W.filter(v => v !== w && ((v.a === foe && v.b !== x) || (v.b === foe && v.a !== x))).map(v => v.a === foe ? v.b : v.a).filter(y => NATIONS[y] && !isHuman(y) && (leagueOf(x, y) || C.ally[y] && x === C.me)).reduce((t, y) => t + pow(y) * 0.4, 0);
+    const help = (x, foe) => W.filter(v => v !== w && ((v.a === foe && v.b !== x) || (v.b === foe && v.a !== x))).map(v => v.a === foe ? v.b : v.a).filter(y => NATIONS[y] && !isHuman(y) && (leagueOf(x, y) || C.ally[y] && x === C.me)).reduce((t, y) => t + pow(y) * (holyLeague(x, y) ? 0.8 : 0.4), 0);
     const sa = pow(w.a) + help(w.a, w.b), sb = pow(w.b) + help(w.b, w.a), aWins = R() < sa / (sa + sb);
     const win = aWins ? w.a : w.b, lose = aWins ? w.b : w.a, gg = grid();
     const canTake = ct => !hasWalls(ct, lose, gg) || (C.fguns[win] | 0) > 0;

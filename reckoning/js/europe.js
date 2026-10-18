@@ -84,7 +84,7 @@ export const NATIONS = {
   brandenburg: { name: "Brandenburg", color: "#9aa9d8", strength: 2 },
   saxony: { name: "Saxony", color: "#86c2a0", strength: 2 },
   bavaria: { name: "Bavaria", color: "#90b6e0", strength: 2 },
-  austria: { name: "Austrian Empire", color: "#e8a0a8", strength: 4 },
+  austria: { name: "Austrian Empire", color: "#e8a0a8", strength: 5 },
   milan: { name: "Milan", color: "#c9a0d8", strength: 2 },
   savoy: { name: "Savoy", color: "#e38c8c", strength: 2 },
   venice: { name: "Venice", color: "#7fc0b8", strength: 2 },
