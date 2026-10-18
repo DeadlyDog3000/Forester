@@ -719,7 +719,7 @@ function realmMine(g) {
     for (const L of Object.values(groups)) { L.sort((a, b) => a.hp - b.hp); while (L.length > 1 && L[0].hp + L[1].hp <= 1) { const [a, b] = L.splice(0, 2), hp = a.hp + b.hp; b.xp = ((a.xp || 0) * a.hp + (b.xp || 0) * b.hp) / hp; b.hp = hp; C.units.splice(C.units.indexOf(a), 1); merged++; if (hp < 0.6) { L.push(b); L.sort((x, y) => x.hp - y.hp); } } }
     if (merged) say(`${merged} thin regiment${merged > 1 ? "s" : ""} merged`, "Too few men left in them to stand alone: their men go into others of the same arm."); }
   eachArmy(id => {
-    siegeYear(g);
+    siegeYear(g); winterWear(g, id);
     C.morale = Math.round((C.morale ?? moraleBase()) + (moraleBase() - (C.morale ?? moraleBase())) * 0.35);
     if (C.gen) { C.gen.served = (C.gen.served | 0) + 1; genYear(C.gen); if (C.gen.served >= lifeOf(C.gen)) { say(`${C.gen.name} dies`, `Of old age, after long service. Choose who will lead ${id ? `the ${armyName(id).toLowerCase()}` : "your army"} now.`); C.gen = null; } }
   });
@@ -1508,6 +1508,15 @@ function reconcile() {
   C.army = Math.round(unitSum());
 }
 // (a battle's losses: borne by the arms that fought it — in proportion to how many of each went into the field)
+// ---- winter, as Empire's: an army that sees the year out in another crown's land in the far north, or out on the
+//  eastern steppe, loses men to the cold and sickness — your own land, a friend's, or a ship's deck spares it ----
+function winterWear(g, id) {
+  if (C.emb != null || !field().length) return;
+  const p = armyPos(), [lon, lat] = llOf(p.x, p.y); if (!(lat >= 56 || (lon >= 30 && lat >= 44))) return;
+  const o = g[Math.floor(p.y)] && g[Math.floor(p.y)][Math.floor(p.x)]; if (!o || o === C.me || C.ally[o] || isVassal(o)) return;
+  const n0 = Math.round(unitSum()); wearUnits(field().length * 0.07); const lost = n0 - Math.round(unitSum());
+  if (lost > 0) say(`Winter in ${NATIONS[o] ? the(o) : "the north"}`, `${id ? `The ${armyName(id).toLowerCase()}` : "Your army"} loses men to the cold and sickness: some ${lost * 600} of them. Winter quarters at home, or in a friend's country, would spare it.`);
+}
 function wearUnits(loss, pick) {
   reconcile(); const F = field(); if (!F.length || loss <= 0) { C.army = Math.max(0, Math.round(C.army - loss)); reconcile(); return; }
   const have = {}; for (const u of F) have[u.k] = (have[u.k] || 0) + u.hp;
@@ -2857,7 +2866,7 @@ function drawSide() {
         ${(t => t ? `<button class="btn" data-dip="buy" ${did.buy || r[id] < 40 || C.gold < buyPrice(t) ? `disabled title="${r[id] < 40 ? "They need to think well of you (40)" : did.buy ? "Asked this year" : "The treasury hasn't the money"}"` : `title="Offer to buy ${esc(t[0])}, their town nearest your lands"`}>Buy ${esc(t[0])} · ${buyPrice(t)}</button>` : "")(NATIONS[id].nw ? null : buyable(id))}
         <button class="btn danger" data-dip="war" ${tr ? `disabled title="A treaty: ${tr} more years"` : ""}>Declare war</button>`}</div>`);
   } else if (!selCity && !armySel) howHtml = `<p class="sub"><b>Click</b> a town or a crown · <b>click your army</b>, then <b>right-click</b> to march · <b>drag</b> or WASD to move · <b>wheel</b> to zoom · <b>Esc</b> for the menu</p><ul class="cmp-howto">
-      <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it. Right-click an enemy town within reach to attack it. An army that marches up to a town's walls can still attack it that year, once.</li>
+      <li><b>A year a turn.</b> Your army marches once a year, about 350 km. A town can only be attacked, besieged or supplied from within a year's march of it. Right-click an enemy town within reach to attack it. An army that marches up to a town's walls can still attack it that year, once. An army that sees the year out in another crown's land in the far north, or on the eastern steppe, loses men to the winter.</li>
       <li><b>Victory.</b> Your crown's ambition is in the Victory card: certain towns to take and hold, and so many towns in all, within sixty years. Lose your last town and you have three years to take one back with the army you still have, or the crown is lost.</li>
       <li><b>Generals.</b> They earn traits in the field and the camp: Bold, Cautious, Siege engineer, Hero of the nation, Beloved of the men, and the vices of drink and the lash. Each counts in battle. Hover one on the general's card to see what it does.</li>
       <li><b>The other crowns.</b> They come to you with trade agreements and alliances, and a strong neighbour may demand tribute: pay, or risk war. Beat a smaller crown and you can demand it submit as your protectorate: it pays you tribute every year and fights in your wars. The great powers card ranks the crowns by their towns and people.</li>
