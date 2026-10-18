@@ -1274,7 +1274,7 @@ function seaFight(fid, foe, attack, onDone) {
 // (an enemy army you can fall on: at war, this side of the ocean, within a year's march of the army in hand)
 function canField(id) {
   if (isColo(id)) { const c = coloOf(id), b = crownOf(id); return !!c && c.n >= 2 && atWar(b) && !C.moved && !C.siege && C.emb == null && C.army >= 5 && !overSea(armyPos(), c.pos) && yearsTo(c.pos) <= 1; }
-  const fp = !isHuman(id) && atWar(id) && foeArmyPos(id); if (!fp || C.moved || C.siege || C.army < 5 || (C.foes[id] | 0) < 3) return false;
+  const fp = !isHuman(id) && atWar(id) && foeArmyPos(id); if (!fp || C.moved || C.siege || C.army < 5 || (C.foes[id] | 0) < 1) return false;
   return !overSea(armyPos(), fp) && yearsTo(fp) <= 1;
 }
 // (the town nearest the field, to name the battle after and give it its country)
@@ -1522,7 +1522,7 @@ function ensureUnits() { if (C.units) return; const m = muster(C.me, C.army | 0)
 const field = () => (C.units || []).filter(u => !u.at && (u.ar | 0) === (C.ar | 0));
 // ---- more than one army: each its own place, march, siege, general and spirit. The one you're giving orders to stands in
 //  the campaign's own fields (C.pos, C.go, C.army…); the others wait in C.armies, and are swapped in when chosen ----
-const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt", "joinTo", "chase"];
+const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt", "joinTo", "chase", "target", "arrived"];
 const armyIds = () => [C.ar | 0, ...(C.armies || []).map(a => a.id)].sort((a, b) => a - b);
 function useArmy(id) {
   id |= 0; if (id === (C.ar | 0)) return; const t = (C.armies || []).find(a => a.id === id); if (!t) return;
@@ -2035,13 +2035,19 @@ function endSeason(part = {}) {
   C.did = {};
   fleetsStart(grid());
   eachArmy(id => {
-    C.moved = false; C.supplied = false;
+    C.moved = false; C.supplied = false; C.arrived = false;
     // (an army still on its way: the year's march taken up with getting there)
     // (sent to join another army: following it wherever it has gone)
     const J = C.joinTo != null && (C.armies || []).find(a => a.id === C.joinTo && a.pos);
     if (J) { if (C.go || dist2(J.pos, armyPos()) > 3) C.go = { x: J.pos.x, y: J.pos.y }; } else C.joinTo = null;
     if (C.go && C.emb == null && overSea(armyPos(), C.go)) C.go = null;
-    if (C.go && !C.siege) { const st = stepToward(armyPos(), C.go, MARCH); C.pos = { x: st.x, y: st.y }; if (st.arrived) { C.go = null; say(id ? `The ${armyName(id).toLowerCase()} arrives` : "Your army arrives", "It's where you sent it, and can march again next year."); } C.moved = true; }
+    if (C.go && !C.siege) { const st = stepToward(armyPos(), C.go, MARCH); C.pos = { x: st.x, y: st.y }; C.moved = true;
+      // (arrived: it can't march on this year, but it can give battle — the town it was sent against, the army it went after)
+      if (st.arrived) { C.go = null; C.arrived = true; C.moved = false;
+        const who = id ? `The ${armyName(id).toLowerCase()}` : "Your army";
+        if (C.target && CITIES.some(c => c[0] === C.target)) say(`${who} stands before ${C.target}`, `It can fall on the town this year: right-click it.`);
+        else if (C.chase && atWar(C.chase)) say(`${who} has come up with ${poss(the(C.chase))} army`, "It can fall on it this year: right-click it.");
+        else say(`${who} arrives`, "It's where you sent it, and can give battle this year if there's an enemy within reach; it marches again next year."); } }
   });
   // (an army sent to join another, there now: the two made one)
   { const keep = C.ar | 0; for (let pass = 0; pass < 6; pass++) { let done = false; for (const id of armyIds()) { useArmy(id); const to = C.joinTo; if (to == null) continue; const T = (C.armies || []).find(a => a.id === to); if (!T) { C.joinTo = null; continue; } if (T.pos && !T.siege && C.emb == null && dist2(T.pos, armyPos()) <= 3) { C.joinTo = null; const name = armyName(to); if (!joinArmy(to)) { say(`Reinforcements reach the ${name.toLowerCase()}`, `The regiments sent to join it march into its camp: ${armyStr()}.`); done = true; break; } } } if (!done) break; } useArmy(armyIds().includes(keep) ? keep : armyIds()[0]); }
@@ -2210,6 +2216,10 @@ export function initCampaign(c, battle, withPlayer) {
     if (armySel && C.emb == null) { const fh3 = fleetHit(cv, ...pos(e)); if (fh3 && fh3.mine != null) { doAct({ k: "embark", id: fh3.mine }); armySel = false; return; } }
     // (another army of your own: the one in hand marched to it, and the two made one when it gets there)
     { const ah = armyHit(cv, ...pos(e)); if (ah && ah.id !== (C.ar | 0) && C.emb == null) { doAct({ k: "joinat", id: ah.id }); armySel = false; return; } }
+    // (an enemy town under the click that can be fallen on now: the town — even with their army standing on it, as a
+    //  woods nation's war party camps in its own town; it was taken for the army, and the army went after it instead)
+    { const ct0 = cityAt(cv, mx, my, view.z), o0 = ct0 && cityOwner(grid(), ct0);
+      if (ct0 && o0 && o0 !== C.me && atWar(o0) && C.emb == null && C.army >= 5 && inMarch(ct0) && freeToStrike(ct0) && (!C.siege || siegeOf(ct0))) { selCity = ct0; sel = o0; doAct({ k: "march", ct: ct0[0], how: "fight" }); return; } }
     // (an enemy army within a year's march: the army falls on it in the field)
     const fh = foeHit(cv, ...pos(e)); if (fh && isHuman(fh) && canFieldP(fh)) { selFoe = fh; sel = fh; selCity = null; armySel = false; doAct({ k: "pfield", h: fh, how: "fight" }); return; }
     if (fh && canField(fh) && C.emb == null) { selFoe = fh; sel = crownOf(fh); selCity = null; armySel = false; doAct({ k: "field", foe: fh, how: "fight" }); return; }
@@ -2223,6 +2233,12 @@ export function initCampaign(c, battle, withPlayer) {
     // (an enemy town within reach: the army falls on it — the muster before the assault, where it can still be called off)
     const ct = cityAt(cv, mx, my, view.z), o = ct && cityOwner(grid(), ct);
     if (ct && o && o !== C.me && atWar(o) && C.emb == null && C.army >= 5 && inMarch(ct) && freeToStrike(ct) && (!C.siege || siegeOf(ct))) { selCity = ct; sel = o; armySel = false; doAct({ k: "march", ct: ct[0], how: "fight" }); return; }
+    // (an enemy town that can't be fallen on now: beyond a year's march, marched on — and told when the army stands
+    //  before it; anything else, said why, and the army left where it is)
+    if (ct && o && o !== C.me && atWar(o) && C.emb == null) {
+      if (!inMarch(ct) && !C.moved && !C.siege && C.army >= 5) { const t = cellXY(ct); doAct({ k: "move", x: t.x, y: t.y, target: ct[0] }); return; }
+      react({ note: whyNot(ct) }); drawMap(); return;
+    }
     // (and it stays chosen after a march order, to send on somewhere else; Esc, or a click away, puts it down)
     doAct({ k: "move", x: mx / S, y: my / S });
   };
@@ -3163,7 +3179,7 @@ function __selectTown(n) {
   if (on3d && eu3d) eu3d.look(ct[1], ct[2]);
   drawMap();
 }
-window.__cmp = { get eu3d() { return eu3d; }, get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get eu3d() { return eu3d; }, fight: o => fight(o), get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the
@@ -3275,14 +3291,16 @@ function apply(actor, a) {
     if (a.k === "move") {
       C.joinTo = null;
       if (C.siege) return { note: `Your army is sitting down before ${C.siege.ct}: lift the siege first.` };
-      if (C.moved) return { note: "Your army has already marched this year." };
+      if (C.moved || C.arrived) return { note: C.arrived ? "Your army has only just got there: it can give battle this year, and march again next year." : "Your army has already marched this year." };
       W0(); let t = { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }; if (!isFinite(t.x) || !isFinite(t.y)) return null;
       // (sent out onto the water: to the shore nearest it — an army doesn't march on the sea)
       { const g0 = grid(), x0 = Math.floor(t.x), y0 = Math.floor(t.y); if (g0[y0] && g0[y0][x0] === null) { const sh = landNear(g0, t, 8); if (!sh) return { note: "That's the open sea. To cross it, embark the army on a fleet of yours." }; t = sh; } }
       { const bar = barredBy(armyPos(), t, overSea(armyPos(), t)); if (bar.length) return { note: barNote(bar) }; }
       // (over the sea: no march — only aboard a fleet of your own)
       if (overSea(armyPos(), t)) return { note: SEA_NOTE };
-      const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; C.chase = a.chase && atWar(a.chase) ? a.chase : null; persist();
+      const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; C.chase = a.chase && atWar(a.chase) ? a.chase : null; C.target = a.target || null; persist();
+      if (C.target && st.arrived) return { note: `Your army stands before ${C.target}. Right-click it to fall on it.`, sfx: [["drum", 0.45]] };
+      if (C.target) return { note: `Your army marches on ${C.target}: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there. It can attack the year it arrives.`, sfx: [["drum", 0.45]] };
       if (C.chase) { const fp = foeArmyPos(C.chase), near = fp && mdist(C.pos, fp) <= MARCH; return { note: near ? `Your army goes after ${poss(the(C.chase))} army: it's within a year's march of it now, and it won't get away. Fall on it next year.` : `Your army goes after ${poss(the(C.chase))} army: ${yearsTo(fp)} more year${yearsTo(fp) > 1 ? "s" : ""} to come up with it.`, sfx: [["drum", 0.45]] }; }
       return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: [["drum", 0.45]] };
     }

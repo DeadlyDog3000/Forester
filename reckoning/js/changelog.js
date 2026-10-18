@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.17", date: "18 October 2026", title: "Before the town",
+    items: [
+      "Campaign: right-clicking a woods nation's town attacks the town, even with their war party camped in it. The click used to be taken for the war party, and your army went after it, \"marching to the Cree army\", and never attacked the town.",
+      "Campaign: a small enemy army can be fought in the field. Under three regiments, it used to be refused, and your army only marched after it year after year.",
+      "Campaign: right-clicking an enemy town more than a year's march away marches on it, and the paper says when your army stands before it. If a town can't be attacked for another reason, you're told why and your army stays where it is. Before, it marched to the spot, said nothing, and never attacked.",
+      "Campaign: an army that arrives where it was sent can give battle that year, at the town it was sent against or the army it went after. It marches on again next year. Arriving used to use up the year.",
+      "Battles at a palisade: a burning length looks like one. Flames run along the face of the wall, catching at the foot and climbing, where there were three small ones halfway up. The logs blacken to char and smoulder, and the wall sinks as it burns down, until it falls in.",
+    ],
+  },
+  {
     v: "1.90.16", date: "18 October 2026", title: "News of the year",
     items: [
       "Campaign: learning takes years. Each study takes two years at the least, three for what's built on it and four for the furthest. Each costs twice what it did, when a realm with a few colleges learnt something every year. The Learning screen shows the year of study you're in and how many are left.",

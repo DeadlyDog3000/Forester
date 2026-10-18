@@ -9,6 +9,7 @@
 // the blow is coming from and the parry just as it comes.
 
 import { THREE, camera, makeFlame } from "./core.js";
+const CHAR = new THREE.Color(0x17110c);
 import { G, Actor, setWorld, setAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -1443,12 +1444,24 @@ class Arena {
     if (b.fire || b.down || !this.field) return;
     if (mine) this.usedT = G.time;
     b.fire = { t: 0, fl: [], puff: 0 };
-    const n = Math.max(2, Math.min(4, Math.round(b.pts.length / 6)));
+    // the flames along the face of it, each at its own height up the logs — the fire takes at the foot and climbs,
+    // a flame catching as it comes up to it (each with its height up the wall, and when it catches)
+    const n = Math.max(5, Math.min(8, Math.round(b.pts.length / 2.2)));
+    const ox = b.out.x - b.x, oz = b.out.z - b.z, ol = Math.hypot(ox, oz) || 1;
     for (let i = 0; i < n; i++) {
-      const p = b.pts[Math.floor((i + 0.5) / n * b.pts.length)], fl = makeFlame(1.4, null);
-      const ox = b.out.x - b.x, oz = b.out.z - b.z, ol = Math.hypot(ox, oz) || 1, fx = p.x + ox / ol * 0.45, fz = p.z + oz / ol * 0.45;
-      fl.position.set(fx, this.w.heightAt(fx, fz) + 0.1, fz); this.field.root.add(fl); (this.field.flames ||= []).push(fl); b.fire.fl.push(fl);
+      const p = b.pts[Math.min(b.pts.length - 1, Math.floor((i + 0.2 + Math.random() * 0.6) / n * b.pts.length))];
+      const big = i % 2 === 1, fl = makeFlame(big ? 1.8 : 1.3 + Math.random() * 0.3, null);
+      const fx = p.x + ox / ol * 0.28, fz = p.z + oz / ol * 0.28;
+      fl.position.set(fx, this.w.heightAt(fx, fz) + 0.1, fz); fl.visible = false;
+      fl.userData.up = (i * 0.37 % 1) * 1.6;          // how far up the logs it burns, at the full of it
+      fl.userData.at = (i * 0.61 % 1) * 6;            // the seconds before it catches
+      this.field.root.add(fl); (this.field.flames ||= []).push(fl); b.fire.fl.push(fl);
     }
+    // the logs of this length their own stuff now: blackening as they burn, and glowing at the cracks
+    const mats = new Map();
+    b.grp.traverse(o => { if (o.isMesh && o.material && !Array.isArray(o.material)) { let m = mats.get(o.material); if (!m) { m = o.material.clone(); m.userData = { ...o.material.userData }; if (m.color) m.userData.c0 = m.color.clone(); mats.set(o.material, m); } o.material = m; } });
+    b.fire.mats = [...mats.values()];
+    b.fire.y0 = b.top - 4.1; b.fire.sink = 0;
     FOLEY.play("fire", { vol: 0.55, at: { x: b.x, z: b.z }, reach: 70 });
     if (mine) UI.hint("The palisade's alight. Stand clear: it'll burn through in a little while.", 3);
     else if (!quiet && Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 60) UI.hint(this.alOf(0) === this.palisade.side ? "They've fired the palisade!" : "Our men have fired the palisade!", 2.5);
@@ -1461,7 +1474,7 @@ class Arena {
     if (!this.palLights && this.field) { this.palLights = [0, 1].map(() => { const L = new THREE.PointLight(0xff8a3a, 0, 24, 1.6); this.field.root.add(L); return L; }); }
     if (this.palLights) {
       const pp = G.player.pos, lit = P.filter(b => b.fire && (!b.down || b.fire.t - b.fire.downAt < 8)).sort((a, c) => Math.hypot(a.x - pp.x, a.z - pp.z) - Math.hypot(c.x - pp.x, c.z - pp.z));
-      this.palLights.forEach((L, i) => { const b = lit[i]; if (!b) { L.intensity = 0; return; } const F = b.fire, k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1; L.position.set(b.out.x, this.w.heightAt(b.out.x, b.out.z) + 1.5 + 1.2 * k, b.out.z); L.intensity = 9 * (0.4 + 0.6 * k) * out * (0.9 + Math.random() * 0.2); });
+      this.palLights.forEach((L, i) => { const b = lit[i]; if (!b) { L.intensity = 0; return; } const F = b.fire, k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1; L.position.set(b.out.x, this.w.heightAt(b.out.x, b.out.z) + 1.5 + 1.2 * k, b.out.z); L.intensity = 6 * (0.4 + 0.6 * k) * out * (0.85 + Math.random() * 0.3); });
     }
     // (the attacker told, once the fighting's begun, what a palisade's for)
     if (!this.toldPal && this.live && this.clock > 3 && this.alOf(0) !== P.side) { this.toldPal = true; UI.hint("Their town stands behind a palisade. Hold F at a length of it to set it alight. Your men will fire any they reach.", 6); }
@@ -1469,8 +1482,18 @@ class Arena {
       const F = b.fire; if (!F) continue;
       F.t += dt;
       // (the fire climbs the logs as it takes: small at their foot, then up the whole height of them)
-      const k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1;
-      for (const fl of F.fl) { fl.scale.setScalar((0.6 + 1.6 * k) * out); fl.position.y = this.w.heightAt(fl.position.x, fl.position.z) + 0.1 + (b.down ? 0 : 1.6 * k); fl.visible = out > 0.02; }
+      const k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1, burnt = 1 - Math.max(0, b.hp) / b.max;
+      for (const fl of F.fl) {
+        const u = fl.userData, c = Math.min(1, Math.max(0, (F.t - u.at) / 3));          // (caught, and taking)
+        fl.scale.setScalar((0.5 + 1.1 * c) * (0.8 + 0.6 * k) * out);
+        fl.position.y = this.w.heightAt(fl.position.x, fl.position.z) + 0.1 + (b.down ? 0 : u.up * c * (1 - F.sink * 0.8));
+        fl.visible = c > 0.02 && out > 0.02;
+      }
+      // the logs blackened as it goes, from their own colour down to char, and the embers in them glowing and dimming
+      if (F.mats) for (const m of F.mats) { if (m.color && m.userData.c0) m.color.copy(m.userData.c0).lerp(CHAR, Math.min(1, k * 0.5 + burnt * 0.9));
+        if (m.emissive) { m.emissive.setRGB(1, 0.3, 0.05); m.emissiveIntensity = (b.down ? 0 : 0.012 + 0.05 * k * (0.7 + 0.3 * Math.sin(F.t * 7 + b.x))) * (0.5 + burnt * 0.5); } }
+      // (and burning down: the wall lower as the tops go, a third of it before it falls)
+      if (!b.down) { F.sink = burnt * 0.35; b.grp.scale.y = 1 - F.sink; b.grp.position.y = F.y0 * F.sink; }
       if ((F.puff -= dt) <= 0 && out > 0.1 && Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 160) { F.puff = 0.6; const p = b.pts[Math.floor(Math.random() * b.pts.length)]; this.field.smoke(p.x, this.w.heightAt(p.x, p.z) + 3 + 2 * k, p.z); }
       // (well alight, the fire takes in the lengths either side, now and then)
       if (!F.spread && F.t > 11) { F.spread = true; for (const q of P) if (q !== b && !q.fire && !q.down && Math.hypot(q.x - b.x, q.z - b.z) < 6.8 && Math.random() < 0.35) this.torch(q, false, true); }
