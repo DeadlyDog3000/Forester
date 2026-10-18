@@ -603,7 +603,7 @@ function govYear(g) {
   // (ports shut by enemy fleets: said in the year's news)
   { const sh = tradeOf(g).shut; if (sh.length) say(`Blockade: ${sh.map(([ct]) => ct[0]).join(", ")}`, `${sh.length > 1 ? "Enemy fleets lie" : `${poss(The(sh[0][1]))} fleet lies`} off ${sh.length > 1 ? "your ports" : sh[0][0][0]}: no trade goes in or out. Send a fleet to drive ${sh.length > 1 ? "them" : "it"} off.`); }
   // (a corrupt minister caught at it: the money gone, and the choice of turning him out or keeping him)
-  for (const [p, title] of POSTS) { const m = G.min[p]; if (m.cor >= 2 && R() < 0.05 + m.cor * 0.04 && !C.events.some(e => !e.done && e.kind === "scandal")) { const lost = Math.min(C.gold, 40 + m.cor * 35); C.gold -= lost; C.events.push({ kind: "scandal", post: p, lost }); say(`Scandal: the minister of ${title === "Treasury" ? "the Treasury" : title}`, `${m.name} is found to have taken ${lost} thalers from the treasury.`); break; } }
+  for (const [p, title] of POSTS) { const m = G.min[p]; if (m.cor >= 2 && !(m.scT != null && C.year - m.scT < 3) && R() < 0.01 + m.cor * 0.025 && !C.events.some(e => !e.done && e.kind === "scandal")) { m.scT = C.year; const lost = Math.min(C.gold, 40 + m.cor * 35); C.gold -= lost; C.events.push({ kind: "scandal", post: p, lost }); say(`Scandal: the minister of ${title === "Treasury" ? "the Treasury" : title}`, `${m.name} is found to have taken ${lost} thalers from the treasury.`); break; } }
   const restless = towns.length ? towns.filter(ct => orderOf(ct) < 0).length / towns.length : 0;
   G.unrest = restless >= 0.4 ? G.unrest + 1 : Math.max(0, G.unrest - 1);
   if (G.unrest >= 2 && !C.events.some(e => !e.done && e.kind === "revolution")) { const to = G.type === "absolute" ? "constitutional" : G.type === "constitutional" ? "republic" : "constitutional"; C.events.push({ kind: "revolution", to }); }
@@ -1717,7 +1717,8 @@ function endSeason(part = {}) {
     const folk = citiesOfNow(g, id).reduce((t, ct) => t + popOf(ct), 0), cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + Math.round(folk / 5000) + 6 : NATIONS[id].strength * 17 + Math.round(folk / 9000) + 8;
     // (a crown beaten in the field these two years past finds the men slower: half as fast)
     const beat = C.foeBeat && C.foeBeat[id] != null && C.year - C.foeBeat[id] < 2 ? 0.5 : 1;
-    if (world) C.foes[id] = Math.min(Math.max(cap, C.foes[id] || 0), (C.foes[id] || 0) + Math.max(1, Math.round((NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0)) * beat)));
+    // (more men than its towns can keep — its great cities lost: a fifth of the excess melts away each year)
+    if (world) C.foes[id] = (C.foes[id] || 0) > cap ? Math.max(cap, Math.round(C.foes[id] - (C.foes[id] - cap) * 0.2 - 1)) : Math.min(cap, (C.foes[id] || 0) + Math.max(1, Math.round((NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0)) * beat)));
     if (!mine) continue;
     const home = (NATION_FAITH[id] === NATION_FAITH[C.me] ? 18 : 0) + (C.E.pact[id] ? 15 : 0) + (C.ally[id] ? 25 : 0) - (atWar(id) ? 40 : 0);
     C.E.rel[id] += Math.sign(home - C.E.rel[id]) * Math.min(2, Math.abs(home - C.E.rel[id]));
@@ -2804,7 +2805,7 @@ function __selectTown(n) {
   const ct = CITIES.find(c => c[0] === n); if (!ct) return; selCity = ct; sel = cityOwner(grid(), ct); armySel = false;
   const cv = $("cmpMap"), S = cv.width / MG_W, t = cellXY(ct); view.ox = clamp(t.x * S - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(t.y * S - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); drawMap();
 }
-window.__cmp = { get eu3d() { return eu3d; }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get eu3d() { return eu3d; }, begin: me => { begin(me); drawMap(); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the

@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.80.1", date: "17 October 2026", title: "A bug sweep",
+    items: [
+      "Campaign: forty years played through as England, and twenty as the Dutch, Russia, Sweden, Castile, the Haudenosaunee and the Cherokee, with no errors along the way. Saves from before government, missions, trade and colonial armies load and take them up.",
+      "Campaign: ministers' scandals came nearly every other year. They're rarer now, and a minister caught once lies low for three years before he's caught again.",
+      "Campaign: a crown that loses its great cities now loses the men it can no longer keep. A fifth of its army above what its towns can feed melts away each year, where before it kept them all.",
+    ],
+  },
+  {
     v: "1.80.0", date: "17 October 2026", title: "Trade",
     items: [
       "Campaign: trade, as in Empire: Total War. Every town has its good: furs from Canada and Hudson's Bay, fish off Newfoundland and New England, tobacco from the Chesapeake, sugar from the Caribbean, silver from New Spain, timber and iron from the north, grain from the Baltic plains, wool from Britain, cloth from the Low Countries and Germany, wine from France and Iberia, silk from Italy and the Levant. Each is painted with its own icon: on the town's card, in the new Trade card, and on the map beside every town when you're zoomed in.",
