@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.89.2", date: "18 October 2026", title: "Names in view",
+    items: [
+      "Campaign: on the 3D map, the town names come down toward the roofs as you zoom in, so a town's name stays in view close up instead of floating off the top of the screen.",
+      "Campaign: what's waiting for your word (an attack, a peace offer) now comes first in the side panel, above the reminder that your scholars have nothing to study.",
+    ],
+  },
+  {
     v: "1.89.1", date: "18 October 2026", title: "A lighter 3D map",
     items: [
       "Campaign: the 3D map draws its towns about six times faster. Their thousands of houses, roofs, walls and palisade stakes are drawn a kind at a time instead of one by one, which leaves more of each frame for slower computers. The old towns are also cleared from memory properly when the map changes hands.",

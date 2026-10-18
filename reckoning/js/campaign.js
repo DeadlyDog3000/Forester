@@ -2790,8 +2790,9 @@ const fold = (key, head, body, open0 = false) => `<details class="cmp-card cmp-f
 function drawSide() {
   const g = grid(), el = $("cmpSide"), r = C.E.rel;
   let h = "";
-  // (scholars with nothing to study: a year's learning going to waste — said where it can't be missed)
-  if (!C.mp && !C.over && C.tech && !C.tech.cur && Object.keys(TECHS).some(id => canStudy(C.tech.done, id))) h += `<div class="cmp-card cmp-idle"><span><b>Your scholars have nothing to study</b><small>Their learning goes to waste until you choose something.</small></span><button class="btn" data-learnb="1">Learning</button></div>`;
+  // (scholars with nothing to study: a year's learning going to waste — said where it can't be missed, under what's
+  //  waiting for your word)
+  const idle = (!C.mp && !C.over && C.tech && !C.tech.cur && Object.keys(TECHS).some(id => canStudy(C.tech.done, id))) ? `<div class="cmp-card cmp-idle"><span><b>Your scholars have nothing to study</b><small>Their learning goes to waste until you choose something.</small></span><button class="btn" data-learnb="1">Learning</button></div>` : "";
   if (C.exile != null && !C.over) { const left = 3 - (C.year - C.exile); h += `<div class="cmp-card cmp-exile"><b>Without a town</b><small>Your last town has fallen. Take one back with your army within ${left} year${left === 1 ? "" : "s"}, or the crown is lost.</small></div>`; }
   if (C.over) h += `<div class="cmp-over"><b>Your crown is lost.</b> Every town has fallen. <button class="btn" data-act="newgame">Begin again</button></div>`;
   else if (C.won) h += `<div class="cmp-won"><b>Yours is the first crown of the world.</b> ${citiesOfNow(g, C.me).length} towns under your crown.</div>`;
@@ -2815,6 +2816,7 @@ function drawSide() {
     if (e.kind === "attack") h += `<div class="cmp-ev war"><b>${e.colo ? `${esc(poss(The(e.foe)))} colonial army marches` : `${esc(The(e.foe))} ${v3(e.foe, "marches")}`} on ${esc(e.ct)}!</b><small>${e.att} regiments${e.of > e.att && knowsArmy(e.foe) ? ` of its ${e.of}` : ""} against your ${e.def} (${e.army === false ? "the garrison: your army is too far off to come" : "garrison and army"})${e.walls ? " · behind its walls" : ""}. Your odds: ${Math.round((1 - odds(e.att, e.def, e.walls)) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Fight it yourself</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to the garrison</button></span></div>`;
     if (e.kind === "peace") h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "offers")} peace</b><small>${e.cede ? `If you give up ${esc(e.cede)} and its country.` : e.gold ? `And ${e.gold} thalers to have it.` : "Each side keeps what it holds."}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Make peace</button><button class="btn" data-ev="${i}" data-how="no">Fight on</button></span></div>`;
   }
+  h += idle;
   if (note) h += `<div class="cmp-note">${esc(note)}</div>`;
   if (news.length) h += `<div class="cmp-news"><b>The year's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="gazette">Read the gazette</button> <button class="tm-lnk" data-act="news">Close</button></div>`;
   // the town or the crown chosen on the map

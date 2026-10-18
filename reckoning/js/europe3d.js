@@ -314,7 +314,7 @@ export class EuropeView3D {
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false, transparent: true }));
       sprite.scale.set(0.16, 0.04, 1); sprite.position.set(x, y0 + 0.3, z); sprite.renderOrder = 5;
-      sprite.userData = { rank, city: isHome ? null : name };
+      sprite.userData = { rank, city: isHome ? null : name, y0 };
       grp.add(sprite); this.labels.push(sprite);
     };
     for (const ct of CITIES) place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false);
@@ -458,8 +458,9 @@ export class EuropeView3D {
     this.camera.lookAt(this.target.x, ty, this.target.z);
     // (the haze stays well back, so the next towns along are in sight even close in)
     this.scene.fog.near = this.dist * 2 + 10; this.scene.fog.far = this.dist * 6 + 60;
-    // names: the great ones always; the rest only close in
-    for (const s of this.labels) s.visible = this.dist < 14 || s.userData.rank >= (this.dist < 45 ? 2 : 3);
+    // (the names: the great ones always, the rest only close in; and nearer the roofs as it comes down, or they'd float out of the view)
+    const lift = Math.min(0.3, 0.07 + this.dist * 0.1);
+    for (const s of this.labels) { s.visible = this.dist < 14 || s.userData.rank >= (this.dist < 45 ? 2 : 3); s.position.y = s.userData.y0 + lift; }
     // (the fleets kept the same size on the view however near or far: a ship's length about a twentieth of its height)
     if (this.fleetGroup) { const k = this.dist * 0.0036; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
     // (the armies the same: a man about a fiftieth of the view's height, standing on the ground where he is; and their
