@@ -806,14 +806,19 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     c.save(); c.beginPath();
     for (const [y, xs] of rows) { xs.sort((a, b) => a - b); let a = xs[0], b = a; for (let i = 1; i <= xs.length; i++) { if (i < xs.length && xs[i] === b + 1) { b = xs[i]; continue; } c.rect(a * S - 0.3, y * S - 0.3, (b - a + 1) * S + 0.6, S + 0.6); if (i < xs.length) a = b = xs[i]; } }
     c.clip(); c.drawImage(prevSheet, 0, 0, W, H); c.restore();
+    c.save(); c.globalCompositeOperation = "multiply";
     for (const [x, y, a] of front) { const id = g[y] && g[y][x], col = NATIONS[id] && NATIONS[id].color; if (!col) continue; c.globalAlpha = a * 0.55; c.fillStyle = col; c.fillRect(x * S - 0.2, y * S - 0.2, S + 0.4, S + 0.4); }
-    c.globalAlpha = 1;
+    c.restore(); c.globalAlpha = 1;
   }
   // the lit crowns: a warm wash over them
-  for (const [id, a] of [[hover, 0.16], [selected, 0.28]]) {
+  // (one shape for the whole crown, filled once — row by row it overlapped itself in stripes — and laid on as an
+  //  overlay, which lightens the paper and the paint but leaves black black: the coasts, frontiers and lettering stay
+  //  drawn over it)
+  for (const [id, a] of [[hover, 0.34], [selected, 0.55]]) {
     if (!id || !NATIONS[id]) continue;
-    c.fillStyle = `rgba(255,236,190,${a})`;
-    for (let y = 0; y < GH; y++) { let x0 = -1; for (let x = 0; x <= GW; x++) { const on = x < GW && g[y][x] === id; if (on && x0 < 0) x0 = x; if (!on && x0 >= 0) { c.fillRect(x0 * S, y * S, (x - x0) * S, S + 0.5); x0 = -1; } } }
+    c.save(); c.globalCompositeOperation = "overlay"; c.fillStyle = `rgba(255,236,190,${a})`; c.beginPath();
+    for (let y = 0; y < GH; y++) { let x0 = -1; for (let x = 0; x <= GW; x++) { const on = x < GW && g[y][x] === id; if (on && x0 < 0) x0 = x; if (!on && x0 >= 0) { c.rect(x0 * S, y * S, (x - x0) * S, S + 0.5); x0 = -1; } } }
+    c.fill(); c.restore();
   }
   // crossed swords over a crown at war (red if with you), a skull over a plague
   const centre = id => { let sx = 0, sy = 0, n = 0; for (let y = 0; y < GH; y += 2) for (let x = 0; x < GW; x += 2) if (g[y][x] === id) { sx += x; sy += y; n++; } return n ? [sx / n * S, sy / n * S] : null; };

@@ -2023,3 +2023,8 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 @media (max-width: 600px) { .cmp-mincands { grid-template-columns: 1fr; } }
 .cmp-min .tm-lnk { all: unset; cursor: pointer; font: 11px var(--sans); color: var(--ink-dim); text-decoration: underline; }
 .cmp-min .tm-lnk:hover { color: #e8c96a; }
+/* a minister's skill and corruption */
+.cmp-minst { display: flex; gap: 10px; font: 10.5px var(--sans); font-style: normal; color: var(--ink-dim); }
+.cmp-minst i, .cmp-mincand i { font-style: normal; color: #e8c96a; font-size: 10.5px; letter-spacing: 1px; }
+.cmp-minst i.bad, .cmp-mincand i.bad { color: #d8604a; }
+.cmp-mincand small { font: 10px var(--sans); color: var(--ink-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.79.1", date: "17 October 2026", title: "Corrupt ministers, clean lines",
+    items: [
+      "Campaign: every minister has a corruption of nought to four, shown in red beside his skill on the Government card and when you choose a new one. The Treasury's costs 3% of your income a point (the card says how many thalers a year), the War minister's makes regiments 3% dearer a point, and a badly corrupt minister of Justice sells verdicts (−1 loyalty in every town). Now and then a corrupt minister is caught with his hand in the treasury: the money's gone, and you turn him out or keep him.",
+      "The map: your own crown's land, and the crown you point at or choose, is lit without painting over the map's black lines. It was laid on in strips that overlapped and covered the coasts and frontiers; it's now one even wash that leaves the ink black. Land changing hands spreads the same way.",
+    ],
+  },
+  {
     v: "1.79.0", date: "17 October 2026", title: "Government",
     items: [
       "Campaign: your crown has a government, as in Empire: Total War. An absolute monarchy's heavy taxes anger its towns less, but its scholars are slower. A constitutional monarchy has 10% more income and quicker scholars, and an election every five years that may change a minister. A republic has 15% more income, scholars 20% quicker and more content towns, but a long war wearies them. The Dutch, Venice and Genoa start as republics; England, Scotland, Ireland and Poland as constitutional monarchies; the rest as absolute.",
