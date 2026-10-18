@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.86.1", date: "17 October 2026", title: "Idle scholars",
+    items: [
+      "Campaign: when your scholars have nothing to study, a card at the top of the panel says so, with a button that opens Learning. Their year's work no longer goes to waste unnoticed, and a new campaign shows you where to begin.",
+    ],
+  },
+  {
     v: "1.86.0", date: "17 October 2026", title: "Scholars exchanged",
     items: [
       "Campaign: with an ally or a trade partner you can now exchange scholars, as Empire: Total War's crowns traded learning. Letters and books go between the universities, and your scholars' current study comes 2 points nearer (3 with an ally). They think a little better of you for it. Once every five years with each crown.",

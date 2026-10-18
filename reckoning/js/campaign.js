@@ -2749,6 +2749,8 @@ const fold = (key, head, body, open0 = false) => `<details class="cmp-card cmp-f
 function drawSide() {
   const g = grid(), el = $("cmpSide"), r = C.E.rel;
   let h = "";
+  // (scholars with nothing to study: a year's learning going to waste — said where it can't be missed)
+  if (!C.mp && !C.over && C.tech && !C.tech.cur && Object.keys(TECHS).some(id => canStudy(C.tech.done, id))) h += `<div class="cmp-card cmp-idle"><span><b>Your scholars have nothing to study</b><small>Their learning goes to waste until you choose something.</small></span><button class="btn" data-learnb="1">Learning</button></div>`;
   if (C.exile != null && !C.over) { const left = 3 - (C.year - C.exile); h += `<div class="cmp-card cmp-exile"><b>Without a town</b><small>Your last town has fallen. Take one back with your army within ${left} year${left === 1 ? "" : "s"}, or the crown is lost.</small></div>`; }
   if (C.over) h += `<div class="cmp-over"><b>Your crown is lost.</b> Every town has fallen. <button class="btn" data-act="newgame">Begin again</button></div>`;
   else if (C.won) h += `<div class="cmp-won"><b>Yours is the first crown of the world.</b> ${citiesOfNow(g, C.me).length} towns under your crown.</div>`;
@@ -2884,6 +2886,7 @@ function drawSide() {
   for (const d of el.querySelectorAll("details[data-fold]")) d.addEventListener("toggle", () => { folds[d.dataset.fold] = d.open; try { localStorage.setItem(FOLDKEY, JSON.stringify(folds)); } catch (e) {} });
 }
 function sideClick(e) {
+  if (e.target.closest("[data-learnb]")) { $("cmpTechB").click(); return; }
   const b = e.target.closest("button"); if (!b || !C) return;
   window.__uisfx && window.__uisfx.click && window.__uisfx.click();
   if (mp && mp.gone && !b.dataset.act) return;
