@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.86.3", date: "17 October 2026", title: "No debts from riots",
+    items: [
+      "Campaign: granting a rising concessions you couldn't afford put the treasury into debt, and a debt makes regiments desert. Now the button is greyed out when the chest hasn't the money.",
+      "Campaign: a riot, or a rising that wins, takes a town's year of revenue, but never more than the treasury holds, so it can't leave you in debt either.",
+    ],
+  },
+  {
     v: "1.86.2", date: "17 October 2026", title: "Know your enemy",
     items: [
       "Campaign: the other crowns' generals have traits of their own now, about half of them: Bold, Cautious, Siege engineer, Hero of the nation, or Drunkard. They show on the crown's card under its general, and count in battles left to the generals. An enemy siege engineer makes your walls count for half.",
