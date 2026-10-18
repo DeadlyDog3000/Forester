@@ -292,7 +292,7 @@ const NAMES = [
 const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6],
   ["OCEANUS\nATLANTICUS", -40, 44], ["MARE DEL NORT", -62, 33], ["SINUS\nMEXICANUS", -90.5, 25.6], ["MARE\nCHRISTIANUM", -82, 59.5], ["MARE\nGLACIALE", -55, 63.4]];
 // rivers, as the engraver would have traced them: a few points each, from the mouth up
-const RIVERS = [
+export const RIVERS = [
   [[4.1, 51.9], [6.1, 51.8], [6.8, 51.3], [7.6, 50.4], [8.3, 49.9], [8.4, 49], [7.6, 47.6], [9.3, 47.6]],
   [[29.7, 45.2], [28.2, 45.4], [28, 44.4], [26.1, 44.1], [24.5, 43.7], [22.6, 44.6], [20.3, 45.2], [19, 46], [18.9, 47.8], [16.4, 48.2], [13.4, 48.6], [12.1, 49], [10.9, 48.7], [8.2, 48]],
   [[8.8, 53.9], [10, 53.5], [11.6, 53], [11.8, 52], [12.6, 51.9], [13.7, 51], [14.3, 50.5]],

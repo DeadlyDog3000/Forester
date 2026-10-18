@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.24", date: "18 October 2026", title: "Streets and rivers",
+    items: [
+      "Campaign 3D map: you can see a town's streets: paved roads running out from the market square and lanes round between them, the houses lining them and none standing in the road. The square in the middle is paved, and new streets are laid as the town grows out along them.",
+      "Campaign 3D map: the rivers are there: the Danube, the Rhine, the Elbe, the Seine and the rest, as on the parchment map, wandering across the land and broader toward the sea, and still a fine line when you look from far off.",
+      "Campaign 3D map: a town on a river bridges it and builds on both banks (Vienna across the Danube, Dresden across the Elbe), and no trees grow in the water.",
+      "Campaign 3D map: opening it doesn't freeze the game while the towns are laid out. The land shows at once and the towns follow a moment later; after a conquest the old towns stand until the new ones are ready.",
+    ],
+  },
+  {
     v: "1.90.23", date: "18 October 2026", title: "Building out",
     items: [
       "Campaign 3D map: you can watch a town grow. When its people grow at the turn of a season, new houses rise out of the ground at its edge one after another; when it loses people, the outermost come down. The old town stays as it was.",

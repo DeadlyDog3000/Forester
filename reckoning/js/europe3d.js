@@ -16,7 +16,7 @@
 // Alps would be a wrinkle.
 
 import { THREE, rng } from "./core.js";
-import { NATIONS, CITIES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
+import { NATIONS, CITIES, RIVERS, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
 import { ensureModel, modelCopy, mergeRig, makeMusket } from "./models.js";
 
@@ -197,7 +197,7 @@ const EXAG = 10 / 111 * U;
 const POP0 = [0, 8000, 24000, 70000];
 const popEst = (name, rank) => { let h = 7; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return Math.round(POP0[rank] * (0.7 + (h % 600) / 1000) / 100) * 100; };
 // a town's houses for its people (one for every hundred and seventy or so), and the widest water it will bridge
-const CLEAR_CELL = 0.2;
+const CLEAR_CELL = 0.2, STONE = [0xcdc4b0, 0xc4baa5, 0xd6ccb8];
 const houseCount = pop => Math.max(14, Math.min(1000, Math.round(pop / 170)));
 const BRIDGE = 0.32, ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _m4 = new THREE.Matrix4(), _m5 = new THREE.Matrix4();
 // (how many of a town's things in order are built for so many houses: its bridges with them, as it reaches them)
@@ -253,6 +253,7 @@ export class EuropeView3D {
     deep.position.set(MAP_W / 2, -0.4, MAP_H / 2); this.scene.add(deep);
     this.kinds = treeKinds();
     this.cells = new Map();          // patches of trees, by cell key
+    this.labels = []; this.towns = new Map(); this.growing = []; this.clearings = new Map();
     this.target = new THREE.Vector3(); this.dist = 30;
     this.visible = false;
   }
@@ -273,7 +274,7 @@ export class EuropeView3D {
     if (this.g && this.mapKey && this.mapKey.slice(0, this.mapKey.lastIndexOf("|")) === base && pops && this.grow(pops)) { this.mapKey = key; this.pops = pops; return; }
     this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName; this.walls = walls || {}; this.pops = pops;
     // (the ground itself doesn't change with a conquest — only who holds it: raised once for the sheet)
-    if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.baseSheet = SHEET; }
+    if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.buildRivers(); this.baseSheet = SHEET; }
     this.buildBorders(); this.buildCities(homePop);
     if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
     for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
@@ -367,13 +368,13 @@ export class EuropeView3D {
     for (const im of dirty) im.instanceMatrix.needsUpdate = true;
   }
   // the trodden earth of a town's streets and yards: a disc laid over the ground, fading out at its rim
-  townGround(x, z, R, out, rings = 5, seg = 28, a0 = 0.7, flatY = null) {
+  townGround(x, z, R, out, rings = 5, seg = 28, a0 = 0.7, flatY = null, rgb = [0.50, 0.44, 0.35]) {
     const n0 = out.pos.length / 3;
     for (let i = 0; i <= rings; i++) for (let k = 0; k < (i ? seg : 1); k++) {
       const d = R * i / rings * (i === rings ? 1 : 1 + (hash(i, k, 5) - 0.5) * 0.12), a = k / seg * 6.283, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
       const gy = flatY ?? this.groundY(px, pz); out.pos.push(px, Math.max(0, gy) + 0.003, pz);
       // (none of it out on the water)
-      const t = i / rings; out.col.push(0.50, 0.44, 0.35, gy < 0.004 ? 0 : a0 * (1 - t * t * t));
+      const t = i / rings; out.col.push(rgb[0], rgb[1], rgb[2], gy < 0.004 ? 0 : a0 * (1 - t * t * t));
     }
     for (let k = 0; k < seg; k++) out.idx.push(n0, n0 + 1 + (k + 1) % seg, n0 + 1 + k);
     for (let i = 1; i < rings; i++) for (let k = 0; k < seg; k++) {
@@ -383,23 +384,73 @@ export class EuropeView3D {
   }
   // ground kept clear of trees (a town's, its fields close round it): circles, filed by the small square they touch
   clear(x, z, r) {
-    const C = CLEAR_CELL; for (let gx = Math.floor((x - r) / C); gx <= Math.floor((x + r) / C); gx++) for (let gz = Math.floor((z - r) / C); gz <= Math.floor((z + r) / C); gz++) { const k = gx * 65536 + gz; (this.clearings.get(k) || this.clearings.set(k, []).get(k)).push([x, z, r]); }
+    const C = CLEAR_CELL; for (let gx = Math.floor((x - r) / C); gx <= Math.floor((x + r) / C); gx++) for (let gz = Math.floor((z - r) / C); gz <= Math.floor((z + r) / C); gz++) { const k = gx * 65536 + gz; const M = this._clearNext || this.clearings; (M.get(k) || M.set(k, []).get(k)).push([x, z, r]); }
   }
   cleared(x, z) { const L = this.clearings && this.clearings.get(Math.floor(x / CLEAR_CELL) * 65536 + Math.floor(z / CLEAR_CELL)); return !!L && L.some(([cx, cz, cr]) => (x - cx) * (x - cx) + (z - cz) * (z - cz) < cr * cr); }
   // how near a town a point is, for its fields: 1 close round it, falling to nought a few of its widths out
   townNear(x, z) {
     if (!this.townSpots || this.townSheet !== SHEET) {
       this.townSheet = SHEET; this.townSpots = new Map();
-      for (const ct of CITIES) { const [tx, tz] = toWorld(ct[1], ct[2]), k = Math.floor(tx / 4) + "," + Math.floor(tz / 4); (this.townSpots.get(k) || this.townSpots.set(k, []).get(k)).push([tx, tz, TOWN_R[ct[3]] || 0.2]); }
+      for (const ct of CITIES) { const [tx, tz] = toWorld(ct[1], ct[2]), k = Math.floor(tx / 4) * 4096 + Math.floor(tz / 4); (this.townSpots.get(k) || this.townSpots.set(k, []).get(k)).push([tx, tz, TOWN_R[ct[3]] || 0.2]); }
     }
     let best = 0; const bx = Math.floor(x / 4), bz = Math.floor(z / 4);
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
-      const L = this.townSpots.get((bx + i) + "," + (bz + j)); if (!L) continue;
+      const L = this.townSpots.get((bx + i) * 4096 + bz + j); if (!L) continue;
       for (const [tx, tz, R] of L) { const d = Math.hypot(x - tx, z - tz), t = 1 - (d - R * 1.2) / (R * 2.2); if (t > best) best = Math.min(1, t); }
     }
     return best;
   }
-  groundY(x, z) { const [lon, lat] = toLL(x, z); return Math.max(-0.16, heightAt(this.g, lon, lat) * EXAG); }
+  rawY(x, z) { const [lon, lat] = toLL(x, z); return Math.max(-0.16, heightAt(this.g, lon, lat) * EXAG); }
+  // (the ground's height for what stands on it: a river counts as water, so a town bridges it and builds round it)
+  groundY(x, z) { return this.riverAt(x, z) ? -0.01 : this.rawY(x, z); }
+  // the rivers: each a ribbon of water laid along the land, wandering as a river does, broader toward its mouth, its
+  // banks soft — and never thinner on the view than a fine line, so it reads from far off as it does on the map
+  buildRivers() {
+    if (this.rivers) { this.scene.remove(this.rivers); this.rivers.geometry.dispose(); }
+    this.riverSeg = new Map();
+    const pos = [], nrm = [], side = [], hwA = [], col = [], idx = [];
+    RIVERS.forEach((rv, ri) => {
+      let P = rv.map(([lo, la]) => toWorld(lo, la));
+      for (let it = 0; it < 2; it++) { const Q = [P[0]]; for (let i = 0; i < P.length - 1; i++) { const [x0, z0] = P[i], [x1, z1] = P[i + 1]; Q.push([x0 * 0.75 + x1 * 0.25, z0 * 0.75 + z1 * 0.25], [x0 * 0.25 + x1 * 0.75, z0 * 0.25 + z1 * 0.75]); } Q.push(P[P.length - 1]); P = Q; }
+      // (walked along at a fine step, bending this way and that about the engraver's line)
+      const W = []; let s = 0; const ph = ri * 1.7;
+      for (let i = 0; i < P.length - 1; i++) {
+        const [x0, z0] = P[i], [x1, z1] = P[i + 1], L = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(L / 0.06)), ux = (x1 - x0) / L, uz = (z1 - z0) / L;
+        for (let k = 0; k < n; k++) { const t = k / n, ss = s + L * t, off = 0.07 * Math.sin(ss * 2.3 + ph) + 0.035 * Math.sin(ss * 6.1 + ph * 2.3); W.push([x0 + (x1 - x0) * t - uz * off, z0 + (z1 - z0) * t + ux * off]); }
+        s += L;
+      }
+      W.push(P[P.length - 1]);
+      const N = W.length;
+      for (let i = 0; i < N; i++) {
+        const [x, z] = W[i], [xa, za] = W[Math.max(0, i - 1)], [xb, zb] = W[Math.min(N - 1, i + 1)];
+        let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+        const hw = 0.018 + 0.03 * (1 - i / N), raw = this.rawY(x, z), dry = raw > 0.002;
+        // (a hair over the ground — and over the coarse ground's line where that runs higher, far off)
+        const y = Math.max(0, raw) + 0.012 + Math.min(0.04, Math.max(0, this.baseY(x, z) - raw)), n0 = pos.length / 3;
+        for (const [sd, a] of [[-1.7, 0], [-1, 1], [1, 1], [1.7, 0]]) { pos.push(x, y, z); nrm.push(-dz, dx); side.push(sd); hwA.push(hw); col.push(0.25, 0.43, 0.52, dry ? a * 0.95 : 0); }
+        if (i) for (let k = 0; k < 3; k++) idx.push(n0 - 4 + k, n0 - 4 + k + 1, n0 + k, n0 - 4 + k + 1, n0 + k + 1, n0 + k);
+        if (i && dry) { const [px, pz] = W[i - 1], e = hw + 0.08; for (let gx = Math.floor(Math.min(x, px) - e); gx <= Math.floor(Math.max(x, px) + e); gx++) for (let gz = Math.floor(Math.min(z, pz) - e); gz <= Math.floor(Math.max(z, pz) + e); gz++) { const k = gx * 65536 + gz; (this.riverSeg.get(k) || this.riverSeg.set(k, []).get(k)).push([px, pz, x, z, hw]); } }
+      }
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(new Float32Array(pos.length).map((_, i) => i % 3 === 1 ? 1 : 0), 3)); g.setAttribute("aN", new THREE.Float32BufferAttribute(nrm, 2));
+    g.setAttribute("aSide", new THREE.Float32BufferAttribute(side, 1)); g.setAttribute("aHW", new THREE.Float32BufferAttribute(hwA, 1));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 4)); g.setIndex(idx);
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 0.3, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+    const uPix = { value: 0.01 }; this.riverPix = uPix;
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uPix = uPix;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute vec2 aN; attribute float aSide; attribute float aHW; uniform float uPix;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\n transformed.xz += aN * aSide * max(aHW, uPix);");
+    };
+    m.customProgramCacheKey = () => "river2";
+    this.rivers = new THREE.Mesh(g, m); this.rivers.renderOrder = 2; this.rivers.frustumCulled = false; this.scene.add(this.rivers);
+  }
+  riverAt(x, z, m = 0) {
+    const L = this.riverSeg && this.riverSeg.get(Math.floor(x) * 65536 + Math.floor(z)); if (!L) return false;
+    for (const [x0, z0, x1, z1, hw] of L) { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz || 1))), ex = x - x0 - dx * t, ez = z - z0 - dz * t; if (ex * ex + ez * ez < (hw + m) * (hw + m)) return true; }
+    return false;
+  }
   // trees, a unit square at a time, the same every time for the same square
   treesNear() {
     const R = this.dist < 6 ? 5 : this.dist < 14 ? 7 : 0, have = new Set();
@@ -421,7 +472,7 @@ export class EuropeView3D {
         const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z);
         const wood = woodAt(x, z) - tilledAt(lon, lat) * WOOD_CUT;
         if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
-        const h = heightAt(this.g, lon, lat); if (h < 0.03 || biomeAt(lon, lat, h) === "snow") continue;
+        const h = heightAt(this.g, lon, lat); if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.025)) continue;
         // (no wood growing in a town, nor in the fields close round it)
         if (this.cleared(x, z)) continue;
         const s = 0.7 + r() * 0.7;
@@ -471,7 +522,7 @@ export class EuropeView3D {
       for (let i = 0; i < P.length; i++) {
         const [x, z] = P[i], [xa, za] = P[Math.max(0, i - 1)], [xb, zb] = P[Math.min(P.length - 1, i + 1)];
         let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-        const y = Math.max(0.005, this.groundY(x, z)) + 0.025, n = pts.length / 3;
+        const y = Math.max(0.005, this.rawY(x, z)) + 0.025, n = pts.length / 3;
         pts.push(x - dz * HW, y, z + dx * HW, x + dz * HW, y, z - dx * HW);
         if (i) idx.push(n - 2, n - 1, n, n - 1, n + 1, n);
       }
@@ -482,15 +533,27 @@ export class EuropeView3D {
     this.scene.add(this.borders);
   }
   // the cities: houses and a church on the ground, and the name, in the colour of whoever holds it
-  buildCities(homePop) {
-    if (this.cityGroup) { this.scene.remove(this.cityGroup); this.cityGroup.traverse(o => { if (o.isInstancedMesh) { o.dispose(); o.geometry.dispose(); o.material.dispose(); } if (o.isTownGround) { o.geometry.dispose(); o.material.dispose(); } if (o.isSprite) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); }
-    const grp = this.cityGroup = new THREE.Group();
+  // (laid out a few towns a frame, so the land shows at once and the towns follow; the old ones stand till the new are
+  //  ready — sync: all of it now)
+  buildCities(homePop, sync = false) {
+    this.cityJob = this.cityGen(homePop);
+    if (sync) { this.pumpCities(Infinity); return; }
+    // (driven on its own, a slice at a time between frames — the view isn't always being drawn — and drawn once done)
+    const job = this.cityJob, ch = new MessageChannel();
+    ch.port1.onmessage = () => { if (this.cityJob !== job) return; this.pumpCities(10); if (this.cityJob) ch.port2.postMessage(0); else if (this.visible) this.frame(); };
+    ch.port2.postMessage(0);
+  }
+  pumpCities(budget = 12) {
+    const t = performance.now();
+    while (this.cityJob && performance.now() - t < budget) if (this.cityJob.next().done) this.cityJob = null;
+  }
+  *cityGen(homePop) {
+    const grp = new THREE.Group(), labels = [], towns = new Map();
     // (the thousands of houses, roofs, walls and stakes: one instanced draw for each kind, not a mesh apiece — the
     //  scene's thousands of objects were most of a frame's work)
     const kinds = new Map(), put = (m, col) => { m.updateMatrix(); const k = m.geometry.uuid + m.material.uuid; let b = kinds.get(k); if (!b) kinds.set(k, b = { geo: m.geometry, mat: m.material, mats: [], cols: [] }); b.mats.push(m.matrix.clone()); b.cols.push(col ?? 0xffffff); return [b, b.mats.length - 1]; };
     // (the same, with no mesh made for it: the hot path, thousands of times over)
     const _d = new THREE.Object3D(), putM = (geo, mat, x, y, z, ry, sx, sy, sz, col) => { _d.geometry = geo; _d.material = mat; _d.position.set(x, y, z); _d.rotation.set(0, ry, 0); _d.scale.set(sx, sy, sz); return put(_d, col); };
-    this.towns = new Map(); this.growing = [];
     // (a house a unit box, sized each its own; its roof a gable, the ridge along its length, the eaves a little over the walls)
     const house = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), roof = gable();
     const plaster = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), roofing = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
@@ -501,8 +564,7 @@ export class EuropeView3D {
     const wall = new THREE.MeshStandardMaterial({ color: 0xe6dcc6, roughness: 0.9 }), tile = new THREE.MeshStandardMaterial({ color: 0xa04a30, roughness: 0.8 }), stone = new THREE.MeshStandardMaterial({ color: 0xb8b0a0 });
     const curtain = new THREE.BoxGeometry(1, 0.022, 0.009).translate(0, 0.011, 0), bastion = new THREE.CylinderGeometry(0.012, 0.016, 0.026, 4).translate(0, 0.013, 0), masonry = new THREE.MeshStandardMaterial({ color: 0x9c9384, roughness: 0.95 });
     const towerGeo = new THREE.BoxGeometry(0.036, 1, 0.036), spireGeo = new THREE.ConeGeometry(0.028, 0.1, 4), slate = new THREE.MeshStandardMaterial({ color: 0x4a5a58 });
-    this.labels = [];
-    this.clearings = new Map(); const groundBits = { pos: [], col: [], idx: [] };
+    this._clearNext = new Map(); const groundBits = { pos: [], col: [], idx: [] };
     const place = (name, lon, lat, rank, own, isHome) => {
       let [x, z] = toWorld(lon, lat); const r = rng(Math.round(lon * 100 + lat * 7));
       // (a port whose spot falls on the water at this map's grain — an inlet, a river mouth: the nearest dry ground
@@ -533,16 +595,16 @@ export class EuropeView3D {
         const sq = R * 0.13, slots = [], ok = (px, pz, py) => py >= 0.006;
         // (its outline: lumpy, a bulge or two in no set direction, drawn in toward bad ground)
         const p1 = r() * 6.28, p2 = r() * 6.28, lobes = Array.from({ length: 1 + ((r() * 3) | 0) }, () => [r() * 6.283, 0.9 + r() * 1.5, 0.35 + r() * 0.4]);
-        const RMAX = isHome ? R : R * 5.2, land = [], reach = [], gaps = [], harb = [], RAYS = 24, RS = Math.max(0.04, RMAX / 22);
+        const RMAX = isHome ? R : R * 5.2, land = [], reach = [], gaps = [], harb = [], RAYS = 16, RS = Math.max(0.05, RMAX / 18);
         // (out from the middle each way: how far there's ground to build on — over a river or a lake, if it's narrow enough
         //  to bridge, but not over the sea; nor up a cliff)
         for (let k = 0; k < RAYS; k++) {
           const a = k / RAYS * 6.283, ca = Math.cos(a), sa = Math.sin(a); let good = 0, n = 0, py = this.groundY(x, z), wet = -1, lastDry = 0, far = RMAX;
-          for (let d = R * 0.5; d < RMAX; d += RS) {
+          for (let d = R * 0.15, st = 0.028; d < RMAX; st = d < R * 1.6 ? 0.028 : RS, d += st) {
             const qy = this.groundY(x + ca * d, z + sa * d); n++;
             if (qy < 0.004) { if (wet < 0) wet = lastDry; if (d - wet > BRIDGE) { far = wet; harb[k] = wet; break; } continue; }
-            if (wet >= 0) { if (d - wet > 0.05) gaps.push([a, wet, d, d - wet]); wet = -1; py = qy; }
-            if (Math.abs(qy - py) / RS > 1.25) { far = d; break; }
+            if (wet >= 0) { if (d - wet > 0.02) gaps.push([a, wet, d, d - wet]); wet = -1; py = qy; }
+            if (Math.abs(qy - py) / st > 1.25) { far = d; break; }
             good++; py = qy; lastDry = d;
           }
           if (wet >= 0) { far = Math.min(far, wet); harb[k] = wet; }
@@ -561,10 +623,24 @@ export class EuropeView3D {
           const score = d < R ? d * 0.5 : R * 0.5 + (d - R) / shape(a) * (0.94 + r() * 0.12);
           slots.push([hx, hz, ang, score, nx, nz, d / R]);
         };
+        // (the streets themselves: paved a piece at a time, each piece laid as the houses along it go up — and filed, so no
+        //  house is set down in the middle of one)
+        const streetAt = new Map(), SC = 0.04;
+        const street = (x0, z0, x1, z1, w) => {
+          const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, d = Math.hypot(cx - x, cz - z), a = Math.atan2(cz - z, cx - x);
+          if (d > R && d > reachAt(a)) return;
+          const score = (d < R ? d * 0.5 : R * 0.5 + (d - R) / shape(a)) - 0.002;
+          slots.push([cx, cz, 0, score, 0, 0, d / R, null, [x0, z0, x1, z1, w]]);
+          const k = Math.floor(cx / SC) * 65536 + Math.floor(cz / SC); (streetAt.get(k) || streetAt.set(k, []).get(k)).push([cx, cz, (w / 2 + 0.012) * (w / 2 + 0.012)]);
+        };
+        const onStreet = (px, pz) => { const gx = Math.floor(px / SC), gz = Math.floor(pz / SC); for (let u = -1; u <= 1; u++) for (let v = -1; v <= 1; v++) { const L = streetAt.get((gx + u) * 65536 + gz + v); if (L && L.some(([sx, sz, r2]) => (sx - px) * (sx - px) + (sz - pz) * (sz - pz) < r2)) return true; } return false; };
+        // (the market square, paved, in the middle)
+        if (!isHome) this.townGround(x, z, sq * 1.3, groundBits, 2, 16, 0.9, null, [0.70, 0.65, 0.55]);
         for (let k = 0; k < S; k++) {
           const a = a0 + k / S * 6.283 + (r() - 0.5) * 0.4, ca = Math.cos(a), sa = Math.sin(a);
+          for (let d = sq; d < RMAX; d += 0.04) street(x + ca * d, z + sa * d, x + ca * (d + 0.04), z + sa * (d + 0.04), d < R ? 0.022 : 0.017);
           for (let d = sq + 0.02; d < RMAX; d += 0.034 + Math.min(d, R) * 0.03) for (const side of [-1, 1]) {
-            const off = 0.013 + r() * 0.004;
+            const off = 0.02 + r() * 0.004;
             lot(x + ca * d - sa * off * side, z + sa * d + ca * off * side, -a, d, -sa * side, ca * side);
           }
         }
@@ -575,22 +651,36 @@ export class EuropeView3D {
           if (bridges.length >= 3 || bridges.some(b => { let da = Math.abs(b[0] - g[0]) % 6.283; if (da > Math.PI) da = 6.283 - da; return da < 1.1; })) continue;
           bridges.push(g); const [a, d1, d2] = g, ca = Math.cos(a), sa = Math.sin(a);
           slots.push([x + ca * d2, z + sa * d2, -a, (d2 < R ? d2 * 0.5 : R * 0.5 + (d2 - R) / shape(a)) - 0.001, 0, 0, d2 / R, g]);
-          for (let d = d2 + 0.03; d < Math.min(RMAX, d2 + R * 2); d += 0.036) for (const side of [-1, 1]) lot(x + ca * d - sa * 0.015 * side, z + sa * d + ca * 0.015 * side, -a, d, -sa * side, ca * side);
+          for (let d = d2; d < Math.min(RMAX, d2 + R * 2); d += 0.04) street(x + ca * d, z + sa * d, x + ca * (d + 0.04), z + sa * (d + 0.04), 0.017);
+          for (let d = d2 + 0.03; d < Math.min(RMAX, d2 + R * 2); d += 0.036) for (const side of [-1, 1]) lot(x + ca * d - sa * 0.02 * side, z + sa * d + ca * 0.02 * side, -a, d, -sa * side, ca * side);
         }
         // (the lanes round: close in the old town, wider apart out past it, wandering a little)
         for (let rr = R * (NH0 > 60 ? 0.42 : 0.55); rr < RMAX; rr += rr < R ? R * 0.3 : 0.075 + r() * 0.03) {
-          const N = Math.round(6.283 * rr / 0.034), wob = r() * 6.28;
-          for (let i = 0; i < N; i++) for (const side of [-1, 1]) { const a = i / N * 6.283 + r() * 0.05, d = rr * (1 + Math.sin(a * 3 + wob) * 0.05) + side * 0.013, ca = Math.cos(a), sa = Math.sin(a); lot(x + ca * d, z + sa * d, -a + Math.PI / 2, d, ca * side, sa * side); }
+          const N = Math.round(6.283 * rr / 0.034), wob = r() * 6.28, rp = i => { const a = i / N * 6.283, d = rr * (1 + Math.sin(a * 3 + wob) * 0.05); return [x + Math.cos(a) * d, z + Math.sin(a) * d]; };
+          for (let i = 0; i < N; i++) { const [x0, z0] = rp(i), [x1, z1] = rp(i + 1); street(x0, z0, x1, z1, 0.013); }
+          for (let i = 0; i < N; i++) for (const side of [-1, 1]) { const a = i / N * 6.283 + r() * 0.05, d = rr * (1 + Math.sin(a * 3 + wob) * 0.05) + side * 0.017, ca = Math.cos(a), sa = Math.sin(a); lot(x + ca * d, z + sa * d, -a + Math.PI / 2, d, ca * side, sa * side); }
         }
         // (and the blocks between filled in)
         for (let i = 0; i < (isHome ? 0 : CAP * 1.2); i++) { const a = r() * 6.283, d = sq + 0.03 + Math.sqrt(r()) * (RMAX - sq); lot(x + Math.cos(a) * d, z + Math.sin(a) * d, -a + (r() < 0.5 ? 0 : Math.PI / 2), d); }
         slots.sort((p, q) => p[3] - q[3]);
         const kept = [], keptAt = new Map(), items = []; let miss = 0;
-        for (let [hx, hz, ang, , nx, nz, t, br] of slots) {
+        for (let [hx, hz, ang, , nx, nz, t, br, st] of slots) {
           if (kept.length >= CAP || miss > 260) break;
+          if (st) {
+            // (a piece of street: flat stones over the ground from one end to the other, sunk where the ground slopes)
+            const [x0, z0, x1, z1, sw] = st, ym = this.groundY(hx, hz);
+            if (ym < 0.006) continue;
+            const lo = ym - 0.007, hi = ym + 0.0015;
+            items.push({ parts: [putM(house, plaster, hx, lo, hz, -Math.atan2(z1 - z0, x1 - x0), Math.hypot(x1 - x0, z1 - z0) + 0.004, hi - lo, sw, STONE[(hash(Math.round(hx * 900), Math.round(hz * 900), 3) * 3) | 0])], py: lo, house: false });
+            continue;
+          }
           if (br) {
             // (a bridge: its deck from bank to bank, a little over the higher of them, on piers stood in the water)
-            const [a, d1, d2] = br, ca = Math.cos(a), sa = Math.sin(a), y1 = this.groundY(x + ca * d1, z + sa * d1), y2 = this.groundY(x + ca * d2, z + sa * d2);
+            let [a, d1, d2] = br; const ca = Math.cos(a), sa = Math.sin(a);
+            // (the banks found exactly: out from the near one till the water, back from the far one till the water)
+            while (d1 < d2 && this.groundY(x + ca * (d1 + 0.004), z + sa * (d1 + 0.004)) >= 0.004) d1 += 0.004;
+            while (d2 > d1 && this.groundY(x + ca * (d2 - 0.004), z + sa * (d2 - 0.004)) >= 0.004) d2 -= 0.004;
+            const y1 = this.groundY(x + ca * d1, z + sa * d1), y2 = this.groundY(x + ca * d2, z + sa * d2);
             const dy = Math.max(y1, y2, 0.02) + 0.008, len = d2 - d1 + 0.04, mx = x + ca * (d1 + d2) / 2, mz = z + sa * (d1 + d2) / 2, parts = [];
             parts.push(putM(house, plaster, mx, dy - 0.006, mz, -a, len, 0.006, 0.024, 0xa89e8c));
             for (let d = d1 + 0.04; d < d2 - 0.02; d += 0.05) parts.push(putM(house, plaster, x + ca * d, -0.06, z + sa * d, -a, 0.009, dy + 0.054, 0.028, 0x958b7a));
@@ -601,7 +691,9 @@ export class EuropeView3D {
           for (let u = -1; u <= 1 && !near; u++) for (let v = -1; v <= 1 && !near; v++) { const L = keptAt.get(gk + u * 99991 + v); if (L) near = L.some(([kx, kz]) => (kx - hx) * (kx - hx) + (kz - hz) * (kz - hz) < 0.00045); }
           if (near) continue;
           const core = Math.max(0, 1 - t * 1.4), w = 0.022 + r() * 0.008, l = 0.03 + r() * 0.016 + core * 0.01;
-          hx += nx * l / 2; hz += nz * l / 2; const hy = this.groundY(hx, hz);
+          hx += nx * l / 2; hz += nz * l / 2;
+          if (onStreet(hx, hz)) continue;                                   // (the street kept clear)
+          const hy = this.groundY(hx, hz);
           // (no house in the water, nor hung on a cliff)
           if (!ok(hx, hz, hy) || t > 1 && Math.abs(hy - this.groundY(hx + nx * 0.03, hz + nz * 0.03)) > 0.04) { miss++; continue; }
           miss = 0; kept.push([hx, hz]); (keptAt.get(gk) || keptAt.set(gk, []).get(gk)).push([hx, hz]);
@@ -613,7 +705,7 @@ export class EuropeView3D {
           // (out past the old town, a yard's trodden ground round each house — the fields kept clear for those to come)
           if (Math.hypot(hx - x, hz - z) > R) { this.clear(hx, hz, 0.09); if (kept.length <= NH) this.townGround(hx, hz, 0.05, groundBits, 1, 8, 0.45, hy); }
         }
-        this.towns.set(name, { items, cap: CAP, shown: shownFor(items, NH) });
+        towns.set(name, { items, cap: CAP, shown: shownFor(items, NH) });
         this.clear(x, z, R * 1.15 + 0.04);
         // the docks, where the town comes down to open water: a stone quay along the shore, wooden jetties run out from
         // it into the water, and boats tied up alongside them
@@ -679,19 +771,23 @@ export class EuropeView3D {
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false, transparent: true }));
       sprite.scale.set(0.16, 0.04, 1); sprite.position.set(x, y0 + 0.3, z); sprite.renderOrder = 5;
       sprite.userData = { rank, city: isHome ? null : name, y0 };
-      grp.add(sprite); this.labels.push(sprite);
+      grp.add(sprite); labels.push(sprite);
     };
-    for (const ct of CITIES) place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false);
+    for (const ct of CITIES) { place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false); yield; }
     // (your own clearing — not on a campaign's map, which has none)
     if (this.homeName !== null) { const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL); place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true); }
     for (const b of kinds.values()) { const im = b.im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => { im.setMatrixAt(i, m); if (b.mat === plaster || b.mat === roofing) im.setColorAt(i, _c.setHex(b.cols[i])); }); im.computeBoundingSphere(); grp.add(im); }
     // (what a town hasn't built yet, out of sight till it does)
-    for (const T of this.towns.values()) for (let i = T.shown; i < T.items.length; i++) for (const [b, k] of T.items[i].parts) b.im.setMatrixAt(k, ZERO);
+    for (const T of towns.values()) for (let i = T.shown; i < T.items.length; i++) for (const [b, k] of T.items[i].parts) b.im.setMatrixAt(k, ZERO);
     if (groundBits.pos.length) {
       const gg = new THREE.BufferGeometry(); gg.setAttribute("position", new THREE.Float32BufferAttribute(groundBits.pos, 3)); gg.setAttribute("color", new THREE.Float32BufferAttribute(groundBits.col, 4)); gg.setIndex(groundBits.idx); gg.computeVertexNormals();
       const gm = new THREE.Mesh(gg, new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 1, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
       gm.renderOrder = 1; gm.isTownGround = true; grp.add(gm);
     }
+    // (the new towns in place of the old)
+    if (this.cityGroup) { this.scene.remove(this.cityGroup); this.cityGroup.traverse(o => { if (o.isInstancedMesh) { o.dispose(); o.geometry.dispose(); o.material.dispose(); } if (o.isTownGround) { o.geometry.dispose(); o.material.dispose(); } if (o.isSprite) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); }
+    this.cityGroup = grp; this.labels = labels; this.towns = towns; this.growing = []; this.clearings = this._clearNext; this._clearNext = null;
+    for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
     this.scene.add(grp);
   }
   // marks over towns (a campaign's): crossed swords where you can march, a ring round your own, red where they're
@@ -822,6 +918,7 @@ export class EuropeView3D {
     const nr = Math.max(0.01, this.dist * 0.004); if (Math.abs(this.camera.near - nr) > nr * 0.1) { this.camera.near = nr; this.camera.updateProjectionMatrix(); }
     if (!this.visible || !this.g) return;
     this.buildDetail(); this.treesNear(); this.raise();
+    if (this.riverPix) this.riverPix.value = this.dist * 0.0011;
     const ty = Math.max(0, this.groundY(this.target.x, this.target.z));
     // from the south, looking north and down; lower and flatter as you come in close
     const pitch = 0.55 + Math.min(1, this.dist / 40) * 0.5;
