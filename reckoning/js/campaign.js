@@ -254,8 +254,11 @@ function resume() {
 function persist() { if (C && C.me) for (const h of C.mp ? humans() : [C.me]) as(h, reconcile); C.own = [...own]; save(); }
 function say(title, sub = "", kind) { C.logN = (C.logN | 0) + 1; C.log.unshift({ t: `${C.year}`, n: C.logN, title, sub, ...(kind ? { kind } : {}) }); C.log.length = Math.min(C.log.length, 60); }
 // (what a learning costs, and the years it takes at the least: deeper in its branch, the longer)
+// (what a nation of the woods has no use for: guns, and the stone forts built against them)
+const NOT_WOODS = new Set(["founding", "fieldart", "trace"]);
+const techFor = id => !(NOT_WOODS.has(id) && NATIONS[C.me] && NATIONS[C.me].nw);
 const techDepth = id => { const r = TECHS[id].req || []; return r.length ? 1 + Math.max(...r.map(techDepth)) : 0; };
-const techCost = id => TECHS[id].cost * 2;
+const techCost = id => TECHS[id].cost;   // (as it was: the years it takes at the least are what keep a great realm from learning a thing a year)
 const techYears = id => 2 + Math.min(2, techDepth(id));
 // ---- the year's news as the gazettes printed it: your own crown's paper, the year's great matter for its headline
 //  under a woodcut, and the rest set out in columns — laid before you as the year begins ----
@@ -759,7 +762,7 @@ function realmMine(g) {
   C.lq = []; C.levyQ = 0;
   const T = C.tech; T.pts += research(g);
   // (a learning is years in the making, however many scholars: the first of a branch two at the least, what's built on
-  //  it three, the furthest four — and it costs twice what it did, when a realm of colleges had each in a single year)
+  //  it three, the furthest four — when a realm of colleges had each in a single year)
   if (T.cur) T.yrs = (T.yrs | 0) + 1;
   if (T.cur && T.pts >= techCost(T.cur) && T.yrs >= techYears(T.cur)) {
     const id = T.cur, t = TECHS[id]; T.pts -= techCost(id); T.done[id] = true;
@@ -2973,7 +2976,7 @@ function drawTech() {
   let el = $("cmpTech"); if (!el) { el = document.createElement("div"); el.id = "cmpTech"; el.className = "cmp-must"; $("campaign").appendChild(el); el.onclick = e => { const b = e.target.closest("[data-study],[data-techx]"); if (!b) { if (e.target === el) el.remove(); return; } if (b.dataset.techx) { el.remove(); return; } doAct({ k: "study", id: b.dataset.study }); drawTech(); }; }
   const T = C.tech, rp = research(grid()); T.pts = Math.round(T.pts * 10) / 10;
   el.innerHTML = `<div class="cmp-mbox cmp-techbox"><h2>Learning</h2><p class="sub">${T.cur ? (() => { const left = Math.max(1, Math.ceil((techCost(T.cur) - T.pts) / Math.max(0.1, rp)), techYears(T.cur) - (T.yrs | 0)); return `Your scholars study <b>${esc(TECHS[T.cur].n)}</b>: ${T.pts} of ${techCost(T.cur)}, in its ${["first", "second", "third", "fourth", "fifth", "sixth"][Math.min(5, T.yrs | 0)]} year — about ${left} more year${left > 1 ? "s" : ""}.`; })() : "Choose what your scholars study next. Each learning takes years: two at the least, more the deeper it goes."} ${rp} a year from your schools and colleges.</p>
-    <div class="cmp-tree">${BRANCHES.map(([br, nm]) => `<div class="cmp-br"><div class="cmp-brh">${nm}</div>${Object.entries(TECHS).filter(([, t]) => t.br === br).map(([id, t]) => { const done = T.done[id], can = canStudy(T.done, id), cur = T.cur === id;
+    <div class="cmp-tree">${BRANCHES.map(([br, nm]) => `<div class="cmp-br"><div class="cmp-brh">${nm}</div>${Object.entries(TECHS).filter(([id, t]) => t.br === br && techFor(id)).map(([id, t]) => { const done = T.done[id], can = canStudy(T.done, id), cur = T.cur === id;
       return `<button class="cmp-tech${done ? " done" : cur ? " cur" : can ? " can" : " lock"}" data-study="${id}"${done || !can ? " disabled" : ""}><b>${esc(t.n)}</b><small>${esc(t.d)}</small><em>${done ? "Known" : cur ? `Studying · ${T.pts}/${techCost(id)}` : can ? `${techCost(id)} to learn · ${techYears(id)} years at the least` : `After ${(t.req || []).map(r => TECHS[r].n).join(", ")}`}</em></button>`; }).join("")}</div>`).join("")}</div>
     <div class="pv-acts"><button class="btn" data-techx="1">Close</button></div></div>`;
 }
@@ -2986,7 +2989,7 @@ function drawSide() {
   let h = "";
   // (scholars with nothing to study: a year's learning going to waste — said where it can't be missed, under what's
   //  waiting for your word)
-  const idle = (!C.mp && !C.over && C.tech && !C.tech.cur && Object.keys(TECHS).some(id => canStudy(C.tech.done, id))) ? `<div class="cmp-card cmp-idle"><span><b>Your scholars have nothing to study</b><small>Their learning goes to waste until you choose something.</small></span><button class="btn" data-learnb="1">Learning</button></div>` : "";
+  const idle = (!C.mp && !C.over && C.tech && !C.tech.cur && Object.keys(TECHS).some(id => canStudy(C.tech.done, id) && techFor(id))) ? `<div class="cmp-card cmp-idle"><span><b>Your scholars have nothing to study</b><small>Their learning goes to waste until you choose something.</small></span><button class="btn" data-learnb="1">Learning</button></div>` : "";
   if (C.exile != null && !C.over) { const left = 3 - (C.year - C.exile); h += `<div class="cmp-card cmp-exile"><b>Without a town</b><small>Your last town has fallen. Take one back with your army within ${left} year${left === 1 ? "" : "s"}, or the crown is lost.</small></div>`; }
   if (C.over) h += `<div class="cmp-over"><b>Your crown is lost.</b> Every town has fallen. <button class="btn" data-act="newgame">Begin again</button></div>`;
   else if (C.won) h += `<div class="cmp-won"><b>Yours is the first crown of the world.</b> ${citiesOfNow(g, C.me).length} towns under your crown.</div>`;
@@ -3438,7 +3441,7 @@ function apply(actor, a) {
       return { note: `${ct[0]}: work begins on ${o.L.n.toLowerCase()}. It'll stand at the year's end.`, sfx: [["coin", 0.45], ["quill", 0.35, 300]] };
     }
     if (a.k === "unbuild") { const ct = city(a.ct), q = ct && C.Q[ct[0]]; if (!q || q.by !== C.me) return null; C.gold += q.cost | 0; delete C.Q[ct[0]]; persist(); return { note: `The work at ${ct[0]} is stopped, and the money back in the treasury.`, sfx: [["coin", 0.4]] }; }
-    if (a.k === "study") { if (!TECHS[a.id] || !canStudy(C.tech.done, a.id)) return null; if (C.tech.cur !== a.id) C.tech.yrs = 0; C.tech.cur = a.id; persist(); return { sfx: [["quill", 0.4]] }; }
+    if (a.k === "study") { if (!TECHS[a.id] || !canStudy(C.tech.done, a.id) || !techFor(a.id)) return null; if (C.tech.cur !== a.id) C.tech.yrs = 0; C.tech.cur = a.id; persist(); return { sfx: [["quill", 0.4]] }; }
     if (a.k === "govs") { const ct = city(a.ct); if (!ct || cityOwner(g, ct) !== C.me || govOf(ct[0])) return null; C.govCands[ct[0]] ||= [0, 1, 2].map(() => newMan(C.me, "governor")); persist(); return { sfx: [["parchment", 0.4]] }; }
     if (a.k === "appoint") {
       if (a.role === "general") { const ev = C.events[a.ev]; if (!ev || ev.kind !== "appoint" || ev.done || !ev.cands[a.i]) return null; const was = C.ar | 0; if (armyIds().includes(ev.ar | 0)) useArmy(ev.ar | 0); C.gen = { ...ev.cands[a.i], served: 0 }; const gn = C.gen.name, an = C.ar | 0; useArmy(was); ev.done = true; persist(); return { note: `${gn} takes command of ${an ? `the ${armyName(an).toLowerCase()}` : "your army"}.`, sfx: [["seal", 0.45], ["drum", 0.35, 400]] }; }

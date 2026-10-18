@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.19", date: "18 October 2026", title: "Years of study",
+    items: [
+      "Campaign: learning costs what it did before 1.90.16 again; only the minimum years of study are new. With the cost doubled as well, a small realm with no colleges spent seven years on its first study.",
+      "Campaign: a nation of the woods isn't offered gun founding, field artillery or star forts to study. It has no guns, and no stone forts to build against them.",
+    ],
+  },
+  {
     v: "1.90.18", date: "18 October 2026", title: "The council's missions",
     items: [
       "Campaign: playing a nation of the woods, you're no longer offered stone walls to build, or set a mission to raise them. Their towns stand behind palisades, as the help says.",
