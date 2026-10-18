@@ -2628,7 +2628,7 @@ function armyHit(cv, px, py) {
 }
 // (once, for a campaign of before 1.52: what's new in it, where to find it)
 const TIPKEY = "reckoning.campaign.tip.1-55";
-function newsTip() { try { if (localStorage.getItem(TIPKEY)) return; localStorage.setItem(TIPKEY, "1"); } catch (e) { return; } if (!note) note = "New in the campaign: every town has its people, and regiments are raised in your towns, a kind at a time: choose a town to recruit, or use Your towns. Leave regiments to hold a town, form new armies from garrisons, and click an enemy army to fight it in the field."; }
+function newsTip() { try { if (localStorage.getItem(TIPKEY)) return; localStorage.setItem(TIPKEY, "1"); } catch (e) { return; } if (!note) note = "How the campaign works: every town has its people, and regiments are raised in your towns, a kind at a time: choose a town to recruit, or use Your towns. Leave regiments to hold a town, form new armies from garrisons, and click an enemy army to fight it in the field. The ? at the top explains the rest."; }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
   if (C) newsTip();
@@ -2893,8 +2893,8 @@ function drawSide() {
       <li><b>More than one army.</b> Form a new army from a town's garrison. Click an army on the map to give it orders; each marches, besieges and fights on its own, under its own general. Right-click another of your armies to march to it and join the two into one.</li>
       <li><b>People</b> grow as the land feeds them: improve the farms for more, and keep taxes light for faster growth. Heavy taxes make towns restless, and a restless town may riot and pay nothing, and a town that riots two years running rises: put it down, or buy peace with concessions. Regiments in its garrison and a school keep order. <b>Loyalty</b>: a town you conquer is the hardest to hold — newly conquered, its people remembering their own crown (the more while you're at war with it) and praying, it may be, in another church — and each fades as the years pass under you. Its card shows every reason for and against. A conquered town that rises and wins goes back to its own crown; one of your own won back is glad of it. A town's people make its wealth, and fill the army's thin regiments each year.</li>
       <li><b>Over the sea</b> an army goes only aboard a fleet of your own: bring the fleet to its shore, embark it, sail and land. A crown's army on the far side of the Atlantic can't come to its colonies' help.</li>
-      <li><b>Walled towns</b> are taken by siege: sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
-      <li><b>Taking a town</b> takes its whole province with it. A crown with no towns left is gone, and its land is yours.</li>
+      <li><b>Walled towns</b> are taken by siege (the great fortresses of the age, Vienna among them, are walled from the start): sit down before them, and the guns, hunger and sickness do their work a year at a time. Send supplies to keep your own army fed, though you'll have to fight for the convoy on the road.</li>
+      <li><b>Taking a town</b> takes its whole province with it. You may let the soldiers sack it for its plunder, but its people will remember. A crown with no towns left is gone, and its land is yours.</li>
       <li><b>The woods' nations</b> raise no stone walls and have no guns. Their towns stand behind palisades: hold <kbd>F</kbd> at a length of one in battle to set it alight.</li>
       <li><b>Generals</b> serve fifty years. Their command and the army's morale decide how hard it fights. <b>Governors</b> run your towns, for a fee.</li>
       <li><b>Leagues</b> stand with their own when one is attacked, but only in wars they can reach.</li>

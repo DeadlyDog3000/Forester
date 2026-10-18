@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.89.1", date: "18 October 2026", title: "A lighter 3D map",
+    items: [
+      "Campaign: the 3D map draws its towns about six times faster. Their thousands of houses, roofs, walls and palisade stakes are drawn a kind at a time instead of one by one, which leaves more of each frame for slower computers. The old towns are also cleared from memory properly when the map changes hands.",
+      "Campaign: the first-year tip now says how the campaign works rather than what's new in it, and points to the ? button for the rest. The ? help mentions the fortresses walled from the start, and sacking.",
+    ],
+  },
+  {
     v: "1.89.0", date: "18 October 2026", title: "The fortresses of 1683",
     items: [
       "Campaign: the great fortresses of the age start the game walled, as they stood in 1683. That means Vienna, Buda, Belgrade, Kamieniec, Candia, Azov, Strasbourg, Antwerp, Hamburg, Danzig, Riga and Copenhagen. Taking one now means guns and a siege, or a hard storm.",

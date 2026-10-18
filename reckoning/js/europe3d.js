@@ -254,14 +254,18 @@ export class EuropeView3D {
   }
   // the cities: houses and a church on the ground, and the name, in the colour of whoever holds it
   buildCities(homePop) {
-    if (this.cityGroup) this.scene.remove(this.cityGroup);
+    if (this.cityGroup) { this.scene.remove(this.cityGroup); this.cityGroup.traverse(o => { if (o.isInstancedMesh) { o.dispose(); o.geometry.dispose(); o.material.dispose(); } if (o.isSprite) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); }
     const grp = this.cityGroup = new THREE.Group();
+    // (the thousands of houses, roofs, walls and stakes: one instanced draw for each kind, not a mesh apiece — the
+    //  scene's thousands of objects were most of a frame's work)
+    const kinds = new Map(), put = m => { m.updateMatrix(); const k = m.geometry.uuid + m.material.uuid; let b = kinds.get(k); if (!b) kinds.set(k, b = { geo: m.geometry, mat: m.material, mats: [] }); b.mats.push(m.matrix.clone()); };
     const house = new THREE.BoxGeometry(0.04, 0.03, 0.05), roof = new THREE.ConeGeometry(0.037, 0.028, 4).rotateY(Math.PI / 4);
     // (the woods' nations' towns: a longhouse, round-roofed, and the stakes of a palisade)
     const longGeo = new THREE.CapsuleGeometry(0.014, 0.05, 3, 6).rotateZ(Math.PI / 2).scale(1, 1.2, 1).translate(0, 0.012, 0), barkMat = new THREE.MeshStandardMaterial({ color: 0x6e5a44, roughness: 0.95 });
     const stakeGeo = new THREE.CylinderGeometry(0.003, 0.004, 0.036, 4), stakeMat = new THREE.MeshStandardMaterial({ color: 0x7a6248, roughness: 0.9 });
     const wall = new THREE.MeshStandardMaterial({ color: 0xe6dcc6, roughness: 0.9 }), tile = new THREE.MeshStandardMaterial({ color: 0xa04a30, roughness: 0.8 }), stone = new THREE.MeshStandardMaterial({ color: 0xb8b0a0 });
     const curtain = new THREE.BoxGeometry(1, 0.022, 0.009).translate(0, 0.011, 0), bastion = new THREE.CylinderGeometry(0.012, 0.016, 0.026, 4).translate(0, 0.013, 0), masonry = new THREE.MeshStandardMaterial({ color: 0x9c9384, roughness: 0.95 });
+    const towerGeo = new THREE.BoxGeometry(0.036, 1, 0.036), spireGeo = new THREE.ConeGeometry(0.028, 0.1, 4), slate = new THREE.MeshStandardMaterial({ color: 0x4a5a58 });
     this.labels = [];
     this.clearings = [];
     const place = (name, lon, lat, rank, own, isHome) => {
@@ -273,13 +277,13 @@ export class EuropeView3D {
       const woods = own && NATIONS[own] && NATIONS[own].nw;
       if (woods) {
         const R = 0.13 + rank * 0.03;
-        for (let i = 0; i < 4 + rank * 3; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * R * 0.8, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz); const lh = new THREE.Mesh(longGeo, barkMat); lh.position.set(hx, hy, hz); lh.rotation.y = r() * 3; grp.add(lh); }
-        const N = 28 + rank * 10; for (let i = 0; i < N; i++) { const a = i / N * 6.28, sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R; if (Math.abs(Math.sin(a)) < 0.06 && Math.cos(a) > 0) continue; const st = new THREE.Mesh(stakeGeo, stakeMat); st.position.set(sx, this.groundY(sx, sz) + 0.018, sz); grp.add(st); }
+        for (let i = 0; i < 4 + rank * 3; i++) { const a = r() * 6.28, d = Math.sqrt(r()) * R * 0.8, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz); const lh = new THREE.Mesh(longGeo, barkMat); lh.position.set(hx, hy, hz); lh.rotation.y = r() * 3; put(lh); }
+        const N = 28 + rank * 10; for (let i = 0; i < N; i++) { const a = i / N * 6.28, sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R; if (Math.abs(Math.sin(a)) < 0.06 && Math.cos(a) > 0) continue; const st = new THREE.Mesh(stakeGeo, stakeMat); st.position.set(sx, this.groundY(sx, sz) + 0.018, sz); put(st); }
       }
       for (let i = 0; i < (woods ? 0 : n); i++) {
         const a = r() * 6.28, d = Math.sqrt(r()) * spread, hx = x + Math.cos(a) * d, hz = z + Math.sin(a) * d, hy = this.groundY(hx, hz);
-        const hm = new THREE.Mesh(house, wall); hm.position.set(hx, hy + 0.015, hz); hm.rotation.y = r() * 3; grp.add(hm);
-        const rm = new THREE.Mesh(roof, tile); rm.position.set(hx, hy + 0.044, hz); rm.rotation.y = hm.rotation.y; grp.add(rm);
+        const hm = new THREE.Mesh(house, wall); hm.position.set(hx, hy + 0.015, hz); hm.rotation.y = r() * 3; put(hm);
+        const rm = new THREE.Mesh(roof, tile); rm.position.set(hx, hy + 0.044, hz); rm.rotation.y = hm.rotation.y; put(rm);
       }
       // (a walled town: a ring of stone round it, its bastions at the angles — more of them, and further out, for a
       //  fortress of the new kind)
@@ -289,16 +293,16 @@ export class EuropeView3D {
         for (let i = 0; i < N; i++) {
           const a = (i + 0.5) / N * 6.283; if (Math.abs(Math.sin(a)) < 0.05 && Math.cos(a) > 0) continue;
           const sx = x + Math.cos(a) * R, sz = z + Math.sin(a) * R, m = new THREE.Mesh(curtain, masonry);
-          m.scale.x = seg; m.position.set(sx, this.groundY(sx, sz) - 0.004, sz); m.rotation.y = -a - Math.PI / 2; grp.add(m);
+          m.scale.x = seg; m.position.set(sx, this.groundY(sx, sz) - 0.004, sz); m.rotation.y = -a - Math.PI / 2; put(m);
         }
         const B = wl >= 2 ? 8 : 6;
-        for (let i = 0; i < B; i++) { const a = i / B * 6.283 + 0.3, bx = x + Math.cos(a) * (R + (wl >= 2 ? 0.012 : 0.004)), bz = z + Math.sin(a) * (R + (wl >= 2 ? 0.012 : 0.004)), m = new THREE.Mesh(bastion, masonry); m.position.set(bx, this.groundY(bx, bz) - 0.004, bz); m.rotation.y = -a + Math.PI / 4; if (wl >= 2) m.scale.set(1.4, 1, 1.4); grp.add(m); }
+        for (let i = 0; i < B; i++) { const a = i / B * 6.283 + 0.3, bx = x + Math.cos(a) * (R + (wl >= 2 ? 0.012 : 0.004)), bz = z + Math.sin(a) * (R + (wl >= 2 ? 0.012 : 0.004)), m = new THREE.Mesh(bastion, masonry); m.position.set(bx, this.groundY(bx, bz) - 0.004, bz); m.rotation.y = -a + Math.PI / 4; if (wl >= 2) m.scale.set(1.4, 1, 1.4); put(m); }
       }
       // a church, or a cathedral
       const th = 0.12 + rank * 0.03;
       if (!woods) {
-      const tw = new THREE.Mesh(new THREE.BoxGeometry(0.036, th, 0.036), stone); tw.position.set(x, y0 + th / 2, z); grp.add(tw);
-      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.1, 4), new THREE.MeshStandardMaterial({ color: 0x4a5a58 })); sp.position.set(x, y0 + th + 0.05, z); grp.add(sp);
+      const tw = new THREE.Mesh(towerGeo, stone); tw.scale.y = th; tw.position.set(x, y0 + th / 2, z); put(tw);
+      const sp = new THREE.Mesh(spireGeo, slate); sp.position.set(x, y0 + th + 0.05, z); put(sp);
       }
       // the name
       const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64; const c = cv.getContext("2d");
@@ -316,6 +320,7 @@ export class EuropeView3D {
     for (const ct of CITIES) place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false);
     // (your own clearing — not on a campaign's map, which has none)
     if (this.homeName !== null) { const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL); place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true); }
+    for (const b of kinds.values()) { const im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => im.setMatrixAt(i, m)); im.computeBoundingSphere(); grp.add(im); }
     this.scene.add(grp);
   }
   // marks over towns (a campaign's): crossed swords where you can march, a ring round your own, red where they're
