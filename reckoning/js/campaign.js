@@ -658,7 +658,7 @@ function goalCheck() {
 function goalHtml() {
   const st = goalState(); if (!st) return ""; const { G, n, held } = st, left = G.by - C.year;
   return fold("goal", `<span class="cmp-h"><b>${G.won ? "Victory won" : "Victory"}</b><small>${G.won ? `in ${G.won}` : G.out ? "the years ran out" : `by ${G.by} · ${left} year${left === 1 ? "" : "s"} left`}</small></span>`,
-    `<div class="cmp-goals">${held.map(([t, h]) => `<span class="${h ? "on" : ""}"><i>${h ? "✓" : ""}</i>Hold ${esc(t)}</span>`).join("")}<span class="${n >= G.n ? "on" : ""}"><i>${n >= G.n ? "✓" : ""}</i>${G.n} towns in all <em>${n} now</em></span></div>`, !G.won);
+    `<div class="cmp-goals">${held.map(([t, h]) => `<span class="${h ? "on" : ""}"><i>${h ? "✓" : ""}</i>Hold&nbsp;<button class="tm-lnk" data-goto="${esc(t)}" title="Show it on the map">${esc(t)}</button></span>`).join("")}<span class="${n >= G.n ? "on" : ""}"><i>${n >= G.n ? "✓" : ""}</i>${G.n} towns in all <em>${n} now</em></span></div>`, !G.won);
 }
 // (won, or the time run out: told once, in a page of its own over the map)
 function goalScreen() {
@@ -1722,7 +1722,7 @@ function rankHtml() {
   const g = grid(), score = {}, towns = {};
   for (const ct of CITIES) { const o = cityOwner(g, ct); if (!o || !NATIONS[o]) continue; towns[o] = (towns[o] || 0) + 1; score[o] = (score[o] || 0) + 20 + popOf(ct) / 1000; }
   const L = Object.keys(score).sort((a, b) => score[b] - score[a]), mine = L.indexOf(C.me), top = L.slice(0, 6);
-  const row = (id, i) => `<div class="cmp-rank${id === C.me ? " me" : ""}"><em>${i + 1}</em><i style="background:${NATIONS[id].color}"></i><b>${esc(id === C.me ? NATIONS[id].name + " (you)" : NATIONS[id].name)}</b><small>${towns[id]} town${towns[id] === 1 ? "" : "s"}</small></div>`;
+  const row = (id, i) => `<div class="cmp-rank${id === C.me ? " me" : ""}" data-selc="${id}" title="${id === C.me ? "Your crown" : "Their card"}"><em>${i + 1}</em><i style="background:${NATIONS[id].color}"></i><b>${esc(id === C.me ? NATIONS[id].name + " (you)" : NATIONS[id].name)}</b><small>${towns[id]} town${towns[id] === 1 ? "" : "s"}</small></div>`;
   return fold("rank", `<span class="cmp-h"><b>The great powers</b><small>${mine >= 0 ? `yours is ${ordinal(mine + 1)} of ${L.length}` : ""}</small></span>`,
     `<div class="cmp-ranks">${top.map((id, i) => row(id, i)).join("")}${mine >= 6 ? `<div class="cmp-rank gap">…</div>${row(C.me, mine)}` : ""}</div>`);
 }
@@ -2918,6 +2918,7 @@ function drawSide() {
 }
 function sideClick(e) {
   if (e.target.closest("[data-learnb]")) { $("cmpTechB").click(); return; }
+  { const sc = e.target.closest("[data-selc]"); if (sc && NATIONS[sc.dataset.selc]) { sel = sc.dataset.selc; selCity = null; selFoe = null; armySel = false; note = ""; drawMap(); sfx("parchment", 0.28); $("cmpSide").scrollTop = 0; return; } }
   const b = e.target.closest("button"); if (!b || !C) return;
   window.__uisfx && window.__uisfx.click && window.__uisfx.click();
   if (mp && mp.gone && !b.dataset.act) return;

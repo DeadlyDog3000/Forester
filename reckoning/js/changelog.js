@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.88.2", date: "17 October 2026", title: "One click to the place",
+    items: [
+      "Campaign: the towns your Victory card asks for are links now: click one and the map goes there, with its card open.",
+      "Campaign: click a crown in The great powers to open its card.",
+    ],
+  },
+  {
     v: "1.88.1", date: "17 October 2026", title: "The gazette sorts its news",
     items: [
       "Campaign: the year's newspaper puts the new kinds of news where they belong. Winter's toll on your army goes among the wars, and can make the headline. Tribute, protectorates and trade agreements go among the courts. Your generals' new traits, towns sacked or occupied, and the Crown's missions go in your own realm's news.",

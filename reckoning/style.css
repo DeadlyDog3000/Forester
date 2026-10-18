@@ -2011,6 +2011,8 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-rank small { font-size: 11px; }
 .cmp-rank.me b, .cmp-rank.me em { color: #e8c96a; font-weight: 700; }
 .cmp-rank.gap { padding-left: 23px; }
+.cmp-rank[data-selc] { cursor: pointer; border-radius: 3px; }
+.cmp-rank[data-selc]:hover { background: rgba(255,255,255,0.06); }
 /* scholars idle */
 .cmp-idle { display: flex; align-items: center; gap: 10px; border-color: rgba(232,201,106,0.55); }
 .cmp-idle span { flex: 1; display: grid; gap: 2px; }
