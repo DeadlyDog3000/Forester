@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.7", date: "18 October 2026", title: "The last of the water",
+    items: [
+      "The rest of the old water system is gone. The guide no longer has a page on thirst, and getting over the flux no longer tells you to boil your water.",
+    ],
+  },
+  {
     v: "1.90.6", date: "18 October 2026", title: "Clean bark",
     items: [
       "Bark up close no longer glitters. The trunk and boughs of a tree you stand under or beside were covered in a fizz of white specks, the bark's fine furrows lit up as noise. The furrows are shallower now, and their shading fades out wherever they're finer than the screen can show.",

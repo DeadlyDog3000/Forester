@@ -213,19 +213,8 @@ export const healRate = b => (1 + 3 * skillK(b, "healing")) / 70;
 export const staminaDrain = b => 1 - 0.45 * skillK(b, "endurance");
 export const aimSteady = b => 1 - 0.7 * skillK(b, "archery");
 
-// thirst: like hunger, but quicker — full to dry in about eighteen minutes, sooner when you run or when you're ill
-// with the flux. Water from the brook or the pond, drunk as it is, may make you ill; well water seldom; boiled, never.
-export const WATER_KINDS = ["raw", "well", "boiled"];
-export const WATER_NAME = { raw: "brook water, unboiled", well: "well water", boiled: "boiled water" };
-export const WATER_RISK = { raw: 0.22, well: 0.03, boiled: 0 };
+// an illness of your own (old saves may carry one: it runs its course)
 export const ILLS = { flux: { name: "the flux", secs: 240, drain: 1 / 520 } };
-export const canteenSize = b => (b && b.tools && b.tools.canteen >= 2 ? 6 : b && b.tools && b.tools.canteen ? 4 : 0);
-export function thirstTick(b, dt, running) {
-  if (!b) return;
-  const before = b.thirst ?? 1;
-  b.thirst = Math.max(0, before - dt / 1100 * (running ? 1.6 : 1) * (b.ill ? 1.5 : 1));
-  if (Math.floor(before * 50) !== Math.floor(b.thirst * 50)) b.dirty = true;
-}
 // hunger: full to empty over about twenty-five minutes of play, sooner when you run
 export function hungerTick(b, dt, running) {
   if (!b) return;

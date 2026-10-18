@@ -1002,7 +1002,7 @@ export class Player {
       if (ill && G.mode === "play" && !G.downed) {
         ill.t -= dt; b.dirty = true;
         G.health = Math.max(0.02, G.health - dt * (ILLS[ill.id] ? ILLS[ill.id].drain : 0.002));
-        if (ill.t <= 0) { b.ill = null; UI.hint(`The worst of ${ILLS[ill.id] ? ILLS[ill.id].name : "it"} has passed. Boil your water.`, 5); }
+        if (ill.t <= 0) { b.ill = null; UI.hint(`The worst of ${ILLS[ill.id] ? ILLS[ill.id].name : "it"} has passed.`, 5); }
       }
       if (G.hurtT > healDelay(b) && G.health < 1 && !G.downed && !hungry && !sick && !ill && !G.arena) {
         const h0 = G.health; G.health = Math.min(1, G.health + dt * healRate(b));

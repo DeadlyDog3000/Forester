@@ -64,16 +64,6 @@ export const GUIDE = {
       "Wear less: <b>shirtsleeves</b> (the Craftsman) or a <b>working dress with the sleeves rolled</b> (the Woodswoman), and a <b>brimmed hat</b> for shade. Fur, or a long coat, makes it far worse.",
     ],
   },
-  thirst: {
-    kicker: "Your body", title: "Thirst",
-    steps: [
-      "The <b>blue bar</b> under your hunger is your thirst. It falls quicker than hunger, and quicker still when you run.",
-      "<b>Drink</b> at the brook or the pond (<kbd>F</kbd> at the water's edge), or at a <b>well</b>. Brook and pond water, unboiled, may give you <b>the flux</b>; a well's seldom does.",
-      "<b>Boiled water never makes you ill.</b> At any lit fire, <b>hold <kbd>F</kbd></b> to boil a pot of water and drink it: it takes a little while, and it's always safe.",
-      "Make a <b>canteen</b> at the chopping block. Fill it at the water (press its number there), and <b>boil</b> it at the fire (press its number by the fire): boiled water never makes you ill. Press its number anywhere else to drink.",
-      "Thirsty, your wounds don't mend; low on water or food, you slowly weaken; with none at all, you die. The flux stops your wounds mending until it passes.",
-    ],
-  },
   hunger: {
     kicker: "Your body", title: "Hunger",
     steps: [
