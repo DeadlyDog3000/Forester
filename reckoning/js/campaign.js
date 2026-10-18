@@ -1773,7 +1773,7 @@ function diplo(id, what) {
     const g = grid(), theirs = citiesOfNow(g, id).length, mineN = citiesOfNow(g, C.me).length; if (!theirs || theirs > mineN) return null;
     const ratio = allArmies() / Math.max(1, foeArmy(id)), p = clamp(-0.3 + ratio * 0.12 + (C.took[id] || 0) * 0.12 - (C.lost[id] || 0) * 0.08 + (C.warT[id] || 0) * 0.02, 0.02, 0.6);
     did.peace = true;
-    if (R() < p) { makePeace(id); (C.vassal ||= {})[id] = C.year; C.ally[id] = true; r[id] = Math.max(r[id], 30); say(`${The(id)} ${v3(id, "submits")}`, `A protectorate of yours now: peace, tribute every year, and ${NATIONS[id].people ? "their" : "its"} armies in your wars.`); return done(`${The(id)} ${v3(id, "submits")}: a protectorate of yours, paying tribute and allied to you.`); }
+    if (R() < p) { makePeace(id); (C.vassal ||= {})[id] = C.year; C.ally[id] = true; r[id] = Math.max(r[id], 30); for (const f of Object.keys(C.E.war)) if (C.E.war[f] && f !== id && !C.E.wars.some(x => (x.a === id && x.b === f) || (x.a === f && x.b === id))) C.E.wars.push({ a: id, b: f, battles: 0, withYou: true }); say(`${The(id)} ${v3(id, "submits")}`, `A protectorate of yours now: peace, tribute every year, and ${NATIONS[id].people ? "their" : "its"} armies in your wars.`); return done(`${The(id)} ${v3(id, "submits")}: a protectorate of yours, paying tribute and allied to you.`); }
     return done(`${The(id)} won't bow the knee. The war goes on.`);
   }
   if (what === "demand") {
@@ -1831,7 +1831,7 @@ function declare(id, by) {
   C.E.war[id] = true; C.warT[id] = 0; C.E.pact[id] = false; C.ally[id] = false; if (C.vassal) delete C.vassal[id]; if (C.E.access) delete C.E.access[id]; if (C.E.grant) delete C.E.grant[id];
   C.E.rel[id] = Math.min(C.E.rel[id], -40);
   // (your allies: into it with you, against them)
-  for (const a of Object.keys(C.ally)) if (C.ally[a] && a !== id && !isHuman(a) && C.E.rel[a] >= 30 && sameSide(a, id) && !C.E.wars.some(w => (w.a === a && w.b === id) || (w.a === id && w.b === a))) { C.E.wars.push({ a, b: id, battles: 0, withYou: true }); say(`${The(a)} ${v3(a, "joins")} your war`, `Your ally marches on ${the(id)}.`); }
+  for (const a of Object.keys(C.ally)) if (C.ally[a] && a !== id && !isHuman(a) && ((C.E.rel[a] >= 30 && sameSide(a, id)) || isVassal(a)) && !C.E.wars.some(w => (w.a === a && w.b === id) || (w.a === id && w.b === a))) { C.E.wars.push({ a, b: id, battles: 0, withYou: true }); say(`${The(a)} ${v3(a, "joins")} your war`, `Your ally marches on ${the(id)}.`); }
   if (by !== C.me) say(`${The(id)} ${v3(id, "declares")} war on you!`, knowsArmy(id) ? `Their army: some ${C.foes[id]} regiments.` : "How strong their army is, you don't know.");
 }
 function makePeace(id) { C.E.war[id] = false; C.truce[id] = 6; C.E.rel[id] = Math.max(C.E.rel[id] + 15, -20); C.E.wars = C.E.wars.filter(w => !(w.withYou && (w.a === id || w.b === id))); say(`Peace with ${the(id)}`, "A treaty is signed. Neither side may make war for six seasons."); }

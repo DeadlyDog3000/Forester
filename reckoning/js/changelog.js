@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.87.1", date: "17 October 2026", title: "Protectorates keep faith",
+    items: [
+      "Campaign: a protectorate goes to war with you every time, even when it thinks ill of you or the enemy is an old friend of its own. On submitting, it joins the wars you're already fighting.",
+    ],
+  },
+  {
     v: "1.87.0", date: "17 October 2026", title: "Protectorates",
     items: [
       "Campaign: protectorates, as in Empire: Total War. At war with a crown no bigger than yours, choose it and Demand they submit. The worse the war has gone for them, the likelier they are to accept.",
