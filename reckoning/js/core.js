@@ -250,11 +250,13 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
       .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0;
-        // leaves and needles right up against the eye (standing inside a tree) thin away in a fine dither,
-        // so you can see out through them and still be in among them
+        // leaves and needles right up against the eye (standing inside a tree) are gone, so you see out through them;
+        // only a narrow edge a little further off thins away in a fine dither — a wide band of it, never quite clear,
+        // laid a screen of dots over the whole view in among the trees
         if (dNear > 0.0) {
-          float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.6, dNear, dd);
-          if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear * 0.92) discard; }
+          float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.42, dNear * 0.6, dd);
+          if (kNear >= 1.0) discard;
+          if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear) discard; }
         }
         {
           vec3 p = vDWorld * dScale;

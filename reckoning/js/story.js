@@ -1473,7 +1473,7 @@ async function ch7(w) {
   const sib = spawn(LOOKS[G.who === "brother" ? "sister" : "brother"], FIRE.x + 1.4, FIRE.z + 0.6, -Math.PI / 2);
   w.openTracks.add(3);
   const B = w.burner;
-  const henning = spawn(HENNING, B.x, B.z, B.face);
+  const henning = spawn(HENNING, B.x, B.z, B.face); henning.faceTo(B.camp.x, B.camp.z);
   henning.person.setPose("armsCrossed");
   const birds = onFrame((() => { let t = 2; return dt => { t -= dt; if (t <= 0) { t = 2 + Math.random() * 5; Math.random() < 0.85 ? SFX.bird() : SFX.crow(); } }; })());
   void birds;

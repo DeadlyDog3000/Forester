@@ -1217,8 +1217,13 @@ export class Woods extends WorldBase {
         for (let w = -Wd + 0.16; w <= Wd - 0.15; w += 0.21) {
           if (door && Math.abs(w) < 0.42) continue;
           const h = Hr * (1 - Math.abs(w) / Wd) - 0.05, [x, , z] = P2(a, w);
-          b.add(new THREE.CylinderGeometry(0.1, 0.11, h, 6), r.pick([0x6a5440, 0x5e4a38, 0x735a42]), x, hy + h / 2, z, 0, 0, 0, 1, 1, 0.6, 0.06);
+          b.add(new THREE.CylinderGeometry(0.1, 0.11, h, 6), r.pick([0x6a5440, 0x5e4a38, 0x735a42]), x, hy + h / 2, z, 0, da, 0, 1.12, 1, 0.6, 0.06);
         }
+        // (and boards behind the logs, a hand inside them, so no light comes through between: the gable is shut)
+        const tri = new THREE.Shape(), ow = Wd - 0.05;
+        tri.moveTo(-ow, 0); if (door) { tri.lineTo(-0.42, 0); tri.lineTo(-0.42, 1.6); tri.lineTo(0.42, 1.6); tri.lineTo(0.42, 0); } tri.lineTo(ow, 0); tri.lineTo(0, Hr - 0.06); tri.closePath();
+        const [x, , z] = P2(a - Math.sign(a) * 0.12, 0);
+        b.add(new THREE.ExtrudeGeometry(tri, { depth: 0.04, bevelEnabled: false }), 0x3a2c20, x, hy, z, 0, da, 0, 1, 1, 1, 0.04);
       }
       { const [x, y, z] = P2(L / 2 - 0.1, 0, 0.78); b.box(0.84, 1.56, 0.06, x, y, z, 0x120d0a, da); }                  // (the dark of the doorway)
       { const [x, y, z] = P2(L / 2, 0, 1.62); b.box(0.98, 0.1, 0.16, x, y, z, 0x5e4a38, da); }                           // (the lintel)
@@ -1269,7 +1274,7 @@ export class Woods extends WorldBase {
     { const x = cv.getContext("2d"), g = x.createRadialGradient(32, 32, 2, 32, 32, 30); g.addColorStop(0, "rgba(255,255,255,0.8)"); g.addColorStop(0.5, "rgba(255,255,255,0.3)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }
     const ptex = new THREE.CanvasTexture(cv), smoke = [];
     for (let i = 0; i < 22; i++) { const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: ptex, color: 0xbcb6ac, transparent: true, opacity: 0.25, depthWrite: false })); m.userData.t = i / 22; root.add(m); smoke.push(m); }
-    this.burner = { x: hx - fx * 1.6, z: hz - fz * 1.6, kiln: { x: kx, y: ky + 2.1, z: kz }, smoke, face: ang + Math.PI, camp: { x: px, z: pz } };
+    this.burner = { x: hx + Math.sin(Math.atan2(px - hx, pz - hz)) * 2.7, z: hz + Math.cos(Math.atan2(px - hx, pz - hz)) * 2.7, kiln: { x: kx, y: ky + 2.1, z: kz }, smoke, face: ang + Math.PI, camp: { x: px, z: pz } };
   }
   setStack(n) {
     if (n === this.stackN) return;

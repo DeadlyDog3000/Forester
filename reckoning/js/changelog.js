@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.2", date: "18 October 2026", title: "At the burner's door",
+    items: [
+      "The charcoal burner waits outside his hut, at the door toward his fire, instead of stuck inside its walls when you come to speak to him.",
+      "His hut's gables are shut: boards behind the split logs, and the logs turned edge-on, so you no longer see through the front of it between them.",
+      "Leaves and needles right in front of your eyes are cleared away cleanly now. Before, a fine dotted screen of them lay over the view whenever you stood close to a tree or bush.",
+    ],
+  },
+  {
     v: "1.90.1", date: "18 October 2026", title: "On the walls",
     items: [
       "Part Three: the Danes before Hamburg is fought from the city's own stone walls, not a field redoubt. You and the militia start up on the wall walk beside the gate tower, behind the battlements, with the Danish camp across the field.",
