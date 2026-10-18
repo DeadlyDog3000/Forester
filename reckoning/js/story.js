@@ -2331,6 +2331,10 @@ async function ch11(w) {
     const ripe = !n.reap && S.buildings.find(b => b.type === "field" && b._reap);
     let tgt = ripe || null, bd = Infinity;
     if (!tgt) for (const b of S.buildings) if (!b.done) { const d = Math.hypot(b.x - pl.pos.x, b.z - pl.pos.z); if (d < bd) { bd = d; tgt = b; } }
+    // (a site still wanting logs, and your arms empty: the stack first, where they're taken from)
+    if (tgt && !tgt._reap && BUILDINGS[tgt.type] && (tgt.logs || 0) < (BUILDINGS[tgt.type].cost || 0) && !(pl.carryN > 0) && S.store > 0 && town.stackIt) tgt = { x: town.stackIt.x, z: town.stackIt.z };
+    // (a cabin with its walls up that wants a door, and none hewn: the sawhorse, where it's made)
+    else if (tgt && tgt.type === "cabin" && (tgt.logs || 0) >= BUILDINGS.cabin.cost && !tgt.door && !(S.doors > 0)) tgt = { x: BLOCK.x + 1.3, z: BLOCK.z };
     if (!tgt && !n.pick) tgt = { x: BLOCK.x, z: BLOCK.z };
     else if (!tgt && !n.stone) for (const k of w.rocks || []) if (k.kind === "stone" && !k.gone) { const d = Math.hypot(k.x - pl.pos.x, k.z - pl.pos.z); if (d < bd) { bd = d; tgt = k; } }
     mark(tgt ? [tgt.x, tgt.z, w.heightAt(tgt.x, tgt.z) + 1.5] : null);
@@ -2581,7 +2585,10 @@ async function chHarvest(w) {
     let m = null;
     if (!H.reaped && f0) m = [f0.x, f0.z, w.heightAt(f0.x, f0.z) + 1.4];
     else if (!H.job) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
-    else if (!H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); if (site) m = [site.x, site.z, w.cy + 1.5]; }
+    else if (!H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done);
+      // (logs wanted and your arms empty: the stack; walls up and no door hewn: the sawhorse; else the site itself)
+      if (site) m = site.logs < BUILDINGS.cabin.cost && !(pl.carryN > 0) && S.store > 0 && town.stackIt ? [town.stackIt.x, town.stackIt.z, w.cy + 1]
+        : site.logs >= BUILDINGS.cabin.cost && !site.door && !(S.doors > 0) ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : [site.x, site.z, w.cy + 1.5]; }
     else if (false) { let best = null, bd = Infinity; for (const a of town.actors) if (!a.settler.child && !a.gone) { const d = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z); if (d < bd) { bd = d; best = a; } } m = best; }
     else if (!H.furnished && !w.insideCabin(pl.pos.x, pl.pos.z)) { const [x, z] = w.cabinToWorld(0, 3.4); m = [x, z, w.cy + 1.6]; }
     mark(m);

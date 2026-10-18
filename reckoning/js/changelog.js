@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.14", date: "18 October 2026", title: "Follow the marker",
+    items: [
+      "XI. Forester and XII. Harvest Home: the marker goes where the next piece of work is done. While a site still wants logs and your arms are empty, it's on the log stack (or the woodshed). Once the walls are up and the cabin wants a door, it's on the sawhorse. Before, it stayed on the building site, so following it left you standing there with nothing to do.",
+      "The whole story was played through end to end by an automatic tester, at many times normal speed, to find the places where following the marker led nowhere.",
+    ],
+  },
+  {
     v: "1.90.13", date: "18 October 2026", title: "The cabin's doorway",
     items: [
       "VI. The Clearing: the marker for \"Rebuild the cabin\" stands at the cabin's doorway, where you raise it, and not in the middle of the ruin. Following it before led you in among the fallen logs, with nothing to press.",

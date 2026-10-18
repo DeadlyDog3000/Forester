@@ -70,6 +70,9 @@
     if (UI.dialogOpen && UI._advance) UI._advance();
     for (const id of ["guideOk", "lessonOk"]) { const e = document.getElementById(id); if (e && e.offsetParent) e.click(); }
     const ask = document.querySelector("#askChoices button[data-i]"); if (ask && ask.offsetParent) ask.click();
+    // (asked for a name — the settlement's: one given)
+    { const a = document.getElementById("ask"), inp = document.getElementById("askInput");
+      if (a && !a.classList.contains("hidden") && getComputedStyle(a).display !== "none" && inp && getComputedStyle(inp).display !== "none" && !document.querySelector("#askChoices button[data-i]")) { inp.value = inp.value || "Testwald"; inp.dispatchEvent(new Event("input")); const ok = document.getElementById("askOk"); if (ok) ok.click(); log.push(`${Math.round(simT)}s named it ${inp.value}`); } }
     // a chest open: what the objective says to put in it goes in, and the lid shut — never left open across chapters
     { const ch = document.getElementById("chest");
       if (ch && !ch.classList.contains("hidden")) {
@@ -93,11 +96,23 @@
     // (some other screen open over the game — the tools, the plans — that the objective didn't ask for: shut)
     for (const id of ["craft", "build", "inventory", "skills", "map"]) { const e = document.getElementById(id); if (e && !e.classList.contains("hidden") && getComputedStyle(e).display !== "none" && (id === "craft" || !/\(B\)|press B/.test(last))) { for (const t of ["keydown", "keyup"]) document.dispatchEvent(new KeyboardEvent(t, { code: "Escape", key: "Escape", bubbles: true })); log.push(`${Math.round(simT)}s closed ${id}`); } }
     if (G.health != null && G.health < 0.4) { G.health = 1; G.downed = false; }
+    if (G.body && G.body.hunger < 0.4) G.body.hunger = 1;   // (the bot doesn't stop to eat: a player would, long before)
     // (told to hide: down, as a player told to would)
     if (G.player) G.player.crouched = /\bhid(e|den)\b|crouch|unseen/i.test(last);
     const o = obj();
     if (o !== last) { seen.push([Math.round(simT), o]); last = o; lastT = simT; lastChange = performance.now(); }
     const w = G.world, pl = G.player;
+    // rocks to break: up to the marked one, the pickaxe out, and swing
+    { const rm = markerAt();
+      if (w && pl && rm && !G.lockMove && !G.cine && !UI.dialogOpen && /Break the grey rocks|for stone\b/i.test(last)) {
+        if (stepTo(rm.x, rm.z, dt * 6, 1.4)) {
+          pl.yaw = Math.atan2(-(rm.x - pl.pos.x), -(rm.z - pl.pos.z)); pl.pitch = -0.45;
+          const hb = [...document.querySelectorAll("#hotbar .hb")], k = hb.findIndex(h => /pickaxe/i.test((h.querySelector("img") || {}).title || ""));
+          if (k >= 0 && !hb[k].classList.contains("sel")) for (const t of ["keydown", "keyup"]) document.dispatchEvent(new KeyboardEvent(t, { code: "Digit" + (k + 1), key: String(k + 1), bubbles: true }));
+          else if ((shotT = (shotT || 0) - dt * 6) <= 0) { shotT = 0.9; input.click = true; }
+        }
+        await sleep(2); continue;
+      } }
     if (w && pl && !G.lockMove && !G.cine && !UI.dialogOpen) {
       const m = markerAt();
       // the marker flipping back and forth (a straight line through a wall, where a player would go round): straight there
