@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.86.0", date: "17 October 2026", title: "Scholars exchanged",
+    items: [
+      "Campaign: with an ally or a trade partner you can now exchange scholars, as Empire: Total War's crowns traded learning. Letters and books go between the universities, and your scholars' current study comes 2 points nearer (3 with an ally). They think a little better of you for it. Once every five years with each crown.",
+      "Campaign: if a campaign can't be saved because the game's storage is full, you're told so, instead of it failing without a word.",
+      "Campaign: tested a fleet carrying an army over the Channel, landing it, and the French fleet coming to clear the way for an invasion: all as it should be.",
+    ],
+  },
+  {
     v: "1.85.1", date: "17 October 2026", title: "Smaller saves",
     items: [
       "Campaign: saves are about a sixth of the size. Sixty years of conquest came to nearly a megabyte a campaign; now it's about 150 KB. A long campaign, or several, could fill the space the game is given and stop saving without a word. Older saves load as before.",
