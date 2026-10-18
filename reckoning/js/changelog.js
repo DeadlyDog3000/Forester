@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.88.3", date: "17 October 2026", title: "Two crowns, two courts",
+    items: [
+      "Campaign with a friend: each player keeps their own government and ministers, spies, protectorates and scholars' exchanges, and their own army's state at sea. Before, the two players shared one government, and one player's bribes and protectorates counted for both.",
+    ],
+  },
+  {
     v: "1.88.2", date: "17 October 2026", title: "One click to the place",
     items: [
       "Campaign: the towns your Victory card asks for are links now: click one and the map goes there, with its card open.",

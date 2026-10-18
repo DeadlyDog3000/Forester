@@ -71,7 +71,10 @@ const load = (i = slot) => { try { return JSON.parse(localStorage.getItem(slotKe
 // The campaign holds one crown "on top" (C.me, and these fields of C) and the other's put by in C.H; as(crown, fn)
 // does a thing as that crown, and puts everything back. The shared things — the year, the map, the other crowns'
 // armies and wars — are C's own.
-const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "lq", "units", "tax", "armies", "ar", "fleets", "sq", "rule", "morale", "siege", "supplied", "pos", "go", "aslt"];
+const SLICE = ["gold", "army", "moved", "did", "ally", "truce", "warT", "took", "lost", "events", "log", "over", "won", "pending", "tech", "guns", "gen", "govs", "govCands", "levyQ", "lq", "units", "tax", "armies", "ar", "fleets", "sq", "rule", "morale", "siege", "supplied", "pos", "go", "aslt",
+  // (and each player's own: the army in hand aboard ship or on its way to join another, their government, the courts they
+  //  have spies in, their protectorates, scholars exchanged, a crown without a town, the towns they've sacked)
+  "emb", "joinTo", "sailed", "govt", "spies", "vassal", "learnX", "exile", "sacked"];
 let mp = null;    // (the link to the other player: { net, side, host, foe, ... } — null playing alone)
 const humans = () => (C && C.mp ? C.mp.humans : []);
 const isHuman = id => humans().includes(id);
