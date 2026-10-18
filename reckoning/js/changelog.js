@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.84.1", date: "17 October 2026", title: "The help page brought up to date",
+    items: [
+      "Campaign: How the campaign works now covers victory and the three years' grace after your last town falls, generals' traits, the other crowns' offers and demands, and the great powers. It no longer speaks of hired transports, which are gone.",
+      "Campaign: when you refuse tribute and the other crown backs down, the answer no longer shows as a failure.",
+    ],
+  },
+  {
     v: "1.84.0", date: "17 October 2026", title: "The great powers",
     items: [
       "Campaign: a new card in the panel, The great powers, ranks the crowns of the world as Empire: Total War's faction summary does, by their towns and the people in them. The top six are shown, with yours in gold, and yours below them if you're further down. Its heading says where you stand: 5th of 48, say.",
