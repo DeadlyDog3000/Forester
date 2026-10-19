@@ -32,6 +32,8 @@
     return null;
   };
   const { BUILDINGS } = await import("./js/town.js");
+  const { FURNITURE } = await import("./js/furnish.js");
+  let furnT = -99;
   const builtTried = new Set();
   let bt = null, best = null;
   // the building the objective asks to be planned, if any (and not tried in the last half-minute)
@@ -182,6 +184,17 @@
             if (T.planning) T.planning.cancel();
           } else { log.push(`${Math.round(simT)}s no room for a ${bt}`); T.planning && T.planning.cancel(); }
           builtTried.add(bt + Math.floor(simT / 30));
+        }
+      }
+      else if (G.town && !G.town.planning && /Furnish your cabin/.test(last) && w.insideCabin && w.insideCabin(pl.pos.x, pl.pos.z) && simT - furnT > 20) {
+        // furnishing: the cheapest piece we can pay for, set down facing each way in turn until it fits
+        furnT = simT; const T = G.town, ty = Object.keys(FURNITURE).filter(k => T.canAfford(k)).sort((a, b) => (FURNITURE[a].logs || 0) - (FURNITURE[b].logs || 0))[0];
+        if (!ty) log.push(`${Math.round(simT)}s can't afford any furniture (store ${G.town.S.store})`);
+        else {
+          let done = false; T.furnish(ty).then(f => { done = !!f; });
+          for (let k = 0; k < 8 && !done && T.planning; k++) { pl.place(pl.pos.x, pl.pos.z, k * Math.PI / 4); for (let i = 0; i < 2; i++) E.frame(1 / 30, true); input.click = true; E.frame(1 / 30, true); input.click = false; await breath(); }
+          if (T.planning) T.planning.cancel();
+          log.push(`${Math.round(simT)}s furnished: ${ty} ${done ? "set down" : "didn't fit"}`);
         }
       }
       else if (!m && (best = bestFor(last, w, pl))) {
