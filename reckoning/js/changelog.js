@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.42", date: "18 October 2026", title: "The Maghreb",
+    items: [
+      "Campaign 3D map: the Sahara begins well south of the coast. Morocco's plains round Fès and Algeria's Tell are green, then comes a band of steppe on the high plateaus, then the sand; Libya is green only in a strip along the sea.",
+      "Campaign 3D map: the hills of North Africa are olive and scrub, not northern pine, and the hard-edged dark patches on the plateaus south of the Atlas are gone.",
+    ],
+  },
+  {
     v: "1.90.41", date: "18 October 2026", title: "Rivers through the woods",
     items: [
       "Campaign 3D map: trees stand back from a river's banks, so a river through the forest reads as one unbroken stream instead of a dotted line under the treetops.",

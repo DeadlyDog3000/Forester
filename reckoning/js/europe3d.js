@@ -141,7 +141,9 @@ export function biomeAt(lon, lat, h) {
   if (lat > 64 || (lat > 61 && lon > 35)) return "tundra";
   // (the New World: the north's forest and barrens, the prairie past the Mississippi, the broad woods of the east)
   if (lon < -45) return lat > 58 ? "tundra" : lat > 46.5 ? "taiga" : lon < -94.5 && lat < 47 ? "steppe" : lat < 30.5 ? "med" : "temperate";
-  if (lat < 34.5 && lon < 36) return h > 1.2 ? "rock" : "desert";
+  // (Africa: the Sahara's edge well south of the coast — Morocco's plains and Algeria's Tell are farmed, then a band of
+  //  steppe, the high plateaus, before the sand; Libya's only a strip along the sea)
+  if (lon < 36 && lat < 37.5) { const edge = lon < -1 ? 31.2 : lon < 9 ? 33.2 : lon < 11.5 ? 33.6 : 32.2; if (lat < edge) return h > 1.2 ? "rock" : "desert"; if (lat < edge + 1.1 && lon < 33) return h > 1.2 ? "rock" : "steppe"; if (lon > -10 && lon < 12 && lat < 37.3) return "med"; }
   if ((lon > 29 && lat < 51 && lat > 44.5 && lon < 44) || (lon > 18.5 && lon < 22.2 && lat > 45.4 && lat < 48.2) || (lon > 31 && lon < 40 && lat > 37.6 && lat < 40.6)) return "steppe";
   if (lat > 57.5 || (lat > 53 && lon > 28) || h > 1.3 + (fbm(lon * 5.1, lat * 5.1, 29, 2) - 0.5) * 0.6) return "taiga";
   if (lat < 43.6 || (lat < 45.5 && lon > -2 && lon < 9) || (lon > 26 && lat < 41.2)) return "med";
