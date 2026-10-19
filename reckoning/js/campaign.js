@@ -188,6 +188,15 @@ const LEAGUES_1683 = [
 const WARS_1683 = [["ottoman", "austria"], ["ottoman", "poland"], ["ottoman", "hre"], ["crimea", "poland"], ["crimea", "austria"], ["hungary", "austria"], ["france", "castile"], ["france", "aragon"], ["france", "milan"],
   // (the Beaver Wars: the Iroquois against the Illinois and the nations of the upper lakes; the Muscogee and the Choctaw)
   ["p_iroquois", "p_illinois"], ["p_iroquois", "p_anishinaabe"], ["p_creek", "p_choctaw"]];
+// (and the trade of 1683: the old Anglo-Portuguese wine and cloth, the Muscovy and Levant companies, the Dutch in every
+//  port from Archangel to Smyrna and Danzig's grain, France's capitulations with the Porte, the Sultan's regencies; over
+//  the water, the fur trade at Albany, Montréal and the Bay, and Carolina's deerskins)
+const TRADE_1683 = [["england", "portugal"], ["england", "dutch"], ["england", "castile"], ["england", "russia"], ["england", "tuscany"], ["england", "ottoman"],
+  ["dutch", "sweden"], ["dutch", "denmark"], ["dutch", "russia"], ["dutch", "ottoman"], ["dutch", "poland"], ["dutch", "brandenburg"], ["dutch", "portugal"],
+  ["france", "ottoman"], ["france", "denmark"], ["venice", "ottoman"], ["castile", "aragon"], ["castile", "naples"], ["castile", "portugal"], ["sweden", "brandenburg"],
+  ["poland", "brandenburg"], ["austria", "venice"], ["hre", "dutch"], ["saxony", "poland"], ["bavaria", "venice"], ["savoy", "france"], ["papal", "tuscany"], ["sicily", "naples"],
+  ["ottoman", "algiers"], ["ottoman", "tunis"], ["ottoman", "tripoli"], ["ottoman", "crimea"], ["morocco", "england"], ["scotland", "england"], ["ireland", "england"],
+  ["england", "p_iroquois"], ["england", "p_cree"], ["england", "p_creek"], ["france", "p_anishinaabe"], ["france", "p_wabanaki"], ["france", "p_illinois"], ["france", "p_dakota"]];
 const leagueOf = (a, b) => LEAGUES_1683.find(L => L.ids.includes(a) && L.ids.includes(b));
 // (the leagues' word kept among the other crowns: allies of a crown that's attacked come in on its side)
 const alliesOf = id => [...new Set(LEAGUES_1683.filter(L => L.ids.includes(id)).flatMap(L => L.ids))].filter(x => x !== id);
@@ -219,8 +228,13 @@ function fresh(me) {
   }
   // (your allies' wars against your enemies are fought with you)
   for (const w of wars) if ((ally[w.a] && war[w.b]) || (ally[w.b] && war[w.a])) w.withYou = true;
+  // (the trade you begin with: 1683's, else the friendliest crown at peace with you; their merchants well thought of)
+  const pact = {};
+  for (const [x, y] of TRADE_1683) { const f = x === me ? y : y === me ? x : null; if (f && NATIONS[f] && !war[f]) pact[f] = true; }
+  if (!Object.keys(pact).length) { const f = Object.keys(rel).filter(id => !war[id] && !!NATIONS[id].nw === !!NATIONS[me].nw).sort((x, y) => rel[y] - rel[x])[0]; if (f && rel[f] >= 0) pact[f] = true; }
+  for (const f of Object.keys(pact)) rel[f] = Math.max(rel[f], 20);
   return { v: 1, gridV: 6, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
-    E: { rel, war, wars, conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
+    E: { rel, war, wars, conq: [], pact, plague: {}, famine: {}, beaten: {}, news: [], gridV: 2 },
     foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [],
     walls: Object.fromEntries(FORTS_1683.filter(n => CITIES.some(c => c[0] === n)).map(n => [n, 1])), forts2: 1 };
 }
@@ -310,6 +324,56 @@ function gazette(items) {
   el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-gz]")) close(); });
   addEventListener("keydown", key, true);
   $("gazetteOld")?.remove(); const old = $("cmpGazette"); if (old) old.remove();
+  $("campaign").appendChild(el); sfx("parchment", 0.5);
+}
+// ---- a new reign's first paper: the realm as you find it — your wars and who is in them, your leagues, your trade, who
+//  at the other courts wishes you well or ill, the world's other wars, and what the crown asks of you ----
+function statePaper() {
+  if (!C || C.mp || C.story) return;
+  const g = grid(), me = C.me, mine = citiesOfNow(g, me), cap = mine.reduce((b, t) => !b || t[3] > b[3] ? t : b, null);
+  const list = a => a.length > 1 ? a.slice(0, -1).join(", ") + " and " + a[a.length - 1] : a[0] || "";
+  const names = ids => list(ids.map((id, i) => i ? the(id) : The(id)));
+  const live = Object.keys(C.E.rel).filter(id => NATIONS[id] && alive(g, id)), towns = id => citiesOfNow(g, id).length;
+  const wr = live.filter(id => atWar(id)), al = live.filter(id => C.ally[id]), T = tradeOf(g);
+  const P = [], col = (h, items) => { if (items.length) P.push(`<section><h3>${esc(h)}</h3>${items.map(([b, t]) => `<p><b>${esc(b)}.</b> ${esc(t)}</p>`).join("")}</section>`); };
+  // (the wars: each enemy, its towns, who fights with it, and who of yours with you)
+  col("At War", wr.length ? wr.map(id => { const theirs = alliesOf(id).filter(x => NATIONS[x] && alive(g, x) && (atWar(x) || C.E.wars.some(w => (w.a === x && al.includes(w.b)) || (w.b === x && al.includes(w.a)))));
+    const mates = C.E.wars.filter(w => w.withYou && (w.a === id || w.b === id)).map(w => w.a === id ? w.b : w.a).filter(x => al.includes(x));
+    return [The(id), `${towns(id)} town${towns(id) === 1 ? "" : "s"}${C.E.rel[id] <= -60 ? ", and no mercy looked for" : ""}.${mates.length ? ` ${names(mates)} ${mates.length > 1 ? "fight" : v3(mates[0], "fights")} beside you.` : ""}${theirs.length ? ` With ${the(id)}: ${list(theirs.map(the))}.` : ""}`]; })
+    : [["At peace", `${The(me)} ${v3(me, "is")} at war with no one. The drums are quiet, and the treasury the better for it.`]]);
+  // (the leagues, each with its members)
+  col("Allies", LEAGUES_1683.filter(L => L.ids.includes(me)).map(L => [L.n[0].toUpperCase() + L.n.slice(1), `With ${list(L.ids.filter(x => x !== me && NATIONS[x]).map(the))}: their quarrels yours, and yours theirs.`])
+    .concat(al.filter(id => !LEAGUES_1683.some(L => L.ids.includes(me) && L.ids.includes(id))).map(id => [The(id), "Allied to your crown."])));
+  // (trade: what your towns send out, and each partner with what it pays and the goods it brings you)
+  const ks = Object.keys(T.have).sort((a, b) => GOODS[b].v * T.have[b] - GOODS[a].v * T.have[a]);
+  col("Trade", [[`${T.goods + T.pactV} thalers a year`, ks.length ? `Your towns send out ${list(ks.map(k => GOODS[k].n.toLowerCase()))}.` : "Your towns have little to sell."]]
+    .concat(T.pacts.map(p2 => [The(p2.id), `A trade pact, ${p2.v} thalers a year${p2.fresh.length ? `, and ${list(p2.fresh.map(k => GOODS[k].n.toLowerCase()))} your own towns don't make` : ""}.`]))
+    .concat(T.pacts.length ? [] : [["No partners", "No crown trades with you by treaty. An envoy to a friendly court could change that."]]));
+  // (the other courts: the warmest and the coldest of those you're neither allied to nor fighting)
+  const rest = live.filter(id => !atWar(id) && !C.ally[id]).sort((a, b) => C.E.rel[b] - C.E.rel[a]);
+  const warm = rest.filter(id => C.E.rel[id] >= 25).slice(0, 4), cold = rest.filter(id => C.E.rel[id] <= -15).reverse().slice(0, 4);
+  col("At the Courts", [...(warm.length ? [["Well disposed", `${names(warm)} think${warm.length === 1 && v3(warm[0], "is") === "is" ? "s" : ""} well of you.`]] : []),
+    ...(cold.length ? [["Ill disposed", `${names(cold)} wish${cold.length === 1 && v3(cold[0], "is") === "is" ? "es" : ""} you ill. Watch them.`]] : [])]);
+  // (the world's other wars)
+  col("Abroad", C.E.wars.filter(w => w.a !== me && w.b !== me && !w.withYou && NATIONS[w.a] && NATIONS[w.b] && alive(g, w.a) && alive(g, w.b)).slice(0, 6).map(w => [`${The(w.a)} against ${the(w.b)}`, w.withYou ? "Your allies' war, and so yours." : "Not your quarrel, as yet."]));
+  // (and the crown's ambition)
+  const G = goalOf();
+  const way = wayOfUniform(UNI_OF[me] || ""), img = plateOf(way, wr.length ? "musketeer" : "pike");
+  const [name, motto] = paperOf(me);
+  const el = document.createElement("div"); el.className = "cmp-gazette"; el.id = "cmpGazette";
+  el.innerHTML = `<div class="gz-paper gz-state">
+    <div class="gz-mast"><small>${esc(motto)}</small><h1>${esc(name)}</h1><div class="gz-line"><span>Numb. 1</span><span>${esc(SEASONS[C.s] || "Spring")}, in the Year ${C.year}</span><span>Price One Penny</span></div></div>
+    <div class="gz-head">${img ? `<img class="gz-cut" src="${esc(img)}" alt="">` : ""}<div><small class="gz-kicker">The State of the Realm</small><h2>${esc(NATIONS[me].nw ? `The council fire at ${cap ? cap[0] : NATIONS[me].name}` : `A new reign in ${cap ? cap[0] : NATIONS[me].name}`)}</h2>
+      <p class="gz-lead">${esc(`${The(me)} ${v3(me, "has")} ${mine.length} town${mine.length === 1 ? "" : "s"}, ${C.army} regiments under arms and ${C.gold} thalers in the treasury. ${wr.length ? `${wr.length === 1 ? "One war is" : `${wr.length} wars are`} already being fought, ${al.length ? `with ${al.length} all${al.length === 1 ? "y" : "ies"} sworn to you` : "and no ally sworn to you"}.` : al.length ? `The realm is at peace, with ${al.length} all${al.length === 1 ? "y" : "ies"} sworn to it.` : "The realm is at peace, and stands alone."}`)}</p></div></div>
+    ${G ? `<div class="gz-learnbox"><span class="gz-seal" aria-hidden="true">♛</span><div><small class="gz-kicker">The Crown's Ambition</small><b>${esc(list(G.towns))}</b><p>${esc(`Hold ${G.towns.length > 1 ? "these" : "it"}, and ${G.n} towns in all, by ${G.by}.`)}</p></div></div>` : ""}
+    <div class="gz-cols">${P.join("")}</div>
+    <div class="gz-foot"><button class="btn primary" data-gz="1">Take up the crown</button></div>
+  </div>`;
+  const close = () => { el.classList.add("out"); setTimeout(() => { el.remove(); goalScreen(); }, 260); removeEventListener("keydown", key, true); };
+  const key = e => { if (e.code === "Escape" || e.code === "Enter" || e.code === "Space") { e.preventDefault(); e.stopPropagation(); close(); } };
+  el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-gz]")) close(); });
+  addEventListener("keydown", key, true);
+  const old = $("cmpGazette"); if (old) old.remove();
   $("campaign").appendChild(el); sfx("parchment", 0.5);
 }
 // (news of the world: to every player of the campaign)
@@ -1539,6 +1603,8 @@ const raising = n => (C.lq || []).filter(q => q.t === n);
 function ensureUnits() { if (C.units) return; const m = muster(C.me, C.army | 0); C.units = []; for (const [k, n] of Object.entries(m)) for (let i = 0; i < n; i++) C.units.push({ k, hp: 1 }); C.lq ||= []; }
 // (the field army: the regiments not left in a town's garrison)
 const field = () => (C.units || []).filter(u => !u.at && (u.ar | 0) === (C.ar | 0));
+// (the sound of the army on the road: the foot's tread, and the horse's trot behind it when it has a good part horse)
+const marchSfx = (v = 0.5) => { const F = field(), h = F.filter(u => TROOPS[u.k] && TROOPS[u.k].horse).length; return [["drum", v * 0.6], ["march", v, 250], ...(h && h * 3 >= F.length ? [["trot", v * 0.8, 700]] : [])]; };
 // ---- more than one army: each its own place, march, siege, general and spirit. The one you're giving orders to stands in
 //  the campaign's own fields (C.pos, C.go, C.army…); the others wait in C.armies, and are swapped in when chosen ----
 const AKEYS = ["pos", "go", "moved", "siege", "army", "gen", "morale", "supplied", "sailed", "emb", "aslt", "joinTo", "chase", "target", "arrived"];
@@ -2161,7 +2227,7 @@ export function initCampaign(c, battle, withPlayer) {
     // (into an empty place; all three taken, the one longest left alone makes way — asked first)
     const have = campaigns(); let into = [...Array(SLOTS).keys()].find(i => !have.some(h => h.i === i));
     if (into === undefined) { const old = have[have.length - 1]; if (!confirm(`You have ${SLOTS} campaigns. Begin a new one in place of ${NATIONS[old.c.me].name}, ${old.c.year}? That one will be lost.`)) return; into = old.i; }
-    begin(b.dataset.crown, into); sel = null; selCity = null; drawMap(true); sfx("bell", 0.45); sfx("drum", 0.4, 900); });
+    begin(b.dataset.crown, into); sel = null; selCity = null; drawMap(true); sfx("bell", 0.45); sfx("drum", 0.4, 900); statePaper(); });
   $("cmpPick").addEventListener("click", e => {
     const go = e.target.closest("[data-slot]"), drop = e.target.closest("[data-drop]");
     if (go) { slot = +go.dataset.slot; try { localStorage.setItem(SLOTKEY, String(slot)); } catch (er) {} if (resume()) { sel = null; selCity = null; note = ""; news = []; drawMap(true); sfx("parchment", 0.45); } return; }
@@ -2177,7 +2243,7 @@ export function initCampaign(c, battle, withPlayer) {
     C.paperN = C.logN | 0;
     news = fresh.filter(l => !/^((Spring|Summer|Autumn|Winter) )?\d{4}$| — \d{4}$/.test(l.title)).reverse(); note = ""; drawMap(); gazette(news); goalScreen();
     // (war on you, or an army on its way: the drum; a crown gone from the map: the bells)
-    if (C.events.some(e => e.kind === "attack" && !e.done) || news.some(l => /declares war on you/.test(l.title))) sfx("drum", 0.5, 400);
+    if (C.events.some(e => e.kind === "attack" && !e.done) || news.some(l => /declares war on you/.test(l.title))) { sfx("drum", 0.5, 400); if (C.events.some(e => e.kind === "attack" && !e.done)) sfx("march", 0.35, 1200); }
     else if (news.some(l => /is no more|takes /.test(l.title))) sfx("guns", 0.4, 400);
   };
   $("cmpSide").addEventListener("click", sideClick);
@@ -2456,12 +2522,16 @@ function marks3d() {
   return out;
 }
 // the armies on the land, for the near view: each as a company of its own men in its own coats (europe3d.js armies)
+// (where each army stood when the 3D view last saw it: moved since, it's given the road it came by, to walk along)
+let last3d = {}, last3dOf = null;
 function armies3d() {
   const g = grid(), out = [];
+  if (last3dOf !== C) { last3dOf = C; last3d = {}; }
   const add = (key, p, id, n, mine, go) => {
     if (!p || !isFinite(p.x) || !NATIONS[id]) return;
+    let via = null; { const was = last3d[key]; if (was && Math.hypot(p.x - was.x, p.y - was.y) > 0.4 && !overSea(was, p)) { const P = landPath(g, was, p), w = P && smoothWay(P, false); if (w && w.length > 2) via = w.map(q => llOf(q.x, q.y).map(v => Math.round(v * 1000) / 1000)); } last3d[key] = { x: p.x, y: p.y }; }
     const [lon, lat] = llOf(p.x, p.y), uni = UNI_OF[id], U = UNIFORMS[uni] || UNIFORMS.imperial, L = soldierLook(U, 1683 + id.length * 7), gl = go ? llOf(go.x, go.y) : null;
-    out.push({ key, lon, lat, color: NATIONS[id].color, n, mine: !!mine, body: L.body, nw: !!NATIONS[id].nw, march: !!go, glon: gl ? gl[0] : null, glat: gl ? gl[1] : null,
+    out.push({ key, lon, lat, color: NATIONS[id].color, n, mine: !!mine, body: L.body, nw: !!NATIONS[id].nw, march: !!go, glon: gl ? gl[0] : null, glat: gl ? gl[1] : null, ...(via ? { via } : {}),
       colors: { coat: L.coat, vest: L.vest, cuff: L.cuff, legs: L.legs, hat: L.hatColor, sash: L.sash, stockings: L.stockings, linen: L.linen, skin: L.skin, hair: L.hair },
       flag: NATIONS[id].nw ? null : coloursCanvas(uni) });
   };
@@ -2469,7 +2539,7 @@ function armies3d() {
   for (const [id, c] of Object.entries(colonies())) if (atWar(id) && c.n > 0) add("foe-" + id + COLO, c.pos, id, knowsArmy(id) ? c.n : 8, false, c.go ? (t => t ? cellXY(t) : null)(CITIES.find(x => x[0] === c.go)) : null);
   if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos && sl.emb == null) add("p-" + h, sl.pos, h, sl.army | 0, false, sl.go || null); }
   for (const a of C.armies || []) if (a.pos && a.emb == null) add("mine-" + a.id, a.pos, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null);
-  if (C.emb == null) add("mine", armyPos(), C.me, field().length || C.army, true, C.go || null);
+  if (C.emb == null) add("mine-" + (C.ar | 0), armyPos(), C.me, field().length || C.army, true, C.go || null);
   return out;
 }
 // (the fleets at sea, for the land seen close: yours, the other player's, and the crowns' — each heading where she's bound)
@@ -3209,7 +3279,7 @@ function __selectTown(n) {
   if (on3d && eu3d) eu3d.look(ct[1], ct[2]);
   drawMap();
 }
-window.__cmp = { get eu3d() { return eu3d; }, enter3d: () => enter3d(), fight: o => fight(o), get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, garrison, defOf: (ct, foe) => defOf(grid(), ct, foe), draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get eu3d() { return eu3d; }, enter3d: () => enter3d(), fight: o => fight(o), get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, statePaper: () => statePaper(), mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, garrison, defOf: (ct, foe) => defOf(grid(), ct, foe), draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the
@@ -3228,14 +3298,14 @@ function apply(actor, a) {
   if (!C || C.over && a.k !== "end") return null;
   return as(actor, () => {
     const g = grid(), city = n => CITIES.find(c => c[0] === n);
-    if (a.k === "recruit") { const why = recruitAt(a.t, a.u); return why ? { note: why } : { sfx: [["coin", 0.45], ["drum", 0.3, 250]] }; }
+    if (a.k === "recruit") { const why = recruitAt(a.t, a.u); return why ? { note: why } : { sfx: [["purse", 0.45], ["drum", 0.3, 450]] }; }
     if (C.emb != null && ["move", "march", "siege", "field", "supply"].includes(a.k)) return { note: "Your army is aboard ship: land it first." };
-    if (a.k === "ship") { const why = buildShip(a.t, a.u); return why ? { note: why } : { sfx: [["coin", 0.45], ["hammer", 0.3, 300]] }; }
+    if (a.k === "ship") { const why = buildShip(a.t, a.u); return why ? { note: why } : { sfx: [["purse", 0.45], ["hammer", 0.35, 500], ["hammer", 0.3, 900]] }; }
     if (a.k === "unship") { unbuildShip(a.t); return { sfx: [["coin", 0.35]] }; }
     if (a.k === "fjoin") { const f = fleetById(a.id), T = fleetById(a.to); if (!f || !T) return null; const nm = fleetName(T).toLowerCase(), why = fleetJoin(a.id, a.to); if (why) return { note: why }; return fleetById(a.id) ? { note: `The ${fleetName(f).toLowerCase()} is under sail to join the ${nm}, and joins it when it gets there.`, sfx: [["bell", 0.35]] } : { note: `The two fleets sail as one: the ${nm}, ${T.ships.length} ships.`, sfx: [["bell", 0.4]] }; }
-    if (a.k === "sail") { { const f = fleetById(a.id); if (f) f.joinTo = null; } W0(); const why = sail(a.id, { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }); const met = C.events.find(e => !e.done && e.kind === "seabattle" && e.fid === a.id); return why ? { note: why } : met ? { note: `On the way, the fleet meets ${poss(the(met.foe))} fleet, and they close for battle. Fight it yourself, or leave it to your admirals.`, sfx: [["bell", 0.3], ["guns", 0.5, 700]] } : { note: (f => f && f.go ? `The fleet is under sail: more than a year's sailing, it will be there in the years after.` : "The fleet sails, and is there by the year's end.")(fleetById(a.id)), sfx: [["bell", 0.3]] }; }
-    if (a.k === "embark") { const n0 = field().length, why = embark(a.id); return why ? { note: why } : { note: field().length < n0 || (C.armies || []).length && n0 !== field().length ? `${field().length} regiments go aboard the fleet, all it can carry, as the ${armyName(C.ar | 0).toLowerCase()}; the rest stay ashore. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.` : "Your army goes aboard the fleet. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.", sfx: [["drum", 0.35]] }; }
-    if (a.k === "land") { const why = land(); return why ? { note: why } : { note: "Your army is put ashore. It can march again next year.", sfx: [["drum", 0.4]] }; }
+    if (a.k === "sail") { { const f = fleetById(a.id); if (f) f.joinTo = null; } W0(); const why = sail(a.id, { x: clamp(+a.x, 0, MG_W - 1), y: clamp(+a.y, 0, MG_H - 1) }); const met = C.events.find(e => !e.done && e.kind === "seabattle" && e.fid === a.id); return why ? { note: why } : met ? { note: `On the way, the fleet meets ${poss(the(met.foe))} fleet, and they close for battle. Fight it yourself, or leave it to your admirals.`, sfx: [["sail", 0.5], ["bell", 0.3, 500], ["guns", 0.5, 1300]] } : { note: (f => f && f.go ? `The fleet is under sail: more than a year's sailing, it will be there in the years after.` : "The fleet sails, and is there by the year's end.")(fleetById(a.id)), sfx: [["sail", 0.55], ["bell", 0.3, 600]] }; }
+    if (a.k === "embark") { const n0 = field().length, why = embark(a.id); return why ? { note: why } : { note: field().length < n0 || (C.armies || []).length && n0 !== field().length ? `${field().length} regiments go aboard the fleet, all it can carry, as the ${armyName(C.ar | 0).toLowerCase()}; the rest stay ashore. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.` : "Your army goes aboard the fleet. Click the fleet, then right-click the sea to sail it; land the army from the fleet's card.", sfx: [["march", 0.4], ["sail", 0.4, 900]] }; }
+    if (a.k === "land") { const why = land(); return why ? { note: why } : { note: "Your army is put ashore. It can march again next year.", sfx: [["drum", 0.4], ["march", 0.45, 300]] }; }
     if (a.k === "seafight") {
       if (!canSeaFight(a.id, a.foe)) return { note: "Your fleet can't reach theirs this year." };
       const f = fleetById(a.id), F = C.foeFleets[a.foe]; f.pos = { x: F.pos.x + 0.6, y: F.pos.y + 0.6 }; f.moved = true; f.go = null; syncAboard(f);
@@ -3271,7 +3341,7 @@ function apply(actor, a) {
     }
     if (a.k === "usearmy") { if (!armyIds().includes(a.id | 0)) return null; useArmy(a.id | 0); persist(); return {}; }
     if (a.k === "form") { const why = formArmy(a.t); return why ? { note: why } : { note: `A new army is formed at ${a.t} from its garrison: the ${armyName(C.ar | 0).toLowerCase()}. Choose a general for it from its card.`, sfx: [["drum", 0.5]] }; }
-    if (a.k === "split") { const why = splitArmy(); return why ? { note: why } : { note: `The army is split in two: the ${armyName(C.ar | 0).toLowerCase()} marches under its own colours. Choose a general for it.`, sfx: [["drum", 0.45]] }; }
+    if (a.k === "split") { const why = splitArmy(); return why ? { note: why } : { note: `The army is split in two: the ${armyName(C.ar | 0).toLowerCase()} marches under its own colours. Choose a general for it.`, sfx: [["drum", 0.4], ["march", 0.4, 300]] }; }
     // (marched to another army of yours and joined to it there: at once if it's within the year's march, else on the way)
     // (a town's garrison marched out to one of your armies, and joined to it when it gets there)
     if (a.k === "sendgar") {
@@ -3289,9 +3359,9 @@ function apply(actor, a) {
         // (too far for the year: on its way, and joined with a right-click on it again once it's there)
         if (dist2(o.pos, armyPos()) > 3) return res && res.note ? { ...res, note: C.joinTo === o.id ? `${res.note} It joins the ${armyName(o.id).toLowerCase()} when it reaches it.` : res.note } : res || { note: "Your army can't march to it now." };
       }
-      const name = armyName(o.id), why = joinArmy(o.id); return why ? { note: why } : { note: `The two armies march together as one: the ${name.toLowerCase()}, ${armyStr()}.`, sfx: [["drum", 0.5]] };
+      const name = armyName(o.id), why = joinArmy(o.id); return why ? { note: why } : { note: `The two armies march together as one: the ${name.toLowerCase()}, ${armyStr()}.`, sfx: [["drum", 0.45], ["march", 0.45, 300]] };
     }
-    if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4]] }; }
+    if (a.k === "join") { const why = joinArmy(); return why ? { note: why } : { note: "The two armies march together as one.", sfx: [["drum", 0.4], ["march", 0.45, 300]] }; }
     if (a.k === "askgen") { askGeneral(); return {}; }
     if (a.k === "station") { const why = station(a.t, a.u, !!a.out); return why ? { note: why } : { sfx: [["drum", 0.3]] }; }
     if (a.k === "minister") { const G = govOf_(), m = G.cand && G.cand[a.post] && G.cand[a.post][a.i | 0]; if (!m || G.swap === C.year) return null; const old = G.min[a.post]; G.min[a.post] = m; G.swap = C.year; G.cand[a.post] = null; persist(); return { note: `${m.name} takes the ${POSTS.find(x => x[0] === a.post)[1].toLowerCase()}, in ${old.name}'s place.`, sfx: [["quill", 0.5], ["seal", 0.6, 800]] }; }
@@ -3310,7 +3380,7 @@ function apply(actor, a) {
       const ct = city(a.ct), foe = ct && cityOwner(g, ct);
       if (!ct || C.siege || C.moved || !foe || isHuman(foe) || !atWar(foe) || C.army < 8 || !inMarch(ct) || !hasWalls(ct, foe, g)) return { note: "Your army can't lay siege there now." };
       C.siege = { ct: ct[0], foe, years: 0, starve: 0, bat: 0 }; C.moved = true; C.go = null; { const t = cellXY(ct); C.pos = { x: t.x, y: t.y }; } persist();
-      return { note: `Your army sits down before ${ct[0]}: trenches dug, the guns brought up, the roads closed. Each year the garrison grows hungrier and the walls weaker.`, sfx: [["drum", 0.55], ["guns", 0.5, 900]] };
+      return { note: `Your army sits down before ${ct[0]}: trenches dug, the guns brought up, the roads closed. Each year the garrison grows hungrier and the walls weaker.`, sfx: [["drum", 0.55], ["spades", 0.5, 500], ["guns", 0.5, 1600]] };
     }
     if (a.k === "supply") {
       const o = sendSupply(); if (!o) return { note: `A supply train costs ${SUPPLY_COST} thalers, and only one goes a year.` };
@@ -3329,12 +3399,12 @@ function apply(actor, a) {
       // (over the sea: no march — only aboard a fleet of your own)
       if (overSea(armyPos(), t)) return { note: SEA_NOTE };
       const st = stepToward(armyPos(), t, MARCH); C.pos = { x: st.x, y: st.y }; C.go = st.arrived ? null : t; C.moved = true; C.chase = a.chase && atWar(a.chase) ? a.chase : null; C.target = a.target || null; persist();
-      if (C.target && st.arrived) return { note: `Your army stands before ${C.target}. Right-click it to fall on it.`, sfx: [["drum", 0.45]] };
-      if (C.target) return { note: `Your army marches on ${C.target}: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there. It can attack the year it arrives.`, sfx: [["drum", 0.45]] };
-      if (C.chase) { const fp = foeArmyPos(C.chase), near = fp && mdist(C.pos, fp) <= MARCH; return { note: near ? `Your army goes after ${poss(the(C.chase))} army: it's within a year's march of it now, and it won't get away. Fall on it next year.` : `Your army goes after ${poss(the(C.chase))} army: ${yearsTo(fp)} more year${yearsTo(fp) > 1 ? "s" : ""} to come up with it.`, sfx: [["drum", 0.45]] }; }
-      return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: [["drum", 0.45]] };
+      if (C.target && st.arrived) return { note: `Your army stands before ${C.target}. Right-click it to fall on it.`, sfx: marchSfx(0.5) };
+      if (C.target) return { note: `Your army marches on ${C.target}: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there. It can attack the year it arrives.`, sfx: marchSfx(0.5) };
+      if (C.chase) { const fp = foeArmyPos(C.chase), near = fp && mdist(C.pos, fp) <= MARCH; return { note: near ? `Your army goes after ${poss(the(C.chase))} army: it's within a year's march of it now, and it won't get away. Fall on it next year.` : `Your army goes after ${poss(the(C.chase))} army: ${yearsTo(fp)} more year${yearsTo(fp) > 1 ? "s" : ""} to come up with it.`, sfx: marchSfx(0.5) }; }
+      return { note: st.arrived ? "Your army marches, and is there by the year's end." : `Your army is on the march: ${yearsTo(t)} more year${yearsTo(t) > 1 ? "s" : ""} to get there.`, sfx: marchSfx(0.5) };
     }
-    if (a.k === "lift") { if (!C.siege) return null; const n = C.siege.ct; C.siege = null; persist(); return { note: `The siege of ${n} is lifted. The army is free to march.`, sfx: [["drum", 0.5]] }; }
+    if (a.k === "lift") { if (!C.siege) return null; const n = C.siege.ct; C.siege = null; persist(); return { note: `The siege of ${n} is lifted. The army is free to march.`, sfx: [["drum", 0.4], ["march", 0.4, 400]] }; }
     if (a.k === "march") {
       const ct = city(a.ct), o = ct && march(ct); if (!o) return { note: ct ? whyNot(ct) : "Your army can't march there now." };
       if (overSea(armyPos(), cellXY(ct))) return { note: SEA_NOTE };
@@ -3460,7 +3530,7 @@ function apply(actor, a) {
       if (a.gun) { if (!lvOf(ct[0], "foundry") || C.gold < GUN_COST) return null; C.gold -= GUN_COST; C.Q[ct[0]] = { gun: true, by: C.me, cost: GUN_COST }; persist(); return { note: `The founders at ${ct[0]} begin casting a gun. It'll be ready at the year's end.`, sfx: [["coin", 0.45], ["guns", 0.25, 400]] }; }
       const o = buildable(ct).find(x => x.chain === a.chain); if (!o || o.tech || C.gold < o.cost) return null;
       C.gold -= o.cost; C.Q[ct[0]] = { chain: a.chain, by: C.me, cost: o.cost }; persist();
-      return { note: `${ct[0]}: work begins on ${o.L.n.toLowerCase()}. It'll stand at the year's end.`, sfx: [["coin", 0.45], ["quill", 0.35, 300]] };
+      return { note: `${ct[0]}: work begins on ${o.L.n.toLowerCase()}. It'll stand at the year's end.`, sfx: [["purse", 0.45], ["hammer", 0.3, 700], ["build", 0.3, 1100]] };
     }
     if (a.k === "unbuild") { const ct = city(a.ct), q = ct && C.Q[ct[0]]; if (!q || q.by !== C.me) return null; C.gold += q.cost | 0; delete C.Q[ct[0]]; persist(); return { note: `The work at ${ct[0]} is stopped, and the money back in the treasury.`, sfx: [["coin", 0.4]] }; }
     if (a.k === "study") { if (!TECHS[a.id] || !canStudy(C.tech.done, a.id) || !techFor(a.id)) return null; if (C.tech.cur !== a.id) C.tech.yrs = 0; C.tech.cur = a.id; persist(); return { sfx: [["quill", 0.4]] }; }

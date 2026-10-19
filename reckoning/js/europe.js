@@ -43,9 +43,15 @@ export const inv = (ex, ey) => {
   for (let i = 0; i < 12; i++) { lat = (ey - (1 - t) * P.LC * (1 - P.M)) / ((1 - t) * P.M + t); const xa = P.A + (P.b0 - P.cm) * cosr(lat) * P.M; t = Math.max(0, Math.min(1, (ex - xa) / (P.b1 - xa))); }
   return [P.b0 + t * (P.b1 - P.b0), lat];
 };
+// (each sheet keeps its own: switching between them — the settlement's day ticks over on the story's Europe while a
+//  campaign is open on the world — costs nothing, where it once threw the whole drawn map away each time)
+const SHEETS = {};
 export function useSheet(name) {
   if (name === SHEET) return;
+  if (SHEET) SHEETS[SHEET] = { X0, Y0, GW, GH, MAP_ASPECT, BOUNDS, K, SPAN_X, SPAN_Y, COAST, HOME, BASE, gridCache, gridKey, sheet, sheetKey, prevSheet, coastP, coastS, relief, reliefPart, near, traced, TRC, SIG, shapes };
   SHEET = name;
+  const sv = SHEETS[name];
+  if (sv) { ({ X0, Y0, GW, GH, MAP_ASPECT, BOUNDS, K, SPAN_X, SPAN_Y, COAST, HOME, BASE, gridCache, gridKey, sheet, sheetKey, prevSheet, coastP, coastS, relief, reliefPart, near, traced, TRC, SIG, shapes } = sv); MG_W = GW; MG_H = GH; return; }
   const [x0, y0, w, h] = name === "world" ? [0, 0, WGW, WGH] : WINDOWS[name], dl = (WB.lon1 - WB.lon0) / WGW, dt = (WB.lat1 - WB.lat0) / WGH;
   X0 = x0; Y0 = y0; GW = MG_W = w; GH = MG_H = h; MAP_ASPECT = h / w;
   // (in effective degrees: a window on Europe, plain ones)
@@ -54,7 +60,7 @@ export function useSheet(name) {
   // (the coasts that touch the window, carried to its corner)
   COAST = WCOAST.map(r => r.map(([x, y]) => [x - x0 * 10, y - y0 * 10])).filter(r => r.some(([x, y]) => x > -50 && y > -50 && x < w * 10 + 50 && y < h * 10 + 50)).map(roundRing);
   { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
-  BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; coastP = null; relief = null; reliefPart = null; near = null; traced = null; TRC.clear(); SIG = null; shapes = null;
+  BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; prevSheet = null; coastP = null; relief = null; reliefPart = null; near = null; traced = null; TRC = new Map(); SIG = null; shapes = null;
 }
 // a crown's land, or a people's, or nobody's: the peoples of the New World have their country on the map in their own
 // names, and it isn't any crown's to take
@@ -438,7 +444,7 @@ let GONE = null;
 let traced = null;
 // (each crown's trace kept by what it's traced from — its own squares, and for its borders who lies over each edge —
 //  so when a town changes hands only the crowns it touched are traced again, not all fifty)
-const TRC = new Map(), IDH = new Map(); let SIG = null;
+let TRC = new Map(); const IDH = new Map(); let SIG = null;
 const idHash = id => { let h = IDH.get(id); if (h == null) { h = 2166136261; for (let i = 0; i < id.length; i++) h = Math.imul(h ^ id.charCodeAt(i), 16777619) >>> 0; IDH.set(id, h); } return h; };
 function sigs(g) {
   if (SIG && SIG.g === g) return SIG.m; const m = new Map();
@@ -876,7 +882,9 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
     c.drawImage(sheet, 0, 0, W, H);
     c.setTransform(1, 0, 0, 1, 0, 0);
-    if (sharp && v.z > 1.15) { clearTimeout(nearT); nearT = setTimeout(() => { near = { key: vkey, cv: drawSheet(W, H, E, g, homePop, { w: W, h: H, z: v.z, ox: v.ox, oy: v.oy }, SHEET + key) }; sharp(); }, 140); }
+    // (drawn on this sheet even if another has been taken up meanwhile: traced on the other's grid, a crown's border ran
+    //  in long straight lines across its land)
+    if (sharp && v.z > 1.15) { clearTimeout(nearT); const sh = SHEET; nearT = setTimeout(() => { const was = SHEET; useSheet(sh); near = { key: vkey, cv: drawSheet(W, H, E, g, homePop, { w: W, h: H, z: v.z, ox: v.ox, oy: v.oy }, SHEET + key) }; useSheet(was); sharp(); }, 140); }
   }
   c.setTransform(v.z, 0, 0, v.z, -v.ox * v.z, -v.oy * v.z);
   if (spread) {

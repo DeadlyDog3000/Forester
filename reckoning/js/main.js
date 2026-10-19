@@ -200,6 +200,8 @@ let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
   $("menus").classList.toggle("hidden", !id);
+  // (the campaign's map: the court's music, the Canon and the minuets; back to the menus, the title's again)
+  if (id === "campaign") AUDIO.music("court"); else if (id && AUDIO._mood === "court") AUDIO.music("title");
   G.onScreen && G.onScreen(id);
 }
 function refreshTitle() {

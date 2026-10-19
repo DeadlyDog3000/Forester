@@ -1180,56 +1180,94 @@ export class EuropeView3D {
   }
   // the armies on the land: a company of its own men in its own coats, drawn up in two ranks under its colours —
   //  stepping out on the march, standing at ease when it's halted — kept the same size on the view, as the fleets are.
-  //  [{ key, lon, lat, color, n, mine, body, colors, flag (a canvas, or null), march, glon, glat, nw }]
+  //  [{ key, lon, lat, color, n, mine, body, colors, flag (a canvas, or null), march, glon, glat, nw, via ([[lon, lat]…],
+  //  the road it came by when it has just moved) }]
+  //  (each company is made once and kept: moved, it walks there along its road and turns as it goes, and only a new
+  //  coat or a new count is made again — every order once cloned all their men afresh, and they jumped where they went)
   armies(list) {
     const key = JSON.stringify(list.map(a => ({ ...a, flag: !!a.flag }))); if (key === this.armyKey && this.armyReady) return; this.armyKey = key;
     const bodies = [...new Set(list.map(a => a.body))];
     if (!this.armyReady) Promise.all([...bodies, "musket"].map(b => ensureModel(b))).then(() => { if (!this.armyReady) { this.armyReady = true; this.armyKey = null; this.armies(list); } });
-    if (this.armyGroup) { this.armyGroup.traverse(o => { if (o.isSprite || o.userData.own) { o.material.map && o.material.map.dispose(); o.material.dispose(); } if (/^merged_/.test(o.name)) { o.geometry.dispose(); if (o.skeleton) o.skeleton.dispose(); } }); this.scene.remove(this.armyGroup); }
-    const grp = this.armyGroup = new THREE.Group(); this.mixers = [];
+    if (!this.armyGroup) { this.armyGroup = new THREE.Group(); this.scene.add(this.armyGroup); }
+    const M = (this.armyMap ||= new Map()), seen = new Set(), now = performance.now();
     for (const A of list) {
-      const [x, z] = toWorld(A.lon, A.lat), co = new THREE.Group(); co.position.set(x, 0, z); co.userData.army = true;
-      if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); co.rotation.y = Math.atan2(gx - x, gz - z); }
-      // (its men: two ranks of five, or a war party in open order; each in the coats of its own crown)
-      const mats = {}, men = A.nw ? 7 : 10;
-      for (let i = 0; i < men; i++) {
-        const m = this.armyReady && modelCopy(A.body); if (!m) break;
-        m.scene.traverse(o => {
-          if (!o.isMesh || !o.material) return; o.castShadow = false; o.frustumCulled = false;
-          const part = o.material.userData.part, want = A.colors[part === "beard" || part === "tash" ? "hair" : part]; if (want == null) return;
-          if (!mats[part]) {
-            const M = mats[part] = o.material.clone(); M.userData = { ...o.material.userData, own: true }; M.color.set(want);
-            // (a part painted in its vertices: the colour divided by what's painted, so it's the colour that shows)
-            const vc = o.material.vertexColors && o.geometry.attributes.color; if (vc) { let r = 0, g = 0, b = 0; const C = o.geometry.attributes.color, n = C.count; for (let k = 0; k < n; k += 7) { r += C.getX(k); g += C.getY(k); b += C.getZ(k); } const c = Math.ceil(n / 7); M.color.r /= Math.max(0.04, r / c); M.color.g /= Math.max(0.04, g / c); M.color.b /= Math.max(0.04, b / c); }
-          }
-          o.material = mats[part];
-        });
-        try { mergeRig(m.scene); } catch (e) {}
-        const file = i % 5, rank = Math.floor(i / 5);
-        if (A.nw) m.scene.position.set(Math.sin(i * 2.39) * 1.9, 0, Math.cos(i * 1.71) * 1.1);
-        else m.scene.position.set((file - 2) * 0.85, 0, -rank * 1.05);
-        // (the musket shouldered, upright at his right side)
-        if (!A.nw) { const g = makeMusket(); if (g) { g.position.set(-0.24, 0.86, 0.02); g.rotation.x = -0.12; g.traverse(o => { if (o.isMesh) o.castShadow = false; }); m.scene.add(g); } }
-        co.add(m.scene);
-        const mixer = new THREE.AnimationMixer(m.scene), clip = m.animations.find(a => a.name === (A.march ? "Walk" : "Idle"));
-        if (clip) { const act = mixer.clipAction(clip); act.time = (i * 0.37) % clip.duration; act.play(); }
-        this.mixers.push(mixer);
+      seen.add(A.key);
+      const look = JSON.stringify([A.body, A.colors, !!A.nw, !!A.flag, !!A.mine, !!this.armyReady]);
+      let R = M.get(A.key);
+      if (R && R.look !== look) { this.dropCompany(R); M.delete(A.key); R = null; }
+      const [x, z] = toWorld(A.lon, A.lat);
+      if (!R) { R = this.makeCompany(A); R.look = look; R.co.position.set(x, 0, z); M.set(A.key, R); }
+      else if (Math.hypot(R.to[0] - x, R.to[1] - z) > 0.02) {
+        // (on the march: from where it stands now — mid-way, if it was already going — along its road, or straight)
+        const from = [R.co.position.x, R.co.position.z], via = (A.via || []).map(([lo, la]) => toWorld(lo, la));
+        const pts = [from, ...via.slice(1, -1), [x, z]], segs = []; let L = 0;
+        for (let k = 1; k < pts.length; k++) { const d = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); segs.push(d); L += d; }
+        R.glide = L > 0.01 && L < 200 ? { pts, segs, L, t0: now, dur: 1400 + Math.min(2200, L * 70) } : null;
+        if (!R.glide) R.co.position.set(x, 0, z);
       }
-      // (its colours, carried at the right of the front rank)
-      if (!A.nw) {
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 3.1, 6), new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })); pole.userData.own = true; pole.position.set(2.55, 1.55, 0.15); co.add(pole);
-        const tex = A.flag ? new THREE.CanvasTexture(A.flag) : null; if (tex) tex.colorSpace = THREE.SRGBColorSpace;
-        const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.78), new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : A.color, side: THREE.DoubleSide, roughness: 0.95 })); cloth.userData.own = true;
-        cloth.geometry.translate(0.575, 0, 0); cloth.position.set(2.57, 2.7, 0.15); cloth.rotation.y = -0.35; co.add(cloth); co.userData.cloth = cloth;
-      }
-      grp.add(co);
-      // (how many regiments, written over them in italic: in ink for yours, red for an enemy's)
-      const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), ink = A.mine ? "#2a1c10" : "#7a2216";
-      c.font = "italic bold 22px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 6; c.strokeText(String(A.n), 32, 32); c.fillStyle = ink; c.fillText(String(A.n), 32, 32);
-      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, sizeAttenuation: false, transparent: true })); sp.scale.set(0.045, 0.045, 1); sp.renderOrder = 7; sp.userData.over = co; grp.add(sp);
+      R.to = [x, z];
+      // (which way it faces when it isn't walking: toward where it's bound, or as it last went)
+      if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); R.face = Math.atan2(gx - x, gz - z); }
+      R.march = !!A.march; this.stride(R);
+      if (R.n !== A.n) { R.n = A.n; this.countSprite(R, A); }
     }
-    this.scene.add(grp);
+    for (const [k, R] of M) if (!seen.has(k)) { this.dropCompany(R); M.delete(k); }
+  }
+  // (walking — on the march, or on its way across the view — or standing at ease: the step faded in or out, not cut)
+  stride(R) {
+    const walk = R.march || !!R.glide; if (R.walking === walk) return; R.walking = walk;
+    for (const m of R.men) { const on = walk ? m.walk : m.idle, off = walk ? m.idle : m.walk; if (on) { on.enabled = true; on.setEffectiveWeight(1); on.fadeIn(0.35); on.play(); } if (off) off.fadeOut(0.35); }
+  }
+  countSprite(R, A) {
+    if (R.sp) { this.armyGroup.remove(R.sp); R.sp.material.map && R.sp.material.map.dispose(); R.sp.material.dispose(); }
+    // (how many regiments, written over them in italic: in ink for yours, red for an enemy's)
+    const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), ink = A.mine ? "#2a1c10" : "#7a2216";
+    c.font = "italic bold 22px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 6; c.strokeText(String(A.n), 32, 32); c.fillStyle = ink; c.fillText(String(A.n), 32, 32);
+    const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+    const sp = R.sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, sizeAttenuation: false, transparent: true })); sp.scale.set(0.045, 0.045, 1); sp.renderOrder = 7; sp.userData.over = R.co; this.armyGroup.add(sp);
+  }
+  dropCompany(R) {
+    this.armyGroup.remove(R.co); if (R.sp) { this.armyGroup.remove(R.sp); R.sp.material.map && R.sp.material.map.dispose(); R.sp.material.dispose(); }
+    for (const m of R.men) m.mixer.stopAllAction();
+    R.co.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const mt of ms) if (o.userData.own || (mt.userData && mt.userData.own)) { mt.map && o.userData.own && mt.map.dispose(); mt.dispose(); } if (/^merged_/.test(o.name) || o.userData.own) { o.geometry && o.geometry.dispose(); if (o.skeleton) o.skeleton.dispose(); } });
+  }
+  makeCompany(A) {
+    const co = new THREE.Group(); co.userData.army = true; const R = { co, men: [], to: [0, 0], face: 0, n: null, sp: null, glide: null, walking: null };
+    // (its men: two ranks of five, or a war party in open order; each in the coats of its own crown)
+    const mats = {}, men = A.nw ? 7 : 10;
+    for (let i = 0; i < men; i++) {
+      const m = this.armyReady && modelCopy(A.body); if (!m) break;
+      m.scene.traverse(o => {
+        if (!o.isMesh || !o.material) return; o.castShadow = false; o.frustumCulled = false;
+        const part = o.material.userData.part, want = A.colors[part === "beard" || part === "tash" ? "hair" : part]; if (want == null) return;
+        if (!mats[part]) {
+          const Mt = mats[part] = o.material.clone(); Mt.userData = { ...o.material.userData, own: true }; Mt.color.set(want);
+          // (a part painted in its vertices: the colour divided by what's painted, so it's the colour that shows)
+          const vc = o.material.vertexColors && o.geometry.attributes.color; if (vc) { let r = 0, g = 0, b = 0; const C = o.geometry.attributes.color, n = C.count; for (let k = 0; k < n; k += 7) { r += C.getX(k); g += C.getY(k); b += C.getZ(k); } const c = Math.ceil(n / 7); Mt.color.r /= Math.max(0.04, r / c); Mt.color.g /= Math.max(0.04, g / c); Mt.color.b /= Math.max(0.04, b / c); }
+        }
+        o.material = mats[part];
+      });
+      try { mergeRig(m.scene); } catch (e) {}
+      const file = i % 5, rank = Math.floor(i / 5);
+      if (A.nw) m.scene.position.set(Math.sin(i * 2.39) * 1.9, 0, Math.cos(i * 1.71) * 1.1);
+      else m.scene.position.set((file - 2) * 0.85, 0, -rank * 1.05);
+      // (the musket shouldered, upright at his right side)
+      if (!A.nw) { const g = makeMusket(); if (g) { g.position.set(-0.24, 0.86, 0.02); g.rotation.x = -0.12; g.traverse(o => { if (o.isMesh) o.castShadow = false; }); m.scene.add(g); } }
+      co.add(m.scene);
+      const mixer = new THREE.AnimationMixer(m.scene), cw = m.animations.find(a => a.name === "Walk"), ci = m.animations.find(a => a.name === "Idle");
+      const walk = cw && mixer.clipAction(cw), idle = ci && mixer.clipAction(ci);
+      for (const a of [walk, idle]) if (a) { a.time = (i * 0.37) % a.getClip().duration; a.enabled = false; }
+      R.men.push({ mixer, walk, idle });
+    }
+    // (its colours, carried at the right of the front rank)
+    if (!A.nw) {
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 3.1, 6), new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })); pole.userData.own = true; pole.position.set(2.55, 1.55, 0.15); co.add(pole);
+      const tex = A.flag ? new THREE.CanvasTexture(A.flag) : null; if (tex) tex.colorSpace = THREE.SRGBColorSpace;
+      const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.78), new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : A.color, side: THREE.DoubleSide, roughness: 0.95 })); cloth.userData.own = true;
+      cloth.geometry.translate(0.575, 0, 0); cloth.position.set(2.57, 2.7, 0.15); cloth.rotation.y = -0.35; co.add(cloth); co.userData.cloth = cloth;
+    }
+    this.armyGroup.add(co);
+    return R;
   }
   // look at a place: lon, lat, and how far off
   look(lon, lat, dist) { const [x, z] = toWorld(lon, lat); this.target.set(x, 0, z); if (dist) this.dist = dist; }
@@ -1276,6 +1314,20 @@ export class EuropeView3D {
     if (this.armyGroup) {
       const now = performance.now(), dt = Math.min(0.1, (now - (this.armyT || now)) / 1000); this.armyT = now;
       const k = this.dist * 0.022;
+      // (the companies on the march across the view: along their road, starting off and drawing up gently, turned the
+      //  way they go — and the turn itself eased, not snapped)
+      for (const R of (this.armyMap || new Map()).values()) {
+        let want = R.face;
+        if (R.glide) {
+          const G = R.glide, q = Math.min(1, (now - G.t0) / G.dur), e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+          let d = e * G.L, s = 0; while (s < G.segs.length - 1 && d > G.segs[s]) { d -= G.segs[s]; s++; }
+          const [ax, az] = G.pts[s], [bx, bz] = G.pts[s + 1], f = G.segs[s] ? Math.min(1, d / G.segs[s]) : 1;
+          R.co.position.x = ax + (bx - ax) * f; R.co.position.z = az + (bz - az) * f;
+          if (q < 0.98) want = Math.atan2(bx - ax, bz - az);
+          if (q >= 1) { R.glide = null; R.co.position.x = R.to[0]; R.co.position.z = R.to[1]; this.stride(R); }
+        }
+        const r0 = R.co.rotation.y; R.co.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 6);
+      }
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }
         else if (o.userData.over) {
@@ -1286,7 +1338,7 @@ export class EuropeView3D {
           else o.position.set(c.x, c.y + k * 3.6, c.z);
         }
       }
-      for (const m of this.mixers || []) m.update(dt);
+      for (const R of (this.armyMap || new Map()).values()) for (const m of R.men) m.mixer.update(dt);
     }
     this.renderer.render(this.scene, this.camera);
   }

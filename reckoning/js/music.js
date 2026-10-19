@@ -132,6 +132,8 @@ const INST = {
   fiddle:   { pan: 0.12, kind: "held", make: (ac, m, len) => bowed(ac, m, len, { vib: 0.006, attack: 0.07, dark: 1 }) },
   viol:     { pan: 0.2, kind: "held", make: (ac, m, len) => bowed(ac, m, len, { vib: 0.003, attack: 0.15, dark: 0.55, hiss: 0.03 }) },
   drone:    { pan: 0.0, kind: "held", make: (ac, m, len) => bowed(ac, m, len, { vib: 0.0015, attack: 0.6, dark: 0.35, hiss: 0.015 }) },
+  // (the harpsichord: a plucked string too, but quilled — bright and quick to speak, ringing less than the harp)
+  harpsichord: { pan: -0.12, kind: "pluck", make: (ac, m) => pluck(ac, m, { t60: 1.1 + 50 / hz(m), bright: 0.95, len: 2.4, body: 0.08 }) },
   drum:     { pan: 0.18, kind: "hit", make: (ac, m) => drum(ac, m === 1 ? "low" : "high") },
 };
 function bufFor(ac, inst, midi, dur) {
@@ -162,7 +164,8 @@ export function parseMelody(s) {
   }
   return { notes, len: t };
 }
-export const parseChords = s => s.trim().split(/\s+/).map(tok => tok.split("/").map(Number));
+// (a chord may be marked major, "2M", or minor, "6m", against its mode: the A major of a minuet's turn to D)
+export const parseChords = s => s.trim().split(/\s+/).map(tok => tok.split("/").map(c => { const m = c.match(/^(-?\d+)([Mm]?)$/); return { r: +m[1], q: m[2] }; }));
 
 export const PIECES = {
   // the title: "Ashes", a slow air
@@ -232,14 +235,38 @@ export const PIECES = {
   feast: { bpm: 250, beats: 6, root: 67, mode: "ionian", style: "jig", lead: ["recorder", "fiddle"],
     A: "1:1 2:1 3:1 5:2 3:1 | 4:1 5:1 6:1 5:3 | 8:1 7:1 6:1 5:1 4:1 3:1 | 2:1 3:1 2:1 5:3 | 1:1 2:1 3:1 5:2 3:1 | 4:1 5:1 6:1 8:3 | 7:1 6:1 5:1 4:1 3:1 2:1 | 1:3 1:3", cA: "1 4/1 1/4 5 1 4/1 5 1",
     B: "8:2 7:1 8:2 5:1 | 6:2 5:1 6:2 4:1 | 5:2 4:1 3:2 1:1 | 2:3 5:3 | 8:2 7:1 8:2 9:1 | 10:2 9:1 8:3 | 7:1 6:1 5:1 4:1 3:1 2:1 | 1:6", cB: "1 4 1 5 1 1 5 1" },
+
+  // ---- the masters: pieces of the time as they were written, for the court and the campaign's map ----
+  // Pachelbel's Canon in D (Nuremberg, about 1680): the ground of eight notes under it, the violins' strains over it
+  canon: { bpm: 54, beats: 4, root: 62, mode: "ionian", style: "baroque", lead: ["fiddle", "fiddle", "recorder", "fiddle"], end: 1, form: ["A", "A", "B", "B"],
+    A: "10:1 9:1 8:1 7:1 | 6:1 5:1 6:1 7:1 | 8:1 7:1 6:1 5:1 | 4:1 3:1 4:1 2:1",
+    cA: "1/5/6/3 4/1/4/5 1/5/6/3 4/1/4/5",
+    B: "8:0.5 10:0.5 12:0.5 11:0.5 10:0.5 8:0.5 10:0.5 9:0.5 | 8:0.5 6:0.5 8:0.5 12:0.5 11:0.5 13:0.5 12:0.5 11:0.5 | 10:1.5 9:0.5 8:1.5 7:0.5 | 6:1.5 5:0.5 6:1 7:1",
+    cB: "1/5/6/3 4/1/4/5 1/5/6/3 4/1/4/5" },
+  // the Minuet in G from Anna Magdalena Bach's notebook (Petzold's, Dresden, 1725), as the harpsichord has it, then the fiddle
+  minuet: { bpm: 126, beats: 3, root: 67, mode: "ionian", style: "baroque", lead: ["harpsichord", "harpsichord", "fiddle", "recorder"], form: ["A", "A", "B", "B"],
+    A: "5:1 1:0.5 2:0.5 3:0.5 4:0.5 | 5:1 1:1 1:1 | 6:1 4:0.5 5:0.5 6:0.5 7:0.5 | 8:1 1:1 1:1 | 4:1 5:0.5 4:0.5 3:0.5 2:0.5 | 3:1 4:0.5 3:0.5 2:0.5 1:0.5 | 0:1 1:0.5 2:0.5 3:0.5 1:0.5 | 2:3 | " +
+       "5:1 1:0.5 2:0.5 3:0.5 4:0.5 | 5:1 1:1 1:1 | 6:1 4:0.5 5:0.5 6:0.5 7:0.5 | 8:1 1:1 1:1 | 4:1 5:0.5 4:0.5 3:0.5 2:0.5 | 3:1 4:0.5 3:0.5 2:0.5 1:0.5 | 2:1 3:0.5 2:0.5 1:0.5 0:0.5 | 1:3",
+    cA: "1 1 4 1 2 1 5 5 1 1 4 1 2 1 5 1",
+    B: "10:1 8:0.5 9:0.5 10:0.5 8:0.5 | 9:1 5:0.5 6:0.5 7:0.5 5:0.5 | 8:1 6:0.5 7:0.5 8:0.5 5:0.5 | 4#:1 3:0.5 4#:0.5 2:1 | 2:0.5 3:0.5 4#:0.5 5:0.5 6:0.5 7:0.5 | 8:1 7:1 6:1 | 7:1 2:1 4#:1 | 5:3 | " +
+       "5:1 1:0.5 0:0.5 1:1 | 6:1 1:0.5 0:0.5 1:1 | 5:1 4:1 3:1 | 2:0.5 1:0.5 0:0.5 1:0.5 2:1 | -2:0.5 -1:0.5 0:0.5 1:0.5 2:0.5 3:0.5 | 4:1 3:1 2:1 | 3:0.5 5:0.5 1:1 0:1 | 1:3",
+    cB: "1 5 6 2M 2M 6 7m 5 1 4 1 5 5 2 1/5 1" },
+  // the Prelude in C from Bach's Well-Tempered Clavier (Köthen, 1722): each bar a chord, broken the same way twice
+  // over — the first nineteen bars of it, round to C again, and the last chord held
+  prelude: { bpm: 70, beats: 4, root: 60, mode: "ionian", style: "prelude",
+    bars: [[60, 64, 67, 72, 76], [60, 62, 69, 74, 77], [59, 62, 67, 74, 77], [60, 64, 67, 72, 76], [60, 64, 69, 76, 81], [60, 62, 66, 69, 74], [59, 62, 67, 74, 79],
+      [59, 60, 64, 67, 72], [57, 60, 64, 67, 72], [50, 57, 62, 66, 72], [55, 59, 62, 67, 71], [55, 58, 64, 67, 73], [53, 57, 62, 69, 74], [53, 56, 62, 65, 71],
+      [52, 55, 60, 67, 72], [52, 53, 57, 60, 65], [50, 53, 57, 60, 65], [43, 50, 55, 59, 65], [48, 52, 55, 60, 64]] },
 };
 
 // the moods the game asks for, the tunes that suit each, and how long the quiet between them
 export const MOODS = {
-  title:      { pieces: ["ashes", "harbour"], rest: [1, 2.5] },
+  title:      { pieces: ["ashes", "harbour", "canon", "prelude"], rest: [1, 2.5] },
+  // the campaign's map: the court's music — the masters, and the burghers' minuet
+  court:      { pieces: ["canon", "minuet", "prelude", "burgher", "harbour"], rest: [3, 8] },
   // the multiplayer lobby and the character builder: music to wait to, one tune after another with hardly a breath
-  lobby:      { pieces: ["feast", "merchant", "burgher", "workday", "hope", "harbour"], rest: [0.4, 1.2] },
-  home:       { pieces: ["merchant", "burgher", "harbour"], rest: [6, 14] },
+  lobby:      { pieces: ["feast", "merchant", "burgher", "workday", "hope", "harbour", "minuet", "canon"], rest: [0.4, 1.2] },
+  home:       { pieces: ["merchant", "burgher", "harbour", "minuet"], rest: [6, 14] },
   unease:     { pieces: ["shadows"], rest: [2, 4] },
   dread:      { pieces: ["dread"], rest: [0.5, 1] },
   grief:      { pieces: ["lament", "nightfall"], rest: [4, 8] },
@@ -247,7 +274,7 @@ export const MOODS = {
   woods:      { pieces: ["clearing", "morning", "firelight", "frost"], rest: [25, 60] },
   hope:       { pieces: ["hope", "morning", "clearing"], rest: [10, 25] },
   settlement: { pieces: ["workday", "clearing", "morning", "hope", "burgher", "merchant"], rest: [40, 90] },
-  evening:    { pieces: ["firelight", "harbour", "lament"], rest: [30, 70] },
+  evening:    { pieces: ["firelight", "harbour", "lament", "prelude"], rest: [30, 70] },
   night:      { pieces: ["nightfall", "shadows", "frost"], rest: [45, 100] },
   winter:     { pieces: ["frost", "nightfall", "ashes"], rest: [40, 90] },
   battle:     { pieces: ["onslaught", "flight"], rest: [0, 0.3] },
@@ -258,13 +285,14 @@ export const MOODS = {
 //  the arranging: a tune, played through once, as the notes each player plays and when
 // ---------------------------------------------------------------------------
 function arrange(p) {
+  if (p.style === "prelude") return arrangePrelude(p);
   const ev = [];
   const A = parseMelody(p.A), B = parseMelody(p.B), cA = parseChords(p.cA), cB = parseChords(p.cB);
   const bar = p.beats, low = p.root - 24 + (p.root < 60 ? 12 : 0);
-  const triad = (r, base) => [0, 2, 4].map(k => { let m = degree(base, p.mode, r + k); return m; });
+  const triad = (c, base) => { const t = [0, 2, 4].map(k => degree(base, p.mode, c.r + k)); if (c.q) { t[1] = t[0] + (c.q === "M" ? 4 : 3); t[2] = t[0] + 7; } return t; };
   const lead = p.lead || ["recorder"];
   const drums = p.style === "dance" || p.style === "jig" || p.style === "battle";
-  const form = Math.random() < 0.7 ? ["A", "A", "B", "B"] : ["A", "B", "A", "B"];
+  const form = p.form || (Math.random() < 0.7 ? ["A", "A", "B", "B"] : ["A", "B", "A", "B"]);
   let t0 = 0, pass = 0;
   const lastPass = form.length - 1;
   for (const s of form) {
@@ -287,8 +315,17 @@ function arrange(p) {
     for (let b = 0; b < ch.length; b++) {
       const parts = ch[b], seg = bar / parts.length;
       for (let k = 0; k < parts.length; k++) {
-        const r = parts[k], at = t0 + b * bar + k * seg, tones = triad(r, low + 12), bass = degree(low, p.mode, r);
+        const r = parts[k], at = t0 + b * bar + k * seg, tones = triad(r, low + 12), bass = degree(low, p.mode, r.r);
         if (p.style === "drone") continue;
+        if (p.style === "baroque") {
+          // the continuo: the bass bowed on the viol and struck on the harpsichord, the chord filled in above it on
+          // the beats after (or, a chord to the beat, on the half-beat), spread a little as a player's hand spreads it
+          ev.push({ t: at, inst: "viol", midi: bass, dur: seg * 0.96, vel: 0.26 });
+          ev.push({ t: at, inst: "harpsichord", midi: bass, dur: seg, vel: 0.3 });
+          const fills = seg >= 2 ? [...Array(Math.floor(seg) - 1).keys()].map(i => i + 1) : [seg / 2];
+          for (const fo of fills) tones.forEach((tm, j) => ev.push({ t: at + fo + j * 0.025, inst: "harpsichord", midi: tm, dur: Math.min(1, seg - fo), vel: 0.15 }));
+          continue;
+        }
         if (sparseFirst && k > 0) continue;
         if (p.style === "air" || p.style === "sparse") {
           // the lute (or the harp) picks the chord out: the bass, then the chord's notes climbing
@@ -340,11 +377,31 @@ function arrange(p) {
     pass++;
   }
   // and the last chord, held
-  const fin = parseChords(form[lastPass] === "A" ? p.cA : p.cB).slice(-1)[0].slice(-1)[0];
-  if (p.style !== "drone") ev.push({ t: t0, inst: p.style === "battle" ? "viol" : "harp", midi: degree(low, p.mode, fin), dur: bar * 1.5, vel: 0.3 });
+  const fin = p.end ?? parseChords(form[lastPass] === "A" ? p.cA : p.cB).slice(-1)[0].slice(-1)[0].r;
+  if (p.style !== "drone") ev.push({ t: t0, inst: p.style === "battle" ? "viol" : p.style === "baroque" ? "harpsichord" : "harp", midi: degree(low, p.mode, fin), dur: bar * 1.5, vel: 0.3 });
+  // (a piece of the masters ends on its full chord, the melody's keynote over it, not the bass alone)
+  if (p.style === "baroque") { for (const k of [0, 2, 4]) ev.push({ t: t0 + 0.03 * k, inst: "harpsichord", midi: degree(low + 12, p.mode, fin + k), dur: bar * 1.5, vel: 0.2 }); ev.push({ t: t0, inst: lead[0], midi: degree(p.root, p.mode, fin + 7), dur: bar * 1.5, vel: 0.42, lead: true }); }
   return { ev: ev.sort((a, b) => a.t - b.t), beats: t0 + bar, bar };
 }
 
+// the Prelude's way: each bar's five notes broken upward and the top three again, twice to the bar, the two lowest held
+// under the rest as the fingers hold them; then the last chord, spread and held
+function arrangePrelude(p) {
+  const ev = [], bar = p.beats; let t0 = 0;
+  for (const nn of p.bars) {
+    for (const h of [0, 2]) {
+      const at = t0 + h;
+      ev.push({ t: at, inst: "harpsichord", midi: nn[0], dur: 2, vel: 0.8 });
+      ev.push({ t: at + 0.25, inst: "harpsichord", midi: nn[1], dur: 1.75, vel: 0.62 });
+      [2, 3, 4, 2, 3, 4].forEach((k, i) => ev.push({ t: at + 0.5 + i * 0.25, inst: "harpsichord", midi: nn[k], dur: 0.5, vel: (i % 3 === 2 ? 0.68 : 0.56) + (i === 0 ? 0.08 : 0), lead: i === 2 || i === 5 }));
+    }
+    t0 += bar;
+  }
+  const L = p.bars[p.bars.length - 1];
+  L.forEach((m, i) => ev.push({ t: t0 + i * 0.12, inst: "harpsichord", midi: m, dur: bar * 1.5, vel: 0.7 }));
+  ev.push({ t: t0, inst: "viol", midi: L[0], dur: bar * 1.5, vel: 0.3 });
+  return { ev: ev.sort((a, b) => a.t - b.t), beats: t0 + bar * 1.5, bar };
+}
 // when each beat falls, in seconds: steady, but drawn out over the last two bars, as players slow to an end
 function timing(p, total) {
   const spb = 60 / p.bpm, rit0 = total - p.beats * 2.5;
@@ -361,7 +418,7 @@ function makeBuses(ac, out) {
   return inst => {
     if (buses[inst]) return buses[inst];
     const g = ac.createGain(), pan = ac.createStereoPanner(); pan.pan.value = INST[inst].pan;
-    g.gain.value = { lute: 0.9, harp: 0.8, recorder: 0.62, fiddle: 0.55, viol: 0.6, drone: 0.5, drum: 0.75 }[inst];
+    g.gain.value = { lute: 0.9, harp: 0.8, recorder: 0.62, fiddle: 0.55, viol: 0.6, drone: 0.5, drum: 0.75, harpsichord: 0.62 }[inst];
     let last = pan;
     // (the lute's body: warmth low down; the low strings bowed, their top taken off)
     if (inst === "lute") { const lo = ac.createBiquadFilter(); lo.type = "peaking"; lo.frequency.value = 210; lo.gain.value = 4; lo.Q.value = 1.2; pan.connect(lo); last = lo; }

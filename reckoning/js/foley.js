@@ -574,6 +574,68 @@ const RECIPES = {
     hiss(d, sr, 0, 0.02, 0.4, new Biquad("bp", f * 6, 1.5, sr), x => Math.exp(-x / 0.004));     // (the clapper's strike)
     return finish(d, 0.7);
   },
+  // a column of foot on the road, going by: thirty pairs of shoes in step on gravel — each tread a dull thud and the
+  // crunch of stones under it, not quite together, the ranks behind a little later and softer — and the clink of
+  // what they carry, tin cups, buckles, the bayonets' scabbards knocking, as the column swells past and goes
+  march(sr) {
+    const L = 2.6, d = new Float32Array(Math.floor(sr * L)), step = rand(0.5, 0.56);
+    for (let t = 0.06; t < L - 0.25; t += step) {
+      for (let m = 0; m < 30; m++) {
+        const tm = t + rand(-0.045, 0.055) + m * 0.0016, a = rand(0.14, 0.34) * (1 - m / 45);
+        hiss(d, sr, tm, 0.07, a, new Biquad("lp", rand(260, 480), 0.8, sr), x => Math.exp(-x / 0.014));
+      }
+      crackles(d, sr, t - 0.02, 0.13, 380, 0.16, 1400, 5200);                                        // (the gravel)
+    }
+    for (let k = 0; k < 16; k++) metal(d, sr, rand(0.05, L - 0.3), rand(1900, 3600), rand(0.05, 0.12), 0.025, 8, 1.1);   // (tin and brass)
+    for (let i = 0; i < d.length; i++) d[i] *= 0.45 + 0.55 * Math.sin(Math.PI * i / d.length);          // (coming by, and going)
+    return finish(d, 0.8);
+  },
+  // a troop of horse at the trot: a dozen horses, each with its own two-beat — the hooves coming down in pairs — the
+  // drumming of them together, and the tack shaken with every stride
+  trot(sr) {
+    const L = 2.4, d = new Float32Array(Math.floor(sr * L)), H = [0, 1, 2, 3].map(() => RECIPES.hoof(sr));
+    for (let h = 0; h < 12; h++) {
+      const per = rand(0.3, 0.36), ph = rand(0, per), a = rand(0.25, 0.55) * (1 - h / 20);
+      for (let t = ph; t < L - 0.35; t += per) for (const off of [0, rand(0.012, 0.03)]) {
+        const src = H[Math.floor(Math.random() * 4)], i0 = Math.floor((t + off) * sr), g = a * rand(0.7, 1);
+        for (let i = 0; i < src.length && i0 + i < d.length; i++) d[i0 + i] += src[i] * g;
+      }
+    }
+    for (let k = 0; k < 14; k++) metal(d, sr, rand(0.05, L - 0.3), rand(1700, 2700), rand(0.06, 0.14), 0.03, 10, 1.2);
+    for (let i = 0; i < d.length; i++) d[i] *= 0.5 + 0.5 * Math.sin(Math.PI * i / d.length);
+    return finish(d, 0.8);
+  },
+  // a ship getting under way: the canvas let fall and filling with a soft heavy whump, then shivering in the wind
+  // until it's sheeted home, the rigging creaking as it takes the strain, and the water beginning at the bow
+  sail(sr) {
+    const L = 2.8, d = new Float32Array(Math.floor(sr * L));
+    hiss(d, sr, 0.05, 0.5, 1, new Biquad("lp", 170, 0.9, sr), x => Math.min(1, x / 0.02) * Math.exp(-x / 0.12));            // (the whump)
+    const fl = new Biquad("bp", rand(380, 620), 1.1, sr), fr = rand(9, 13);
+    for (let i = Math.floor(0.12 * sr); i < d.length; i++) { const t = i / sr; d[i] += fl.run(Math.random() * 2 - 1) * 0.5 * Math.exp(-(t - 0.12) / 0.7) * (0.4 + 0.6 * Math.abs(Math.sin(TAU * fr * t * 0.5))); }
+    // (the rope and the wood: a groan of stick and slip, a block's sheave turning)
+    for (let k = 0; k < 3; k++) slide(d, sr, rand(0.4, 1.9), rand(0.25, 0.45), rand(180, 320), 0.35, t => Math.sin(Math.PI * t), 0.3);
+    hiss(d, sr, 0.3, L - 0.3, 0.35, new Biquad("lp", 1100, 0.6, sr), x => Math.min(1, x / 1.2) * (0.7 + 0.3 * Math.sin(x * 2.4)));     // (the bow wave)
+    return finish(d, 0.75);
+  },
+  // a purse emptied on the table and counted: coins tumbling out onto wood and on each other, then a few laid in stacks
+  purse(sr) {
+    const d = new Float32Array(Math.floor(sr * 1.3));
+    hiss(d, sr, 0, 0.05, 0.4, new Biquad("lp", 700, 0.8, sr), x => Math.exp(-x / 0.012));                         // (the leather purse set down)
+    let t = 0.04; for (let k = 0; k < 16; k++) { metal(d, sr, t, rand(2800, 5200), rand(0.25, 0.6) * (1 - k / 24), 0.04, 12, 1.3); t += rand(0.008, 0.05) * (k < 10 ? 1 : 2.5); }
+    for (let k = 0; k < 3; k++) metal(d, sr, 0.8 + k * rand(0.1, 0.15), rand(3000, 4200), 0.35, 0.05, 12, 1.2);            // (the stacks)
+    return finish(d, 0.7);
+  },
+  // the siege lines begun: spades into the earth, many of them, a little way off — the bite, the heave, the throw
+  spades(sr) {
+    const L = 2.4, d = new Float32Array(Math.floor(sr * L));
+    for (let k = 0; k < 14; k++) {
+      const t = rand(0.02, L - 0.4), a = rand(0.3, 0.7);
+      metal(d, sr, t, rand(900, 1500), a * 0.25, 0.02, 8, 0.8);                                                            // (the blade on a stone)
+      hiss(d, sr, t, 0.12, a, new Biquad("bp", rand(500, 900), 1.2, sr), x => Math.exp(-x / 0.03));                         // (the bite)
+      crackles(d, sr, t + rand(0.18, 0.3), 0.18, 160, 0.25 * a, 800, 3000);                                                // (the earth thrown)
+    }
+    return finish(d, 0.7);
+  },
   // guns far off, beyond the hills: low thumps that roll on, one after another
   guns(sr) {
     const L = 3.2, d = new Float32Array(Math.floor(sr * L)); let t = 0.02;
@@ -609,7 +671,7 @@ const RECIPES = {
 const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
   whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
   quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2,
-  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, hoof: 8, snort: 3, tack: 4 };
+  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, march: 3, trot: 2, sail: 2, purse: 3, spades: 2, hoof: 8, snort: 3, tack: 4 };
 // (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
 for (const k in RECIPES) VARIANTS[k] ??= 2;
 
@@ -698,7 +760,7 @@ export const FOLEY = {
   whiz: (vol = 0.55) => play("whiz", { vol, rate: [0.9, 1.12] }),
   // a step of loading (see the recipes): at a place, or in your own hands
   load: (step, at = null, vol = 0.55, small = false) => RECIPES[step] && play(step, { vol, at, reach: 25, rate: small ? [1.12, 1.25] : [0.94, 1.06] }),
-  // the campaign's sounds, beside you (parchment, quill, seal, drum, bell, guns)
+  // the campaign's sounds, beside you (parchment, quill, seal, drum, bell, guns, march, trot, sail, purse, spades)
   cmp: (name, vol = 0.5) => RECIPES[name] && play(name, { vol, rate: name === "bell" ? [0.97, 1.03] : [0.92, 1.08] }),
   thunk: (at, vol = 0.7) => play("thunk", { vol, at, reach: 40, rate: [0.85, 1.15] }),
   packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),

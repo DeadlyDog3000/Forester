@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.0", date: "18 October 2026", title: "The State of the Realm",
+    items: [
+      "Campaign: a new campaign opens with your crown's own gazette, the State of the Realm: who you're at war with and who fights beside them, your leagues, your trading partners and what they bring, the courts that wish you well or ill, the world's other wars and the crown's ambition.",
+      "Campaign: crowns begin with the trade of 1683: England with Portugal, the Dutch, Spain and Muscovy; the Dutch from Archangel to Smyrna; France's capitulations with the Porte; the fur trade at Albany, Montréal and the Bay. A crown with none begins with its best friend.",
+      "Music: the masters, played by the game's own players with a new harpsichord: Pachelbel's Canon, Bach's Minuet in G and his Prelude in C. They play on the campaign's map, with the burghers' minuet, and turn up on the title screen, at home, in the evening and in the lobby.",
+      "Campaign sounds: a column of foot tramping by on the march, a troop of horse at the trot when your army has a good part horse, sails filling as a fleet gets under way, a purse counted out to recruit or build, hammers on new works, and spades digging the siege lines.",
+      "Campaign 3D map: armies walk to where they're going along their road, turning as they go, instead of jumping there; ordering one no longer rebuilds every soldier on the map, so there's no hitch.",
+      "Campaign map: fixed a straight line sometimes drawn across a country (France most often), and stalls when the settlement's day ticked over while the campaign was open: the map's two sheets now keep their own drawings instead of throwing each other's away.",
+    ],
+  },
+  {
     v: "1.90.61", date: "18 October 2026", title: "Lakes on the parchment",
     items: [
       "Maps: the great lakes are on the parchment map too, inked round and water-lined as the engravers drew them: Ladoga, Onega, Peipus, Ilmen, Vänern, Vättern, Geneva, Constance, Garda, Balaton and the Neusiedler See.",
