@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.51", date: "18 October 2026", title: "Names that don't overlap",
+    items: [
+      "Campaign 3D map: town names no longer print over one another. Where two would overlap on screen, the greater town's name is kept (your own when it's a tie) and the other appears as you come closer, so from far off Wien reads clearly instead of half-hidden under Pressburg.",
+    ],
+  },
+  {
     v: "1.90.50", date: "18 October 2026", title: "Towns sooner",
     items: [
       "Campaign 3D map: the first time you open it, the towns nearest you come up first and are shown as soon as they're laid out, names and all, instead of the whole country standing empty until every town in Europe was done. The roads are worked out faster and laid last, a few at a time between frames.",

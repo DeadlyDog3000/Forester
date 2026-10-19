@@ -296,6 +296,7 @@ const popEst = (name, rank) => { let h = 7; for (const ch of name) h = (h * 31 +
 // a town's houses for its people (one for every hundred and seventy or so), and the widest water it will bridge
 const CLEAR_CELL = 0.2, STONE = [0xcdc4b0, 0xc4baa5, 0xd6ccb8];
 const houseCount = pop => Math.max(14, Math.min(1000, Math.round(pop / 170)));
+const _lv = new THREE.Vector3();
 const BRIDGE = 0.32, ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _m4 = new THREE.Matrix4(), _m5 = new THREE.Matrix4();
 // (how many of a town's things in order are built for so many houses: its bridges with them, as it reaches them)
 const shownFor = (items, n) => { let h = 0, i = 0; for (; i < items.length; i++) { if (items[i].house) { if (h >= n) break; h++; } } return i; };
@@ -1055,7 +1056,7 @@ export class EuropeView3D {
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false, transparent: true }));
       sprite.scale.set(0.16, 0.04, 1); sprite.position.set(x, y0 + 0.3, z); sprite.renderOrder = 5;
-      sprite.userData = { rank, city: isHome ? null : name, y0, w: w / 256 };
+      sprite.userData = { rank, city: isHome ? null : name, y0, w: w / 256, pop: pop || 0, own };
       grp.add(sprite); labels.push(sprite);
     };
     // (nearest the eye first; and the first time the map is opened, those few shown as soon as they're laid out, rather
@@ -1232,6 +1233,18 @@ export class EuropeView3D {
     // (the names: the great ones always, the rest only close in; and nearer the roofs as it comes down, or they'd float out of the view)
     const lift = Math.min(0.3, 0.07 + this.dist * 0.1);
     for (const s of this.labels) { s.visible = this.dist < 14 || s.userData.rank >= (this.dist < 45 ? 2 : 3); s.position.y = s.userData.y0 + lift; }
+    // (and no name written over another: where two would overlap on the view, the greater town's kept, the lesser's left
+    //  off till the eye comes nearer)
+    if (this.labels.length) {
+      const P = this.camera.projectionMatrix.elements, sx = P[0], sy = P[5], kept = [];
+      const mine = l => (this.me && l.userData.own === this.me ? 1 : 0), L = this.labels.filter(l => l.visible).sort((a, b) => b.userData.rank - a.userData.rank || mine(b) - mine(a) || b.userData.pop - a.userData.pop);
+      for (const l of L) {
+        _lv.copy(l.position).project(this.camera); if (_lv.z > 1) continue;
+        const hw = l.scale.x * (l.userData.w || 1) * sx * 0.5, hh = l.scale.y * 0.62 * sy * 0.5;
+        if (kept.some(k => Math.abs(k[0] - _lv.x) < k[2] + hw && Math.abs(k[1] - _lv.y) < k[3] + hh)) { l.visible = false; continue; }
+        kept.push([_lv.x, _lv.y, hw, hh]);
+      }
+    }
     // (the marks over a town — swords where you can march, an army's count — kept just over its name however far off
     //  the eye is: a fixed height over the ground had them across the name once the view was drawn back)
     if (this.markGroup) for (const sp of this.markGroup.children) { const u = sp.userData.over; if (!u) continue; const d = this.camera.position.distanceTo(sp.position); sp.position.y = u.y0 + lift + (0.024 + sp.scale.y / 2 + u.stack * 0.036) * d; }
