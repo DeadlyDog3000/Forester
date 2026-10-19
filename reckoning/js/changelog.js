@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.27", date: "18 October 2026", title: "Roads between the towns",
+    items: [
+      "Campaign 3D map: country roads join the towns, each to its near neighbours, winding round the sea and the worst of the hills and bridging narrow water. A road leaves a town by one of its main streets, a pale dusty track between darker verges that you can see across fields and through the woods, where the trees are cut back from it.",
+      "Campaign 3D map: one kind of country now runs into the next over a mile or two. The pine forest of the high ground, the Hungarian steppe and the rest used to stop along a straight line that showed as a hard-edged square on the ground near Vienna.",
+      "Campaign 3D map: the mountains behind Genoa and other ports rise from a smooth shore. They had followed the map grid's steps along the coast, so the cliffs came up in stairs.",
+      "Campaign 3D map: where a river's line ran along beside its own estuary (the St Lawrence below Québec), the line gives way to the water there.",
+      "Campaign 3D map: the trees close round you end in a ragged round edge, not a straight line across the woods.",
+    ],
+  },
+  {
     v: "1.90.26", date: "18 October 2026", title: "Quays and terraces",
     items: [
       "Campaign 3D map: where a river runs through a town, both banks are walled in stone, with boats tied up along them (Vienna on the Danube, Lisbon on the Tagus).",

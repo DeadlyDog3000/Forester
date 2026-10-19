@@ -35,7 +35,10 @@ export const toLL = (x, z) => inv(BOUNDS.lon0 + x / (K * U), BOUNDS.lat1 - z / U
 let landGrid = null;
 function landAt(g, lon, lat) {
   // bilinear over the grid's land and sea, so the coast is a line and not steps
-  const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
+  const [ex, ey] = fwd(lon, lat);
+  return landG(g, (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5);
+}
+function landG(g, gx, gy) {
   const x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
   const L = (x, y) => (g[y] && g[y][x] ? 1 : 0);
   return L(x0, y0) * (1 - fx) * (1 - fy) + L(x0 + 1, y0) * fx * (1 - fy) + L(x0, y0 + 1) * (1 - fx) * fy + L(x0 + 1, y0 + 1) * fx * fy;
@@ -43,18 +46,23 @@ function landAt(g, lon, lat) {
 // (each range's reach, a box round it: as far out as it lifts the ground at all)
 const RBOX = RANGES.map(([pts, , w]) => { const xs = pts.map(p => p[0] * K), ys = pts.map(p => p[1]), m = w * 3; return [Math.min(...xs) - m, Math.max(...xs) + m, Math.min(...ys) - m, Math.max(...ys) + m]; });
 // height in km (below 0: sea)
+const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.6, Math.sin(i * Math.PI / 4) * 1.6]);
 export function heightAt(g, lon, lat) {
-  const land = landAt(g, lon, lat) + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45;
+  const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
+  const l0 = landG(g, gx, gy), land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45;
   if (land < 0.5) return -0.18 + land * 0.3;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
   let h = 0.02 + ease * (0.04 + fbm(lon * 1.3, lat * 1.3, 3) * 0.28);
   // (the mountains rise from a coast more gently than the lowland does — a hillside behind a port, not a wall over it)
-  const sh2 = Math.min(1, (land - 0.5) / 0.5), rise = sh2 * sh2 * (3 - 2 * sh2);
+  //  (reckoned over the land round about, not just here: so the slope follows the lie of the coast, not the map grid's
+  //  steps along it)
+  let rise = -1;
   const px = lon * K;
   for (let ri = 0; ri < RANGES.length; ri++) {
     // (a range is reckoned with only where it could reach: outside its box, it adds nothing)
     const bb = RBOX[ri]; if (px < bb[0] || px > bb[1] || lat < bb[2] || lat > bb[3]) continue;
+    if (rise < 0) { let w = l0; for (const [ox, oy] of RING) w += landG(g, gx + ox, gy + oy); w /= 9; const a = Math.max(0, Math.min(1, (land - 0.5) / 0.35)), b = Math.max(0, Math.min(1, (w - 0.45) / 0.5)), t = a * b; rise = t * t * (3 - 2 * t); }
     const [pts, km, w] = RANGES[ri];
     let d = Infinity;
     for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(lon * K, lat, pts[i - 1][0] * K, pts[i - 1][1], pts[i][0] * K, pts[i][1]));
@@ -71,7 +79,9 @@ const snowAt = (lon, lat) => 3.0 - Math.max(0, lat - 45) * 0.08 + (vnoise(lon * 
 // what grows there
 export function biomeAt(lon, lat, h) {
   // (the edges between them wander, as they do)
-  lat += (fbm(lon * 1.7, lat * 1.7, 21) - 0.5) * 1.6; lon += (fbm(lon * 1.7, lat * 1.7, 23) - 0.5) * 1.6;
+  //  (broadly, and finely too, so no edge runs ruler-straight for miles)
+  const jy = (fbm(lon * 1.7, lat * 1.7, 21) - 0.5) * 1.6 + (fbm(lon * 7.3, lat * 7.3, 25, 2) - 0.5) * 0.6, jx = (fbm(lon * 1.7, lat * 1.7, 23) - 0.5) * 1.6 + (fbm(lon * 7.3, lat * 7.3, 27, 2) - 0.5) * 0.6;
+  lat += jy; lon += jx;
   // (snow on the peaks, not a sheet over the whole range: the line high and ragged, bare rock in a broad band under it)
   const snowline = snowAt(lon, lat);
   if (h > snowline) return "snow";
@@ -81,7 +91,7 @@ export function biomeAt(lon, lat, h) {
   if (lon < -45) return lat > 58 ? "tundra" : lat > 46.5 ? "taiga" : lon < -94.5 && lat < 47 ? "steppe" : lat < 30.5 ? "med" : "temperate";
   if (lat < 34.5 && lon < 36) return h > 1.2 ? "rock" : "desert";
   if ((lon > 29 && lat < 51 && lat > 44.5 && lon < 44) || (lon > 18.5 && lon < 22.2 && lat > 45.4 && lat < 48.2) || (lon > 31 && lon < 40 && lat > 37.6 && lat < 40.6)) return "steppe";
-  if (lat > 57.5 || (lat > 53 && lon > 28) || h > 1.3) return "taiga";
+  if (lat > 57.5 || (lat > 53 && lon > 28) || h > 1.3 + (fbm(lon * 5.1, lat * 5.1, 29, 2) - 0.5) * 0.6) return "taiga";
   if (lat < 43.6 || (lat < 45.5 && lon > -2 && lon < 9) || (lon > 26 && lat < 41.2)) return "med";
   return "temperate";
 }
@@ -108,15 +118,25 @@ export function woodAt(x, z) { let v = (inoise(x * 0.16, z * 0.16, 7) - 0.5) * 0
 const TILLED = [[4.6, 51.9, 1.9], [2.5, 49.1, 2.3], [0.2, 52.2, 2.3], [-1.6, 51.0, 1.4], [9.9, 45.2, 1.6], [12.0, 51.3, 1.4], [10.3, 55.6, 1.4], [7.0, 51.5, 1.0], [11.4, 44.6, 0.9]];
 const WOOD_CUT = 0.26;
 export function tilledAt(lon, lat) { let t = 0; for (const [x, y, r] of TILLED) { const d = Math.hypot((lon - x) * K, lat - y) / r; if (d < 1) t = Math.max(t, 1 - d * d); } return t; }
-function groundColour(lon, lat, h, out, x, z) {
+// (close in, one country runs into the next over a mile or two, not along a line: the ground's colour, its woods and its
+//  fields reckoned at a few points round about and taken together)
+const SOFT = [[0, 0, 0], [0.2, 0.07, 0.12], [-0.07, 0.2, -0.12], [-0.2, -0.07, 0.06], [0.07, -0.2, -0.06]], _cBio = new THREE.Color();
+function groundColour(lon, lat, h, out, x, z, soft = false) {
   const b = biomeAt(lon, lat, h);
-  // (bare rock and snow are drawn by the snowline, sharp to the pixel: under them, the colour of the country round about)
-  out.setHex(BIOME_COL[b === "snow" || b === "rock" ? biomeAt(lon, lat, 0.5) : b]);
-  const green = b === "temperate" || b === "taiga" || b === "med";
+  let green = 0, openW = 0, n = 0; out.setRGB(0, 0, 0);
+  for (const [ox, oy, oh] of soft ? SOFT : SOFT.slice(0, 1)) {
+    let bb = ox || oy ? biomeAt(lon + ox, lat + oy, h + oh) : b;
+    // (bare rock and snow are drawn by the snowline, sharp to the pixel: under them, the colour of the country round about)
+    if (bb === "snow" || bb === "rock") bb = biomeAt(lon + ox, lat + oy, 0.5);
+    _cBio.setHex(BIOME_COL[bb]); out.r += _cBio.r; out.g += _cBio.g; out.b += _cBio.b; n++;
+    if (bb === "temperate" || bb === "taiga" || bb === "med") green++;
+    if (bb === "temperate" || bb === "med") openW++; else if (bb === "steppe" && lon > -45) openW += 0.45;
+  }
+  out.r /= n; out.g /= n; out.b /= n; green /= n; openW /= n;
   const till = tilledAt(lon, lat), wood = green ? woodAt(x, z) - till * WOOD_CUT : 0;
-  _t[0] = green ? 1 - till * WOOD_CUT / 0.6 : 0;
+  _t[0] = green * (1 - till * WOOD_CUT / 0.6);
   // (the open country: fields wherever it's tilled land and not the woods)
-  _t[1] = (b === "temperate" || b === "med" || b === "steppe" && lon > -45) ? (1 - Math.min(1, Math.max(0, (wood - 0.38) * 8))) * (b === "steppe" ? 0.45 : 1) : 0;
+  _t[1] = openW * (1 - Math.min(1, Math.max(0, (wood - 0.38) * 8)));
   _t[2] = b === "desert" ? -1 : Math.max(-1, Math.min(1, h - (snowAt(lon, lat) - 0.12)));
   _t[3] = h;
   _t[4] = b === "snow" || b === "rock" ? 0 : 1;
@@ -317,7 +337,7 @@ export class EuropeView3D {
       // a patch's rim eases down onto the coarse ground under it, so no cliff shows where one ends
       if (edge) { const d = Math.min(x - edge.x0, edge.x1 - x, z - edge.z0, edge.z1 - z), t = Math.max(0, Math.min(1, d / edge.band)), b = this.baseY(x, z) + 0.01; y = b + (y - b) * t * t * (3 - 2 * t); }
       p.setY(i, y);
-      groundColour(lon, lat, h, _c, x, z); col.set([_c.r, _c.g, _c.b], i * 3);
+      groundColour(lon, lat, h, _c, x, z, !!edge); col.set([_c.r, _c.g, _c.b], i * 3);
       // (round a town the woods give way to its fields)
       const tn = this.townNear(x, z); if (tn > 0) { _t[0] *= 1 - tn; if (_t[4]) _t[1] = Math.max(_t[1], tn); }
       at.set([_t[0], _t[1], _t[2], _t[3]], i * 4); ab[i] = _t[4];
@@ -424,11 +444,14 @@ export class EuropeView3D {
         s += L;
       }
       W.push(P[P.length - 1]);
-      const N = W.length;
+      const N = W.length, dir = W.map((_, i) => { const [xa, za] = W[Math.max(0, i - 1)], [xb, zb] = W[Math.min(N - 1, i + 1)], d = Math.hypot(xb - xa, zb - za) || 1; return [(xb - xa) / d, (zb - za) / d]; });
+      // (and where the engraver's line runs along beside the sea or an estuary rather than in its own bed, let go over
+      //  that stretch: the water there is the river)
+      const side0 = W.map(([x, z], i) => { const [dx, dz] = dir[i]; return this.rawY(x - dz * 0.3, z + dx * 0.3) <= 0 || this.rawY(x + dz * 0.3, z - dx * 0.3) <= 0 ? 1 : 0; });
+      const beside = side0.map((_, i) => { let t = 0, n = 0; for (let k = Math.max(0, i - 10); k <= Math.min(N - 1, i + 10); k++) { t += side0[k]; n++; } return t / n > 0.45; });
       for (let i = 0; i < N; i++) {
-        const [x, z] = W[i], [xa, za] = W[Math.max(0, i - 1)], [xb, zb] = W[Math.min(N - 1, i + 1)];
-        let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-        const hw = 0.018 + 0.03 * (1 - i / N), raw = this.rawY(x, z), dry = raw > 0.002;
+        const [x, z] = W[i], [dx, dz] = dir[i];
+        const hw = 0.018 + 0.03 * (1 - i / N), raw = this.rawY(x, z), dry = raw > 0.002 && !beside[i];
         // (a hair over the ground — and over the coarse ground's line where that runs higher, far off)
         const y = Math.max(0, raw) + 0.012 + Math.min(0.04, Math.max(0, this.baseY(x, z) - raw)), n0 = pos.length / 3;
         for (const [sd, a] of [[-1.7, 0], [-1, 1], [1, 1], [1.7, 0]]) { pos.push(x, y, z); nrm.push(-dz, dx); side.push(sd); hwA.push(hw); col.push(0.25, 0.43, 0.52, dry ? a * 0.95 : 0); }
@@ -457,8 +480,11 @@ export class EuropeView3D {
   }
   // trees, a unit square at a time, the same every time for the same square
   treesNear() {
-    const R = this.dist < 6 ? 5 : this.dist < 14 ? 7 : 0, have = new Set();
-    if (R) for (let gx = Math.floor(this.target.x - R); gx <= this.target.x + R; gx++) for (let gz = Math.floor(this.target.z - R); gz <= this.target.z + R; gz++) {
+    const R = this.dist < 6 ? 5.5 : this.dist < 14 ? 8 : 0, have = new Set();
+    // (the planted ground round, not square, and its rim ragged a square or two either way — so where the trees end
+    //  doesn't run straight as a ruler across the woods)
+    if (R) for (let gx = Math.floor(this.target.x - R - 1); gx <= this.target.x + R + 1; gx++) for (let gz = Math.floor(this.target.z - R - 1); gz <= this.target.z + R + 1; gz++) {
+      const rr = R - 1.5 + hash(gx, gz, 41) * 2.5; if ((gx + 0.5 - this.target.x) ** 2 + (gz + 0.5 - this.target.z) ** 2 > rr * rr) continue;
       const key = gx + "," + gz; have.add(key);
       if (!this.cells.has(key)) this.cells.set(key, this.plant(gx, gz));
     }
@@ -539,6 +565,105 @@ export class EuropeView3D {
   // the cities: houses and a church on the ground, and the name, in the colour of whoever holds it
   // (laid out a few towns a frame, so the land shows at once and the towns follow; the old ones stand till the new are
   //  ready — sync: all of it now)
+  // where a town stands: its place on the map — or, a port whose spot falls on the water at this map's grain (an inlet,
+  // a river mouth), the nearest dry ground round it, so the town stands on its shore, not out in the bay
+  spotXZ(lon, lat) {
+    let [x, z] = toWorld(lon, lat);
+    if (this.groundY(x, z) < 0.02) { found: for (let d = 0.04; d <= 0.8; d += 0.04) for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283, nx = x + Math.cos(a) * d, nz = z + Math.sin(a) * d; if (this.groundY(nx, nz) >= 0.02) { x = nx; z = nz; break found; } } }
+    return [x, z];
+  }
+  // the roads between the towns: each town joined to its near neighbours (to one, not past it to the next beyond), the
+  // way laid round the sea and the worst of the hills — bent where it must be, or not made at all if there's no way
+  // over land; a stretch of narrow water bridged. Worked out once for the sheet, a few at a time between frames
+  *roadGen() {
+    if (this.roadNet && this.roadNet.sheet === SHEET) return;
+    const T = CITIES.map(ct => { const [x, z] = this.spotXZ(ct[1], ct[2]); return { name: ct[0], x, z, rank: ct[3] }; }).filter(t => this.groundY(t.x, t.z) > -0.1);
+    yield;
+    const D2 = (a, b) => (a.x - b.x) ** 2 + (a.z - b.z) ** 2, MAXD = 30, pairs = [];
+    for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) {
+      const d2 = D2(T[i], T[j]); if (d2 > MAXD * MAXD) continue;
+      // (no road from one town to another past a third that lies between: that's two roads, through it)
+      if (T.some((c, k) => k !== i && k !== j && D2(T[i], c) + D2(T[j], c) < d2 * 0.8)) continue;
+      pairs.push([i, j, d2]);
+    }
+    yield;
+    const bear = new Map(), edges = [], clears = [];
+    const wy = (x, z) => this.rawY(x, z);
+    for (const [i, j] of pairs.sort((p, q) => p[2] - q[2])) {
+      const A = T[i], B = T[j], L = Math.sqrt(D2(A, B)), ux = (B.x - A.x) / L, uz = (B.z - A.z) / L;
+      if ((bear.get(A.name) || []).length >= 5 || (bear.get(B.name) || []).length >= 5) continue;
+      // (the way tried straight, and bowed one way or the other: the shortest that keeps to the land and climbs least)
+      let best = null;
+      for (const o of [0, 0.18, -0.18, 0.36, -0.36]) {
+        const cx = (A.x + B.x) / 2 - uz * o * L, cz = (A.z + B.z) / 2 + ux * o * L, n = Math.max(4, Math.ceil(L / 0.25));
+        let cost = 0, wet = 0, ok = true, py = Math.max(0, wy(A.x, A.z)), px = A.x, pz = A.z;
+        for (let k = 1; k <= n; k++) {
+          const t = k / n, qx = (1 - t) * (1 - t) * A.x + 2 * t * (1 - t) * cx + t * t * B.x, qz = (1 - t) * (1 - t) * A.z + 2 * t * (1 - t) * cz + t * t * B.z, qy = wy(qx, qz);
+          if (qy < 0.002) { if (++wet > 1) { ok = false; break; } } else wet = 0;
+          const y = Math.max(0, qy); cost += Math.hypot(qx - px, qz - pz) + Math.abs(y - py) * 5; py = y; px = qx; pz = qz;
+        }
+        if (ok && cost < L * 1.9 && (!best || cost < best.cost)) best = { cost, cx, cz };
+      }
+      yield;
+      if (!best) continue;
+      // (walked finely: a gentle wander about the line, none at the ends where it leaves a town by its main street)
+      // (and over a long way, a slow swing or two, as a road goes round a farm, a wood, a rise)
+      const n = Math.max(8, Math.ceil(L / 0.06)), ph = (i * 7 + j * 13) % 17, sw = Math.max(1, Math.round(L / 7));
+      let P, fail;
+      for (const amp of [1, 0.4, 0]) { P = []; fail = false; let wetRun = 0;
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, bx = (1 - t) * (1 - t) * A.x + 2 * t * (1 - t) * best.cx + t * t * B.x, bz = (1 - t) * (1 - t) * A.z + 2 * t * (1 - t) * best.cz + t * t * B.z;
+        const tx = 2 * (1 - t) * (best.cx - A.x) + 2 * t * (B.x - best.cx), tz = 2 * (1 - t) * (best.cz - A.z) + 2 * t * (B.z - best.cz), tl = Math.hypot(tx, tz) || 1;
+        const s = t * L, off = Math.sin(Math.PI * t) ** 2 * (amp * Math.min(0.7, L * 0.035) * Math.sin(t * sw * Math.PI + ph) + 0.1 * Math.sin(s * 0.9 + ph) + 0.04 * Math.sin(s * 2.7 + ph * 1.9));
+        const qx = bx - tz / tl * off, qz = bz + tx / tl * off, qy = wy(qx, qz);
+        if (qy < 0.002) { wetRun += L / n; if (wetRun > BRIDGE) { fail = true; break; } } else wetRun = 0;
+        P.push([qx, qz]);
+      }
+      if (!fail) break; }
+      yield;
+      if (fail) continue;
+      const major = A.rank >= 2 && B.rank >= 2;
+      edges.push({ P, hw: major ? 0.008 : 0.0055 });
+      (bear.get(A.name) || bear.set(A.name, []).get(A.name)).push(Math.atan2(best.cz - A.z, best.cx - A.x));
+      (bear.get(B.name) || bear.set(B.name, []).get(B.name)).push(Math.atan2(best.cz - B.z, best.cx - B.x));
+      for (let k = 0; k < P.length; k++) clears.push([P[k][0], P[k][1], (major ? 0.008 : 0.0055) * 2.4 + 0.055]);
+    }
+    this.roadNet = { sheet: SHEET, bear, clears };
+    this.buildRoads(edges);
+  }
+  buildRoads(edges) {
+    if (this.roads) { this.scene.remove(this.roads); this.roads.geometry.dispose(); }
+    const pos = [], nrm = [], side = [], hwA = [], col = [], idx = [];
+    for (const { P, hw } of edges) {
+      const N = P.length;
+      for (let i = 0; i < N; i++) {
+        const [x, z] = P[i], [xa, za] = P[Math.max(0, i - 1)], [xb, zb] = P[Math.min(N - 1, i + 1)];
+        let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+        const raw = this.rawY(x, z), river = this.riverAt(x, z, 0.03), wet = raw < 0.002;
+        // (on the ground, a hair over it — and over the coarse ground's line where that runs higher; up on a bridge over
+        //  a river, or over a narrow water, its planks darker)
+        const y = Math.max(0, raw) + (river || wet ? 0.018 : 0.004) + Math.min(0.04, Math.max(0, this.baseY(x, z) - raw)), n0 = pos.length / 3;
+        // (pale dust down the middle, its verges darker — the ditch, the hedge — so it reads on the fields and in the woods alike)
+        const c = river || wet ? [0.34, 0.26, 0.18] : [0.80, 0.73, 0.58], e = river || wet ? c : [0.30, 0.28, 0.18], v = 0.94 + 0.06 * Math.sin(i * 0.7);
+        for (const [sd, a, q] of [[-2.4, 0, e], [-1.5, 0.55, e], [-0.8, 0.95, c], [0.8, 0.95, c], [1.5, 0.55, e], [2.4, 0, e]]) { pos.push(x, y, z); nrm.push(-dz, dx); side.push(sd); hwA.push(hw); col.push(q[0] * v, q[1] * v, q[2] * v, a); }
+        if (i) for (let k = 0; k < 5; k++) idx.push(n0 - 6 + k, n0 - 6 + k + 1, n0 + k, n0 - 6 + k + 1, n0 + k + 1, n0 + k);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(new Float32Array(pos.length).map((_, i) => i % 3 === 1 ? 1 : 0), 3)); g.setAttribute("aN", new THREE.Float32BufferAttribute(nrm, 2));
+    g.setAttribute("aSide", new THREE.Float32BufferAttribute(side, 1)); g.setAttribute("aHW", new THREE.Float32BufferAttribute(hwA, 1));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 4)); g.setIndex(idx);
+    const m = new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 1, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    // (and lifted a little more the further off it's seen from, where the ground under it is drawn more coarsely)
+    const uPix = { value: 0.01 }, uLift = { value: 0 }; this.roadPix = uPix; this.roadLift = uLift;
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uPix = uPix; sh.uniforms.uLift = uLift;
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute vec2 aN; attribute float aSide; attribute float aHW; uniform float uPix; uniform float uLift;")
+        .replace("#include <begin_vertex>", "#include <begin_vertex>\n transformed.xz += aN * aSide * max(aHW, uPix); transformed.y += uLift;");
+    };
+    m.customProgramCacheKey = () => "road2";
+    this.roads = new THREE.Mesh(g, m); this.roads.renderOrder = 1; this.roads.frustumCulled = false; this.scene.add(this.roads);
+  }
   buildCities(homePop, sync = false) {
     this.cityJob = this.cityGen(homePop);
     if (sync) { this.pumpCities(Infinity); return; }
@@ -568,12 +693,11 @@ export class EuropeView3D {
     const wall = new THREE.MeshStandardMaterial({ color: 0xe6dcc6, roughness: 0.9 }), tile = new THREE.MeshStandardMaterial({ color: 0xa04a30, roughness: 0.8 }), stone = new THREE.MeshStandardMaterial({ color: 0xb8b0a0 });
     const curtain = new THREE.BoxGeometry(1, 0.022, 0.009).translate(0, 0.011, 0), bastion = new THREE.CylinderGeometry(0.012, 0.016, 0.026, 4).translate(0, 0.013, 0), masonry = new THREE.MeshStandardMaterial({ color: 0x9c9384, roughness: 0.95 });
     const towerGeo = new THREE.BoxGeometry(0.036, 1, 0.036), spireGeo = new THREE.ConeGeometry(0.028, 0.1, 4), slate = new THREE.MeshStandardMaterial({ color: 0x4a5a58 });
+    yield* this.roadGen();
     this._clearNext = new Map(); const groundBits = { pos: [], col: [], idx: [] };
+    for (const [cx, cz, cr] of this.roadNet.clears) this.clear(cx, cz, cr);
     const place = (name, lon, lat, rank, own, isHome) => {
-      let [x, z] = toWorld(lon, lat); const r = rng(Math.round(lon * 100 + lat * 7));
-      // (a port whose spot falls on the water at this map's grain — an inlet, a river mouth: the nearest dry ground
-      //  round it, so the town stands on its shore, not out in the bay)
-      if (this.groundY(x, z) < 0.02) { found: for (let d = 0.04; d <= 0.8; d += 0.04) for (let k = 0; k < 16; k++) { const a = k / 16 * 6.283, nx = x + Math.cos(a) * d, nz = z + Math.sin(a) * d; if (this.groundY(nx, nz) >= 0.02) { x = nx; z = nz; break found; } } }
+      const [x, z] = this.spotXZ(lon, lat), r = rng(Math.round(lon * 100 + lat * 7));
       const y0 = this.groundY(x, z);
       if (y0 < -0.1) return;
       // (its people: the campaign's count, or what a town of its rank would have — and the houses as many as house them)
@@ -646,8 +770,11 @@ export class EuropeView3D {
         const onStreet = (px, pz) => { const gx = Math.floor(px / SC), gz = Math.floor(pz / SC); for (let u = -1; u <= 1; u++) for (let v = -1; v <= 1; v++) { const L = streetAt.get((gx + u) * 65536 + gz + v); if (L && L.some(([sx, sz, r2]) => (sx - px) * (sx - px) + (sz - pz) * (sz - pz) < r2)) return true; } return false; };
         // (the market square, paved, in the middle)
         if (!isHome) this.townGround(x, z, sq * 1.3, groundBits, 2, 16, 0.9, null, [0.70, 0.65, 0.55]);
-        for (let k = 0; k < S; k++) {
-          const a = a0 + k / S * 6.283 + (r() - 0.5) * 0.4, ca = Math.cos(a), sa = Math.sin(a);
+        // (its main streets out from the square: first the roads that leave it, then as many more as it has, between)
+        const ways = [...((this.roadNet && this.roadNet.bear.get(name)) || [])];
+        for (let k = 0; k < S && ways.length < S; k++) { const a = a0 + k / S * 6.283 + (r() - 0.5) * 0.4; if (!ways.some(b => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b))) < 0.45)) ways.push(a); }
+        for (const a of ways) {
+          const ca = Math.cos(a), sa = Math.sin(a);
           for (let d = sq; d < RMAX; d += 0.04) street(x + ca * d, z + sa * d, x + ca * (d + 0.04), z + sa * (d + 0.04), d < R ? 0.022 : 0.017);
           for (let d = sq + 0.02; d < RMAX; d += 0.034 + Math.min(d, R) * 0.03) for (const side of [-1, 1]) {
             const off = 0.02 + r() * 0.004;
@@ -952,6 +1079,8 @@ export class EuropeView3D {
     if (!this.visible || !this.g) return;
     this.buildDetail(); this.treesNear(); this.raise();
     if (this.riverPix) this.riverPix.value = this.dist * 0.0011;
+    // (the roads: never thinner on the view than a hair, and gone into the haze when you're high over all Europe)
+    if (this.roads) { this.roadPix.value = this.dist * 0.0005; this.roadLift.value = this.dist * 0.0004; this.roads.material.opacity = Math.max(0, Math.min(1, (75 - this.dist) / 35)); this.roads.visible = this.dist < 75; }
     const ty = Math.max(0, this.groundY(this.target.x, this.target.z));
     // from the south, looking north and down; lower and flatter as you come in close
     const pitch = 0.55 + Math.min(1, this.dist / 40) * 0.5;
