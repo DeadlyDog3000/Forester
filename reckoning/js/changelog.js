@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.45", date: "18 October 2026", title: "Rougher coasts",
+    items: [
+      "Campaign 3D map: coasts wander in coves and points on a finer scale, so a small Aegean island is an irregular rock, not an octagon cut round a square of the map's grid, and a headland no longer comes down in stairs.",
+    ],
+  },
+  {
     v: "1.90.44", date: "18 October 2026", title: "Grass and sand",
     items: [
       "Campaign 3D map: the steppe isn't one tan from end to end. It is greener where the grass grows long and paler on the dry rises, and the desert's sand runs redder in one place and paler in the next.",

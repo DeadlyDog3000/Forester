@@ -99,6 +99,9 @@ const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.
 export function heightAt(g, lon, lat) {
   const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
   const l0 = landG(g, gx, gy); let bar = 0, land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - straitCut(lon, lat) * 1.2 + (bar = barLift(lon, lat)) * 0.9;
+  // (and along the coast a finer wander, so an island isn't an octagon cut round one cell of the grid, nor a headland its
+  //  stairs: only where it's coast at all)
+  if (l0 > 0.001 && l0 < 0.999) land += (fbm(lon * 8.3, lat * 8.3, 43, 2) - 0.5) * 2.4 * l0 * (1 - l0);
   if (land < 0.62 && l0 < 0.999 && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.56 + (w - 0.78) * 0.5); }
   if (land < 0.5) return -0.18 + land * 0.3;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
