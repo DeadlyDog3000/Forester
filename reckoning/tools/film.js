@@ -30,6 +30,7 @@ const L = rig.lerp.bind(rig), E = t => rig.ease(t);
 
 // bring a chapter up, let its first seconds play out unseen, then set the light
 async function chapter(n, opts = {}, save = null, settle = 2.5) {
+  G.demoGate = null;
   if (save) writeSave(save);
   G.mode = "play";
   startChapter(n, opts);
@@ -151,7 +152,7 @@ export const SHOTS = {
       // a place to watch from with nothing in the way: round the glade until the line to its middle is clear
       const col = w.col, at = (x, z) => new THREE.Vector3(x, gy(x, z) + 0.9, z);
       this.eye = null;
-      for (let a = Math.PI; a < Math.PI * 3 && !this.eye; a += 0.2) {
+      for (let a = this.a0 ?? Math.PI; a < (this.a0 ?? Math.PI) + Math.PI * 2 && !this.eye; a += 0.2) {
         const x = HUNT.x + Math.cos(a) * 11, z = HUNT.z + Math.sin(a) * 11;
         if (!col.solidAt(x, gy(x, z) + 1, z, 0.8) && col.lineOfSight(at(x, z), at(HUNT.x, HUNT.z))) this.eye = [x, z];
       }
@@ -274,7 +275,7 @@ export const SHOTS = {
       this.cx = this.cx == null ? x : this.cx + (x - this.cx) * 0.08; this.cz = this.cz == null ? z : this.cz + (z - this.cz) * 0.08;
       const dx = FIRE.x - this.cx, dz = FIRE.z - this.cz, l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l;
       const fx = this.cx - ux * 5.5 + uz * 1.6, fz = this.cz - uz * 5.5 - ux * 1.6;
-      rig.look(c, [fx, gy(fx, fz) + 2.0, fz], [this.cx + ux * 9, gy(this.cx, this.cz) + 1.3, this.cz + uz * 9], 55);
+      rig.look(c, [fx, gy(fx, fz) + 3.4, fz], [this.cx + ux * 9, gy(this.cx, this.cz) + 1.3, this.cz + uz * 9], 55);
     },
   },
   raise: {
@@ -293,6 +294,7 @@ export const SHOTS = {
       const b = this.b, T = G.town, cost = BUILDINGS.cabin.cost;
       if (i % 4 === 0 && b.logs < cost && i < 110) { b.logs = Math.min(cost, b.logs + 1); T.show(b); }
       if (i === 120 && !b.done) { b.done = true; T.show(b); }
+      noSign(b);
     },
     cam(t, c) { const b = this.b, a = b.ry + 0.6 + t * 1.3, r = 11 - t * 2; rig.look(c, [b.x + Math.sin(a) * r, gy(b.x, b.z) + 3.2 + t * 1.5, b.z + Math.cos(a) * r], [b.x, gy(b.x, b.z) + 1.6, b.z], 55); },
   },
@@ -460,6 +462,185 @@ export const SHOTS = {
     done() { input.click = false; },
   },
 };
+// ---- the story's people, as the chapters dress them ----
+const settlerLookFor = p => p.sex === "f" ? { model: "townswoman", name: p.name, skirt: true, apron: 0xe6dcc8, hat: "bonnet", seed: p.seed, coat: 0x5a3b32, skirtColor: 0x3e4a5c, scale: p.child ? 0.72 : 1 }
+  : { model: "townsman", name: p.name, hat: "cap", seed: p.seed, coat: 0x4d5a3c, legs: 0x3a3028, scale: p.child ? 0.72 : 1 };
+const AMTMANN = { model: "magistrate", name: "The Amtmann", coat: 0x2a2630, legs: 0x1e1c22, hair: 0x6a5a4a, hat: "hat", collar: 0xf0ebe0, beard: 0x5a4a3a, seed: 33 };
+const KESSLER = { model: "townsman", name: "Kessler", coat: 0x4a4a52, legs: 0x2a2a2e, hat: "hat", hatColor: 0x1e1a18, seed: 88 };
+const GUARD = s => ({ model: "watchman", name: "Watchman", coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, hat: "helmet", sash: 0xe0d8c0, seed: s });
+// a build site's card, left off the film
+const noSign = b => { const g = G.town && G.town.vis.get(b); if (g) for (const ch of g.children) if (ch.position.y > 3) ch.visible = false; };
+
+Object.assign(SHOTS, {
+  // spring: two strangers on the road, a woman and a boy, coming up toward the smoke of the fire
+  stranger: {
+    secs: 6,
+    async stage() {
+      await chapter(14, {}, { ...TOWNSAVE(), town: { ...TOWNSAVE().town, people: [] } }, 2); setAtmo("morning");
+      const R = G.world.road, r0 = R[R.length - 22];
+      this.m = new Actor(settlerLookFor({ name: "Marta", sex: "f", seed: 301 }), r0.x, r0.z, 0);
+      this.p = new Actor(settlerLookFor({ name: "Pieter", sex: "m", seed: 302, child: true }), r0.x + 0.8, r0.z + 0.6, 0);
+      this.m.walkTo(FIRE.x - 2.5, FIRE.z - 3.2, 1.1); this.p.walkTo(FIRE.x - 1.6, FIRE.z - 3.6, 1.1);
+      this.r0 = r0; rig.run(0.5);
+    },
+    cam(t, c) {
+      const m = this.m.pos, k = E(t), dx = FIRE.x - this.r0.x, dz = FIRE.z - this.r0.z, l = Math.hypot(dx, dz), ux = dx / l, uz = dz / l;
+      // (ahead of them on the road, low, drawing back as they come on)
+      const d = 7 - k * 1.5, x = m.x + ux * d - uz * 2.2, z = m.z + uz * d + ux * 2.2;
+      rig.look(c, [x, gy(x, z) + 1.5, z], [m.x, gy(m.x, m.z) + 1.25, m.z], 45);
+    },
+  },
+  // the first frost: the whole settlement at the fire, and the Amtmann coming up the road with Kessler and a watchman
+  amtmann: {
+    secs: 6.5,
+    async stage() {
+      await chapter(14, {}, TOWNSAVE(), 2); setAtmo("dusk");
+      const t = G.town, R = G.world.road;
+      // (the road where it comes out of the trees, some twenty paces from the fire)
+      let r0 = R[R.length - 1], best = 1e9; for (const q of R) { const e = Math.abs(Math.hypot(q.x - FIRE.x, q.z - FIRE.z) - 20); if (e < best) { best = e; r0 = q; } }
+      const dx = r0.x - FIRE.x, dz = r0.z - FIRE.z, l = Math.hypot(dx, dz); this.u = [dx / l, dz / l];
+      // (everyone in a crescent on the road side of the fire, facing up the road)
+      const folk = t.actors.filter(a => a.settler && !a.settler.child);
+      for (const a of t.actors) if (a.settler && a.settler.child) { a.path = []; a.place(FIRE.x - this.u[0] * 1.5 + Math.random(), FIRE.z - this.u[1] * 1.5 + Math.random(), Math.atan2(this.u[0], this.u[1])); }
+      folk.forEach((a, i) => { const s = (i - (folk.length - 1) / 2) * 1.2, x = FIRE.x + this.u[0] * 2.4 - this.u[1] * s, z = FIRE.z + this.u[1] * 2.4 + this.u[0] * s; a.path = []; a.place(x, z, Math.atan2(this.u[0], this.u[1])); a.settler.job = "idle"; });
+      t.work = () => Promise.resolve();
+      this.amt = new Actor(AMTMANN, r0.x, r0.z, 0); this.kes = new Actor(KESSLER, r0.x + 1, r0.z + 0.6, 0); this.wm = new Actor(GUARD(95), r0.x - 1, r0.z + 0.4, 0);
+      const stop = (k, s) => [FIRE.x + this.u[0] * k - this.u[1] * s, FIRE.z + this.u[1] * k + this.u[0] * s];
+      this.amt.walkTo(...stop(6, 0), 1.0); this.kes.walkTo(...stop(6.4, 1.3), 1.0); this.wm.walkTo(...stop(6.6, -1.3), 1.0);
+      rig.run(0.5);
+    },
+    cam(t, c) {
+      // (behind the settlers at the fire, low, looking up the road at the three of them coming)
+      const u = this.u, k = E(t), back = 4.5 - k * 1.5, x = FIRE.x - u[0] * back - u[1] * 1.2, z = FIRE.z - u[1] * back + u[0] * 1.2;
+      const a = this.amt.pos;
+      rig.look(c, [x, gy(x, z) + 2.3, z], [a.x, gy(a.x, a.z) + 1.0, a.z], 30);
+    },
+  },
+});
+// ---- the battles: the Danes before Hamburg (Part Three), staged as the chapter stages it, and filmed as it's fought ----
+const sideMen = al => G.arena ? G.arena.units.filter(u => u.alive && u.al === al && u.a) : [];
+const mid = us => { if (!us.length) return null; let x = 0, z = 0; for (const u of us) { x += u.a.pos.x; z += u.a.pos.z; } return { x: x / us.length, z: z / us.length }; };
+async function hamburgBattle(secs = 0) {
+  G.demoGate = null; window.__noIntro = true; window.__manual = true;
+  const { battleById } = await import("../js/history.js");
+  const H = battleById("hamburg");
+  const b = { ...H, campaign: true, fort: null,
+    map: { ...H.map, things: [["town", -1, 3, 1, 1686, 0], ...H.map.things.filter(t => t[0] === "tents")] },
+    sides: [{ ...H.sides[0], name: "The city's militia, and Neuhof's company", cos: [{ uni: "hamburg", muster: { musketeer: 12, pike: 4 }, guns: 0, call: { musketeer: "Militiaman" } }, ...H.sides[0].cos] }, H.sides[1]],
+    after: H.after, onEnd: () => {} };
+  G.storyBattle(b, 16);
+  for (let i = 0; i < 60 && !(G.arena && G.arena.live); i++) await wait(100);
+  await wait(800);
+  rig.run(secs);
+}
+// the two sides' lines: where each stands, and which way is toward the other
+function lines() {
+  const A = mid(sideMen(0)), B = mid(sideMen(1)); if (!A || !B) return null;
+  const dx = B.x - A.x, dz = B.z - A.z, d = Math.hypot(dx, dz) || 1;
+  return { A, B, f: [dx / d, dz / d], r: [-dz / d, dx / d], d };
+}
+Object.assign(SHOTS, {
+  // over the city's wall, behind the militia, the Danish columns coming on across the field
+  walls: {
+    secs: 6,
+    async stage() { await hamburgBattle(6); this.L = lines(); },
+    cam(t, c) {
+      const L = this.L, k = E(t), A = L.A, back = 10 - k * 3;
+      const x = A.x - L.f[0] * back - L.r[0] * 5, z = A.z - L.f[1] * back - L.r[1] * 5;
+      rig.look(c, [x, gy(x, z) + 7 - k * 0.8, z], [A.x + L.f[0] * 30, gy(A.x + L.f[0] * 30, A.z + L.f[1] * 30) + 1.5, A.z + L.f[1] * 30], 48);
+    },
+  },
+  // the Danes' own line, low and side-on, as it marches up on the city
+  danes: {
+    secs: 5,
+    async stage() { await hamburgBattle(7); },
+    cam(t, c) {
+      const L = lines(); if (!L) return; const B = L.B, k = E(t);
+      this.s ||= { x: B.x, z: B.z }; this.s.x += (B.x - this.s.x) * 0.05; this.s.z += (B.z - this.s.z) * 0.05; const S = this.s;
+      const x = S.x + L.r[0] * (11 - k * 2) + L.f[0] * 3, z = S.z + L.r[1] * (11 - k * 2) + L.f[1] * 3;
+      rig.look(c, [x, gy(x, z) + 1.6, z], [S.x - L.f[0] * 3, gy(S.x, S.z) + 1.4, S.z - L.f[1] * 3], 46);
+    },
+    done() { this.s = null; },
+  },
+  // the wall from the field, as the Danes see it: the militia's volley along the top, the smoke rolling out
+  volley: {
+    secs: 5.5,
+    async stage() { await hamburgBattle(14); this.L = lines(); },
+    cam(t, c) {
+      const L = this.L, A = L.A, k = E(t), out = 22 - k * 4, x = A.x + L.f[0] * out + L.r[0] * (8 - k * 6), z = A.z + L.f[1] * out + L.r[1] * (8 - k * 6);
+      rig.look(c, [x, gy(x, z) + 1.7, z], [A.x, gy(A.x, A.z) + 4, A.z], 42);
+    },
+  },
+  // high over the field: the Danish assault on the works, the smoke over all of it
+  press: {
+    secs: 6,
+    async stage() { await hamburgBattle(24); },
+    cam(t, c) {
+      const L = lines(); if (!L) return; const k = E(t);
+      this.s ||= { x: L.A.x, z: L.A.z }; const S = this.s;
+      const x = S.x + L.f[0] * 20 + L.r[0] * (-14 + k * 10), z = S.z + L.f[1] * 20 + L.r[1] * (-14 + k * 10);
+      rig.look(c, [x, gy(x, z) + 12 - k * 2, z], [S.x + L.f[0] * 6, gy(S.x, S.z) + 1, S.z + L.f[1] * 6], 50);
+    },
+    done() { this.s = null; },
+  },
+});
+
+SHOTS.deer2 = { ...SHOTS.deer, a0: 0 }; SHOTS.deer3 = { ...SHOTS.deer, a0: Math.PI / 2 }; SHOTS.deer4 = { ...SHOTS.deer, a0: Math.PI * 1.5 };
+
+// ---- a battle of the campaign: Austria's army falling on Pressburg, Thököly's rebels holding its walls ----
+async function campaignBattle(secs = 0, crown = "austria", town = "Pressburg") {
+  G.demoGate = null; window.__noIntro = true; window.__manual = true;
+  const m = await import("../js/campaign.js");
+  m.openCampaign(true); await wait(1500);
+  const K = window.__cmp; K.begin(crown); await wait(600);
+  for (const b of document.querySelectorAll("button")) if (/Take up the crown/.test(b.textContent)) b.click();
+  let row = null; for (const id of ["hungary", "ottoman", "crimea"]) { row = K.citiesOfNow(K.grid(), id).find(c => c[0] === town); if (row) break; }
+  const o = K.march(row); K.fight({ ...o, ct: row });
+  await wait(600);
+  const go = document.querySelector("[data-mgo]"); if (go) go.click();
+  for (let i = 0; i < 80 && !(G.arena && G.arena.live); i++) await wait(100);
+  await wait(800);
+  rig.run(secs);
+}
+Object.assign(SHOTS, {
+  // high behind the Emperor's regiments as they go forward, the town's walls ahead
+  cfield: {
+    secs: 6,
+    async stage() { await campaignBattle(5); this.L = lines(); },
+    cam(t, c) {
+      const L = lines() || this.L, A = L.A, k = E(t);
+      this.s ||= { x: A.x, z: A.z }; this.s.x += (A.x - this.s.x) * 0.03; this.s.z += (A.z - this.s.z) * 0.03; const S = this.s;
+      const x = S.x - L.f[0] * (16 - k * 4) + L.r[0] * 6, z = S.z - L.f[1] * (16 - k * 4) + L.r[1] * 6;
+      rig.look(c, [x, gy(x, z) + 9 - k * 2, z], [S.x + L.f[0] * 22, gy(S.x, S.z) + 2, S.z + L.f[1] * 22], 50);
+    },
+    done() { this.s = null; },
+  },
+  // the line going forward, low and side-on, the colours over it
+  cline: {
+    secs: 5,
+    async stage() { await campaignBattle(9); },
+    cam(t, c) {
+      const L = lines(); if (!L) return; const A = L.A, k = E(t);
+      this.s ||= { x: A.x, z: A.z }; this.s.x += (A.x - this.s.x) * 0.05; this.s.z += (A.z - this.s.z) * 0.05; const S = this.s;
+      const x = S.x - L.r[0] * (10 - k * 2) - L.f[0] * 2, z = S.z - L.r[1] * (10 - k * 2) - L.f[1] * 2;
+      rig.look(c, [x, gy(x, z) + 1.6, z], [S.x + L.f[0] * 4, gy(S.x, S.z) + 1.4, S.z + L.f[1] * 4], 46);
+    },
+    done() { this.s = null; },
+  },
+  // over it all where they meet: the smoke, the town, the press at the walls
+  cclash: {
+    secs: 6,
+    async stage() { await campaignBattle(22); },
+    cam(t, c) {
+      const L = lines(); if (!L) return; const k = E(t), m = { x: (L.A.x + L.B.x) / 2, z: (L.A.z + L.B.z) / 2 };
+      this.s ||= m; this.s.x += (m.x - this.s.x) * 0.03; this.s.z += (m.z - this.s.z) * 0.03; const S = this.s;
+      const a = -0.9 + k * 0.7, x = S.x - Math.cos(a) * L.f[0] * 20 + Math.sin(a) * L.r[0] * 20, z = S.z - Math.cos(a) * L.f[1] * 20 + Math.sin(a) * L.r[1] * 20;
+      rig.look(c, [x, gy(x, z) + 11, z], [S.x, gy(S.x, S.z) + 1, S.z], 50);
+    },
+    done() { this.s = null; },
+  },
+});
+
 // a settlement to stage the town shots in: people, a field, and the clock at a quiet hour
 function TOWNSAVE() {
   const people = ["Marta", "Tomas", "Grete", "Jan", "Liesel", "Hinrich", "Anna", "Claus"].map((name, i) => ({ name, sex: i % 2 ? "m" : "f", seed: 500 + i * 7, job: ["hauler", "woodcutter", "farmer", "baker"][i % 4] }));
