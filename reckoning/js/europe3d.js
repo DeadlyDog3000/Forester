@@ -723,6 +723,8 @@ export class EuropeView3D {
           const y = Math.max(0, qy); cost += Math.hypot(qx - px, qz - pz) + Math.abs(y - py) * 5; py = y; px = qx; pz = qz;
         }
         if (ok && cost < L * 1.9 && (!best || cost < best.cost)) best = { cost, cx, cz };
+        // (straight and near enough level: no need to try it bowed)
+        if (best && best.cost < L * 1.08) break;
       }
       yield;
       if (!best) continue;
@@ -735,8 +737,9 @@ export class EuropeView3D {
         const t = k / n, bx = (1 - t) * (1 - t) * A.x + 2 * t * (1 - t) * best.cx + t * t * B.x, bz = (1 - t) * (1 - t) * A.z + 2 * t * (1 - t) * best.cz + t * t * B.z;
         const tx = 2 * (1 - t) * (best.cx - A.x) + 2 * t * (B.x - best.cx), tz = 2 * (1 - t) * (best.cz - A.z) + 2 * t * (B.z - best.cz), tl = Math.hypot(tx, tz) || 1;
         const s = t * L, off = Math.sin(Math.PI * t) ** 2 * (amp * Math.min(0.7, L * 0.035) * Math.sin(t * sw * Math.PI + ph) + 0.1 * Math.sin(s * 0.9 + ph) + 0.04 * Math.sin(s * 2.7 + ph * 1.9));
-        const qx = bx - tz / tl * off, qz = bz + tx / tl * off, qy = wy(qx, qz);
-        if (qy < 0.002) { wetRun += L / n; if (wetRun > BRIDGE) { fail = true; break; } } else wetRun = 0;
+        // (the ground looked at every other step: enough to find water too wide to bridge)
+        const qx = bx - tz / tl * off, qz = bz + tx / tl * off;
+        if (!(k & 1) || k === n) { if (wy(qx, qz) < 0.002) { wetRun += 2 * L / n; if (wetRun > BRIDGE) { fail = true; break; } } else wetRun = 0; }
         P.push([qx, qz]);
       }
       if (!fail) break; }
@@ -748,11 +751,12 @@ export class EuropeView3D {
       (bear.get(B.name) || bear.set(B.name, []).get(B.name)).push(Math.atan2(best.cz - B.z, best.cx - B.x));
       for (let k = 0; k < P.length; k++) clears.push([P[k][0], P[k][1], (major ? 0.008 : 0.0055) * 2.4 + 0.055]);
     }
-    this.roadNet = { sheet: SHEET, bear, clears };
-    this.buildRoads(edges);
+    // (the roads themselves laid after the towns: the towns want only which way each leaves, and are what's looked for first)
+    this.roadNet = { sheet: SHEET, bear, clears }; this.roadEdges = edges;
   }
-  buildRoads(edges) {
-    if (this.roads) { this.scene.remove(this.roads); this.roads.geometry.dispose(); }
+  // (laid an edge at a time, between frames: each point's height looked up again was most of a second at once)
+  *buildRoads(edges) {
+    if (this.roads) { this.scene.remove(this.roads); this.roads.geometry.dispose(); this.roads = null; }
     const pos = [], nrm = [], side = [], hwA = [], col = [], idx = [];
     for (const { P, hw } of edges) {
       const N = P.length;
@@ -768,6 +772,7 @@ export class EuropeView3D {
         for (const [sd, a, q] of [[-2.4, 0, e], [-1.5, 0.55, e], [-0.8, 0.95, c], [0.8, 0.95, c], [1.5, 0.55, e], [2.4, 0, e]]) { pos.push(x, y, z); nrm.push(-dz, dx); side.push(sd); hwA.push(hw); col.push(q[0] * v, q[1] * v, q[2] * v, a); }
         if (i) for (let k = 0; k < 5; k++) idx.push(n0 - 6 + k, n0 - 6 + k + 1, n0 + k, n0 - 6 + k + 1, n0 + k + 1, n0 + k);
       }
+      yield;
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(new Float32Array(pos.length).map((_, i) => i % 3 === 1 ? 1 : 0), 3)); g.setAttribute("aN", new THREE.Float32BufferAttribute(nrm, 2));
@@ -1053,9 +1058,23 @@ export class EuropeView3D {
       sprite.userData = { rank, city: isHome ? null : name, y0, w: w / 256 };
       grp.add(sprite); labels.push(sprite);
     };
-    for (const ct of CITIES) { place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false); yield; }
+    // (nearest the eye first; and the first time the map is opened, those few shown as soon as they're laid out, rather
+    //  than an empty country for the ten seconds the whole of Europe's towns take)
+    const near = (ct => { const [x, z] = toWorld(ct[1], ct[2]); return (x - this.target.x) ** 2 + (z - this.target.z) ** 2; });
+    const order = CITIES.map(ct => [near(ct), ct]).sort((a, b) => a[0] - b[0]).map(e => e[1]);
+    let early = null;
+    const showEarly = () => {
+      const eg = new THREE.Group(), hide = new Map();
+      for (const T of towns.values()) for (let i = T.shown; i < T.items.length; i++) for (const [b, k] of T.items[i].parts) (hide.get(b) || hide.set(b, new Set()).get(b)).add(k);
+      for (const b of kinds.values()) { const H = hide.get(b), im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => { im.setMatrixAt(i, H && H.has(i) ? ZERO : m); if (b.mat === plaster || b.mat === roofing) im.setColorAt(i, _c.setHex(b.cols[i])); }); im.computeBoundingSphere(); eg.add(im); }
+      this.scene.add(eg); return eg;
+    };
+    // (the names, too, as each is placed: the group itself put up at once when there's none before it)
+    if (!this.cityGroup) { this.scene.add(grp); this.labels = labels; }
+    for (let n = 0; n < order.length; n++) { const ct = order[n]; place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false); if (n === 7 && !this.cityGroup && !early) early = showEarly(); yield; }
     // (your own clearing — not on a campaign's map, which has none)
     if (this.homeName !== null) { const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL); place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true); }
+    if (this.roadEdges) { yield* this.buildRoads(this.roadEdges); this.roadEdges = null; }
     for (const b of kinds.values()) { const im = b.im = new THREE.InstancedMesh(b.geo, b.mat, b.mats.length); b.mats.forEach((m, i) => { im.setMatrixAt(i, m); if (b.mat === plaster || b.mat === roofing) im.setColorAt(i, _c.setHex(b.cols[i])); }); im.computeBoundingSphere(); grp.add(im); }
     // (what a town hasn't built yet, out of sight till it does)
     for (const T of towns.values()) for (let i = T.shown; i < T.items.length; i++) for (const [b, k] of T.items[i].parts) b.im.setMatrixAt(k, ZERO);
@@ -1069,6 +1088,7 @@ export class EuropeView3D {
     this.cityGroup = grp; this.labels = labels; this.towns = towns; this.growing = []; this.clearings = this._clearNext; this._clearNext = null;
     for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
     this.scene.add(grp);
+    if (early) { this.scene.remove(early); for (const im of early.children) im.dispose(); }
   }
   // marks over towns (a campaign's): crossed swords where you can march, a ring round your own, red where they're
   // threatened — [{ name, lon, lat, kind: "swords" | "ring" | "dash", color, dim }]
@@ -1227,7 +1247,8 @@ export class EuropeView3D {
         else if (o.userData.over) {
           // (over a town, the number would be written across the town's name: set beside the name instead)
           const c = o.userData.over.position, lab = this.dist > 2.6 && this.labels && this.labels.find(l => l.visible && Math.abs(l.position.x - c.x) < 0.6 && Math.abs(l.position.z - c.z) < 0.6);
-          if (lab) { const d = this.camera.position.distanceTo(lab.position); o.position.set(lab.position.x + (lab.scale.x * (lab.userData.w || 1) / 2 + 0.022) * d, lab.position.y, lab.position.z); }
+          // (far off, where the names crowd one another, over the name instead)
+          if (lab) { const d = this.camera.position.distanceTo(lab.position); if (this.dist < 30) o.position.set(lab.position.x + (lab.scale.x * (lab.userData.w || 1) / 2 + 0.022) * d, lab.position.y, lab.position.z); else o.position.set(lab.position.x, lab.position.y + 0.046 * d, lab.position.z); }
           else o.position.set(c.x, c.y + k * 3.6, c.z);
         }
       }

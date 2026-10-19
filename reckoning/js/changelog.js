@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.50", date: "18 October 2026", title: "Towns sooner",
+    items: [
+      "Campaign 3D map: the first time you open it, the towns nearest you come up first and are shown as soon as they're laid out, names and all, instead of the whole country standing empty until every town in Europe was done. The roads are worked out faster and laid last, a few at a time between frames.",
+      "Campaign 3D map: from far off, an army's count is written over its town's name rather than beside it, where it ran into the next town's name.",
+    ],
+  },
+  {
     v: "1.90.49", date: "18 October 2026", title: "No sand where the ponds were",
     items: [
       "Campaign 3D map: where a string of ponds along the St Lawrence was made dry land for the river to run through, no pale ring of beach is left behind in the fields.",
