@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.59", date: "18 October 2026", title: "Winding roads, dry shores",
+    items: [
+      "Campaign 3D map: the long roads swing more widely across the country, round a wood or a rise, instead of running ruler-straight for miles.",
+      "Campaign 3D map: the ground by a lake is dry land, not a broad band of beach, and roads and woods come down to the shore as they should.",
+    ],
+  },
+  {
     v: "1.90.58", date: "18 October 2026", title: "Wary courts",
     items: [
       "Campaign: the Diplomacy screen marks each crown that is wary of you for the towns you've taken from others of its faith (\"Wary: 1 Catholic town taken\"), so you can see where your conquests have cost you goodwill.",

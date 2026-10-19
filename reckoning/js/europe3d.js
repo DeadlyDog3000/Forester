@@ -147,7 +147,8 @@ export function heightAt(g, lon, lat) {
   }
   // (a sand bar lies low: a few feet over the sea, whatever the country behind it does)
   if (bar > 0) h = Math.min(h, 0.012 + (1 - bar) * h);
-  if (straitNear > 0) h *= 1 - 0.95 * Math.pow(straitNear, 1.3);
+  // (sunk toward the lake, but kept a little over it: dry ground still, where trees grow and a road can run)
+  if (straitNear > 0 && h > 0.065) h = Math.max(0.065, h * (1 - 0.95 * Math.pow(straitNear, 1.3)));
   return h;
 }
 // the snowline: lower in the north, and ragged — higher on one shoulder of a range than the next
@@ -761,7 +762,7 @@ export class EuropeView3D {
       for (let k = 0; k <= n; k++) {
         const t = k / n, bx = (1 - t) * (1 - t) * A.x + 2 * t * (1 - t) * best.cx + t * t * B.x, bz = (1 - t) * (1 - t) * A.z + 2 * t * (1 - t) * best.cz + t * t * B.z;
         const tx = 2 * (1 - t) * (best.cx - A.x) + 2 * t * (B.x - best.cx), tz = 2 * (1 - t) * (best.cz - A.z) + 2 * t * (B.z - best.cz), tl = Math.hypot(tx, tz) || 1;
-        const s = t * L, off = Math.sin(Math.PI * t) ** 2 * (amp * Math.min(0.7, L * 0.035) * Math.sin(t * sw * Math.PI + ph) + 0.1 * Math.sin(s * 0.9 + ph) + 0.04 * Math.sin(s * 2.7 + ph * 1.9));
+        const s = t * L, off = Math.sin(Math.PI * t) ** 2 * (amp * (Math.min(1.0, L * 0.045) * Math.sin(t * sw * Math.PI + ph) + 0.22 * Math.sin(s * 0.33 + ph * 1.3)) + 0.1 * Math.sin(s * 0.9 + ph) + 0.04 * Math.sin(s * 2.7 + ph * 1.9));
         // (the ground looked at every other step: enough to find water too wide to bridge)
         const qx = bx - tz / tl * off, qz = bz + tx / tl * off;
         if (!(k & 1) || k === n) { if (wy(qx, qz) < 0.002) { wetRun += 2 * L / n; if (wetRun > BRIDGE) { fail = true; break; } } else wetRun = 0; }
