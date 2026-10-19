@@ -670,12 +670,15 @@ export class EuropeView3D {
         P = Q;
       }
       // (a ribbon along it, flat on the ground and a little over it)
+      let wasOn = true;
       for (let i = 0; i < P.length; i++) {
         const [x, z] = P[i], [xa, za] = P[Math.max(0, i - 1)], [xb, zb] = P[Math.min(P.length - 1, i + 1)];
         let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
-        const y = Math.max(0.005, this.rawY(x, z)) + 0.025, n = pts.length / 3;
+        // (not drawn out over the water — a strait, an inlet the grid has as land — where it would stand in the sea)
+        const raw = this.rawY(x, z), y = Math.max(0.005, raw) + 0.025, n = pts.length / 3, on = raw > -0.004;
         pts.push(x - dz * HW, y, z + dx * HW, x + dz * HW, y, z - dx * HW);
-        if (i) idx.push(n - 2, n - 1, n, n - 1, n + 1, n);
+        if (i && on && wasOn) idx.push(n - 2, n - 1, n, n - 1, n + 1, n);
+        wasOn = on;
       }
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); geo.setIndex(idx);
