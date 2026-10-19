@@ -208,8 +208,14 @@ function groundColour(lon, lat, h, out, x, z, soft = false) {
   _t[4] = b === "snow" || b === "rock" ? 0 : 1;
   // (the steppe not one tan from end to end: greener where the grass grows long by the rivers and hollows, drier and
   //  paler on the rises; the desert the same, its sand redder in one place and paler in another)
+  // (the northern forest's floor and the tundra the same: a brown bog here, a pale stand of birch there)
+  if (b === "taiga" || b === "tundra") {
+    const k = fbm(x * 0.29, z * 0.29, 47, 3), t = Math.max(-0.45, Math.min(0.45, (k - 0.5) * 3));
+    if (t > 0) out.lerp(_cBio.setRGB(b === "taiga" ? 0.42 : 0.55, b === "taiga" ? 0.42 : 0.50, b === "taiga" ? 0.28 : 0.36), t * 0.8);
+    else out.lerp(_cBio.setRGB(b === "taiga" ? 0.46 : 0.62, b === "taiga" ? 0.60 : 0.62, b === "taiga" ? 0.36 : 0.44), -t * 0.8);
+  }
   if (b === "steppe" || b === "desert") {
-    const k = fbm(lon * 2.3, lat * 2.3, 37, 3), q = fbm(lon * 7.1, lat * 7.1, 39, 2), t = Math.max(-0.55, Math.min(0.65, (k - 0.5) * 3.2 + (q - 0.5) * 1.0));
+    const k = fbm(x * 0.23, z * 0.23, 37, 3), q = fbm(x * 0.71, z * 0.71, 39, 2), t = Math.max(-0.55, Math.min(0.65, (k - 0.5) * 3.2 + (q - 0.5) * 1.0));
     if (b === "steppe") { if (t > 0) out.lerp(_cBio.setRGB(0.52, 0.60, 0.33), t); else out.lerp(_cBio.setRGB(0.80, 0.74, 0.50), -t * 0.8); }
     else out.lerp(_cBio.setRGB(t > 0 ? 0.80 : 0.90, t > 0 ? 0.60 : 0.80, t > 0 ? 0.40 : 0.58), Math.abs(t) * 0.6);
   }

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.55", date: "18 October 2026", title: "Bog and birch",
+    items: [
+      "Campaign 3D map: the northern forest and the tundra aren't one flat colour across Finland, Muscovy and Lapland. Brown bogs and pale stands of birch break them up, and the steppe's and desert's own variety now lies evenly in every direction instead of in north–south streaks.",
+    ],
+  },
+  {
     v: "1.90.54", date: "18 October 2026", title: "Borders keep to the land",
     items: [
       "Campaign 3D map: a border isn't drawn out over open water where the map's grid has land, such as the red line that stood in the middle of the Sound between Denmark and Sweden.",
