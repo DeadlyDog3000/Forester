@@ -45,6 +45,18 @@ function landG(g, gx, gy) {
 }
 // (each range's reach, a box round it: as far out as it lifts the ground at all)
 const RBOX = RANGES.map(([pts, , w]) => { const xs = pts.map(p => p[0] * K), ys = pts.map(p => p[1]), m = w * 3; return [Math.min(...xs) - m, Math.max(...xs) + m, Math.min(...ys) - m, Math.max(...ys) + m]; });
+// (the towns: the mountains ease round each, so a town stands on a shelf of gentler ground at the hills' foot and not
+//  on the face of a slope — the way towns were built. Binned by degree, so each height asks only the towns near it)
+const TBIN = new Map();
+for (const ct of CITIES) { const k = Math.floor(ct[1]) * 1000 + Math.floor(ct[2]); (TBIN.get(k) || TBIN.set(k, []).get(k)).push([ct[1] * K, ct[2], 0.07 + ct[3] * 0.025]); }
+function townCalm(lon, lat) {
+  const px = lon * K, bx = Math.floor(lon), by = Math.floor(lat); let m = 1;
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const L = TBIN.get((bx + i) * 1000 + by + j); if (!L) continue;
+    for (const [tx, ty, r] of L) { const d = Math.hypot(px - tx, lat - ty); if (d < r * 3.6) { const t = Math.max(0, Math.min(1, d / (r * 3.6))), k = 0.4 + 0.6 * t * t * (3 - 2 * t); if (k < m) m = k; } }
+  }
+  return m;
+}
 // height in km (below 0: sea)
 const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.6, Math.sin(i * Math.PI / 4) * 1.6]);
 export function heightAt(g, lon, lat) {
@@ -62,7 +74,7 @@ export function heightAt(g, lon, lat) {
   for (let ri = 0; ri < RANGES.length; ri++) {
     // (a range is reckoned with only where it could reach: outside its box, it adds nothing)
     const bb = RBOX[ri]; if (px < bb[0] || px > bb[1] || lat < bb[2] || lat > bb[3]) continue;
-    if (rise < 0) { let w = l0; for (const [ox, oy] of RING) w += landG(g, gx + ox, gy + oy); w /= 9; const a = Math.max(0, Math.min(1, (land - 0.5) / 0.35)), b = Math.max(0, Math.min(1, (w - 0.45) / 0.5)), t = a * b; rise = t * t * (3 - 2 * t); }
+    if (rise < 0) { let w = l0; for (const [ox, oy] of RING) w += landG(g, gx + ox, gy + oy); w /= 9; const a = Math.max(0, Math.min(1, (land - 0.5) / 0.35)), b = Math.max(0, Math.min(1, (w - 0.45) / 0.5)), t = a * b; rise = t * t * (3 - 2 * t) * townCalm(lon, lat); }
     const [pts, km, w] = RANGES[ri];
     let d = Infinity;
     for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(lon * K, lat, pts[i - 1][0] * K, pts[i - 1][1], pts[i][0] * K, pts[i][1]));

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.29", date: "18 October 2026", title: "Towns at the hills' foot",
+    items: [
+      "Campaign 3D map: the mountains ease round each town, so it stands on gentler ground at the foot of the hills, not halfway up their face. Genoa sits on a shelf above its harbour with the Apennines behind it, and its road over the hills to Milan now gets through.",
+    ],
+  },
+  {
     v: "1.90.28", date: "18 October 2026", title: "Harder to conquer",
     items: [
       "Campaign: a crown's towns are harder to take. Besides its soldiers each town has its townsmen under arms, more in a great city and most in the capital, and more again once that crown has begun losing towns to you.",
