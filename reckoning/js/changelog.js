@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.4", date: "18 October 2026", title: "Home again",
+    items: [
+      "Story, the Emperor's commission: going home from the campaign by the Home button, the court's music and the war room's clock stop, and the settlement has its own sounds again.",
+    ],
+  },
+  {
     v: "1.92.3", date: "18 October 2026", title: "In hand",
     items: [
       "Campaign 3D map: the army or fleet you have in hand is ringed in gold on the ground, as the parchment marks it, so you can see what your right-click will order.",

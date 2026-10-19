@@ -201,7 +201,9 @@ function screen(id) {
   for (const s of screens) UI.show(s, s === id);
   $("menus").classList.toggle("hidden", !id);
   // (the campaign's map: the court's music, the Canon and the minuets; back to the menus, the title's again)
-  if (id === "campaign") AUDIO.music("court"); else if (id && AUDIO._mood === "court") AUDIO.music("title");
+  // (and out of it into the game itself — the story's settlement, by its Home button — the court's music stops: the
+  //  settlement has its own, or the quiet of the woods)
+  if (id === "campaign") AUDIO.music("court"); else if (AUDIO._mood === "court") AUDIO.music(id ? "title" : null);
   try { FOLEY.room(id === "campaign"); } catch (e) {}
   // (the battles menu: the campaign's map likely next — its hills shaded ahead, while nothing else is happening)
   if (id === "pvp" && !screen.warmed) { screen.warmed = true; (window.requestIdleCallback || (f => setTimeout(f, 600)))(() => { try { warmSheet("world", A => { const cw = Math.max(innerWidth, innerHeight / A); return Math.round(Math.min(2600, Math.max(1200, cw * Math.min(2, devicePixelRatio || 1)))); }); } catch (e) {} }, { timeout: 4000 }); }
