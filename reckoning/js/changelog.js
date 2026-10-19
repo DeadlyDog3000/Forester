@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.9", date: "18 October 2026", title: "Under the boughs",
+    items: [
+      "Felling: standing in under a spruce at its trunk, its lower boughs thin away round you (the crown overhead stays), so you see the trunk and the clearing beyond while you chop, not a screen of dark needles and dots.",
+    ],
+  },
+  {
     v: "1.91.8", date: "18 October 2026", title: "In front of the town",
     items: [
       "Campaign 3D map: an army standing in a town is drawn a little in front of it, so the town's name no longer hides it.",

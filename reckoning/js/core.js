@@ -245,17 +245,25 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
     if (surface === "bark") { sh.uniforms.dNotchM = NOTCH_M; sh.uniforms.dNotchP = NOTCH_P; }
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] }; sh.uniforms.dTexCol = { value: colourTex };
     sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; varying vec3 vDTrunk;")
       .replace("#include <begin_vertex>", `#include <begin_vertex>
         vec4 dwp = vec4(transformed, 1.0);
         vec3 dn = objectNormal;
+        // (the tree's own foot, and how big it's grown: for its lowest boughs, thinned when you stand in under them)
+        vec4 dTr = vec4(0.0, 0.0, 0.0, 1.0); float dTs = length(modelMatrix[0].xyz);
         #ifdef USE_INSTANCING
-          dwp = instanceMatrix * dwp; dn = mat3(instanceMatrix) * dn;
+          dwp = instanceMatrix * dwp; dn = mat3(instanceMatrix) * dn; dTr = instanceMatrix * dTr; dTs *= length(instanceMatrix[0].xyz);
         #endif
+        // (a whole wood merged into one mesh sits at the world's origin, with no one tree's foot to go by: left out)
+        bool dOne = length(modelMatrix[3].xz) > 0.01;
+        #ifdef USE_INSTANCING
+          dOne = true;
+        #endif
+        vDTrunk = vec3((modelMatrix * dTr).xz, dOne ? dTs : 0.0);
         vDReal = (modelMatrix * dwp).xyz;
         ${local ? "vDWorld = dwp.xyz * 2.0; vDNormal = normalize(dn);" : "vDWorld = vDReal; vDNormal = normalize(mat3(modelMatrix) * dn);"}`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + (surface === "bark" ? "uniform mat4 dNotchM[4]; uniform vec4 dNotchP[4];" : "") + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; varying vec3 vDTrunk; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + (surface === "bark" ? "uniform mat4 dNotchM[4]; uniform vec4 dNotchP[4];" : "") + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0;
         ${surface === "bark" ? `for (int i = 0; i < 4; i++) if (dNotchP[i].w > 0.5) {
@@ -267,11 +275,15 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         // laid a screen of dots over the whole view in among the trees
         ${limbs > 0 && local ? `if (length(vDWorld.xz) * 0.5 > ${limbs.toFixed(3)}) {
           float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(1.5, 2.25, dd);   // (just as far as the needles thin, or they go first and leave the poles)
+          // (standing in under a tree — at its trunk with the axe — its lower boughs all round you go, the crown over your
+          //  head kept: a screen of dots and dark needles filled the whole view while you felled a spruce)
+          if (vDTrunk.z > 0.0) { float tIn = 1.0 - smoothstep(1.7, 2.6, distance(cameraPosition.xz, vDTrunk.xy) / vDTrunk.z); if (vDReal.y < cameraPosition.y + 1.6) kNear = max(kNear, tIn); }
           if (kNear >= 1.0) discard;
           if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear) discard; }
         }` : ""}
         if (dNear > 0.0) {
           float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.42, dNear * 0.6, dd);
+          if (vDTrunk.z > 0.0) { float tIn = 1.0 - smoothstep(1.7, 2.6, distance(cameraPosition.xz, vDTrunk.xy) / vDTrunk.z); if (vDReal.y < cameraPosition.y + 1.6) kNear = max(kNear, tIn); }
           if (kNear >= 1.0) discard;
           if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear) discard; }
         }
