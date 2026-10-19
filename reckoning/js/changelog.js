@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.40", date: "18 October 2026", title: "Steadier panning close in",
+    items: [
+      "Campaign 3D map: panning close in runs steadier. Laying out the next piece of ground takes a smaller share of each frame unless you've run well ahead of it.",
+    ],
+  },
+  {
     v: "1.90.39", date: "18 October 2026", title: "Smoother across the map",
     items: [
       "Campaign 3D map: panning no longer stalls each time the close ground is laid out afresh. It is worked out over a few frames while the old ground stays in view, and gets more of each frame the further you run ahead of it. The stalls had been a fifth of a second close in and two or three seconds further out.",

@@ -433,7 +433,7 @@ export class EuropeView3D {
     }
     // (and the further the view has run ahead of the patch it's on, the more of each frame goes to the next one)
     const lag = this.detail ? Math.hypot(this.detailX - cx, this.detailZ - cz) / size : 1, far = !this.detail || this.detailWide !== wide || lag > 0.42, t0 = performance.now();
-    const budget = 12 + 48 * Math.max(0, Math.min(1, (lag - 0.18) / 0.22));
+    const budget = 8 + 50 * Math.max(0, Math.min(1, (lag - 0.26) / 0.16));
     let r; do r = this.detailJob.gen.next(); while (!r.done && (far || performance.now() - t0 < budget));
     if (!r.done) return;
     const done = this.detailJob; this.detailJob = null; this.detailAt = done.key; this.detailX = done.cx; this.detailZ = done.cz; this.detailWide = done.wide;
