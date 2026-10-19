@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.60", date: "18 October 2026", title: "Long odds",
+    items: [
+      "Campaign: when storming a walled town is a long shot (under two in five), its panel says so and suggests laying siege to starve it first.",
+    ],
+  },
+  {
     v: "1.90.59", date: "18 October 2026", title: "Winding roads, dry shores",
     items: [
       "Campaign 3D map: the long roads swing more widely across the country, round a wood or a rise, instead of running ruler-straight for miles.",
