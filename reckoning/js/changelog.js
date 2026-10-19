@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.37", date: "18 October 2026", title: "Venice's lagoon",
+    items: [
+      "Campaign 3D map: Venice looks out over its lagoon. The Lido and Pellestrina, the long low sand bars, lie between it and the open Adriatic.",
+    ],
+  },
+  {
     v: "1.90.36", date: "18 October 2026", title: "Towns on their rivers",
     items: [
       "Campaign 3D map: a town that stands on a river has it running past its walls. The Dnieper reaches Kiev, the Vistula Warsaw, the Danube Buda and Regensburg, the Rhône Lyon, the Oder Breslau, the Garonne Toulouse and the Guadalquivir Seville. Smoothing the rivers had pulled them a few miles off, out into the fields.",

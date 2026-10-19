@@ -65,6 +65,16 @@ const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23,
   [15.63, 38.32, 15.63, 38.17, 0.02], [15.63, 38.17, 15.6, 37.92, 0.025],
   // (and the Zuiderzee, with the IJ running in from it to Amsterdam)
   [5.0, 53.1, 5.35, 52.62, 0.16], [5.35, 52.62, 5.45, 52.42, 0.11], [5.4, 52.42, 5.1, 52.4, 0.04], [5.1, 52.4, 4.88, 52.385, 0.018]];
+// (and the land too fine for it: the Lido and Pellestrina, the long sand bars that close Venice's lagoon from the sea)
+const BARS = [[12.24, 45.2, 12.31, 45.33, 0.009], [12.31, 45.34, 12.4, 45.43, 0.01], [12.41, 45.44, 12.55, 45.5, 0.01]];
+function barLift(lon, lat) {
+  let c = 0;
+  for (const [x0, y0, x1, y1, w] of BARS) {
+    if (lon < Math.min(x0, x1) - w * 3 || lon > Math.max(x0, x1) + w * 3 || lat < Math.min(y0, y1) - w * 3 || lat > Math.max(y0, y1) + w * 3) continue;
+    const d = segDist(lon * K, lat, x0 * K, y0, x1 * K, y1) / w; if (d < 2) c = Math.max(c, d < 1 ? 1 : 2 - d);
+  }
+  return c;
+}
 function straitCut(lon, lat) {
   let c = 0;
   for (const [x0, y0, x1, y1, w] of STRAITS) {
@@ -88,7 +98,7 @@ const RING2 = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4 + 0.
 const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.6, Math.sin(i * Math.PI / 4) * 1.6]);
 export function heightAt(g, lon, lat) {
   const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
-  const l0 = landG(g, gx, gy); let land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - straitCut(lon, lat) * 1.2;
+  const l0 = landG(g, gx, gy); let bar = 0, land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - straitCut(lon, lat) * 1.2 + (bar = barLift(lon, lat)) * 0.9;
   if (land < 0.62 && l0 < 0.999 && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.56 + (w - 0.78) * 0.5); }
   if (land < 0.5) return -0.18 + land * 0.3;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
@@ -112,6 +122,8 @@ export function heightAt(g, lon, lat) {
     const ex = Math.min(lon - x0, x1 - lon), ey = Math.min(lat - y0, y1 - lat);
     if (ex > 0 && ey > 0) h += ease * km * Math.min(1, Math.min(ex, ey) / 0.8);
   }
+  // (a sand bar lies low: a few feet over the sea, whatever the country behind it does)
+  if (bar > 0) h = Math.min(h, 0.012 + (1 - bar) * h);
   return h;
 }
 // the snowline: lower in the north, and ragged — higher on one shoulder of a range than the next
