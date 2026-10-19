@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.47", date: "18 October 2026", title: "The Firth of Forth",
+    items: [
+      "Campaign 3D map: the Firth of Forth runs on inland past Edinburgh instead of stopping at the town with a round pond beyond it.",
+    ],
+  },
+  {
     v: "1.90.46", date: "18 October 2026", title: "Logs for the door",
     items: [
       "Story: when a cabin's walls are up but there aren't two logs on the stack for its door, the objective says to stack them first (\"Stack 2 more logs for a door, then hew it at the sawhorse\") and the marker points to the nearest standing spruce. It used to send you to the sawhorse with nothing to hew.",
