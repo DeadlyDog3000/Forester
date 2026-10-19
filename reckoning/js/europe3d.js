@@ -128,6 +128,7 @@ export function heightAt(g, lon, lat) {
 }
 // the snowline: lower in the north, and ragged — higher on one shoulder of a range than the next
 const snowAt = (lon, lat) => 3.0 - Math.max(0, lat - 45) * 0.08 + (vnoise(lon * 6, lat * 6, 31) - 0.5) * 0.7;
+const rbox = (x, y, x0, y0, x1, y1) => { const u = (2 * x - x0 - x1) / (x1 - x0), v = (2 * y - y0 - y1) / (y1 - y0); return u * u * u * u + v * v * v * v < 1; };
 // what grows there
 export function biomeAt(lon, lat, h) {
   // (the edges between them wander, as they do)
@@ -144,7 +145,9 @@ export function biomeAt(lon, lat, h) {
   // (Africa: the Sahara's edge well south of the coast — Morocco's plains and Algeria's Tell are farmed, then a band of
   //  steppe, the high plateaus, before the sand; Libya's only a strip along the sea)
   if (lon < 36 && lat < 37.5) { const edge = lon < -1 ? 31.2 : lon < 9 ? 33.2 : lon < 11.5 ? 33.6 : 32.2; if (lat < edge) return h > 1.2 ? "rock" : "desert"; if (lat < edge + 1.1 && lon < 33) return h > 1.2 ? "rock" : "steppe"; if (lon > -10 && lon < 12 && lat < 37.3) return "med"; }
-  if ((lon > 29 && lat < 51 && lat > 44.5 && lon < 44) || (lon > 18.5 && lon < 22.2 && lat > 45.4 && lat < 48.2) || (lon > 31 && lon < 40 && lat > 37.6 && lat < 40.6)) return "steppe";
+  // (the steppes: the Pontic, the Hungarian plain, the Anatolian plateau — each a rounded box, so no edge of one runs
+  //  ruler-straight for a hundred miles)
+  if (rbox(lon, lat, 29, 44.5, 44, 51) || rbox(lon, lat, 18.5, 45.4, 22.2, 48.2) || rbox(lon, lat, 30.6, 37.4, 40.4, 40.8)) return "steppe";
   if (lat > 57.5 || (lat > 53 && lon > 28) || h > 1.3 + (fbm(lon * 5.1, lat * 5.1, 29, 2) - 0.5) * 0.6) return "taiga";
   if (lat < 43.6 || (lat < 45.5 && lon > -2 && lon < 9) || (lon > 26 && lat < 41.2)) return "med";
   return "temperate";

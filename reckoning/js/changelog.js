@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.43", date: "18 October 2026", title: "Rounder steppes",
+    items: [
+      "Campaign 3D map: the Pontic steppe, the Hungarian plain and the Anatolian plateau fade into the country round them along wandering edges, not along the straight sides of a box. Anatolia's steppe had shown as a plain rectangle from above.",
+    ],
+  },
+  {
     v: "1.90.42", date: "18 October 2026", title: "The Maghreb",
     items: [
       "Campaign 3D map: the Sahara begins well south of the coast. Morocco's plains round Fès and Algeria's Tell are green, then comes a band of steppe on the high plateaus, then the sand; Libya is green only in a strip along the sea.",
