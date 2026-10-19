@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.36", date: "18 October 2026", title: "Towns on their rivers",
+    items: [
+      "Campaign 3D map: a town that stands on a river has it running past its walls. The Dnieper reaches Kiev, the Vistula Warsaw, the Danube Buda and Regensburg, the Rhône Lyon, the Oder Breslau, the Garonne Toulouse and the Guadalquivir Seville. Smoothing the rivers had pulled them a few miles off, out into the fields.",
+    ],
+  },
+  {
     v: "1.90.35", date: "18 October 2026", title: "The Strait of Messina",
     items: [
       "Campaign 3D map: Sicily is an island again. The Strait of Messina runs between it and Calabria, with Messina on its shore, instead of the two being joined by land.",

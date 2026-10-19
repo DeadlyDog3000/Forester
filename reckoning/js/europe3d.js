@@ -486,6 +486,20 @@ export class EuropeView3D {
     RIVERS.forEach((rv, ri) => {
       let P = rv.map(([lo, la]) => toWorld(lo, la));
       for (let it = 0; it < 2; it++) { const Q = [P[0]]; for (let i = 0; i < P.length - 1; i++) { const [x0, z0] = P[i], [x1, z1] = P[i + 1]; Q.push([x0 * 0.75 + x1 * 0.25, z0 * 0.75 + z1 * 0.25], [x0 * 0.25 + x1 * 0.75, z0 * 0.25 + z1 * 0.75]); } Q.push(P[P.length - 1]); P = Q; }
+      // (the smoothing cuts the corners, and a corner is often where a town stands on the river — Kiev, Warsaw, Buda: so
+      //  where the engraver's line ran by a town, the smoothed one is drawn back to it)
+      const R0 = rv.map(([lo, la]) => toWorld(lo, la));
+      for (const ct of CITIES) {
+        const [tx, tz] = toWorld(ct[1], ct[2]); let dr = Infinity;
+        for (let i = 1; i < R0.length; i++) dr = Math.min(dr, segDist(tx, tz, R0[i - 1][0], R0[i - 1][1], R0[i][0], R0[i][1]));
+        if (dr > 1.2) continue;
+        let best = Infinity, bi = -1; P.forEach(([x, z], i) => { const d = Math.hypot(x - tx, z - tz); if (d < best) { best = d; bi = i; } });
+        // (a town that near the line stands on the river: the line was only the engraver's hand)
+        const want = Math.min(dr, 0.12); if (best <= want + 0.1) continue;
+        const k = 1 - want / best, [cx, cz] = P[bi], ox = (tx - cx) * k, oz = (tz - cz) * k;
+        let along = 0; for (let i = bi; i < P.length; i++) { if (i > bi) along += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]); const w = Math.exp(-(along * along) / 2.5); if (w < 0.01) break; P[i] = [P[i][0] + ox * w, P[i][1] + oz * w]; }
+        along = 0; for (let i = bi - 1; i >= 0; i--) { along += Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); const w = Math.exp(-(along * along) / 2.5); if (w < 0.01) break; P[i] = [P[i][0] + ox * w, P[i][1] + oz * w]; }
+      }
       // (walked along at a fine step, bending this way and that about the engraver's line)
       const W = []; let s = 0; const ph = ri * 1.7;
       for (let i = 0; i < P.length - 1; i++) {
