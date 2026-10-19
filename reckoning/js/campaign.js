@@ -2975,6 +2975,8 @@ function drawDiplo() {
     if ((C.truce[id] || 0) > 0) out.push(["truce", `Truce · ${C.truce[id]}`]);
     if (C.E.access && C.E.access[id]) out.push(["pact", "You may cross their land"]);
     if (C.E.grant && C.E.grant[id] === true) out.push(["pact", "They may cross yours"]);
+    // (the towns you've taken from their fellows in the faith: they remember it)
+    if (!atWar(id) && !isHuman(id)) { const f = NATION_FAITH[id], n = f && f !== "native" ? Object.keys(C.took || {}).filter(x => x !== id && NATION_FAITH[x] === f).reduce((t, x) => t + C.took[x], 0) : 0; if (n) out.push(["truce", `Wary: ${n} ${FAITH_WORD[f]} town${n > 1 ? "s" : ""} taken`]); }
     if (isHuman(id)) out.push(["human", "A player"]);
     return out.map(([k, t]) => `<i class="dp-chip ${k}">${esc(t)}</i>`).join("");
   };

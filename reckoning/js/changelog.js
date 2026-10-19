@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.58", date: "18 October 2026", title: "Wary courts",
+    items: [
+      "Campaign: the Diplomacy screen marks each crown that is wary of you for the towns you've taken from others of its faith (\"Wary: 1 Catholic town taken\"), so you can see where your conquests have cost you goodwill.",
+    ],
+  },
+  {
     v: "1.90.57", date: "18 October 2026", title: "Crests and valleys",
     items: [
       "Campaign 3D map: the high ranges have crests and valleys across their broad backs. Rock shows on the valley sides and the snow keeps to the heights, so the Alps and the rest are no longer one smooth white mound from end to end.",
