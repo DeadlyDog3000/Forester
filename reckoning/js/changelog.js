@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.44", date: "18 October 2026", title: "Grass and sand",
+    items: [
+      "Campaign 3D map: the steppe isn't one tan from end to end. It is greener where the grass grows long and paler on the dry rises, and the desert's sand runs redder in one place and paler in the next.",
+    ],
+  },
+  {
     v: "1.90.43", date: "18 October 2026", title: "Rounder steppes",
     items: [
       "Campaign 3D map: the Pontic steppe, the Hungarian plain and the Anatolian plateau fade into the country round them along wandering edges, not along the straight sides of a box. Anatolia's steppe had shown as a plain rectangle from above.",
