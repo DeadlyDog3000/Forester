@@ -57,11 +57,22 @@ function townCalm(lon, lat) {
   }
   return m;
 }
+// (the narrow waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound — cut through the land as
+//  channels, so Constantinople stands on its strait and not on an isthmus) [lon, lat, lon, lat, half-width in degrees]
+const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23, 0.011], [26.15, 40.03, 26.45, 40.2, 0.045], [26.45, 40.2, 26.75, 40.42, 0.045], [12.6, 56.05, 12.72, 55.65, 0.05]];
+function straitCut(lon, lat) {
+  let c = 0;
+  for (const [x0, y0, x1, y1, w] of STRAITS) {
+    if (lon < Math.min(x0, x1) - w * 3 || lon > Math.max(x0, x1) + w * 3 || lat < Math.min(y0, y1) - w * 3 || lat > Math.max(y0, y1) + w * 3) continue;
+    const d = segDist(lon * K, lat, x0 * K, y0, x1 * K, y1) / w; if (d < 2) c = Math.max(c, d < 1 ? 1 : 2 - d);
+  }
+  return c;
+}
 // height in km (below 0: sea)
 const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.6, Math.sin(i * Math.PI / 4) * 1.6]);
 export function heightAt(g, lon, lat) {
   const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
-  const l0 = landG(g, gx, gy), land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45;
+  const l0 = landG(g, gx, gy), land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - straitCut(lon, lat) * 1.2;
   if (land < 0.5) return -0.18 + land * 0.3;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
@@ -429,11 +440,12 @@ export class EuropeView3D {
       this.townSheet = SHEET; this.townSpots = new Map();
       for (const ct of CITIES) { const [tx, tz] = toWorld(ct[1], ct[2]), k = Math.floor(tx / 4) * 4096 + Math.floor(tz / 4); (this.townSpots.get(k) || this.townSpots.set(k, []).get(k)).push([tx, tz, TOWN_R[ct[3]] || 0.2]); }
     }
-    let best = 0; const bx = Math.floor(x / 4), bz = Math.floor(z / 4);
+    let best = 0, w = -1; const bx = Math.floor(x / 4), bz = Math.floor(z / 4);
     for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
       const L = this.townSpots.get((bx + i) * 4096 + bz + j); if (!L) continue;
-      for (const [tx, tz, R] of L) { const d = Math.hypot(x - tx, z - tz), t = 1 - (d - R * 1.2) / (R * 2.2); if (t > best) best = Math.min(1, t); }
+      for (const [tx, tz, R] of L) { const d = Math.hypot(x - tx, z - tz); if (d < R * 5) { if (w < 0) w = inoise(x * 1.4, z * 1.4, 61) * 0.65 + inoise(x * 4.1, z * 4.1, 67) * 0.35; const t = 1 - (d - R * (0.5 + w * 1.6)) / (R * (1.2 + w * 1.6)); if (t > best) best = Math.min(1, t); } }
     }
+    // (the fields don't lie in a ring: they run out along the better ground and stop short where the woods hold)
     return best;
   }
   rawY(x, z) { const [lon, lat] = toLL(x, z); return Math.max(-0.16, heightAt(this.g, lon, lat) * EXAG); }

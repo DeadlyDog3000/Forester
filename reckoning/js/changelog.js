@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.30", date: "18 October 2026", title: "The Thames and the Bosporus",
+    items: [
+      "Maps: more of Europe's rivers are drawn: the Thames through London, the Tiber through Rome, the Garonne, the Guadalquivir past Seville, the Weser, the Main, the Vltava through Prague, the Dniester, the upper Volga, and the Oka with the Moskva running past Moscow.",
+      "Campaign 3D map: the narrow waters the map's grid is too coarse for are cut through the land. Constantinople stands on the Bosporus with Asia across the water, and the Dardanelles and the Sound open as straits.",
+      "Campaign 3D map: a town's fields run out unevenly into the country round it, not in a pale ring like a halo, most noticeably round Moscow in the northern forest.",
+    ],
+  },
+  {
     v: "1.90.29", date: "18 October 2026", title: "Towns at the hills' foot",
     items: [
       "Campaign 3D map: the mountains ease round each town, so it stands on gentler ground at the foot of the hills, not halfway up their face. Genoa sits on a shelf above its harbour with the Apennines behind it, and its road over the hills to Milan now gets through.",
