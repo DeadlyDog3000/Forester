@@ -251,6 +251,13 @@ export const PIECES = {
     B: "10:1 8:0.5 9:0.5 10:0.5 8:0.5 | 9:1 5:0.5 6:0.5 7:0.5 5:0.5 | 8:1 6:0.5 7:0.5 8:0.5 5:0.5 | 4#:1 3:0.5 4#:0.5 2:1 | 2:0.5 3:0.5 4#:0.5 5:0.5 6:0.5 7:0.5 | 8:1 7:1 6:1 | 7:1 2:1 4#:1 | 5:3 | " +
        "5:1 1:0.5 0:0.5 1:1 | 6:1 1:0.5 0:0.5 1:1 | 5:1 4:1 3:1 | 2:0.5 1:0.5 0:0.5 1:0.5 2:1 | -2:0.5 -1:0.5 0:0.5 1:0.5 2:0.5 3:0.5 | 4:1 3:1 2:1 | 3:0.5 5:0.5 1:1 0:1 | 1:3",
     cB: "1 5 6 2M 2M 6 7m 5 1 4 1 5 5 2 1/5 1" },
+  // "Greensleeves", the old English air everyone in the 1680s knew, as a ballad tune or a dance: the lute picks out the
+  // chords, the recorder has the tune and the fiddle the second time round
+  greensleeves: { bpm: 104, beats: 3, root: 69, mode: "aeolian", style: "air", lead: ["recorder", "recorder", "fiddle", "recorder"], form: ["A", "B", "A", "B"], end: 1,
+    A: "r:2 1:1 | 3:2 4:1 | 5:1.5 6:0.5 5:1 | 4:2 2:1 | 0:1.5 1:0.5 2:1 | 3:2 1:1 | 1:1.5 0#:0.5 1:1 | 2:2 0#:1 | -2:2 1:1 | 3:2 4:1 | 5:1.5 6:0.5 5:1 | 4:2 2:1 | 0:1.5 1:0.5 2:1 | 3:1.5 2:0.5 1:1 | 0#:1.5 -1#:0.5 0#:1 | 1:3",
+    cA: "1 1 3 7 5 1 1 5M 1 1 3 7 5 6 5M 1",
+    B: "7:3 | 7:1.5 6#:0.5 5:1 | 4:2 2:1 | 0:1.5 1:0.5 2:1 | 3:2 1:1 | 1:1.5 0#:0.5 1:1 | 2:2 0#:1 | -2:3 | 7:3 | 7:1.5 6#:0.5 5:1 | 4:2 2:1 | 0:1.5 1:0.5 2:1 | 3:1.5 2:0.5 1:1 | 0#:1.5 -1#:0.5 0#:1 | 1:3 | 1:3",
+    cB: "3 7 7 5 1 1 5M 5M 3 7 7 5 6 5M 1 1" },
   // the Prelude in C from Bach's Well-Tempered Clavier (Köthen, 1722): each bar a chord, broken the same way twice
   // over — the first nineteen bars of it, round to C again, and the last chord held
   prelude: { bpm: 70, beats: 4, root: 60, mode: "ionian", style: "prelude",
@@ -263,7 +270,7 @@ export const PIECES = {
 export const MOODS = {
   title:      { pieces: ["ashes", "harbour", "canon", "prelude"], rest: [1, 2.5] },
   // the campaign's map: the court's music — the masters, and the burghers' minuet
-  court:      { pieces: ["canon", "minuet", "prelude", "burgher", "harbour"], rest: [3, 8] },
+  court:      { pieces: ["canon", "minuet", "prelude", "greensleeves", "burgher", "harbour"], rest: [3, 8] },
   // the multiplayer lobby and the character builder: music to wait to, one tune after another with hardly a breath
   lobby:      { pieces: ["feast", "merchant", "burgher", "workday", "hope", "harbour", "minuet", "canon"], rest: [0.4, 1.2] },
   home:       { pieces: ["merchant", "burgher", "harbour", "minuet"], rest: [6, 14] },
@@ -274,7 +281,7 @@ export const MOODS = {
   woods:      { pieces: ["clearing", "morning", "firelight", "frost"], rest: [25, 60] },
   hope:       { pieces: ["hope", "morning", "clearing"], rest: [10, 25] },
   settlement: { pieces: ["workday", "clearing", "morning", "hope", "burgher", "merchant"], rest: [40, 90] },
-  evening:    { pieces: ["firelight", "harbour", "lament", "prelude"], rest: [30, 70] },
+  evening:    { pieces: ["firelight", "harbour", "lament", "prelude", "greensleeves"], rest: [30, 70] },
   night:      { pieces: ["nightfall", "shadows", "frost"], rest: [45, 100] },
   winter:     { pieces: ["frost", "nightfall", "ashes"], rest: [40, 90] },
   battle:     { pieces: ["onslaught", "flight"], rest: [0, 0.3] },

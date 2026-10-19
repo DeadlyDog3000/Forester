@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.6", date: "18 October 2026", title: "Greensleeves",
+    items: [
+      "Music: \"Greensleeves\", the old English air every tavern and court of the 1680s knew, joins the Canon, the minuets and the Prelude on the campaign's map, and is played some evenings at home.",
+    ],
+  },
+  {
     v: "1.92.5", date: "18 October 2026", title: "Two views",
     items: [
       "Campaign help: a word on the map's two views, the parchment and the land seen close, and that orders work the same in both.",
