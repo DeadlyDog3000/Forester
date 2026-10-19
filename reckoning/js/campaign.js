@@ -2333,8 +2333,8 @@ export function initCampaign(c, battle, withPlayer) {
     const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z), id = nationAt(E(), cv, ...p);
     cv.style.cursor = ct || id ? "pointer" : "grab";
     if (ct !== hovCity || id !== hov) { hovCity = ct; hov = id; paint(); }
-    const px = pos(e), fh = foeHit(cv, ...px), ah = !fh && armyHit(cv, ...px);
-    if (fh || ah) { cv.style.cursor = "pointer"; armyTip(fh, ah, e); } else townTip(ct, e);
+    const px = pos(e), fh = foeHit(cv, ...px), ah = !fh && armyHit(cv, ...px), sh = !fh && !ah && fleetHit(cv, ...px);
+    if (fh || ah) { cv.style.cursor = "pointer"; armyTip(fh, ah, e); } else if (sh) { cv.style.cursor = "pointer"; fleetTip(sh, e); } else townTip(ct, e);
   };
   cv.onmouseleave = () => { drag = null; hov = null; hovCity = null; townTip(null); paint(); };
   // (right-click: your army sent there)
@@ -2412,8 +2412,10 @@ export function initCampaign(c, battle, withPlayer) {
         //  or a town)
         if (!C) return;
         const mm = ak && ak.match(/^mine-(\d+)$/), fid = ak && (ak.startsWith("foe-") ? ak.slice(4) : ak.startsWith("p-") ? ak.slice(2) : null);
+        const sh = !ak && fleetOf3d(eu3d.fleetAt(px, py)); if (sh) eu3d.el.style.cursor = "pointer";
         if (mm) armyTip(null, { id: +mm[1] }, e);
         else if (fid && (NATIONS[fid] || isColo(fid))) armyTip(fid, null, e);
+        else if (sh) fleetTip(sh, e);
         else townTip(hit && hit.city ? CITIES.find(c => c[0] === hit.city) || null : null, e);
       });
       addEventListener("mouseup", e => {
@@ -2608,6 +2610,16 @@ const hashStr = t => { let h = 7; for (const ch of t) h = (h * 31 + ch.charCodeA
 // (the other player's fleets, in a campaign of two)
 const otherFleets = () => C.mp ? humans().filter(h => h !== C.me).flatMap(h => ((sliceOf(h) || {}).fleets || []).filter(f => f.ships.length).map(f => [h, f])) : [];
 // (an army under the pointer: whose, how strong, under whom, and what it's about)
+// (a fleet under the pointer: whose, how many ships and of what kinds, and whether she's under sail)
+function fleetTip(sh, e) {
+  let el = $("cmpTip"); if (!el) { el = document.createElement("div"); el.id = "cmpTip"; el.className = "cmp-tip"; $("campaign").appendChild(el); }
+  const pf = sh.foe && pFleet(sh.foe), f = sh.mine != null ? fleetById(sh.mine) : pf ? pf.f : C.foeFleets && C.foeFleets[sh.foe]; if (!f || !f.ships) { el.style.display = "none"; return; }
+  const who = sh.mine != null ? "Your fleet" : pf ? `${poss(nameOf(pf.h))} fleet` : `${poss(The(sh.foe))} fleet`, kinds = {};
+  for (const s2 of f.ships) kinds[s2.k] = (kinds[s2.k] || 0) + 1;
+  const mix = Object.entries(kinds).map(([k, n]) => `${n} ${(n === 1 ? SHIPS[k].one : SHIPS[k].name).toLowerCase()}`).join(", ");
+  el.innerHTML = `<b>${esc(sh.mine != null && (C.fleets || []).length > 1 ? fleetName(f) : who)}</b><small>${f.ships.length} ship${f.ships.length === 1 ? "" : "s"}: ${esc(mix)}</small><span>${f.go ? "Under sail" : sh.mine != null ? "At anchor · click, then right-click the sea to sail" : sh.mine == null && atWar(crownOf(sh.foe.replace(/^p:([^:]+):.*$/, "$1"))) ? "At war with you" : "At anchor"}</span>`;
+  el.style.display = "block"; el.style.left = Math.min(innerWidth - 220, e.clientX + 16) + "px"; el.style.top = Math.min(innerHeight - 70, e.clientY + 14) + "px";
+}
 function armyTip(foe, mine, e) {
   let el = $("cmpTip"); if (!el) { el = document.createElement("div"); el.id = "cmpTip"; el.className = "cmp-tip"; $("campaign").appendChild(el); }
   if (foe && isHuman(foe)) { const sl = sliceOf(foe) || {}; el.innerHTML = `<b>${esc(poss(nameOf(foe)))} army</b><small>${sl.army | 0} regiments${sl.gen ? ` · under ${esc(sl.gen.name)}` : ""}</small><span>${sl.siege ? `Besieging ${esc(sl.siege.ct)}` : "In the field"}${canFieldP(foe) ? " · within your reach" : ""}</span>`; }

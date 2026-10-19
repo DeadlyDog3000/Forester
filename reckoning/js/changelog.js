@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.7", date: "18 October 2026", title: "Ships of the line",
+    items: [
+      "Campaign map: point at a fleet, on the parchment or the land seen close, to see whose it is, how many ships and of what kinds, and whether she's under sail.",
+    ],
+  },
+  {
     v: "1.92.6", date: "18 October 2026", title: "Greensleeves",
     items: [
       "Music: \"Greensleeves\", the old English air every tavern and court of the 1680s knew, joins the Canon, the minuets and the Prelude on the campaign's map, and is played some evenings at home.",
