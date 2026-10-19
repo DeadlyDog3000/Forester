@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.33", date: "18 October 2026", title: "Past the map's edge",
+    items: [
+      "Campaign 3D map: the country goes on past the edges of the map. The steppe east of the Don runs on beyond the last towns instead of stopping at a ruler-straight coast with sea beyond it.",
+    ],
+  },
+  {
     v: "1.90.32", date: "18 October 2026", title: "The St Lawrence unbroken",
     items: [
       "Campaign 3D map: a river the map drew as a string of small ponds now runs through as one stream. The St Lawrence flows past Québec without breaking into lakes, and estuaries like the Tagus below Lisbon keep their water.",

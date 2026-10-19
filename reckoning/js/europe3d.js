@@ -40,7 +40,8 @@ function landAt(g, lon, lat) {
 }
 function landG(g, gx, gy) {
   const x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
-  const L = (x, y) => (g[y] && g[y][x] ? 1 : 0);
+  // (off the sheet, the cell at its edge goes on)
+  const L = (x, y) => { y = y < 0 ? 0 : y >= GH ? GH - 1 : y; x = x < 0 ? 0 : x >= GW ? GW - 1 : x; return g[y] && g[y][x] ? 1 : 0; };
   return L(x0, y0) * (1 - fx) * (1 - fy) + L(x0 + 1, y0) * fx * (1 - fy) + L(x0, y0 + 1) * (1 - fx) * fy + L(x0 + 1, y0 + 1) * fx * fy;
 }
 // (each range's reach, a box round it: as far out as it lifts the ground at all)
@@ -351,6 +352,15 @@ export class EuropeView3D {
     const p = this.base.geometry.attributes.position;
     this.baseN = [nx, nz]; this.baseH = new Float32Array(p.count); for (let i = 0; i < p.count; i++) this.baseH[i] = p.getY(i);
     this.scene.add(this.base);
+    // (and past the sheet's edges, the country going on as it does at them — the steppe east of the Don, the Pacific
+    //  shore — so the edge of the map isn't a ruler-straight coast with the sea beyond it)
+    if (this.skirts) for (const m of this.skirts) { this.scene.remove(m); m.geometry.dispose(); }
+    const E = 80, step = MAP_W / nx * 2;
+    this.skirts = [[-E, 0, -E, MAP_H + E], [MAP_W, MAP_W + E, -E, MAP_H + E], [0, MAP_W, -E, 0], [0, MAP_W, MAP_H, MAP_H + E]].map(([x0, x1, z0, z1]) => {
+      const g = new THREE.PlaneGeometry(x1 - x0, z1 - z0, Math.max(1, Math.round((x1 - x0) / step)), Math.max(1, Math.round((z1 - z0) / step))).rotateX(-Math.PI / 2);
+      g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+      const m = this.terrainMesh(g, -0.03); this.scene.add(m); return m;
+    });
   }
   sinkBase(x0, x1, z0, z1) {
     const p = this.base.geometry.attributes.position, [nx, nz] = this.baseN;
