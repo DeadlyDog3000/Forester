@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.11", date: "18 October 2026", title: "Plainer news",
+    items: [
+      "Campaign, the State of the Realm: an enemy's allies are named only when they aren't already in the list of crowns at war with you, so France's paper no longer tells you three times that Castile, Aragon and Milan stand together.",
+    ],
+  },
+  {
     v: "1.91.10", date: "18 October 2026", title: "Under sail",
     items: [
       "Campaign 3D map: fleets sail to where they're going, round the coasts by their course and coming about as they go, instead of vanishing and reappearing there; at anchor a ship keeps the heading she came in on.",

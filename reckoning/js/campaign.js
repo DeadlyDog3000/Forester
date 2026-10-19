@@ -339,7 +339,7 @@ function statePaper() {
   const wr = live.filter(id => atWar(id)), al = live.filter(id => C.ally[id]), T = tradeOf(g);
   const P = [], col = (h, items) => { if (items.length) P.push(`<section><h3>${esc(h)}</h3>${items.map(([b, t]) => `<p><b>${esc(b)}.</b> ${esc(t)}</p>`).join("")}</section>`); };
   // (the wars: each enemy, its towns, who fights with it, and who of yours with you)
-  col("At War", wr.length ? wr.map(id => { const theirs = alliesOf(id).filter(x => NATIONS[x] && alive(g, x) && (atWar(x) || C.E.wars.some(w => (w.a === x && al.includes(w.b)) || (w.b === x && al.includes(w.a)))));
+  col("At War", wr.length ? wr.map(id => { const theirs = alliesOf(id).filter(x => NATIONS[x] && alive(g, x) && !wr.includes(x) && (atWar(x) || C.E.wars.some(w => (w.a === x && al.includes(w.b)) || (w.b === x && al.includes(w.a)))));
     const mates = C.E.wars.filter(w => w.withYou && (w.a === id || w.b === id)).map(w => w.a === id ? w.b : w.a).filter(x => al.includes(x));
     return [The(id), `${towns(id)} town${towns(id) === 1 ? "" : "s"}${C.E.rel[id] <= -60 ? ", and no mercy looked for" : ""}.${mates.length ? ` ${names(mates)} ${mates.length > 1 ? "fight" : v3(mates[0], "fights")} beside you.` : ""}${theirs.length ? ` With ${the(id)}: ${list(theirs.map(the))}.` : ""}`]; })
     : [["At peace", `${The(me)} ${v3(me, "is")} at war with no one. The drums are quiet, and the treasury the better for it.`]]);
