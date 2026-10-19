@@ -16,7 +16,7 @@
 // Alps would be a wrinkle.
 
 import { THREE, rng } from "./core.js";
-import { NATIONS, CITIES, RIVERS, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
+import { NATIONS, CITIES, RIVERS, LAKES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
 import { ensureModel, modelCopy, mergeRig, makeMusket } from "./models.js";
 
@@ -67,12 +67,8 @@ const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23,
   //  strings of ponds)
   [-76.0, 36.95, -76.25, 37.6, 0.06], [-76.25, 37.6, -76.35, 38.3, 0.06], [-76.35, 38.3, -76.4, 39.2, 0.045], [-76.25, 36.98, -76.78, 37.21, 0.025],
   [-73.8, 40.83, -72.9, 41.07, 0.05], [-72.9, 41.07, -72.0, 41.18, 0.06],
-  // (and the great lakes the grid hasn't: Ladoga and Onega, Peipus and Ilmen by Novgorod, Vänern and Vättern; Geneva,
-  //  Constance and Garda under the Alps, Balaton and the Neusiedler See on the plain)
-  [30.6, 61.3, 32.2, 60.45, 0.42], [34.6, 62.5, 35.6, 61.1, 0.28], [27.35, 58.95, 27.6, 57.95, 0.17], [31.1, 58.3, 31.5, 58.2, 0.09],
-  [12.5, 59.25, 13.55, 58.85, 0.19], [14.3, 58.8, 14.6, 57.9, 0.07],
-  [6.15, 46.27, 6.55, 46.45, 0.05], [6.55, 46.45, 6.92, 46.4, 0.045], [9.0, 47.75, 9.7, 47.5, 0.07], [10.62, 45.45, 10.82, 45.85, 0.055],
-  [17.25, 46.72, 18.1, 47.0, 0.05], [16.72, 47.7, 16.8, 47.95, 0.04],
+  // (and the great lakes the grid hasn't, as the map draws them)
+  ...LAKES,
   // (the Strait of Messina, Sicily from Calabria)
   [15.63, 38.32, 15.63, 38.17, 0.02], [15.63, 38.17, 15.6, 37.92, 0.025],
   // (and the Zuiderzee, with the IJ running in from it to Amsterdam)

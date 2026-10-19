@@ -322,6 +322,15 @@ export const RIVERS = [
   [[-75.4, 39.3], [-75.15, 40.0], [-75.0, 40.9], [-75.1, 41.9]], [[-76.1, 39.55], [-76.4, 40.3], [-76.9, 41.0], [-76.1, 41.8]], [[-72.35, 41.3], [-72.6, 42.2], [-72.4, 43.3], [-71.5, 44.9]],
   [[-80.9, 32.05], [-81.5, 32.9], [-82.2, 33.6], [-82.8, 34.6]],
 ];
+// the great lakes the grid is too coarse for: Ladoga and Onega, Peipus and Ilmen by Novgorod, Vänern and Vättern; Geneva,
+// Constance and Garda under the Alps, Balaton and the Neusiedler See on the plain — each a run of strokes, [lon, lat, lon,
+// lat, half its breadth in degrees]
+export const LAKES = [
+  [30.6, 61.3, 32.2, 60.45, 0.42], [34.6, 62.5, 35.6, 61.1, 0.28], [27.35, 58.95, 27.6, 57.95, 0.17], [31.1, 58.3, 31.5, 58.2, 0.09],
+  [12.5, 59.25, 13.55, 58.85, 0.19], [14.3, 58.8, 14.6, 57.9, 0.07],
+  [6.15, 46.27, 6.55, 46.45, 0.05], [6.55, 46.45, 6.92, 46.4, 0.045], [9.0, 47.75, 9.7, 47.5, 0.07], [10.62, 45.45, 10.82, 45.85, 0.055],
+  [17.25, 46.72, 18.1, 47.0, 0.05], [16.72, 47.7, 16.8, 47.95, 0.04],
+];
 // the cities of 1683, as the map-makers named them: rank 3 a crown's seat (drawn walled, with its flag), 2 a great town, 1 a town
 export const CITIES = [
   ["London", -0.12, 51.5, 3], ["Paris", 2.35, 48.85, 3], ["Madrid", -3.7, 40.4, 3], ["Lisboa", -9.14, 38.72, 3], ["Wien", 16.37, 48.21, 3], ["Roma", 12.5, 41.9, 3],
@@ -544,6 +553,14 @@ function drawSheet(W, H, E, g, homePop, vp = null, tkey = "") {
   } else c.drawImage(reliefLayer(), 0, 0, W, H);
   c.restore();
   c.restore();
+  // the lakes: the sea's pale wash, inked round (over the hills' shading, which would tint them as land)
+  { c.save(); c.lineCap = "round"; c.lineJoin = "round"; c.globalCompositeOperation = "source-over"; c.globalAlpha = 1; c.filter = "none";
+    const seg = L => { const [ax, ay] = lonlat(L[0], L[1], S), [bx, by] = lonlat(L[2], L[3], S), [qx, qy] = lonlat(L[0], L[1] + L[4] * 1.45, S); return [ax, ay, bx, by, Math.hypot(qx - ax, qy - ay)]; };
+    // (the coast's ink, the sea's grey-green, and inside it the same fine rings of water-lining the sea has, as an engraver
+    //  ruled a lake)
+    const ring = Math.max(1.6, S * 0.5), passes = [[Math.max(1.2, S * 0.35), INK_SOFT + "0.75)"], [0, "rgb(203,209,199)"], [-ring * 2, INK_SOFT + "0.22)"], [-ring * 2.5, "rgb(203,209,199)"], [-ring * 4, INK_SOFT + "0.14)"], [-ring * 4.5, "rgb(206,212,202)"]];
+    for (const [grow, col] of passes) for (const L of LAKES) { const [ax, ay, bx, by, r] = seg(L), lw = r * 2 + grow; if (lw <= 0.5) continue; c.lineWidth = lw; c.strokeStyle = col; c.beginPath(); c.moveTo(ax, ay); c.lineTo(bx, by); c.stroke(); }
+    c.restore(); }
   // ---- the coast itself, inked ----
   landPath(c, S); c.strokeStyle = INK; c.lineWidth = Math.max(1.2, S * 0.42) * INKZ; c.lineJoin = "round"; c.stroke();
   // ---- the crowns' names ----

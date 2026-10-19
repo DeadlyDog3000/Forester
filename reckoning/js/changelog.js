@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.61", date: "18 October 2026", title: "Lakes on the parchment",
+    items: [
+      "Maps: the great lakes are on the parchment map too, inked round and water-lined as the engravers drew them: Ladoga, Onega, Peipus, Ilmen, Vänern, Vättern, Geneva, Constance, Garda, Balaton and the Neusiedler See.",
+    ],
+  },
+  {
     v: "1.90.60", date: "18 October 2026", title: "Long odds",
     items: [
       "Campaign: when storming a walled town is a long shot (under two in five), its panel says so and suggests laying siege to starve it first.",
