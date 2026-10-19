@@ -58,7 +58,7 @@ function townCalm(lon, lat) {
   }
   return m;
 }
-// (the waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound, Messina's strait, the Zuiderzee — cut through the land as
+// (the waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound, Messina's strait, the Zuiderzee, the lakes — cut through the land as
 //  channels, so Constantinople stands on its strait and not on an isthmus) [lon, lat, lon, lat, half-width in degrees]
 const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23, 0.011], [26.15, 40.03, 26.45, 40.2, 0.045], [26.45, 40.2, 26.75, 40.42, 0.045], [12.6, 56.05, 12.72, 55.65, 0.05],
   // (the Firth of Forth running in past Edinburgh, not ending there with a pond beyond)
@@ -67,6 +67,12 @@ const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23,
   //  strings of ponds)
   [-76.0, 36.95, -76.25, 37.6, 0.06], [-76.25, 37.6, -76.35, 38.3, 0.06], [-76.35, 38.3, -76.4, 39.2, 0.045], [-76.25, 36.98, -76.78, 37.21, 0.025],
   [-73.8, 40.83, -72.9, 41.07, 0.05], [-72.9, 41.07, -72.0, 41.18, 0.06],
+  // (and the great lakes the grid hasn't: Ladoga and Onega, Peipus and Ilmen by Novgorod, Vänern and Vättern; Geneva,
+  //  Constance and Garda under the Alps, Balaton and the Neusiedler See on the plain)
+  [30.6, 61.3, 32.2, 60.45, 0.42], [34.6, 62.5, 35.6, 61.1, 0.28], [27.35, 58.95, 27.6, 57.95, 0.17], [31.1, 58.3, 31.5, 58.2, 0.09],
+  [12.5, 59.25, 13.55, 58.85, 0.19], [14.3, 58.8, 14.6, 57.9, 0.07],
+  [6.15, 46.27, 6.55, 46.45, 0.05], [6.55, 46.45, 6.92, 46.4, 0.045], [9.0, 47.75, 9.7, 47.5, 0.07], [10.62, 45.45, 10.82, 45.85, 0.055],
+  [17.25, 46.72, 18.1, 47.0, 0.05], [16.72, 47.7, 16.8, 47.95, 0.04],
   // (the Strait of Messina, Sicily from Calabria)
   [15.63, 38.32, 15.63, 38.17, 0.02], [15.63, 38.17, 15.6, 37.92, 0.025],
   // (and the Zuiderzee, with the IJ running in from it to Amsterdam)
@@ -81,11 +87,15 @@ function barLift(lon, lat) {
   }
   return c;
 }
+// (and how near one is, out to a few of its widths: the ground sinks toward a lake, so a lake in the hills lies in a basin
+//  and not at the foot of a cliff)
+let straitNear = 0;
 function straitCut(lon, lat) {
-  let c = 0;
+  let c = 0; straitNear = 0;
   for (const [x0, y0, x1, y1, w] of STRAITS) {
-    if (lon < Math.min(x0, x1) - w * 3 || lon > Math.max(x0, x1) + w * 3 || lat < Math.min(y0, y1) - w * 3 || lat > Math.max(y0, y1) + w * 3) continue;
-    const d = segDist(lon * K, lat, x0 * K, y0, x1 * K, y1) / w; if (d < 2) c = Math.max(c, d < 1 ? 1 : 2 - d);
+    if (lon < Math.min(x0, x1) - w * 7 || lon > Math.max(x0, x1) + w * 7 || lat < Math.min(y0, y1) - w * 7 || lat > Math.max(y0, y1) + w * 7) continue;
+    // (its shore wandering a little, not the smooth side of a capsule)
+    const d = segDist(lon * K, lat, x0 * K, y0, x1 * K, y1) / (w * (0.82 + fbm(lon * 9.1, lat * 9.1, 51, 2) * 0.36)); if (d < 2) c = Math.max(c, d < 1 ? 1 : 2 - d); if (d < 7) straitNear = Math.max(straitNear, 1 - d / 7);
   }
   return c;
 }
@@ -104,11 +114,11 @@ const RING2 = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4 + 0.
 const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.6, Math.sin(i * Math.PI / 4) * 1.6]);
 export function heightAt(g, lon, lat) {
   const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
-  const l0 = landG(g, gx, gy); let bar = 0, land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - straitCut(lon, lat) * 1.2 + (bar = barLift(lon, lat)) * 0.9;
+  const l0 = landG(g, gx, gy), cut = straitCut(lon, lat); let bar = 0, land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - cut * 1.2 + (bar = barLift(lon, lat)) * 0.9;
   // (and along the coast a finer wander, so an island isn't an octagon cut round one cell of the grid, nor a headland its
   //  stairs: only where it's coast at all)
   if (l0 > 0.001 && l0 < 0.999) land += (fbm(lon * 8.3, lat * 8.3, 43, 2) - 0.5) * 2.4 * l0 * (1 - l0);
-  if (land < 0.62 && l0 < 0.999 && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.72 + (w - 0.78) * 0.5); }
+  if (land < 0.62 && l0 < 0.999 && !cut && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.72 + (w - 0.78) * 0.5); }
   if (land < 0.5) return -0.18 + land * 0.3;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
@@ -133,6 +143,7 @@ export function heightAt(g, lon, lat) {
   }
   // (a sand bar lies low: a few feet over the sea, whatever the country behind it does)
   if (bar > 0) h = Math.min(h, 0.012 + (1 - bar) * h);
+  if (straitNear > 0) h *= 1 - 0.95 * Math.pow(straitNear, 1.3);
   return h;
 }
 // the snowline: lower in the north, and ragged — higher on one shoulder of a range than the next

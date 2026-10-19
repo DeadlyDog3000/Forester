@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.56", date: "18 October 2026", title: "The lakes",
+    items: [
+      "Campaign 3D map: Europe's great lakes are on it. Ladoga and Onega lie in the north, Peipus between Sweden's Livonia and Muscovy, Ilmen by Novgorod, Vänern and Vättern in Sweden, Lake Geneva, Lake Constance and Lake Garda under the Alps, and Balaton and the Neusiedler See on the Hungarian plain. Each lies in a basin with shores that wander.",
+    ],
+  },
+  {
     v: "1.90.55", date: "18 October 2026", title: "Bog and birch",
     items: [
       "Campaign 3D map: the northern forest and the tundra aren't one flat colour across Finland, Muscovy and Lapland. Brown bogs and pale stands of birch break them up, and the steppe's and desert's own variety now lies evenly in every direction instead of in north–south streaks.",
