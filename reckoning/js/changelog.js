@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.7", date: "18 October 2026", title: "Chief partners",
+    items: [
+      "Campaign: a crown begins with its four chief trading partners of 1683 at the most (England with Portugal, the Dutch, Spain and Muscovy), not every one it ever traded with: England's dozen pacts were a fortune from the first year.",
+    ],
+  },
+  {
     v: "1.91.6", date: "18 October 2026", title: "The road ahead",
     items: [
       "Campaign 3D map: an army on the march shows the road it's taking, dashed along the ground to an arrowhead where it's bound, in ink for yours and red for an enemy's, as the parchment map shows it.",

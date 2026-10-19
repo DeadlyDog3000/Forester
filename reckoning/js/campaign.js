@@ -230,7 +230,9 @@ function fresh(me) {
   for (const w of wars) if ((ally[w.a] && war[w.b]) || (ally[w.b] && war[w.a])) w.withYou = true;
   // (the trade you begin with: 1683's, else the friendliest crown at peace with you; their merchants well thought of)
   const pact = {};
-  for (const [x, y] of TRADE_1683) { const f = x === me ? y : y === me ? x : null; if (f && NATIONS[f] && !war[f]) pact[f] = true; }
+  // (the chief four of them at the most — the list has each crown's oldest and greatest trade first — and two for a
+  //  nation of the woods: a dozen at once was a fortune from the first year)
+  TRADE_1683.map(([x, y]) => x === me ? y : y === me ? x : null).filter(f => f && NATIONS[f] && !war[f]).slice(0, NATIONS[me].nw ? 2 : 4).forEach(f => { pact[f] = true; });
   if (!Object.keys(pact).length) { const f = Object.keys(rel).filter(id => !war[id] && !!NATIONS[id].nw === !!NATIONS[me].nw).sort((x, y) => rel[y] - rel[x])[0]; if (f && rel[f] >= 0) pact[f] = true; }
   for (const f of Object.keys(pact)) rel[f] = Math.max(rel[f], 20);
   return { v: 1, gridV: 6, me, year: 1683, s: 0, gold: 200 + NATIONS[me].strength * 60, army: NATIONS[me].strength * 10 + 6, moved: false, did: {},
