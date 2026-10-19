@@ -35,7 +35,10 @@ function world(lon, lat) { const v = v3(), t = v.target.clone(), d = v.dist; v.l
 function eye(v, x, z, dist, yaw = 0, pitch = null) {
   v.target.set(x, 0, z); v.dist = dist;
   v.frame();
-  const ty = Math.max(0, v.groundY(x, z)), p = pitch ?? (0.55 + Math.min(1, dist / 40) * 0.5);
+  // (the eye's height kept steady over the hills: the ground under the view's middle followed slowly, never step by step,
+  //  or the camera bobs over every ridge it passes)
+  const g = Math.max(0, v.groundY(x, z)); v._ty = v._ty == null ? g : v._ty + (g - v._ty) * 0.03;
+  const ty = v._ty, p = pitch ?? (0.55 + Math.min(1, dist / 40) * 0.5);
   v.camera.position.set(x + Math.sin(yaw) * Math.cos(p) * dist, ty + Math.sin(p) * dist, z + Math.cos(yaw) * Math.cos(p) * dist);
   v.camera.lookAt(x, ty, z);
 }
@@ -77,7 +80,7 @@ export const CSHOTS = {
   // your own army on the march: off from its town, down the road to the next, the eye going along above it (slowed:
   // a year's march is three seconds on the map)
   march: {
-    secs: 6, speed: 0.4,
+    secs: 7, speed: 0.2,
     async stage() {
       const C = cmp().C; C.moved = false; C.arrived = false; C.siege = null;
       const rows = cmp().citiesOfNow(cmp().grid(), C.me), row = rows.find(c => c[0] === this.to) || rows[1];
@@ -97,7 +100,7 @@ export const CSHOTS = {
   },
   // your fleet out of its harbour and down to the sea, the eye going along over the water (slowed, as the march)
   fleet: {
-    secs: 6, speed: 0.45,
+    secs: 6, speed: 0.22,
     async stage() {
       const C = cmp().C, f = C.fleets[0]; f.moved = false; f.go = null;
       this.key = "mine-" + f.id; this.f = null;
@@ -137,6 +140,7 @@ export const cfilm = {
     const S = CSHOTS[name], v = v3();
     Object.assign(S, set);
     if (S.stage) await S.stage.call(S);
+    v._ty = null;
     const n = Math.round(S.secs * FPS);
     S.cam.call(S, 0, v); await settle(v);
     for (let i = 0; i < n; i++) {
