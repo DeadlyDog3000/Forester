@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.0", date: "18 October 2026", title: "Orders on the land",
+    items: [
+      "Campaign 3D map: right-click gives the same orders as on the parchment. Right-click an enemy town (its name, or the ground about it) to fall on it or march on it, an enemy army to bring it to battle or go after it, another army of yours to join it. Before, it only ever marched the army to the spot, and a right-click on a town's name did nothing.",
+      "Campaign 3D map: an army is chosen by clicking its soldiers where they're drawn, even stepped out in front of a town.",
+      "Campaign map: the light wash over a chosen crown follows its rounded border, not the grid's squares, so its edge is no longer a staircase.",
+    ],
+  },
+  {
     v: "1.91.11", date: "18 October 2026", title: "Plainer news",
     items: [
       "Campaign, the State of the Realm: an enemy's allies are named only when they aren't already in the list of crowns at war with you, so France's paper no longer tells you three times that Castile, Aragon and Milan stand together.",

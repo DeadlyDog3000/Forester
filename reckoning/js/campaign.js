@@ -2216,6 +2216,37 @@ let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3
 // (drawn only while the campaign's map is in front of you)
 const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); raf3d = requestAnimationFrame(loop3d); };
 const shown = () => !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden");
+// ---- a right-click with the army in hand, on the parchment map or the land seen close: what's under it decides the
+//  order — aboard a fleet of yours, joined to another army of yours, an enemy town fallen on (or marched on, or why
+//  not), an enemy army fallen on (or gone after, or why not), or else marched to where you clicked ----
+function orderAt({ fleetMine = null, ah = null, ct = null, fh = null, x, y }) {
+  // (a fleet of yours, with the army in hand: the army goes aboard it)
+  if (fleetMine != null && C.emb == null) { doAct({ k: "embark", id: fleetMine }); armySel = false; return; }
+  // (another army of your own: the one in hand marched to it, and the two made one when it gets there)
+  if (ah && ah.id !== (C.ar | 0) && C.emb == null) { doAct({ k: "joinat", id: ah.id }); armySel = false; return; }
+  // (an enemy town under the click that can be fallen on now: the town — even with their army standing on it, as a
+  //  woods nation's war party camps in its own town; it was taken for the army, and the army went after it instead)
+  const o = ct && cityOwner(grid(), ct);
+  if (ct && o && o !== C.me && atWar(o) && C.emb == null && C.army >= 5 && inMarch(ct) && freeToStrike(ct) && (!C.siege || siegeOf(ct))) { selCity = ct; sel = o; doAct({ k: "march", ct: ct[0], how: "fight" }); return; }
+  // (an enemy army within a year's march: the army falls on it in the field)
+  if (fh && isHuman(fh) && canFieldP(fh)) { selFoe = fh; sel = fh; selCity = null; armySel = false; doAct({ k: "pfield", h: fh, how: "fight" }); return; }
+  if (fh && canField(fh) && C.emb == null) { selFoe = fh; sel = crownOf(fh); selCity = null; armySel = false; doAct({ k: "field", foe: fh, how: "fight" }); return; }
+  // (an enemy army that can't be fallen on now: why not, said — or, out of a year's reach, gone after: marched toward
+  //  where it stands, and held where it is once you're within a year's march of it, to be brought to battle)
+  if (fh && !isHuman(fh) && !isColo(fh) && atWar(fh) && C.emb == null) {
+    const why = C.siege ? `Your army is sitting down before ${C.siege.ct}: lift the siege first.` : C.moved ? "Your army has already marched this year: attack it next year." : C.army < 5 ? "Your army is too small to give battle: five regiments at the least." : null;
+    if (why) { react({ note: why }); drawMap(); return; }
+    const fp = foeArmyPos(fh); if (fp) { selFoe = fh; doAct({ k: "move", x: fp.x, y: fp.y, chase: fh }); return; }
+  }
+  // (an enemy town that can't be fallen on now: beyond a year's march, marched on — and told when the army stands
+  //  before it; anything else, said why, and the army left where it is)
+  if (ct && o && o !== C.me && atWar(o) && C.emb == null) {
+    if (!inMarch(ct) && !C.moved && !C.siege && C.army >= 5) { const t = cellXY(ct); doAct({ k: "move", x: t.x, y: t.y, target: ct[0] }); return; }
+    react({ note: whyNot(ct) }); drawMap(); return;
+  }
+  // (and it stays chosen after a march order, to send on somewhere else; Esc, or a click away, puts it down)
+  doAct({ k: "move", x, y });
+}
 export function initCampaign(c, battle, withPlayer) {
   ctx = c; startBattle = battle; fieldWithPlayer = withPlayer || null;
   ZOOM_3D = 4.2 * ZF(); addEventListener("resize", () => { ZOOM_3D = 4.2 * ZF(); });
@@ -2306,35 +2337,9 @@ export function initCampaign(c, battle, withPlayer) {
     // (nothing chosen — no army, no fleet: a right-click gives no orders. It used to march the army last in hand
     //  wherever you clicked, chosen or not, so a garrison's new army set off after it had been put down)
     if (!armySel) { note = "Choose an army first: click it, then right-click where it should go."; drawMap(); return; }
-    // (a fleet of yours, with the army in hand: the army goes aboard it)
-    if (armySel && C.emb == null) { const fh3 = fleetHit(cv, ...pos(e)); if (fh3 && fh3.mine != null) { doAct({ k: "embark", id: fh3.mine }); armySel = false; return; } }
-    // (another army of your own: the one in hand marched to it, and the two made one when it gets there)
-    { const ah = armyHit(cv, ...pos(e)); if (ah && ah.id !== (C.ar | 0) && C.emb == null) { doAct({ k: "joinat", id: ah.id }); armySel = false; return; } }
-    // (an enemy town under the click that can be fallen on now: the town — even with their army standing on it, as a
-    //  woods nation's war party camps in its own town; it was taken for the army, and the army went after it instead)
-    { const ct0 = cityAt(cv, mx, my, view.z), o0 = ct0 && cityOwner(grid(), ct0);
-      if (ct0 && o0 && o0 !== C.me && atWar(o0) && C.emb == null && C.army >= 5 && inMarch(ct0) && freeToStrike(ct0) && (!C.siege || siegeOf(ct0))) { selCity = ct0; sel = o0; doAct({ k: "march", ct: ct0[0], how: "fight" }); return; } }
-    // (an enemy army within a year's march: the army falls on it in the field)
-    const fh = foeHit(cv, ...pos(e)); if (fh && isHuman(fh) && canFieldP(fh)) { selFoe = fh; sel = fh; selCity = null; armySel = false; doAct({ k: "pfield", h: fh, how: "fight" }); return; }
-    if (fh && canField(fh) && C.emb == null) { selFoe = fh; sel = crownOf(fh); selCity = null; armySel = false; doAct({ k: "field", foe: fh, how: "fight" }); return; }
-    // (an enemy army that can't be fallen on now: why not, said — or, out of a year's reach, gone after: marched toward
-    //  where it stands, and held where it is once you're within a year's march of it, to be brought to battle)
-    if (fh && !isHuman(fh) && !isColo(fh) && atWar(fh) && C.emb == null) {
-      const why = C.siege ? `Your army is sitting down before ${C.siege.ct}: lift the siege first.` : C.moved ? "Your army has already marched this year: attack it next year." : C.army < 5 ? "Your army is too small to give battle: five regiments at the least." : null;
-      if (why) { react({ note: why }); drawMap(); return; }
-      const fp = foeArmyPos(fh); if (fp) { selFoe = fh; doAct({ k: "move", x: fp.x, y: fp.y, chase: fh }); return; }
-    }
-    // (an enemy town within reach: the army falls on it — the muster before the assault, where it can still be called off)
-    const ct = cityAt(cv, mx, my, view.z), o = ct && cityOwner(grid(), ct);
-    if (ct && o && o !== C.me && atWar(o) && C.emb == null && C.army >= 5 && inMarch(ct) && freeToStrike(ct) && (!C.siege || siegeOf(ct))) { selCity = ct; sel = o; armySel = false; doAct({ k: "march", ct: ct[0], how: "fight" }); return; }
-    // (an enemy town that can't be fallen on now: beyond a year's march, marched on — and told when the army stands
-    //  before it; anything else, said why, and the army left where it is)
-    if (ct && o && o !== C.me && atWar(o) && C.emb == null) {
-      if (!inMarch(ct) && !C.moved && !C.siege && C.army >= 5) { const t = cellXY(ct); doAct({ k: "move", x: t.x, y: t.y, target: ct[0] }); return; }
-      react({ note: whyNot(ct) }); drawMap(); return;
-    }
-    // (and it stays chosen after a march order, to send on somewhere else; Esc, or a click away, puts it down)
-    doAct({ k: "move", x: mx / S, y: my / S });
+    // (what's under the click — a fleet of yours, another army of yours, a town, an enemy army — and the order it means)
+    const fl = armySel && C.emb == null ? fleetHit(cv, ...pos(e)) : null;
+    orderAt({ fleetMine: fl && fl.mine != null ? fl.mine : null, ah: armyHit(cv, ...pos(e)), ct: cityAt(cv, mx, my, view.z), fh: foeHit(cv, ...pos(e)), x: mx / S, y: my / S });
   };
   cv.onmouseup = e => {
     const moved = drag ? drag.moved : 0; drag = null; if (moved > 5 || !C || e.button !== 0) return;
@@ -2374,7 +2379,19 @@ export function initCampaign(c, battle, withPlayer) {
       let d3 = null;
       eu3d.el.addEventListener("mousedown", e => { d3 = { x: e.clientX, y: e.clientY, moved: 0 }; });
       // (right-click on the land: your army sent there)
-      eu3d.el.addEventListener("contextmenu", e => { e.preventDefault(); if (!C) return; if (!armySel) { note = "Choose an army first: click it, then right-click where it should go."; drawMap(); return; } const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top); if (!hit || !hit.ll) return; const [gx, gy] = gridOf(...hit.ll); doAct({ k: "move", x: gx, y: gy }); });
+      // (the same orders as on the parchment: an enemy town's name or the ground about it, an army under the pointer
+      //  where it's drawn — where a right-click here once only ever marched the army to the spot)
+      eu3d.el.addEventListener("contextmenu", e => {
+        e.preventDefault(); if (!C) return;
+        if (!armySel) { note = "Choose an army first: click it, then right-click where it should go."; drawMap(); return; }
+        const r = eu3d.el.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, ak = eu3d.armyAt(px, py), hit = eu3d.pick(px, py); if (!hit) return;
+        let ct = hit.city ? CITIES.find(c => c[0] === hit.city) || null : null, x, y;
+        if (hit.ll) { [x, y] = gridOf(...hit.ll); if (!ct) { let bd = 1.6; for (const c of CITIES) { const t = cellXY(c), d = Math.hypot(t.x - x, t.y - y); if (d < bd) { bd = d; ct = c; } } } }
+        else if (ct) { const t = cellXY(ct); x = t.x; y = t.y; }
+        if (x == null) return;
+        const fh = ak && ak.startsWith("foe-") ? ak.slice(4) : ak && ak.startsWith("p-") ? ak.slice(2) : null, am = ak && ak.match(/^mine-(\d+)$/);
+        orderAt({ ah: am ? { id: +am[1] } : null, ct, fh, x, y });
+      });
       addEventListener("mousemove", e => {
         if (!on3d) return;
         if (d3 && e.buttons & 1) { const dx = e.clientX - d3.x, dy = e.clientY - d3.y; d3.moved += Math.abs(dx) + Math.abs(dy); d3.x = e.clientX; d3.y = e.clientY; eu3d.pan(dx, dy); eu3d.el.style.cursor = "grabbing"; return; }
@@ -2385,7 +2402,12 @@ export function initCampaign(c, battle, withPlayer) {
       addEventListener("mouseup", e => {
         if (!d3 || !on3d) { d3 = null; return; }
         const moved = d3.moved; d3 = null; eu3d.el.style.cursor = "grab"; if (moved > 5 || !C) return;
-        const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top); if (!hit) return;
+        const r = eu3d.el.getBoundingClientRect();
+        // (a company under the pointer, where it's drawn: chosen before the town or the ground beneath it)
+        { const ak = eu3d.armyAt(e.clientX - r.left, e.clientY - r.top), mm = ak && ak.match(/^mine-(\d+)$/), fm = ak && !ak.includes(COLO) && ak.match(/^foe-(.+)$/);
+          if (mm) { const id = +mm[1]; if (id !== (C.ar | 0)) doAct({ k: "usearmy", id }); armySel = true; selCity = null; sel = null; selFoe = null; note = ""; drawMap(); sfx("drum", 0.25); return; }
+          if (fm && NATIONS[fm[1]]) { selFoe = fm[1]; sel = fm[1]; selCity = null; armySel = false; note = ""; drawMap(); sfx("drum", 0.2); return; } }
+        const hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top); if (!hit) return;
         if (hit.city) { selCity = CITIES.find(c => c[0] === hit.city) || null; sel = selCity ? cityOwner(grid(), selCity) : null; }
         else {
           const [gx, gy] = gridOf(...hit.ll), g = grid(), q = { x: gx, y: gy }, id = g[Math.floor(gy)] && g[Math.floor(gy)][Math.floor(gx)];

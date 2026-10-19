@@ -919,8 +919,9 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
   if (!shapes || shapes.key !== key) shapes = { key, wash: new Map(), mid: new Map() };
   for (const [id, a] of [[hover, 0.34], [selected, 0.55]]) {
     if (!id || !NATIONS[id]) continue;
-    let p = shapes.wash.get(id); if (!p) { p = new Path2D(); for (let y = 0; y < GH; y++) { let x0 = -1; for (let x = 0; x <= GW; x++) { const on = x < GW && g[y][x] === id; if (on && x0 < 0) x0 = x; if (!on && x0 >= 0) { p.rect(x0 * S, y * S, (x - x0) * S, S + 0.5); x0 = -1; } } } shapes.wash.set(id, p); }
-    c.save(); c.globalCompositeOperation = "overlay"; c.fillStyle = `rgba(255,236,190,${a})`; c.fill(p); c.restore();
+    // (along the crown's own rounded outline, as its border is drawn — the squares of the grid made a staircase of it)
+    let p = shapes.wash.get(id); if (!p) { p = new Path2D(); for (const L of traceOf(g, id, false, SHEET + key).loops) addLoop(p, L.map(([x, y]) => [x * S, y * S])); shapes.wash.set(id, p); }
+    c.save(); c.globalCompositeOperation = "overlay"; c.fillStyle = `rgba(255,236,190,${a})`; c.fill(p, "evenodd"); c.restore();
   }
   // crossed swords over a crown at war (red if with you), a skull over a plague
   const centre = id => { if (shapes.mid.has(id)) return shapes.mid.get(id); let sx = 0, sy = 0, n = 0; for (let y = 0; y < GH; y += 2) for (let x = 0; x < GW; x += 2) if (g[y][x] === id) { sx += x; sy += y; n++; } const p = n ? [sx / n * S, sy / n * S] : null; shapes.mid.set(id, p); return p; };

@@ -1423,6 +1423,12 @@ export class EuropeView3D {
     }
     this.renderer.render(this.scene, this.camera);
   }
+  // the company under a point on the view, by where it's drawn (stepped out in front of a town, walking): its key, or null
+  armyAt(px, py, reach = 34) {
+    if (!this.armyMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * 0.022 * 0.9;
+    for (const [k, R] of this.armyMap) { R.inner.getWorldPosition(v); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
+    return best;
+  }
   // what is under a point on the view: a city's name, or the ground (lon, lat)
   pick(px, py) {
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(px / this.w * 2 - 1, -(py / this.h) * 2 + 1);
