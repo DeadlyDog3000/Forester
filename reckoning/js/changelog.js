@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.1", date: "18 October 2026", title: "Who goes there",
+    items: [
+      "Campaign 3D map: point at an army to see whose it is, how strong, who leads it and what it's about, and at a town for its people and its holder, as on the parchment map; the pointer shows a hand over both.",
+    ],
+  },
+  {
     v: "1.92.0", date: "18 October 2026", title: "Orders on the land",
     items: [
       "Campaign 3D map: right-click gives the same orders as on the parchment. Right-click an enemy town (its name, or the ground about it) to fall on it or march on it, an enemy army to bring it to battle or go after it, another army of yours to join it. Before, it only ever marched the army to the spot, and a right-click on a town's name did nothing.",

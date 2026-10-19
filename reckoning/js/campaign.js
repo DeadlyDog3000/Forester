@@ -2396,8 +2396,15 @@ export function initCampaign(c, battle, withPlayer) {
         if (!on3d) return;
         if (d3 && e.buttons & 1) { const dx = e.clientX - d3.x, dy = e.clientY - d3.y; d3.moved += Math.abs(dx) + Math.abs(dy); d3.x = e.clientX; d3.y = e.clientY; eu3d.pan(dx, dy); eu3d.el.style.cursor = "grabbing"; return; }
         if (e.target !== eu3d.el) return;
-        const r = eu3d.el.getBoundingClientRect(), hit = eu3d.pick(e.clientX - r.left, e.clientY - r.top);
-        eu3d.el.style.cursor = hit && hit.city ? "pointer" : "grab";
+        const r = eu3d.el.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, ak = C && eu3d.armyAt(px, py), hit = eu3d.pick(px, py);
+        eu3d.el.style.cursor = ak || (hit && hit.city) ? "pointer" : "grab";
+        // (what's under the pointer, said beside it, as on the parchment: an army — whose, how strong, what it's about —
+        //  or a town)
+        if (!C) return;
+        const mm = ak && ak.match(/^mine-(\d+)$/), fid = ak && (ak.startsWith("foe-") ? ak.slice(4) : ak.startsWith("p-") ? ak.slice(2) : null);
+        if (mm) armyTip(null, { id: +mm[1] }, e);
+        else if (fid && (NATIONS[fid] || isColo(fid))) armyTip(fid, null, e);
+        else townTip(hit && hit.city ? CITIES.find(c => c[0] === hit.city) || null : null, e);
       });
       addEventListener("mouseup", e => {
         if (!d3 || !on3d) { d3 = null; return; }
