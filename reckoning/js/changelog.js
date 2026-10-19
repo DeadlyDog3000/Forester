@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.41", date: "18 October 2026", title: "Rivers through the woods",
+    items: [
+      "Campaign 3D map: trees stand back from a river's banks, so a river through the forest reads as one unbroken stream instead of a dotted line under the treetops.",
+    ],
+  },
+  {
     v: "1.90.40", date: "18 October 2026", title: "Steadier panning close in",
     items: [
       "Campaign 3D map: panning close in runs steadier. Laying out the next piece of ground takes a smaller share of each frame unless you've run well ahead of it.",

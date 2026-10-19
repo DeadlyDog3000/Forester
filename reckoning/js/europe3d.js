@@ -601,7 +601,7 @@ export class EuropeView3D {
         const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z);
         const wood = woodAt(x, z) - tilledAt(lon, lat) * WOOD_CUT;
         if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
-        const h = heightAt(this.g, lon, lat); if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.025)) continue;
+        const h = heightAt(this.g, lon, lat); if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.065)) continue;
         // (no wood growing in a town, nor in the fields close round it)
         if (this.cleared(x, z)) continue;
         const s = 0.7 + r() * 0.7;
