@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.46", date: "18 October 2026", title: "Logs for the door",
+    items: [
+      "Story: when a cabin's walls are up but there aren't two logs on the stack for its door, the objective says to stack them first (\"Stack 2 more logs for a door, then hew it at the sawhorse\") and the marker points to the nearest standing spruce. It used to send you to the sawhorse with nothing to hew.",
+    ],
+  },
+  {
     v: "1.90.45", date: "18 October 2026", title: "Rougher coasts",
     items: [
       "Campaign 3D map: coasts wander in coves and points on a finer scale, so a small Aegean island is an irregular rock, not an octagon cut round a square of the map's grid, and a headland no longer comes down in stairs.",

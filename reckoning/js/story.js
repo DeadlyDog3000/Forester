@@ -33,6 +33,11 @@ import { FAITHS, faithOf } from "./faith.js";
 import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, makeStump, P as PROPS } from "./models.js";
 import { Town, BUILDINGS, JOBS, lieOn, YEAR, RATION, RYE_HARVEST } from "./town.js";
 import { battleById } from "./history.js";
+// (a door takes two logs off the stack: with fewer there, the objective says to bring them first — "hew a door" alone
+//  left you at the sawhorse with nothing to hew)
+// (the nearest spruce still standing, for a marker when logs are wanted)
+const nearTree = (w, pl) => { let best = null, bd = Infinity; for (const t of w.fellable || []) if (t.state === "up" && !t.claimed) { const d = Math.hypot(t.x - pl.pos.x, t.z - pl.pos.z); if (d < bd) { bd = d; best = t; } } return best ? [best.x, best.z, w.heightAt(best.x, best.z) + 2.2] : null; };
+const doorObj = (S, who) => { const k = 2 - (S.store || 0) - ((G.player && G.player.carryN) || 0); return k > 0 ? `Stack ${k} more log${k > 1 ? "s" : ""} for a door, then hew it at the sawhorse for ${who}` : `Hew a door at the sawhorse for ${who}`; };
 
 /* global SFX */
 
@@ -2252,11 +2257,11 @@ async function ch10(w) {
     if (!b) return;
     const needDoor = b.logs >= BUILDINGS.cabin.cost && !b.door;
     if (needDoor && !S.doors && !obj.told) { obj.told = true; bark(P.sib, "The walls are all there — it wants a door, like ours did. The sawhorse, by the block. Hold F.", 4.5); }
-    UI.objective(b.logs < BUILDINGS.cabin.cost ? `Raise Marta's cabin — ${b.logs} of ${BUILDINGS.cabin.cost} logs at the site · ${S.store} on the stack` : needDoor ? ((S.doors || 0) > 0 ? "Hang the door on Marta's cabin" : "Hew a door at the sawhorse for Marta's cabin") : "Hold F at the site to raise the cabin");
+    UI.objective(b.logs < BUILDINGS.cabin.cost ? `Raise Marta's cabin — ${b.logs} of ${BUILDINGS.cabin.cost} logs at the site · ${S.store} on the stack` : needDoor ? ((S.doors || 0) > 0 ? "Hang the door on Marta's cabin" : doorObj(S, "Marta's cabin")) : "Hold F at the site to raise the cabin");
     // (empty-handed, with logs still wanted: the marker on the stack, where they're taken from — on the site, you stood
     //  there with nothing to put down)
     const fetch = b.logs < BUILDINGS.cabin.cost && !(G.player.carryN > 0) && S.store > 0;
-    mark(needDoor && !(S.doors > 0) ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : fetch ? [town.stackIt ? town.stackIt.x : STACK.x, town.stackIt ? town.stackIt.z : STACK.z, w.cy + 1] : [b.x, b.z, w.cy + 1.5]);
+    mark(needDoor && !(S.doors > 0) ? ((S.store || 0) + (pl.carryN || 0) >= 2 ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : nearTree(w, pl)) : fetch ? [town.stackIt ? town.stackIt.x : STACK.x, town.stackIt ? town.stackIt.z : STACK.z, w.cy + 1] : [b.x, b.z, w.cy + 1.5]);
   });
   await until(() => S.buildings.some(b => b.type === "cabin" && b.done));
   obj(); mark(null); UI.objective(null);
@@ -2355,7 +2360,7 @@ async function ch11(w) {
     if (!n.reap) parts.push("Reap the rye");
     if (!n.well) parts.push("Build a well");
     if (!n.shed) parts.push("Build a woodshed");
-    if (!n.cabin) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); parts.push(!site ? "Plan a cabin for Tomas and Grete (B)" : site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Tomas and Grete's cabin" : "Hew a door at the sawhorse for Tomas and Grete's cabin") : `Raise Tomas and Grete's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`); }
+    if (!n.cabin) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); parts.push(!site ? "Plan a cabin for Tomas and Grete (B)" : site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Tomas and Grete's cabin" : doorObj(S, "Tomas and Grete's cabin")) : `Raise Tomas and Grete's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`); }
     if (!n.field) parts.push("Dig a second field");
     if (!n.store) parts.push("Build a store chest for the settlement (B)");
     if (!n.pick) parts.push("Make a wooden pickaxe at the chopping block (2 logs)");
@@ -2609,7 +2614,7 @@ async function chHarvest(w) {
     if (!H.reaped) parts.push("Reap the rye");
     if (!H.joined) {
       const site = S.buildings.find(b => b.type === "cabin" && !b.done);
-      parts.push(site ? (site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Jan and Liesel's cabin" : "Hew a door at the sawhorse for Jan and Liesel's cabin") : `Raise Jan and Liesel's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`) : "Plan a cabin for Jan and Liesel (B)");
+      parts.push(site ? (site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Jan and Liesel's cabin" : doorObj(S, "Jan and Liesel's cabin")) : `Raise Jan and Liesel's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`) : "Plan a cabin for Jan and Liesel (B)");
     }
     if (!H.job) parts.push("Put someone in the fields: F by a settler, and make them a farmer");
     if (!H.stocked) parts.push(`Lay in five days' food — ${town.foodDays().toFixed(1)} now`);
@@ -2623,7 +2628,7 @@ async function chHarvest(w) {
     if (!m && !H.joined) { const site = S.buildings.find(b => b.type === "cabin" && !b.done);
       // (logs wanted and your arms empty: the stack; walls up and no door hewn: the sawhorse; else the site itself)
       if (site) m = site.logs < BUILDINGS.cabin.cost && !(pl.carryN > 0) && S.store > 0 && town.stackIt ? [town.stackIt.x, town.stackIt.z, w.cy + 1]
-        : site.logs >= BUILDINGS.cabin.cost && !site.door && !(S.doors > 0) ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : [site.x, site.z, w.cy + 1.5]; }
+        : site.logs >= BUILDINGS.cabin.cost && !site.door && !(S.doors > 0) ? ((S.store || 0) + (pl.carryN || 0) >= 2 ? [BLOCK.x + 1.3, BLOCK.z, w.cy + 1.1] : nearTree(w, pl)) : [site.x, site.z, w.cy + 1.5]; }
     if (!m && !H.furnished && !w.insideCabin(pl.pos.x, pl.pos.z)) { const [x, z] = w.cabinToWorld(0, 3.4); m = [x, z, w.cy + 1.6]; }
     mark(m);
     if (!H.furnished && w.insideCabin(pl.pos.x, pl.pos.z) && S.store < 2 && !shortTold) { shortTold = true; bark(P.sib, "You'll want logs for that. Two for a bench — fell a tree, or wait for the stack.", 4); }
