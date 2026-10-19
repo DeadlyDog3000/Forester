@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.32", date: "18 October 2026", title: "The St Lawrence unbroken",
+    items: [
+      "Campaign 3D map: a river the map drew as a string of small ponds now runs through as one stream. The St Lawrence flows past Québec without breaking into lakes, and estuaries like the Tagus below Lisbon keep their water.",
+    ],
+  },
+  {
     v: "1.90.31", date: "18 October 2026", title: "The Zuiderzee",
     items: [
       "Campaign 3D map: the Zuiderzee opens behind North Holland, and Amsterdam stands on the IJ at its southern end rather than out in the fields.",

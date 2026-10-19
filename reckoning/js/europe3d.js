@@ -70,11 +70,23 @@ function straitCut(lon, lat) {
   }
   return c;
 }
+// (the map's grid draws a river's lower course as a string of single-cell ponds — the Hudson, the St Lawrence above
+//  Québec: where such a pond lies on a river's line, it's land again, and the river runs through it unbroken)
+const RVBIN = new Map();
+for (const rv of RIVERS) for (let i = 1; i < rv.length; i++) {
+  const [a, b] = [rv[i - 1], rv[i]];
+  for (let x = Math.floor(Math.min(a[0], b[0]) - 0.4); x <= Math.floor(Math.max(a[0], b[0]) + 0.4); x++) for (let y = Math.floor(Math.min(a[1], b[1]) - 0.4); y <= Math.floor(Math.max(a[1], b[1]) + 0.4); y++) { const k = x * 1000 + y; (RVBIN.get(k) || RVBIN.set(k, []).get(k)).push([a[0] * K, a[1], b[0] * K, b[1]]); }
+}
+// (but not at a river's mouth: an estuary — the Tagus below Lisbon — is the river's own water)
+const MOUTHS = RIVERS.map(rv => rv[0]);
+const nearRiver = (lon, lat, r) => { if (MOUTHS.some(([x, y]) => Math.abs(x - lon) * K < 0.45 && Math.abs(y - lat) < 0.45)) return false; const L = RVBIN.get(Math.floor(lon) * 1000 + Math.floor(lat)); return !!L && L.some(([x0, y0, x1, y1]) => segDist(lon * K, lat, x0, y0, x1, y1) < r); };
+const RING2 = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4 + 0.39) * 2.2, Math.sin(i * Math.PI / 4 + 0.39) * 2.2]);
 // height in km (below 0: sea)
 const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.6, Math.sin(i * Math.PI / 4) * 1.6]);
 export function heightAt(g, lon, lat) {
   const [ex, ey] = fwd(lon, lat), gx = (ex - BOUNDS.lon0) / (BOUNDS.lon1 - BOUNDS.lon0) * GW - 0.5, gy = (BOUNDS.lat1 - ey) / (BOUNDS.lat1 - BOUNDS.lat0) * GH - 0.5;
-  const l0 = landG(g, gx, gy), land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - straitCut(lon, lat) * 1.2;
+  const l0 = landG(g, gx, gy); let land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - straitCut(lon, lat) * 1.2;
+  if (land < 0.62 && l0 < 0.999 && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.56 + (w - 0.78) * 0.5); }
   if (land < 0.5) return -0.18 + land * 0.3;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
