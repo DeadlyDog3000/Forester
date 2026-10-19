@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.10", date: "18 October 2026", title: "Under sail",
+    items: [
+      "Campaign 3D map: fleets sail to where they're going, round the coasts by their course and coming about as they go, instead of vanishing and reappearing there; at anchor a ship keeps the heading she came in on.",
+    ],
+  },
+  {
     v: "1.91.9", date: "18 October 2026", title: "Under the boughs",
     items: [
       "Felling: standing in under a spruce at its trunk, its lower boughs thin away round you (the crown overhead stays), so you see the trunk and the clearing beyond while you chop, not a screen of dark needles and dots.",

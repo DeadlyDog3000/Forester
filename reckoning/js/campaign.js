@@ -2528,7 +2528,7 @@ function marks3d() {
 }
 // the armies on the land, for the near view: each as a company of its own men in its own coats (europe3d.js armies)
 // (where each army stood when the 3D view last saw it: moved since, it's given the road it came by, to walk along)
-let last3d = {}, last3dOf = null; const route3d = new Map();
+let last3d = {}, last3dOf = null, lastF3d = {}, lastF3dOf = null; const route3d = new Map();
 function armies3d() {
   const g = grid(), out = [];
   if (last3dOf !== C) { last3dOf = C; last3d = {}; }
@@ -2551,7 +2551,11 @@ function armies3d() {
 }
 // (the fleets at sea, for the land seen close: yours, the other player's, and the crowns' — each heading where she's bound)
 function fleets3d() {
-  const out = [], one = (p, id, n, mine, go, key) => { const [lon, lat] = llOf(p.x, p.y), yaw = go ? Math.atan2(go.x - p.x, go.y - p.y) : (hashStr(key) % 628) / 100; out.push({ name: key, lon, lat, color: NATIONS[id].color, n, yaw: Math.round(yaw * 100) / 100, mine }); };
+  if (lastF3dOf !== C) { lastF3dOf = C; lastF3d = {}; }
+  const out = [], one = (p, id, n, mine, go, key) => {
+    // (moved since the view last saw her: the course she sailed, round the land, for her to be seen sailing it)
+    let via = null; { const was = lastF3d[key]; if (was && Math.hypot(p.x - was.x, p.y - was.y) > 0.4) { const sp = seaPath(grid(), was, p); if (sp && sp.length > 1) via = smoothWay([{ x: was.x, y: was.y }, ...sp, { x: p.x, y: p.y }], true).map(q => llOf(q.x, q.y).map(v => Math.round(v * 1000) / 1000)); } lastF3d[key] = { x: p.x, y: p.y }; }
+    const [lon, lat] = llOf(p.x, p.y), yaw = go ? Math.atan2(go.x - p.x, go.y - p.y) : (hashStr(key) % 628) / 100; out.push({ name: key, lon, lat, color: NATIONS[id].color, n, yaw: Math.round(yaw * 100) / 100, mine, bound: !!go, ...(via ? { via } : {}) }); };
   for (const [id, F] of Object.entries(C.foeFleets || {})) if (F.ships.length) one(F.pos, id, F.ships.length, false, null, "foe-" + id);
   for (const [h, f] of otherFleets()) one(f.pos, h, f.ships.length, false, f.go, `p-${h}-${f.id}`);
   for (const f of C.fleets || []) if (f.ships.length) one(f.pos, C.me, f.ships.length, true, f.go, "mine-" + f.id);

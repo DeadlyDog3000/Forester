@@ -1175,21 +1175,41 @@ export class EuropeView3D {
   fleets(list) {
     const key = JSON.stringify(list); if (key === this.fleetKey && this.fleetModel) return; this.fleetKey = key;
     if (!this.fleetModel) ensureModel("ship").then(ok => { if (ok && !this.fleetModel) { this.fleetModel = true; this.fleetKey = null; this.fleets(list); } });
-    if (this.fleetGroup) { this.fleetGroup.traverse(o => { if (o.isSprite) { o.material.map.dispose(); o.material.dispose(); } }); this.scene.remove(this.fleetGroup); }
-    const grp = this.fleetGroup = new THREE.Group();
+    // (each ship kept from one year to the next: moved, she sails there by her course round the coasts and comes about
+    //  as she goes — she once vanished and was made again where she'd got to)
+    if (!this.fleetGroup) { this.fleetGroup = new THREE.Group(); this.scene.add(this.fleetGroup); }
+    const M = (this.fleetMap ||= new Map()), seen = new Set(), now = performance.now(), grp = this.fleetGroup;
+    const dropSp = F => { if (F.sp) { grp.remove(F.sp); F.sp.material.map.dispose(); F.sp.material.dispose(); F.sp = null; } };
     for (const f of list) {
-      const [x, z] = toWorld(f.lon, f.lat), ship = new THREE.Group(); ship.position.set(x, 0, z); ship.rotation.y = f.yaw || 0; ship.userData.fleet = true;
-      const m = modelCopy("ship");
-      if (m) { m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(f.color); } } }); ship.add(m.scene); }
-      else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; ship.add(hull); }
-      const pen = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.6), new THREE.MeshBasicMaterial({ color: f.color, side: THREE.DoubleSide })); pen.geometry.translate(3.5, 0, 0); pen.position.set(0, 25, 2.5); pen.rotation.y = Math.PI / 2; ship.add(pen);
-      grp.add(ship);
-      const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), ink = f.mine ? "#2a1c10" : "#7a2216";
-      c.font = "italic bold 22px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 6; c.strokeText(String(f.n), 32, 32); c.fillStyle = ink; c.fillText(String(f.n), 32, 32);
-      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, sizeAttenuation: false, transparent: true })); sp.scale.set(0.05, 0.05, 1); sp.renderOrder = 7; sp.userData.over = ship; grp.add(sp);
+      seen.add(f.name);
+      const look = f.color + "|" + !!f.mine + "|" + !!this.fleetModel, [x, z] = toWorld(f.lon, f.lat);
+      let F = M.get(f.name);
+      if (F && F.look !== look) { grp.remove(F.ship); dropSp(F); M.delete(f.name); F = null; }
+      if (!F) {
+        const ship = new THREE.Group(); ship.position.set(x, 0, z); ship.rotation.y = f.yaw || 0; ship.userData.fleet = true;
+        const m = modelCopy("ship");
+        if (m) { m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(f.color); } } }); ship.add(m.scene); }
+        else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; ship.add(hull); }
+        const pen = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.6), new THREE.MeshBasicMaterial({ color: f.color, side: THREE.DoubleSide })); pen.geometry.translate(3.5, 0, 0); pen.position.set(0, 25, 2.5); pen.rotation.y = Math.PI / 2; ship.add(pen);
+        grp.add(ship); F = { ship, look, to: [x, z], face: f.yaw || 0, n: null, sp: null, glide: null }; M.set(f.name, F);
+      } else if (Math.hypot(F.to[0] - x, F.to[1] - z) > 0.02) {
+        const from = [F.ship.position.x, F.ship.position.z], via = (f.via || []).map(([lo, la]) => toWorld(lo, la));
+        const pts = [from, ...via.slice(1, -1), [x, z]], segs = []; let L = 0;
+        for (let k = 1; k < pts.length; k++) { const d = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); segs.push(d); L += d; }
+        F.glide = L > 0.01 && L < 400 ? { pts, segs, L, t0: now, dur: 1400 + Math.min(2600, L * 45) } : null;
+        if (!F.glide) F.ship.position.set(x, 0, z);
+      }
+      // (bound somewhere: she heads that way; lying at anchor, she keeps the heading she came in on)
+      F.to = [x, z]; if (f.bound || F.n == null) F.face = f.yaw || 0; F.bound = !!f.bound;
+      if (F.n !== f.n) {
+        F.n = f.n; dropSp(F);
+        const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), ink = f.mine ? "#2a1c10" : "#7a2216";
+        c.font = "italic bold 22px Georgia, serif"; c.textAlign = "center"; c.textBaseline = "middle"; c.lineJoin = "round"; c.strokeStyle = "rgba(244,234,210,0.92)"; c.lineWidth = 6; c.strokeText(String(f.n), 32, 32); c.fillStyle = ink; c.fillText(String(f.n), 32, 32);
+        const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+        const sp = F.sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, sizeAttenuation: false, transparent: true })); sp.scale.set(0.05, 0.05, 1); sp.renderOrder = 7; sp.userData.over = F.ship; grp.add(sp);
+      }
     }
-    this.scene.add(grp);
+    for (const [k, F] of M) if (!seen.has(k)) { grp.remove(F.ship); dropSp(F); M.delete(k); }
   }
   // the armies on the land: a company of its own men in its own coats, drawn up in two ranks under its colours —
   //  stepping out on the march, standing at ease when it's halted — kept the same size on the view, as the fleets are.
@@ -1352,6 +1372,20 @@ export class EuropeView3D {
     //  the eye is: a fixed height over the ground had them across the name once the view was drawn back)
     if (this.markGroup) for (const sp of this.markGroup.children) { const u = sp.userData.over; if (!u) continue; const d = this.camera.position.distanceTo(sp.position); sp.position.y = u.y0 + lift + (0.024 + sp.scale.y / 2 + u.stack * 0.036) * d; }
     // (the fleets kept the same size on the view however near or far: a ship's length about a twentieth of its height)
+    // (the ships under way across the view, as the armies: along their course, easing off and coming to, turned as they go)
+    if (this.fleetMap) { const now = performance.now(), dt = Math.min(0.1, (now - (this.fleetT || now)) / 1000); this.fleetT = now;
+      for (const F of this.fleetMap.values()) {
+        let want = F.face;
+        if (F.glide) {
+          const G = F.glide, q = Math.min(1, (now - G.t0) / G.dur), e = q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+          let d = e * G.L, s = 0; while (s < G.segs.length - 1 && d > G.segs[s]) { d -= G.segs[s]; s++; }
+          const [ax, az] = G.pts[s], [bx, bz] = G.pts[s + 1], f = G.segs[s] ? Math.min(1, d / G.segs[s]) : 1;
+          F.ship.position.x = ax + (bx - ax) * f; F.ship.position.z = az + (bz - az) * f;
+          if (q < 0.98) want = Math.atan2(bx - ax, bz - az);
+          if (q >= 1) { F.glide = null; F.ship.position.x = F.to[0]; F.ship.position.z = F.to[1]; if (!F.bound) F.face = F.ship.rotation.y; }
+        }
+        const r0 = F.ship.rotation.y; F.ship.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 3);
+      } }
     if (this.fleetGroup) { const k = this.dist * 0.0036; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
     // (the armies the same: a man about a fiftieth of the view's height, standing on the ground where he is; and their
     //  steps, their breathing, their colours stirring)
