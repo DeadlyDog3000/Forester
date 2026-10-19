@@ -110,6 +110,8 @@ for (const rv of RIVERS) for (let i = 1; i < rv.length; i++) {
 const MOUTHS = RIVERS.map(rv => rv[0]);
 const nearRiver = (lon, lat, r) => { if (MOUTHS.some(([x, y]) => Math.abs(x - lon) * K < 0.45 && Math.abs(y - lat) < 0.45)) return false; const L = RVBIN.get(Math.floor(lon) * 1000 + Math.floor(lat)); return !!L && L.some(([x0, y0, x1, y1]) => segDist(lon * K, lat, x0, y0, x1, y1) < r); };
 const RING2 = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4 + 0.39) * 2.2, Math.sin(i * Math.PI / 4 + 0.39) * 2.2]);
+// ridged noise, 0..1: sharp crests where a smooth noise would be round hills (three octaves, each a little finer)
+function ridged(x, y) { let v = 0, a = 0.55, f = 1; for (let i = 0; i < 3; i++) { const n = 1 - Math.abs(vnoise(x * f, y * f, 61 + i * 7) * 2 - 1); v += a * n * Math.sqrt(n); a *= 0.5; f *= 2.1; } return v / 0.9625; }
 // height in km (below 0: sea)
 const RING = Array.from({ length: 8 }, (_, i) => [Math.cos(i * Math.PI / 4) * 1.6, Math.sin(i * Math.PI / 4) * 1.6]);
 export function heightAt(g, lon, lat) {
@@ -135,7 +137,9 @@ export function heightAt(g, lon, lat) {
     const [pts, km, w] = RANGES[ri];
     let d = Infinity;
     for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(lon * K, lat, pts[i - 1][0] * K, pts[i - 1][1], pts[i][0] * K, pts[i][1]));
-    if (d < w * 3) h += rise * km * Math.exp(-(d * d) / (2 * w * w)) * (0.6 + fbm(lon * 4, lat * 4, 11) * 0.7);
+    // (and over the broad swell of a range, ridges and the valleys between: sharp crests, where the rock shows on the
+    //  sides and the snow keeps to the heights, not one smooth white back from end to end)
+    if (d < w * 3) { const gk = rise * km * Math.exp(-(d * d) / (2 * w * w)); h += gk * (0.6 + fbm(lon * 4, lat * 4, 11) * 0.7) + (gk > 0.25 ? gk * (ridged(lon * K * 6.5, lat * 4.3) - 0.45) * 0.24 : 0); }
   }
   for (const [x0, y0, x1, y1, km] of PLATEAUS) {
     const ex = Math.min(lon - x0, x1 - lon), ey = Math.min(lat - y0, y1 - lat);
