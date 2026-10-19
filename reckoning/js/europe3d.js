@@ -1429,6 +1429,12 @@ export class EuropeView3D {
     for (const [k, R] of this.armyMap) { R.inner.getWorldPosition(v); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
     return best;
   }
+  // the fleet under a point on the view, by where her ship is drawn: its name, or null
+  fleetAt(px, py, reach = 30) {
+    if (!this.fleetMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * 0.0036 * 10;
+    for (const [k, F] of this.fleetMap) { v.copy(F.ship.position); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
+    return best;
+  }
   // what is under a point on the view: a city's name, or the ground (lon, lat)
   pick(px, py) {
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(px / this.w * 2 - 1, -(py / this.h) * 2 + 1);

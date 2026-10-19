@@ -2216,6 +2216,15 @@ let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3
 // (drawn only while the campaign's map is in front of you)
 const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); raf3d = requestAnimationFrame(loop3d); };
 const shown = () => !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden");
+// ---- a right-click with a fleet in hand: joined to another of yours, an enemy fleet engaged (or sailed after), or sailed
+//  to where you clicked ----
+function fleetOrder(fh2, x, y) {
+  if (fh2 && fh2.mine != null && fh2.mine !== selFleet) { doAct({ k: "fjoin", id: selFleet, to: fh2.mine }); return; }
+  if (fh2 && fh2.foe && C.foeFleets && C.foeFleets[fh2.foe]) { if (canSeaFight(selFleet, fh2.foe)) { doAct({ k: "seafight", id: selFleet, foe: fh2.foe, how: "fight" }); return; } if (!atWar(fh2.foe)) { react({ note: `You're not at war with ${the(fh2.foe)}.` }); drawMap(); return; } const F = C.foeFleets[fh2.foe]; doAct({ k: "sail", id: selFleet, x: F.pos.x, y: F.pos.y }); return; }
+  doAct({ k: "sail", id: selFleet, x, y });
+}
+// (a fleet's name on the land seen close, as fleetHit gives it on the parchment)
+const fleetOf3d = k => { if (!k) return null; let m; if ((m = k.match(/^mine-(\d+)$/))) return { mine: +m[1] }; if ((m = k.match(/^p-(.+)-(\d+)$/))) return { foe: `p:${m[1]}:${m[2]}` }; if ((m = k.match(/^foe-(.+)$/))) return { foe: m[1] }; return null; };
 // ---- a right-click with the army in hand, on the parchment map or the land seen close: what's under it decides the
 //  order — aboard a fleet of yours, joined to another army of yours, an enemy town fallen on (or marched on, or why
 //  not), an enemy army fallen on (or gone after, or why not), or else marched to where you clicked ----
@@ -2332,8 +2341,7 @@ export function initCampaign(c, battle, withPlayer) {
   cv.oncontextmenu = e => {
     e.preventDefault(); if (!C) return;
     const [mx, my] = toMap(pos(e)), S = cv.width / MG_W;
-    if (selFleet != null && fleetById(selFleet)) { const fh2 = fleetHit(cv, ...pos(e)); if (fh2 && fh2.mine != null && fh2.mine !== selFleet) { doAct({ k: "fjoin", id: selFleet, to: fh2.mine }); return; }
-      if (fh2 && fh2.foe && C.foeFleets && C.foeFleets[fh2.foe]) { if (canSeaFight(selFleet, fh2.foe)) { doAct({ k: "seafight", id: selFleet, foe: fh2.foe, how: "fight" }); return; } if (!atWar(fh2.foe)) { react({ note: `You're not at war with ${the(fh2.foe)}.` }); drawMap(); return; } const F = C.foeFleets[fh2.foe]; doAct({ k: "sail", id: selFleet, x: F.pos.x, y: F.pos.y }); return; } doAct({ k: "sail", id: selFleet, x: mx / S, y: my / S }); return; }
+    if (selFleet != null && fleetById(selFleet)) { fleetOrder(fleetHit(cv, ...pos(e)), mx / S, my / S); return; }
     // (nothing chosen — no army, no fleet: a right-click gives no orders. It used to march the army last in hand
     //  wherever you clicked, chosen or not, so a garrison's new army set off after it had been put down)
     if (!armySel) { note = "Choose an army first: click it, then right-click where it should go."; drawMap(); return; }
@@ -2383,8 +2391,10 @@ export function initCampaign(c, battle, withPlayer) {
       //  where it's drawn — where a right-click here once only ever marched the army to the spot)
       eu3d.el.addEventListener("contextmenu", e => {
         e.preventDefault(); if (!C) return;
+        const r = eu3d.el.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+        if (selFleet != null && fleetById(selFleet)) { const h = eu3d.pick(px, py); if (!h || !h.ll) return; const [fx, fy] = gridOf(...h.ll); fleetOrder(fleetOf3d(eu3d.fleetAt(px, py)), fx, fy); return; }
         if (!armySel) { note = "Choose an army first: click it, then right-click where it should go."; drawMap(); return; }
-        const r = eu3d.el.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top, ak = eu3d.armyAt(px, py), hit = eu3d.pick(px, py); if (!hit) return;
+        const ak = eu3d.armyAt(px, py), hit = eu3d.pick(px, py); if (!hit) return;
         let ct = hit.city ? CITIES.find(c => c[0] === hit.city) || null : null, x, y;
         if (hit.ll) { [x, y] = gridOf(...hit.ll); if (!ct) { let bd = 1.6; for (const c of CITIES) { const t = cellXY(c), d = Math.hypot(t.x - x, t.y - y); if (d < bd) { bd = d; ct = c; } } } }
         else if (ct) { const t = cellXY(ct); x = t.x; y = t.y; }
@@ -2410,6 +2420,10 @@ export function initCampaign(c, battle, withPlayer) {
         if (!d3 || !on3d) { d3 = null; return; }
         const moved = d3.moved; d3 = null; eu3d.el.style.cursor = "grab"; if (moved > 5 || !C) return;
         const r = eu3d.el.getBoundingClientRect();
+        // (a ship under the pointer: that fleet chosen — yours to sail, another's to look at — or put down again)
+        { const sh = fleetOf3d(eu3d.fleetAt(e.clientX - r.left, e.clientY - r.top));
+          if (sh) { if (sh.mine != null) { selFleet = selFleet === sh.mine ? null : sh.mine; selFoeFleet = null; } else { selFoeFleet = sh.foe; sel = pFleet(sh.foe) ? pFleet(sh.foe).h : sh.foe; } selCity = null; selFoe = null; armySel = false; note = selFleet != null && sh.mine != null ? "Your fleet: right-click on the sea to sail there." : ""; drawMap(); sfx("bell", 0.15); return; }
+          if (selFleet != null) selFleet = null; selFoeFleet = null; }
         // (a company under the pointer, where it's drawn: chosen before the town or the ground beneath it)
         { const ak = eu3d.armyAt(e.clientX - r.left, e.clientY - r.top), mm = ak && ak.match(/^mine-(\d+)$/), fm = ak && !ak.includes(COLO) && ak.match(/^foe-(.+)$/);
           if (mm) { const id = +mm[1]; if (id !== (C.ar | 0)) doAct({ k: "usearmy", id }); armySel = true; selCity = null; sel = null; selFoe = null; note = ""; drawMap(); sfx("drum", 0.25); return; }

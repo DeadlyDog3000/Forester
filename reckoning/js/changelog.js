@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.2", date: "18 October 2026", title: "Fleets from the land",
+    items: [
+      "Campaign 3D map: click a ship to take her fleet in hand, then right-click the sea to sail there, another fleet of yours to join it, or an enemy fleet to engage it, as on the parchment map.",
+    ],
+  },
+  {
     v: "1.92.1", date: "18 October 2026", title: "Who goes there",
     items: [
       "Campaign 3D map: point at an army to see whose it is, how strong, who leads it and what it's about, and at a town for its people and its holder, as on the parchment map; the pointer shows a hand over both.",
