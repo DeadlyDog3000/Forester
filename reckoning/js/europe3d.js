@@ -1008,7 +1008,7 @@ export class EuropeView3D {
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false, transparent: true }));
       sprite.scale.set(0.16, 0.04, 1); sprite.position.set(x, y0 + 0.3, z); sprite.renderOrder = 5;
-      sprite.userData = { rank, city: isHome ? null : name, y0 };
+      sprite.userData = { rank, city: isHome ? null : name, y0, w: w / 256 };
       grp.add(sprite); labels.push(sprite);
     };
     for (const ct of CITIES) { place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false); yield; }
@@ -1178,7 +1178,12 @@ export class EuropeView3D {
       const k = this.dist * 0.022;
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }
-        else if (o.userData.over) o.position.set(o.userData.over.position.x, o.userData.over.position.y + k * 3.6, o.userData.over.position.z);
+        else if (o.userData.over) {
+          // (over a town, the number would be written across the town's name: set beside the name instead)
+          const c = o.userData.over.position, lab = this.dist > 2.6 && this.labels && this.labels.find(l => l.visible && Math.abs(l.position.x - c.x) < 0.6 && Math.abs(l.position.z - c.z) < 0.6);
+          if (lab) { const d = this.camera.position.distanceTo(lab.position); o.position.set(lab.position.x + (lab.scale.x * (lab.userData.w || 1) / 2 + 0.022) * d, lab.position.y, lab.position.z); }
+          else o.position.set(c.x, c.y + k * 3.6, c.z);
+        }
       }
       for (const m of this.mixers || []) m.update(dt);
     }

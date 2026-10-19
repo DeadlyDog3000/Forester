@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.38", date: "18 October 2026", title: "Numbers beside the names",
+    items: [
+      "Campaign 3D map: an army standing in a town has its count of regiments written beside the town's name, not across it (\"Wien 57\", not \"W57en\").",
+    ],
+  },
+  {
     v: "1.90.37", date: "18 October 2026", title: "Venice's lagoon",
     items: [
       "Campaign 3D map: Venice looks out over its lagoon. The Lido and Pellestrina, the long low sand bars, lie between it and the open Adriatic.",
