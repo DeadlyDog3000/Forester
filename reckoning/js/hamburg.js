@@ -368,10 +368,11 @@ export class Hamburg extends WorldBase {
     for (const i of [7, 8]) { this.pool[i].color.set(0xffc27a); this.pool[i].distance = 13; }
     this.lampLevel = 0; this._lampT = 0;
 
-    // the small door by the marsh gate, drawn over everything while you are making for it
+    // the small door by the marsh gate, drawn over everything while you are making for it — as the lamplight round a
+    //  doorway, warm and faint, not a green box from another kind of game
     this.posternGlow = new THREE.Group();
-    const pgFill = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.3), new THREE.MeshBasicMaterial({ color: 0x8cf08a, transparent: true, opacity: 0.2, depthTest: false, depthWrite: false, fog: false }));
-    const pgEdge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.3, 2.3, 0.05)), new THREE.LineBasicMaterial({ color: 0xa8ffa0, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false, fog: false }));
+    const pgFill = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.3), new THREE.MeshBasicMaterial({ color: 0xffc27a, transparent: true, opacity: 0.12, depthTest: false, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }));
+    const pgEdge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.3, 2.3, 0.05)), new THREE.LineBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.45, depthTest: false, depthWrite: false, fog: false }));
     pgFill.rotation.y = Math.PI; this.posternGlow.add(pgFill, pgEdge);
     this.posternGlow.position.set(-27.5, 1.1, 67.7);
     this.posternGlow.renderOrder = 999; pgFill.renderOrder = 999; pgEdge.renderOrder = 1000;
@@ -693,11 +694,11 @@ export class Hamburg extends WorldBase {
       this.water.geometry.computeVertexNormals();
     }
     if (this.posternGlow.visible) {
-      // (it fades as you come up to it — close by, you can see the door itself, and it isn't a green sheet over the screen)
+      // (it fades as you come up to it — close by, you can see the door itself, and it isn't a sheet of light over the screen)
       const k = 0.55 + Math.sin(this.t * 3) * 0.45, pl = G.player;
       const near = pl ? Math.min(1, Math.max(0, (Math.hypot(pl.pos.x + 27.5, pl.pos.z - 67.7) - 3) / 5)) : 1;
-      this.posternGlow.children[0].material.opacity = (0.1 + k * 0.18) * near;
-      this.posternGlow.children[1].material.opacity = (0.45 + k * 0.5) * near;
+      this.posternGlow.children[0].material.opacity = (0.06 + k * 0.1) * near;
+      this.posternGlow.children[1].material.opacity = (0.22 + k * 0.28) * near;
     }
     for (const s of this.ships) {
       s.position.y = -1.3 + Math.sin(this.t * 0.7 + s.userData.bob) * 0.1;

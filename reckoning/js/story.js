@@ -832,7 +832,8 @@ async function ch3(w, opts) {
         if (!cutOff && pl.pos.x > -9) { g.targetYaw = Math.atan2(dx, dz); continue; }
         if (!cutOff) { cutOff = true; g.react = 0.25; AUDIO.shout(); bark("Watchman", "Stop! Stop there!", 1.6); }
         if ((g.react -= dt) > 0) continue;
-        spd = 5.3;
+        // (a race you can win running flat out: he gets near the mouth, not into it ahead of you every time)
+        spd = 4.9;
       }
       if (g === cg4) {
         if (elapsed < 2.2) continue;

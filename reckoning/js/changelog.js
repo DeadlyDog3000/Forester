@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.1", date: "18 October 2026", title: "A race you can win",
+    items: [
+      "Story, the flight from Hamburg: the watchman who runs to cut you off from the alley is a step slower, so running flat out gets you in ahead of him rather than into his arms at its mouth, time after time.",
+      "Story, the marsh gate: the small door you're making for is marked by a faint warm glow, like lamplight round a doorway, instead of a bright green box.",
+    ],
+  },
+  {
     v: "1.91.0", date: "18 October 2026", title: "The State of the Realm",
     items: [
       "Campaign: a new campaign opens with your crown's own gazette, the State of the Realm: who you're at war with and who fights beside them, your leagues, your trading partners and what they bring, the courts that wish you well or ill, the world's other wars and the crown's ambition.",
