@@ -2033,7 +2033,9 @@ function endSeason(part = {}) {
     // (a walled town is only sat down before by a crown with guns to batter it)
     // (a town already marched toward: kept to; else one within its reach)
     let ct = C.foeGo[id] && mine.find(c => c[0] === C.foeGo[id]);
-    if (!ct) { const fp0 = foeArmyPos(id), near = mine.filter(c => (fp0 && overSea(fp0, cellXY(c)) ? narrowSea(fp0, cellXY(c)) : inReach(g2, c, id)) && (!hasWalls(c, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length) continue; ct = pick(near); }
+    if (!ct) { const fp0 = foeArmyPos(id), near = mine.filter(c => (fp0 && overSea(fp0, cellXY(c)) ? narrowSea(fp0, cellXY(c)) : inReach(g2, c, id)) && (!hasWalls(c, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length) continue;
+      // (and its own lost towns first: a crown you've taken towns from comes back for them)
+      const lost = near.filter(c => peopleOf(c) === id); ct = lost.length && R() < 0.75 ? pick(lost) : pick(near); }
     // its army on the road: there this year if it's near enough, else a year's march nearer — seen coming
     const fp = foeArmyPos(id), tc = cellXY(ct);
     if (fp && overSea(fp, tc)) { if (!invade(id, fp, ct)) delete C.foeGo[id]; continue; }
