@@ -1219,6 +1219,9 @@ export class EuropeView3D {
         if (!R.glide) R.co.position.set(x, 0, z);
       }
       R.to = [x, z];
+      // (standing in a town: drawn a little in front of it, toward the eye, so the town's name doesn't hide it)
+      if (this.townXZSheet !== SHEET) { this.townXZSheet = SHEET; this.townXZ = CITIES.map(c => toWorld(c[1], c[2])); }
+      R.nudge = this.townXZ.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 0.35) ? 3.2 : 0;
       // (which way it faces when it isn't walking: toward where it's bound, or as it last went)
       if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); R.face = Math.atan2(gx - x, gz - z); }
       R.march = !!A.march; this.stride(R);
@@ -1272,7 +1275,8 @@ export class EuropeView3D {
     R.co.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const mt of ms) if (o.userData.own || (mt.userData && mt.userData.own)) { mt.map && o.userData.own && mt.map.dispose(); mt.dispose(); } if (/^merged_/.test(o.name) || o.userData.own) { o.geometry && o.geometry.dispose(); if (o.skeleton) o.skeleton.dispose(); } });
   }
   makeCompany(A) {
-    const co = new THREE.Group(); co.userData.army = true; const R = { co, men: [], to: [0, 0], face: 0, n: null, sp: null, glide: null, walking: null };
+    const co = new THREE.Group(); co.userData.army = true; const R = { co, men: [], to: [0, 0], face: 0, n: null, sp: null, glide: null, walking: null, inner: new THREE.Group(), nudge: 0 };
+    co.add(R.inner); const coAdd = (...o) => R.inner.add(...o);
     // (its men: two ranks of five, or a war party in open order; each in the coats of its own crown)
     const mats = {}, men = A.nw ? 7 : 10;
     for (let i = 0; i < men; i++) {
@@ -1293,7 +1297,7 @@ export class EuropeView3D {
       else m.scene.position.set((file - 2) * 0.85, 0, -rank * 1.05);
       // (the musket shouldered, upright at his right side)
       if (!A.nw) { const g = makeMusket(); if (g) { g.position.set(-0.24, 0.86, 0.02); g.rotation.x = -0.12; g.traverse(o => { if (o.isMesh) o.castShadow = false; }); m.scene.add(g); } }
-      co.add(m.scene);
+      coAdd(m.scene);
       const mixer = new THREE.AnimationMixer(m.scene), cw = m.animations.find(a => a.name === "Walk"), ci = m.animations.find(a => a.name === "Idle");
       const walk = cw && mixer.clipAction(cw), idle = ci && mixer.clipAction(ci);
       for (const a of [walk, idle]) if (a) { a.time = (i * 0.37) % a.getClip().duration; a.enabled = false; }
@@ -1301,10 +1305,10 @@ export class EuropeView3D {
     }
     // (its colours, carried at the right of the front rank)
     if (!A.nw) {
-      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 3.1, 6), new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })); pole.userData.own = true; pole.position.set(2.55, 1.55, 0.15); co.add(pole);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 3.1, 6), new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })); pole.userData.own = true; pole.position.set(2.55, 1.55, 0.15); coAdd(pole);
       const tex = A.flag ? new THREE.CanvasTexture(A.flag) : null; if (tex) tex.colorSpace = THREE.SRGBColorSpace;
       const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.78), new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : A.color, side: THREE.DoubleSide, roughness: 0.95 })); cloth.userData.own = true;
-      cloth.geometry.translate(0.575, 0, 0); cloth.position.set(2.57, 2.7, 0.15); cloth.rotation.y = -0.35; co.add(cloth); co.userData.cloth = cloth;
+      cloth.geometry.translate(0.575, 0, 0); cloth.position.set(2.57, 2.7, 0.15); cloth.rotation.y = -0.35; coAdd(cloth); co.userData.cloth = cloth;
     }
     this.armyGroup.add(co);
     return R;
@@ -1367,6 +1371,7 @@ export class EuropeView3D {
           if (q >= 1) { R.glide = null; R.co.position.x = R.to[0]; R.co.position.z = R.to[1]; this.stride(R); }
         }
         const r0 = R.co.rotation.y; R.co.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 6);
+        { const ry = R.co.rotation.y, d = R.glide ? 0 : R.nudge, cur = R.inner.userData.d || 0, nd = cur + (d - cur) * Math.min(1, dt * 4); R.inner.userData.d = nd; R.inner.position.set(-nd * Math.sin(ry), 0, nd * Math.cos(ry)); }
       }
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }

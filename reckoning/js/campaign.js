@@ -2237,7 +2237,10 @@ export function initCampaign(c, battle, withPlayer) {
   });
   $("cmpEnd").onclick = () => {
     if (C && C.mp) { if (!mp || mp.gone) return; doAct({ k: "end" }); sfx("quill", 0.35); return; }
+    // (what's on the move as the year turns: your armies marching, your fleets under sail — heard going)
+    const marching = !!C.go || (C.armies || []).some(a => a.go), sailing = (C.fleets || []).some(f => f.go);
     const since = C.paperN | 0; endSeason();
+    if (marching) sfx("march", 0.38, 250); if (sailing) sfx("sail", 0.35, marching ? 900 : 250);
     sfx("parchment", 0.55);
     // (what happened since the last paper — while the season turned, and what you did in it: a war you declared, a
     //  treaty — the news of it, at the top)

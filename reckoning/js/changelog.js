@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.8", date: "18 October 2026", title: "In front of the town",
+    items: [
+      "Campaign 3D map: an army standing in a town is drawn a little in front of it, so the town's name no longer hides it.",
+      "Campaign sounds: as the year turns, your army is heard marching off and your fleets getting under sail, if they're on the move.",
+    ],
+  },
+  {
     v: "1.91.7", date: "18 October 2026", title: "Chief partners",
     items: [
       "Campaign: a crown begins with its four chief trading partners of 1683 at the most (England with Portugal, the Dutch, Spain and Muscovy), not every one it ever traded with: England's dozen pacts were a fortune from the first year.",
