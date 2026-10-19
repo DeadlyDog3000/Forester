@@ -352,7 +352,7 @@ export class EuropeView3D {
     // (the ground itself doesn't change with a conquest — only who holds it: raised once for the sheet)
     if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.buildRivers(); this.baseSheet = SHEET; }
     this.buildBorders(); this.buildCities(homePop);
-    if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
+    this.detailJob = null; if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
     for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
   }
   // all of Europe, coarsely: what you see far off, and under the fine patch
@@ -390,9 +390,12 @@ export class EuropeView3D {
     const i = Math.floor(gx), j = Math.floor(gz), fx = gx - i, fz = gz - j, H = (a, b) => this.baseH[b * (nx + 1) + a];
     return H(i, j) * (1 - fx) * (1 - fz) + H(i + 1, j) * fx * (1 - fz) + H(i, j + 1) * (1 - fx) * fz + H(i + 1, j + 1) * fx * fz;
   }
-  terrainMesh(geo, dy = 0, edge = null) {
+  terrainMesh(geo, dy = 0, edge = null) { const it = this.terrainGen(geo, dy, edge); let r; do r = it.next(); while (!r.done); return r.value; }
+  // (the same, a piece at a time: it yields every so many corners, so a big patch can be worked out over several frames)
+  *terrainGen(geo, dy = 0, edge = null) {
     const p = geo.attributes.position, col = new Float32Array(p.count * 3), at = new Float32Array(p.count * 4), ab = new Float32Array(p.count);
     for (let i = 0; i < p.count; i++) {
+      if ((i & 255) === 255) yield;
       const x = p.getX(i), z = p.getZ(i), [lon, lat] = toLL(x, z), h = heightAt(this.g, lon, lat);
       let y = Math.max(-0.16, h * EXAG) + dy;
       // a patch's rim eases down onto the coarse ground under it, so no cliff shows where one ends
@@ -409,17 +412,35 @@ export class EuropeView3D {
   }
   // the ground near where you look, finely
   buildDetail() {
-    if (this.dist > 50) { if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; this.detailAt = ""; this.sinkBase(0, -1, 0, -1); } return; }
+    if (this.dist > 50) { this.detailJob = null; if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; this.detailAt = ""; this.sinkBase(0, -1, 0, -1); } return; }
     // (close in, a small patch, very fine; further off, a wider one — so the land never shows the coarse ground's blur)
     const wide = this.dist > 16, step = wide ? 12 : 4, cx = Math.round(this.target.x / step) * step, cz = Math.round(this.target.z / step) * step;
-    if (this.detail && this.detailAt === cx + "," + cz + wide) return;
-    this.detailAt = cx + "," + cz + wide;
+    const key = cx + "," + cz + wide;
+    if (this.detail && this.detailAt === key) { this.detailJob = null; return; }
+    // (worked out a few thousand corners a frame, the old patch left where it is till the new one's ready — so moving
+    //  across the map doesn't stop it dead for a fifth of a second each time the patch is laid afresh; the first, or one
+    //  far from the last, is worked out at once)
+    const size = wide ? 110 : 30;
+    // (one under way for a spot near this one is let finish — the view moving on as it's worked out mustn't start it over
+    //  again and again; the next is begun from where the view is then)
+    const J = this.detailJob;
+    if (!J || (J.key !== key && (J.wide !== wide || Math.hypot(J.cx - cx, J.cz - cz) > size * 0.3))) {
+      // (the flat sheet itself kept, one for each size, and copied: laying out a hundred and sixty thousand corners afresh
+      //  was a tenth of a second on its own)
+      const tk = wide ? "w" : "n", T = (this.detailTpl ||= {}); T[tk] ||= new THREE.PlaneGeometry(size, size, wide ? 400 : 240, wide ? 400 : 240).rotateX(-Math.PI / 2);
+      const geo = T[tk].clone(); geo.translate(cx, 0, cz);
+      this.detailJob = { key, cx, cz, wide, gen: this.terrainGen(geo, 0, { x0: cx - size / 2, x1: cx + size / 2, z0: cz - size / 2, z1: cz + size / 2, band: 6 }) };
+    }
+    // (and the further the view has run ahead of the patch it's on, the more of each frame goes to the next one)
+    const lag = this.detail ? Math.hypot(this.detailX - cx, this.detailZ - cz) / size : 1, far = !this.detail || this.detailWide !== wide || lag > 0.42, t0 = performance.now();
+    const budget = 12 + 48 * Math.max(0, Math.min(1, (lag - 0.18) / 0.22));
+    let r; do r = this.detailJob.gen.next(); while (!r.done && (far || performance.now() - t0 < budget));
+    if (!r.done) return;
+    const done = this.detailJob; this.detailJob = null; this.detailAt = done.key; this.detailX = done.cx; this.detailZ = done.cz; this.detailWide = done.wide;
     if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); }
-    const size = wide ? 110 : 30, geo = new THREE.PlaneGeometry(size, size, wide ? 400 : 240, wide ? 400 : 240).rotateX(-Math.PI / 2);
-    geo.translate(cx, 0, cz);
-    this.detail = this.terrainMesh(geo, 0, { x0: cx - size / 2, x1: cx + size / 2, z0: cz - size / 2, z1: cz + size / 2, band: 6 }); this.scene.add(this.detail);
+    this.detail = r.value; this.scene.add(this.detail);
     // the coarse ground under the patch's middle goes under the water, so its rougher coast can't show through the fine one
-    this.sinkBase(cx - size / 2 + 6.5, cx + size / 2 - 6.5, cz - size / 2 + 6.5, cz + size / 2 - 6.5);
+    const S2 = done.wide ? 110 : 30; this.sinkBase(done.cx - S2 / 2 + 6.5, done.cx + S2 / 2 - 6.5, done.cz - S2 / 2 + 6.5, done.cz + S2 / 2 - 6.5);
   }
   // the towns' people counted afresh: what each has built since shown rising, what it's lost coming down — false if a
   // town has outgrown what was laid out for it, and the map wants laying out again
@@ -1067,6 +1088,7 @@ export class EuropeView3D {
       const [x, z] = toWorld(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army" || m.kind === "party";
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
       sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.62 : swords ? 0.5 : 0.42), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
+      if (arm || swords) sp.userData.over = { y0, stack: arm ? 1 : 0 };
       grp.add(sp);
     }
     this.scene.add(grp);
@@ -1169,6 +1191,9 @@ export class EuropeView3D {
     // (the names: the great ones always, the rest only close in; and nearer the roofs as it comes down, or they'd float out of the view)
     const lift = Math.min(0.3, 0.07 + this.dist * 0.1);
     for (const s of this.labels) { s.visible = this.dist < 14 || s.userData.rank >= (this.dist < 45 ? 2 : 3); s.position.y = s.userData.y0 + lift; }
+    // (the marks over a town — swords where you can march, an army's count — kept just over its name however far off
+    //  the eye is: a fixed height over the ground had them across the name once the view was drawn back)
+    if (this.markGroup) for (const sp of this.markGroup.children) { const u = sp.userData.over; if (!u) continue; const d = this.camera.position.distanceTo(sp.position); sp.position.y = u.y0 + lift + (0.024 + sp.scale.y / 2 + u.stack * 0.036) * d; }
     // (the fleets kept the same size on the view however near or far: a ship's length about a twentieth of its height)
     if (this.fleetGroup) { const k = this.dist * 0.0036; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
     // (the armies the same: a man about a fiftieth of the view's height, standing on the ground where he is; and their

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.39", date: "18 October 2026", title: "Smoother across the map",
+    items: [
+      "Campaign 3D map: panning no longer stalls each time the close ground is laid out afresh. It is worked out over a few frames while the old ground stays in view, and gets more of each frame the further you run ahead of it. The stalls had been a fifth of a second close in and two or three seconds further out.",
+      "Campaign 3D map: the crossed swords over a town you can march on, and an army's count, stay just above the town's name at every distance instead of lying across it once you draw back.",
+    ],
+  },
+  {
     v: "1.90.38", date: "18 October 2026", title: "Numbers beside the names",
     items: [
       "Campaign 3D map: an army standing in a town has its count of regiments written beside the town's name, not across it (\"Wien 57\", not \"W57en\").",
