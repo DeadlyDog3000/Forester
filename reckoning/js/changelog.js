@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.28", date: "18 October 2026", title: "Harder to conquer",
+    items: [
+      "Campaign: a crown's towns are harder to take. Besides its soldiers each town has its townsmen under arms, more in a great city and most in the capital, and more again once that crown has begun losing towns to you.",
+      "Campaign: a crown down to its last few towns calls up every man it has to hold them, as yours does.",
+      "Campaign: sieges last longer. A town starves more slowly and gives in less readily, and a capital holds out longest of all.",
+      "Campaign: a crown at war with you finds new regiments faster for every town you take from it.",
+      "Campaign: conquest alarms Europe. Each town you take sours the crowns that share its faith more than the rest, and the more you have taken, the readier your neighbours are to make war on you.",
+    ],
+  },
+  {
     v: "1.90.27", date: "18 October 2026", title: "Roads between the towns",
     items: [
       "Campaign 3D map: country roads join the towns, each to its near neighbours, winding round the sea and the worst of the hills and bridging narrow water. A road leaves a town by one of its main streets, a pale dusty track between darker verges that you can see across fields and through the woods, where the trees are cut back from it.",

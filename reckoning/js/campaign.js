@@ -477,7 +477,10 @@ function govMul(n) { const v = govOf(n), cor = v ? v.st[0] : 2, pro = v ? v.st[1
 const prodMul = n => { const v = govOf(n); return v ? 1 - (v.st[1] - 3) * 0.05 : 1.05; };
 const sackLoot = ct => Math.round((ct[3] * 60 + popOf(ct) / 120) / 10) * 10;
 const worth = ct => { const n = ct[0]; let inc = ct[3] * 22 * clamp(Math.sqrt(popOf(ct) / popBase(ct)), 0.6, 1.6); for (const ch of ["farm", "trade", "works"]) inc += (CHAINS[ch].levels[lvOf(n, ch)].inc || 0) * (ch === "farm" && knows("enclosure") ? 1.15 : 1); return Math.round(inc * govMul(n)); };
-function garrison(ct) { const n = ct[0], v = govOf(n), o = cityOwner(grid(), ct), sl = o === C.me ? C : o && isHuman(o) ? sliceOf(o) : null; return Math.round(garUnits(n, sl ? sl.units : null).reduce((t, u) => t + worthOf(u), 0)) + ct[3] * 4 + 2 + (CHAINS.walls.levels[lvOf(n, "walls")].gar || 0) + (CHAINS.army.levels[lvOf(n, "army")].gar || 0) + (v ? v.st[2] - 2 : 0); }
+function garrison(ct) { const n = ct[0], v = govOf(n), o = cityOwner(grid(), ct), sl = o === C.me ? C : o && isHuman(o) ? sliceOf(o) : null; return Math.round(garUnits(n, sl ? sl.units : null).reduce((t, u) => t + worthOf(u), 0)) + ct[3] * 4 + 2 + (CHAINS.walls.levels[lvOf(n, "walls")].gar || 0) + (CHAINS.army.levels[lvOf(n, "army")].gar || 0) + (v ? v.st[2] - 2 : 0) + (o && o !== C.me && !isHuman(o) ? militia(o, ct) : 0); }
+// (a crown's own towns have their townsmen under arms besides the soldiers: the trained bands, the burgher companies — the
+//  more so its capital, and the more of its towns it has already lost)
+function militia(o, ct) { const all = citiesOfNow(grid(), o), cap = all.length && all.reduce((b, t) => t[3] > b[3] ? t : b, all[0]) === ct; return ct[3] + 2 + (cap ? 4 : 0) + Math.min(6, Math.round((C.took && C.took[o] || 0) * 1.5)); }
 // (walls only where they've been built — by you, or by the crown that holds the town — save a crown's last town,
 //  which every man in it holds to the end behind whatever they can throw up)
 // (a walled town on the map: a little stone fort round it, seen from above — four curtain walls, battlemented, a round
@@ -836,7 +839,7 @@ function settle(o, won, myLossK, theirLossK) {
   if (won && !isHuman(o.foe)) (C.foeBeat ||= {})[o.foe] = C.year;
   const name = o.ct[0];
   if (o.attack) {
-    if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); if (!C.mp && peopleOf(o.ct) !== C.me && !C.events.some(e => !e.done && e.kind === "sack" && e.ct === name)) C.events.push({ kind: "sack", ct: name, foe: o.foe }); }
+    if (won) { seize(o.ct, C.me); C.took[o.foe] = (C.took[o.foe] || 0) + 1; for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === o.foe ? 8 : NATION_FAITH[id] === NATION_FAITH[o.foe] ? 4 : 2; say(`${name} is yours`, `Taken from ${the(o.foe)}.`); if (!C.mp && peopleOf(o.ct) !== C.me && !C.events.some(e => !e.done && e.kind === "sack" && e.ct === name)) C.events.push({ kind: "sack", ct: name, foe: o.foe }); }
     else say(`Beaten before ${name}`, `Your army falls back with what it has left: ${armyStr()}.`);
   } else {
     if (won) { say(`${name} holds`, `${poss(The(o.foe))} ${NATIONS[o.foe] && NATIONS[o.foe].nw ? "war party" : "army"} is thrown back.`); if (!isHuman(o.foe) && C.foePos && C.foePos[o.foe]) { const h = homeOf(grid(), o.foe); if (h) { const b = stepToward(cellXY(o.ct), h, 8); C.foePos[o.foe] = { x: b.x, y: b.y }; } } strikeBack(o.foe); }
@@ -1423,7 +1426,7 @@ function fieldHelp(foe, ct) {
 }
 function defOf(g, ct, foe) {
   const S = siegeOf(ct), gar = Math.round(garrison(ct) * (1 - (S ? S.starve : 0)));
-  return gar + Math.round(fieldHelp(foe, ct) * (S ? 0.5 : 1)) + (isHuman(foe) ? levy(citiesOfNow(g, foe).length) : 0);
+  return gar + Math.round(fieldHelp(foe, ct) * (S ? 0.5 : 1)) + Math.round(levy(citiesOfNow(g, foe).length) * (isHuman(foe) ? 1 : 0.5));
 }
 // ---- a supply train to the siege lines: powder and shot, bread and biscuit, and fresh men marching with it — bought, and
 //  then fought for on the road, for the enemy's horse will try for it. Through: your army made up again; taken: lost ----
@@ -1454,7 +1457,7 @@ function siegeYear(g) {
   const ct = CITIES.find(c => c[0] === S.ct);
   if (!ct || cityOwner(g, ct) !== S.foe || !atWar(S.foe)) { C.siege = null; return; }
   S.years++;
-  S.starve = Math.min(0.8, S.starve + 0.2 + (ct[3] <= 1 ? 0.08 : 0));
+  S.starve = Math.min(0.8, S.starve + 0.15 + (ct[3] <= 1 ? 0.07 : 0));
   // (a star fort takes twice the battering: its low, thick, angled walls shrug off shot)
   S.bat = Math.round((S.bat + (0.06 + (C.guns | 0) * 0.2 * (knows("trace") ? 1.2 : 1)) * (lvOf(S.ct, "walls") >= 2 ? 0.5 : 1)) * 100) / 100;
   // (sickness in the lines: the camp fever, dysentery — the price of every siege)
@@ -1468,9 +1471,10 @@ function siegeYear(g) {
     setFoeArmy(S.foe, Math.round(fa * 0.7)); moraleMove(6); say(`A relief army beaten off at ${S.ct}`, `${The(S.foe)} tried to lift the siege, and failed.`);
   }
   // the town gives in: starved, its walls open, no hope of relief
-  const give = S.starve * 0.55 + Math.min(1, S.bat) * 0.2 + (S.years >= 4 ? 0.3 : 0) - ct[3] * 0.08;
+  const own = citiesOfNow(g, S.foe), capital = own.length && own.reduce((b, t) => t[3] > b[3] ? t : b, own[0]) === ct;
+  const give = S.starve * 0.5 + Math.min(1, S.bat) * 0.2 + (S.years >= 4 ? 0.25 : 0) - ct[3] * 0.1 - (capital ? 0.15 : 0);
   if (R() < give) {
-    C.siege = null; seize(ct, C.me); C.took[S.foe] = (C.took[S.foe] || 0) + 1; moraleMove(10);
+    C.siege = null; seize(ct, C.me); C.took[S.foe] = (C.took[S.foe] || 0) + 1; moraleMove(10); for (const id of Object.keys(C.E.rel)) C.E.rel[id] -= id === S.foe ? 6 : NATION_FAITH[id] === NATION_FAITH[S.foe] ? 3 : 1;
     say(`${S.ct} surrenders`, `After ${S.years} year${S.years > 1 ? "s" : ""} of siege the garrison marches out with the honours of war, and the town is yours.`);
     return;
   }
@@ -1961,8 +1965,10 @@ function endSeason(part = {}) {
     const folk = citiesOfNow(g, id).reduce((t, ct) => t + popOf(ct), 0), cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + Math.round(folk / 5000) + 6 : NATIONS[id].strength * 17 + Math.round(folk / 9000) + 8;
     // (a crown beaten in the field these two years past finds the men slower: half as fast)
     const beat = C.foeBeat && C.foeBeat[id] != null && C.year - C.foeBeat[id] < 2 ? 0.5 : 1;
+    // (a crown at war with you, its towns falling: the whole country called to arms, the men found faster)
+    const rally = atWar(id) ? 1 + 0.15 * Math.min(4, C.took && C.took[id] || 0) : 1;
     // (more men than its towns can keep — its great cities lost: a fifth of the excess melts away each year)
-    if (world) C.foes[id] = (C.foes[id] || 0) > cap ? Math.max(cap, Math.round(C.foes[id] - (C.foes[id] - cap) * 0.2 - 1)) : Math.min(cap, (C.foes[id] || 0) + Math.max(1, Math.round((NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0)) * beat)));
+    if (world) C.foes[id] = (C.foes[id] || 0) > cap ? Math.max(cap, Math.round(C.foes[id] - (C.foes[id] - cap) * 0.2 - 1)) : Math.min(cap, (C.foes[id] || 0) + Math.max(1, Math.round((NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0)) * beat * rally)));
     if (!mine) continue;
     const home = (NATION_FAITH[id] === NATION_FAITH[C.me] ? 18 : 0) + (C.E.pact[id] ? 15 : 0) + (C.ally[id] ? 25 : 0) - (atWar(id) ? 40 : 0);
     C.E.rel[id] += Math.sign(home - C.E.rel[id]) * Math.min(2, Math.abs(home - C.E.rel[id]));
@@ -1982,7 +1988,7 @@ function endSeason(part = {}) {
   const years = C.year - 1683;
   for (const id of ids) {
     if (years < 2 || atWar(id) || C.ally[id] || isVassal(id) || (C.truce[id] || 0) > 0 || !nb.has(id) || !alive(g2, id)) continue;
-    const p = 0.015 + Math.max(0, -C.E.rel[id]) / 500 + (big > 12 ? 0.03 : 0) + (big > 25 ? 0.05 : 0), able = C.foes[id] > allArmies() * 0.6 ? 1 : 0.3;
+    const p = 0.015 + Math.max(0, -C.E.rel[id]) / 500 + (big > 12 ? 0.03 : 0) + (big > 25 ? 0.05 : 0) + Math.min(0.04, Object.values(C.took || {}).reduce((t, n) => t + n, 0) * 0.004), able = C.foes[id] > allArmies() * 0.6 ? 1 : 0.3;
     // (fewer piling on when you've already enemies enough — a crown waits to see how those wars go)
     const already = Object.keys(C.E.war).filter(k => C.E.war[k]).length;
     if (R() < p * able * Math.pow(0.45, already)) declare(id, id);
@@ -3199,7 +3205,7 @@ function __selectTown(n) {
   if (on3d && eu3d) eu3d.look(ct[1], ct[2]);
   drawMap();
 }
-window.__cmp = { get eu3d() { return eu3d; }, enter3d: () => enter3d(), fight: o => fight(o), get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get eu3d() { return eu3d; }, enter3d: () => enter3d(), fight: o => fight(o), get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, garrison, defOf: (ct, foe) => defOf(grid(), ct, foe), draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the
