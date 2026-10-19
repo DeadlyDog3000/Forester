@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.5", date: "18 October 2026", title: "Two views",
+    items: [
+      "Campaign help: a word on the map's two views, the parchment and the land seen close, and that orders work the same in both.",
+    ],
+  },
+  {
     v: "1.92.4", date: "18 October 2026", title: "Home again",
     items: [
       "Story, the Emperor's commission: going home from the campaign by the Home button, the court's music and the war room's clock stop, and the settlement has its own sounds again.",
