@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.2", date: "18 October 2026", title: "Quicker borders",
+    items: [
+      "Campaign 3D map: when a town changes hands the borders are redrawn in about a third of the time, so ending the year and settling a battle no longer stutter the view.",
+    ],
+  },
+  {
     v: "1.91.1", date: "18 October 2026", title: "A race you can win",
     items: [
       "Story, the flight from Hamburg: the watchman who runs to cut you off from the alley is a step slower, so running flat out gets you in ahead of him rather than into his arms at its mouth, time after time.",

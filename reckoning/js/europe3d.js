@@ -678,6 +678,10 @@ export class EuropeView3D {
     for (const [v, nb] of adj) for (const n of nb) if (!used.has(ek(v, n))) lines.push(walk(v, n));
     // (smoothed: the corners cut, twice over — the ends kept where they are, where lines meet)
     const W = GW + 2, pts = [], idx = [], HW = 0.03;
+    // (the ground under a border doesn't change when the border does: its heights kept from one drawing to the next, so
+    //  a town changing hands redraws the borders in a few milliseconds, not fifty)
+    if (!this.borderY || this.borderYSheet !== SHEET || this.borderY.size > 600000) { this.borderY = new Map(); this.borderYSheet = SHEET; }
+    const BY = this.borderY, rawAt = (x, z) => { const k = Math.round(x * 4096) * 1e7 + Math.round(z * 4096); let v = BY.get(k); if (v === undefined) { v = this.rawY(x, z); BY.set(k, v); } return v; };
     for (const L of lines) {
       let P = L.map(k => [(k % W) * CELL, Math.floor(k / W) * CELL]);
       const closed = L.length > 3 && L[0] === L[L.length - 1];
@@ -693,7 +697,7 @@ export class EuropeView3D {
         const [x, z] = P[i], [xa, za] = P[Math.max(0, i - 1)], [xb, zb] = P[Math.min(P.length - 1, i + 1)];
         let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
         // (not drawn out over the water — a strait, an inlet the grid has as land — where it would stand in the sea)
-        const raw = this.rawY(x, z), y = Math.max(0.005, raw) + 0.025, n = pts.length / 3, on = raw > -0.004;
+        const raw = rawAt(x, z), y = Math.max(0.005, raw) + 0.025, n = pts.length / 3, on = raw > -0.004;
         pts.push(x - dz * HW, y, z + dx * HW, x + dz * HW, y, z - dx * HW);
         if (i && on && wasOn) idx.push(n - 2, n - 1, n, n - 1, n + 1, n);
         wasOn = on;
