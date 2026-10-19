@@ -390,10 +390,15 @@ export class EuropeView3D {
     if (this.g && this.mapKey && this.mapKey.slice(0, this.mapKey.lastIndexOf("|")) === base && pops && this.grow(pops)) { this.mapKey = key; this.pops = pops; return; }
     this.g = g; this.mapKey = key; this.E = E; this.homeName = homeName; this.walls = walls || {}; this.pops = pops;
     // (the ground itself doesn't change with a conquest — only who holds it: raised once for the sheet)
-    if (!this.base || this.baseSheet !== SHEET) { this.buildBase(); this.buildRivers(); this.baseSheet = SHEET; }
+    // (nor do the close ground and its woods: they're land or water, whoever holds them — kept through a conquest, where
+    //  once every town changing hands anywhere had them made again round the view, the trees popping back in)
+    const fresh = !this.base || this.baseSheet !== SHEET;
+    if (fresh) { this.buildBase(); this.buildRivers(); this.baseSheet = SHEET; }
     this.buildBorders(); this.buildCities(homePop);
-    this.detailJob = null; if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
-    for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
+    if (fresh) {
+      this.detailJob = null; if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
+      for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
+    }
   }
   // all of Europe, coarsely: what you see far off, and under the fine patch
   buildBase() {
@@ -1111,8 +1116,12 @@ export class EuropeView3D {
     }
     // (the new towns in place of the old)
     if (this.cityGroup) { this.scene.remove(this.cityGroup); this.cityGroup.traverse(o => { if (o.isInstancedMesh) { o.dispose(); o.geometry.dispose(); o.material.dispose(); } if (o.isTownGround) { o.geometry.dispose(); o.material.dispose(); } if (o.isSprite) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); }
+    // (the woods round the towns planted again only if the clearings they leave for the towns have changed: a town that
+    //  has only changed hands leaves its woods as they were)
+    const sig = M => { if (!M) return null; let h = 0; for (const [k, L] of M) for (const [x, z, r] of L) h = (h + (((k % 1000003) * 31 + Math.round(x * 100) * 7 + Math.round(z * 100) * 13 + Math.round(r * 1000)) * 2654435761 % 4294967291)) % 9007199254740881; return h; };   // (order-free: the towns are laid nearest the view first)
+    const sameClear = !!this.clearings && !!this._clearNext && this.clearings.size === this._clearNext.size && sig(this.clearings) === sig(this._clearNext);
     this.cityGroup = grp; this.labels = labels; this.towns = towns; this.growing = []; this.clearings = this._clearNext; this._clearNext = null;
-    for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
+    if (!sameClear) { for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear(); }
     this.scene.add(grp);
     if (early) { this.scene.remove(early); for (const im of early.children) im.dispose(); }
   }

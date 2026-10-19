@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.5", date: "18 October 2026", title: "The woods stay put",
+    items: [
+      "Campaign 3D map: when a town changes hands the woods and the close-up ground round the view stay as they are, instead of vanishing and growing back in front of you at the end of every year.",
+    ],
+  },
+  {
     v: "1.91.4", date: "18 October 2026", title: "Ready when you are",
     items: [
       "Campaign: the map's hills and every crown's borders are worked out while you're in the battles menu, so opening the campaign takes about half the time it did.",
