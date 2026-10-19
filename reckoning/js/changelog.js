@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.34", date: "18 October 2026", title: "Townsmen under arms",
+    items: [
+      "Campaign: a town's panel says how many of its defenders are townsmen under arms, so you can see what a capital or a crown's last towns will put on the walls before you march on them.",
+      "Campaign: taking a town tells you when it alarms the courts that share its faith.",
+    ],
+  },
+  {
     v: "1.90.33", date: "18 October 2026", title: "Past the map's edge",
     items: [
       "Campaign 3D map: the country goes on past the edges of the map. The steppe east of the Don runs on beyond the last towns instead of stopping at a ruler-straight coast with sea beyond it.",
