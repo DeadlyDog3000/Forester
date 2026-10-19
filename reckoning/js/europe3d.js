@@ -57,9 +57,11 @@ function townCalm(lon, lat) {
   }
   return m;
 }
-// (the narrow waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound — cut through the land as
+// (the waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound, the Zuiderzee — cut through the land as
 //  channels, so Constantinople stands on its strait and not on an isthmus) [lon, lat, lon, lat, half-width in degrees]
-const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23, 0.011], [26.15, 40.03, 26.45, 40.2, 0.045], [26.45, 40.2, 26.75, 40.42, 0.045], [12.6, 56.05, 12.72, 55.65, 0.05]];
+const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23, 0.011], [26.15, 40.03, 26.45, 40.2, 0.045], [26.45, 40.2, 26.75, 40.42, 0.045], [12.6, 56.05, 12.72, 55.65, 0.05],
+  // (and the Zuiderzee, with the IJ running in from it to Amsterdam)
+  [5.0, 53.1, 5.35, 52.62, 0.16], [5.35, 52.62, 5.45, 52.42, 0.11], [5.4, 52.42, 5.1, 52.4, 0.04], [5.1, 52.4, 4.88, 52.385, 0.018]];
 function straitCut(lon, lat) {
   let c = 0;
   for (const [x0, y0, x1, y1, w] of STRAITS) {
@@ -468,6 +470,8 @@ export class EuropeView3D {
         s += L;
       }
       W.push(P[P.length - 1]);
+      // (a great river broadens to its mouth; a short one, a tributary, stays narrow to where it joins)
+      const big = Math.min(1, 0.35 + s / 120);
       const N = W.length, dir = W.map((_, i) => { const [xa, za] = W[Math.max(0, i - 1)], [xb, zb] = W[Math.min(N - 1, i + 1)], d = Math.hypot(xb - xa, zb - za) || 1; return [(xb - xa) / d, (zb - za) / d]; });
       // (and where the engraver's line runs along beside the sea or an estuary rather than in its own bed, let go over
       //  that stretch: the water there is the river)
@@ -475,7 +479,7 @@ export class EuropeView3D {
       const beside = side0.map((_, i) => { let t = 0, n = 0; for (let k = Math.max(0, i - 10); k <= Math.min(N - 1, i + 10); k++) { t += side0[k]; n++; } return t / n > 0.45; });
       for (let i = 0; i < N; i++) {
         const [x, z] = W[i], [dx, dz] = dir[i];
-        const hw = 0.018 + 0.03 * (1 - i / N), raw = this.rawY(x, z), dry = raw > 0.002 && !beside[i];
+        const hw = 0.018 + 0.03 * (1 - i / N) * big, raw = this.rawY(x, z), dry = raw > 0.002 && !beside[i];
         // (a hair over the ground — and over the coarse ground's line where that runs higher, far off)
         const y = Math.max(0, raw) + 0.012 + Math.min(0.04, Math.max(0, this.baseY(x, z) - raw)), n0 = pos.length / 3;
         for (const [sd, a] of [[-1.7, 0], [-1, 1], [1, 1], [1.7, 0]]) { pos.push(x, y, z); nrm.push(-dz, dx); side.push(sd); hwA.push(hw); col.push(0.25, 0.43, 0.52, dry ? a * 0.95 : 0); }

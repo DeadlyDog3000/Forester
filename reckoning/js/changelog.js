@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.31", date: "18 October 2026", title: "The Zuiderzee",
+    items: [
+      "Campaign 3D map: the Zuiderzee opens behind North Holland, and Amsterdam stands on the IJ at its southern end rather than out in the fields.",
+      "Maps: the Elbe runs on past Mělník into Bohemia, and the Vltava from Prague now meets it there instead of stopping short.",
+      "Campaign 3D map: a great river widens toward its mouth, while a short river or a tributary stays narrow to where it joins, so the Vltava is no broader than the Elbe it runs into.",
+    ],
+  },
+  {
     v: "1.90.30", date: "18 October 2026", title: "The Thames and the Bosporus",
     items: [
       "Maps: more of Europe's rivers are drawn: the Thames through London, the Tiber through Rome, the Garonne, the Guadalquivir past Seville, the Weser, the Main, the Vltava through Prague, the Dniester, the upper Volga, and the Oka with the Moskva running past Moscow.",
