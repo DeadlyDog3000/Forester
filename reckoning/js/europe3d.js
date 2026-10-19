@@ -63,6 +63,10 @@ function townCalm(lon, lat) {
 const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23, 0.011], [26.15, 40.03, 26.45, 40.2, 0.045], [26.45, 40.2, 26.75, 40.42, 0.045], [12.6, 56.05, 12.72, 55.65, 0.05],
   // (the Firth of Forth running in past Edinburgh, not ending there with a pond beyond)
   [-3.1, 56.03, -3.45, 56.02, 0.035], [-3.45, 56.02, -3.75, 56.06, 0.025],
+  // (the New World's: the Chesapeake and the James up to Jamestown; Long Island Sound — drawn by the grid as
+  //  strings of ponds)
+  [-76.0, 36.95, -76.25, 37.6, 0.06], [-76.25, 37.6, -76.35, 38.3, 0.06], [-76.35, 38.3, -76.4, 39.2, 0.045], [-76.25, 36.98, -76.78, 37.21, 0.025],
+  [-73.8, 40.83, -72.9, 41.07, 0.05], [-72.9, 41.07, -72.0, 41.18, 0.06],
   // (the Strait of Messina, Sicily from Calabria)
   [15.63, 38.32, 15.63, 38.17, 0.02], [15.63, 38.17, 15.6, 37.92, 0.025],
   // (and the Zuiderzee, with the IJ running in from it to Amsterdam)
