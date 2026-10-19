@@ -1464,6 +1464,8 @@ async function start(opts = {}) {
     if (u.pathname === "/licence") return licence(u, res, req);
     // the shop itself: the game sold through Stripe, and its own keys (see shop.cjs)
     if (u.pathname.startsWith("/shop/")) { shop.handle(u, req, res).catch(e => { log("shop:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
+    // the website's reviews: accounts, and two reviews each on every game (see reviews.cjs)
+    if (u.pathname.startsWith("/reviews/")) { reviews.handle(u, req, res).catch(e => { log("reviews:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the battles fought, as they were: sent in when each is over; listed (the latest, or a commander's best); fetched
     if (u.pathname === "/replays" || u.pathname.startsWith("/replays/")) return replays(u, res, req);
     res.statusCode = 404; res.end("{}");
@@ -1531,6 +1533,7 @@ async function start(opts = {}) {
   }
   // (passed on as it is: activate a key on a machine, or check a key already activated; a few a minute from anyone)
   const licAsks = new Map();
+  const reviews = require("./reviews.cjs")({ dataDir, log });
   const shop = require("./shop.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), log });
   function licence(u, res, req) {
     const op = u.searchParams.get("op"), key = String(u.searchParams.get("key") || "").slice(0, 80), inst = String(u.searchParams.get("inst") || "").slice(0, 80), name = String(u.searchParams.get("name") || "Forester Reckoning").slice(0, 60), user = String(u.searchParams.get("user") || "").slice(0, 32);

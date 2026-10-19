@@ -37,7 +37,7 @@ function eye(v, x, z, dist, yaw = 0, pitch = null) {
   v.frame();
   // (the eye's height kept steady over the hills: the ground under the view's middle followed slowly, never step by step,
   //  or the camera bobs over every ridge it passes)
-  const g = Math.max(0, v.groundY(x, z)); v._ty = v._ty == null ? g : v._ty + (g - v._ty) * 0.03;
+  const g = Math.max(0, v.groundY(x, z)); v._ty = v._ty == null ? g : v._ty + (g - v._ty) * (v._tyK ?? 0.03);
   const ty = v._ty, p = pitch ?? (0.55 + Math.min(1, dist / 40) * 0.5);
   v.camera.position.set(x + Math.sin(yaw) * Math.cos(p) * dist, ty + Math.sin(p) * dist, z + Math.cos(yaw) * Math.cos(p) * dist);
   v.camera.lookAt(x, ty, z);
@@ -51,12 +51,22 @@ async function settle(v) {
 
 // (a town's name far off in the haze is drawn as a blank pale box on the horizon: the map's own eye never looks that
 //  low, but the film's does — so the far ones are left off)
+function fixSize(v, k) {
+  if (k == null) return;
+  if (v.armyGroup) for (const o of v.armyGroup.children) if (o.userData.army) o.scale.setScalar(k * 0.022);
+  if (v.fleetGroup) for (const o of v.fleetGroup.children) if (o.userData.fleet) o.scale.setScalar(k * 0.0036);
+}
+// (a march or a voyage drawn out longer than the map plays it, the men's own steps left at their pace)
+function slowGlides(v, f) {
+  if (!f || f === 1) return;
+  for (const M of [v.armyMap, v.fleetMap]) if (M) for (const R of M.values()) if (R.glide && !R.glide._slow) { R.glide._slow = true; R.glide.dur *= f; }
+}
 function hideFar(v) { const far = v.scene.fog ? v.scene.fog.near + (v.scene.fog.far - v.scene.fog.near) * 0.35 : 1e9; for (const l of v.labels || []) if (l.visible && l.position.distanceTo(v.camera.position) > far) l.visible = false; }
 
 export const CSHOTS = {
   // high over all Europe, coming down to Vienna and the Danube
   descend: {
-    secs: 7.5,
+    secs: 7.5, size: 9,
     cam(t, v) {
       const a = world(9, 51.5), b = world(16.37, 48.21), e = E(t), k = Math.pow(e, 0.8);
       eye(v, mix(a.x, b.x, e), mix(a.z, b.z, e), mix(110, 9, k), mix(0.35, -0.15, e));
@@ -64,7 +74,7 @@ export const CSHOTS = {
   },
   // round Vienna, the Turk's camp about it
   vienna: {
-    secs: 6,
+    secs: 6, size: 5.5,
     cam(t, v) { const c = world(16.37, 48.21), p = world(17.1, 48.14); eye(v, mix(c.x, p.x, 0.45), mix(c.z, p.z, 0.45), this.d ?? 5.5, mix(-0.55, 0.25, E(t)), this.p ?? 0.45); },
   },
   // the Alps under snow, the borders over the passes
@@ -80,7 +90,7 @@ export const CSHOTS = {
   // your own army on the march: off from its town, down the road to the next, the eye going along above it (slowed:
   // a year's march is three seconds on the map)
   march: {
-    secs: 7, speed: 0.2,
+    secs: 7, speed: 0.5, slow: 4, size: 2.2, tyK: 0.12,
     async stage() {
       const C = cmp().C; C.moved = false; C.arrived = false; C.siege = null;
       const rows = cmp().citiesOfNow(cmp().grid(), C.me), row = rows.find(c => c[0] === this.to) || rows[1];
@@ -100,7 +110,7 @@ export const CSHOTS = {
   },
   // your fleet out of its harbour and down to the sea, the eye going along over the water (slowed, as the march)
   fleet: {
-    secs: 6, speed: 0.22,
+    secs: 6, speed: 0.5, slow: 4, size: 4,
     async stage() {
       const C = cmp().C, f = C.fleets[0]; f.moved = false; f.go = null;
       this.key = "mine-" + f.id; this.f = null;
@@ -140,7 +150,7 @@ export const cfilm = {
     const S = CSHOTS[name], v = v3();
     Object.assign(S, set);
     if (S.stage) await S.stage.call(S);
-    v._ty = null;
+    v._ty = null; v._tyK = S.tyK ?? null;
     const n = Math.round(S.secs * FPS);
     S.cam.call(S, 0, v); await settle(v);
     for (let i = 0; i < n; i++) {
@@ -153,6 +163,8 @@ export const cfilm = {
       let k = 0; while ((v.cityJob || v.detailJob) && k++ < 400) { v.target.copy(tg); v.dist = d; v.frame(); await yieldF(); }
       // (and the eye put back where the shot has it: the map's own drawing between our frames moves it)
       v.target.copy(tg); v.dist = d; v.frame(); v.camera.position.copy(pos); v.camera.quaternion.copy(q);
+      slowGlides(v, S.slow);
+      fixSize(v, S.size);
       hideFar(v);
       v.renderer.render(v.scene, v.camera);
       const keep = !scout || i === 0 || i === Math.floor(n / 2) || i === n - 1;
