@@ -58,9 +58,11 @@ function townCalm(lon, lat) {
   }
   return m;
 }
-// (the waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound, the Zuiderzee — cut through the land as
+// (the waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound, Messina's strait, the Zuiderzee — cut through the land as
 //  channels, so Constantinople stands on its strait and not on an isthmus) [lon, lat, lon, lat, half-width in degrees]
 const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23, 0.011], [26.15, 40.03, 26.45, 40.2, 0.045], [26.45, 40.2, 26.75, 40.42, 0.045], [12.6, 56.05, 12.72, 55.65, 0.05],
+  // (the Strait of Messina, Sicily from Calabria)
+  [15.63, 38.32, 15.63, 38.17, 0.02], [15.63, 38.17, 15.6, 37.92, 0.025],
   // (and the Zuiderzee, with the IJ running in from it to Amsterdam)
   [5.0, 53.1, 5.35, 52.62, 0.16], [5.35, 52.62, 5.45, 52.42, 0.11], [5.4, 52.42, 5.1, 52.4, 0.04], [5.1, 52.4, 4.88, 52.385, 0.018]];
 function straitCut(lon, lat) {

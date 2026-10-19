@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.35", date: "18 October 2026", title: "The Strait of Messina",
+    items: [
+      "Campaign 3D map: Sicily is an island again. The Strait of Messina runs between it and Calabria, with Messina on its shore, instead of the two being joined by land.",
+    ],
+  },
+  {
     v: "1.90.34", date: "18 October 2026", title: "Townsmen under arms",
     items: [
       "Campaign: a town's panel says how many of its defenders are townsmen under arms, so you can see what a capital or a crown's last towns will put on the walls before you march on them.",
