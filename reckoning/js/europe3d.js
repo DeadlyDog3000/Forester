@@ -1200,7 +1200,7 @@ export class EuropeView3D {
         if (!F.glide) F.ship.position.set(x, 0, z);
       }
       // (bound somewhere: she heads that way; lying at anchor, she keeps the heading she came in on)
-      F.to = [x, z]; if (f.bound || F.n == null) F.face = f.yaw || 0; F.bound = !!f.bound;
+      F.to = [x, z]; if (f.bound || F.n == null) F.face = f.yaw || 0; F.bound = !!f.bound; this.chosenRing(F.ship, f.chosen, 18);
       if (F.n !== f.n) {
         F.n = f.n; dropSp(F);
         const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), ink = f.mine ? "#2a1c10" : "#7a2216";
@@ -1245,7 +1245,7 @@ export class EuropeView3D {
       // (which way it faces when it isn't walking: toward where it's bound, or as it last went)
       if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); R.face = Math.atan2(gx - x, gz - z); }
       R.march = !!A.march; this.stride(R);
-      this.routeLine(R, A);
+      this.routeLine(R, A); this.chosenRing(R.inner, A.chosen, A.nw ? 3.2 : 3.4);
       if (R.n !== A.n) { R.n = A.n; this.countSprite(R, A); }
     }
     for (const [k, R] of M) if (!seen.has(k)) { this.dropCompany(R); M.delete(k); }
@@ -1274,6 +1274,12 @@ export class EuropeView3D {
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); geo.setIndex(idx);
     const line = R.line = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: A.mine ? 0x2a1c10 : 0x9a2a18, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }));
     line.renderOrder = 3; line.userData.route = true; this.armyGroup.add(line);
+  }
+  // (the one in hand: a ring of gold on the ground about it, as the parchment marks it)
+  chosenRing(holder, on, r) {
+    if (!!holder.userData.ring === !!on) return;
+    if (on) { const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.8, r, 48).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xf0cf6a, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4 })); m.position.y = r * 0.12; m.renderOrder = 4; m.userData.own = true; holder.add(m); holder.userData.ring = m; }
+    else { const m = holder.userData.ring; holder.remove(m); m.geometry.dispose(); m.material.dispose(); holder.userData.ring = null; }
   }
   // (walking — on the march, or on its way across the view — or standing at ease: the step faded in or out, not cut)
   stride(R) {

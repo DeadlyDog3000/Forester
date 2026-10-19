@@ -2581,7 +2581,7 @@ function armies3d() {
     // (and the road it's on, to where it's bound: worked out once for each march, not every time the map is drawn)
     let route = null; if (go && isFinite(go.x)) { const rk = `${key}|${p.x.toFixed(2)},${p.y.toFixed(2)}|${go.x.toFixed(2)},${go.y.toFixed(2)}`; route = route3d.get(rk); if (route === undefined) { const P = !overSea(p, go) && landPath(g, p, go), w = P && smoothWay(P, false); route = (w && w.length > 1 ? w : [p, go]).map(q => llOf(q.x, q.y).map(v => Math.round(v * 1000) / 1000)); if (route3d.size > 200) route3d.clear(); route3d.set(rk, route); } }
     const [lon, lat] = llOf(p.x, p.y), uni = UNI_OF[id], U = UNIFORMS[uni] || UNIFORMS.imperial, L = soldierLook(U, 1683 + id.length * 7), gl = go ? llOf(go.x, go.y) : null;
-    out.push({ key, lon, lat, color: NATIONS[id].color, n, mine: !!mine, body: L.body, nw: !!NATIONS[id].nw, march: !!go, glon: gl ? gl[0] : null, glat: gl ? gl[1] : null, ...(via ? { via } : {}), ...(route ? { route } : {}),
+    out.push({ key, lon, lat, color: NATIONS[id].color, n, mine: !!mine, body: L.body, nw: !!NATIONS[id].nw, march: !!go, glon: gl ? gl[0] : null, glat: gl ? gl[1] : null, ...(via ? { via } : {}), ...(route ? { route } : {}), ...(mine && armySel && key === "mine-" + (C.ar | 0) ? { chosen: true } : {}),
       colors: { coat: L.coat, vest: L.vest, cuff: L.cuff, legs: L.legs, hat: L.hatColor, sash: L.sash, stockings: L.stockings, linen: L.linen, skin: L.skin, hair: L.hair },
       flag: NATIONS[id].nw ? null : coloursCanvas(uni) });
   };
@@ -2598,7 +2598,7 @@ function fleets3d() {
   const out = [], one = (p, id, n, mine, go, key) => {
     // (moved since the view last saw her: the course she sailed, round the land, for her to be seen sailing it)
     let via = null; { const was = lastF3d[key]; if (was && Math.hypot(p.x - was.x, p.y - was.y) > 0.4) { const sp = seaPath(grid(), was, p); if (sp && sp.length > 1) via = smoothWay([{ x: was.x, y: was.y }, ...sp, { x: p.x, y: p.y }], true).map(q => llOf(q.x, q.y).map(v => Math.round(v * 1000) / 1000)); } lastF3d[key] = { x: p.x, y: p.y }; }
-    const [lon, lat] = llOf(p.x, p.y), yaw = go ? Math.atan2(go.x - p.x, go.y - p.y) : (hashStr(key) % 628) / 100; out.push({ name: key, lon, lat, color: NATIONS[id].color, n, yaw: Math.round(yaw * 100) / 100, mine, bound: !!go, ...(via ? { via } : {}) }); };
+    const [lon, lat] = llOf(p.x, p.y), yaw = go ? Math.atan2(go.x - p.x, go.y - p.y) : (hashStr(key) % 628) / 100; out.push({ name: key, lon, lat, color: NATIONS[id].color, n, yaw: Math.round(yaw * 100) / 100, mine, bound: !!go, ...(via ? { via } : {}), ...(mine && key === "mine-" + selFleet ? { chosen: true } : {}) }); };
   for (const [id, F] of Object.entries(C.foeFleets || {})) if (F.ships.length) one(F.pos, id, F.ships.length, false, null, "foe-" + id);
   for (const [h, f] of otherFleets()) one(f.pos, h, f.ships.length, false, f.go, `p-${h}-${f.id}`);
   for (const f of C.fleets || []) if (f.ships.length) one(f.pos, C.me, f.ships.length, true, f.go, "mine-" + f.id);

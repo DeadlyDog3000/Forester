@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.92.3", date: "18 October 2026", title: "In hand",
+    items: [
+      "Campaign 3D map: the army or fleet you have in hand is ringed in gold on the ground, as the parchment marks it, so you can see what your right-click will order.",
+    ],
+  },
+  {
     v: "1.92.2", date: "18 October 2026", title: "Fleets from the land",
     items: [
       "Campaign 3D map: click a ship to take her fleet in hand, then right-click the sea to sail there, another fleet of yours to join it, or an enemy fleet to engage it, as on the parchment map.",
