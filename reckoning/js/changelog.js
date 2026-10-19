@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.49", date: "18 October 2026", title: "No sand where the ponds were",
+    items: [
+      "Campaign 3D map: where a string of ponds along the St Lawrence was made dry land for the river to run through, no pale ring of beach is left behind in the fields.",
+    ],
+  },
+  {
     v: "1.90.48", date: "18 October 2026", title: "Chesapeake and the Sound",
     items: [
       "Campaign 3D map: Chesapeake Bay runs up from the capes in one piece, Jamestown stands on the James running into it, and Long Island lies apart from the mainland across its Sound instead of being joined to it with a few ponds between.",
