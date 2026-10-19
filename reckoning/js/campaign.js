@@ -2523,15 +2523,17 @@ function marks3d() {
 }
 // the armies on the land, for the near view: each as a company of its own men in its own coats (europe3d.js armies)
 // (where each army stood when the 3D view last saw it: moved since, it's given the road it came by, to walk along)
-let last3d = {}, last3dOf = null;
+let last3d = {}, last3dOf = null; const route3d = new Map();
 function armies3d() {
   const g = grid(), out = [];
   if (last3dOf !== C) { last3dOf = C; last3d = {}; }
   const add = (key, p, id, n, mine, go) => {
     if (!p || !isFinite(p.x) || !NATIONS[id]) return;
     let via = null; { const was = last3d[key]; if (was && Math.hypot(p.x - was.x, p.y - was.y) > 0.4 && !overSea(was, p)) { const P = landPath(g, was, p), w = P && smoothWay(P, false); if (w && w.length > 2) via = w.map(q => llOf(q.x, q.y).map(v => Math.round(v * 1000) / 1000)); } last3d[key] = { x: p.x, y: p.y }; }
+    // (and the road it's on, to where it's bound: worked out once for each march, not every time the map is drawn)
+    let route = null; if (go && isFinite(go.x)) { const rk = `${key}|${p.x.toFixed(2)},${p.y.toFixed(2)}|${go.x.toFixed(2)},${go.y.toFixed(2)}`; route = route3d.get(rk); if (route === undefined) { const P = !overSea(p, go) && landPath(g, p, go), w = P && smoothWay(P, false); route = (w && w.length > 1 ? w : [p, go]).map(q => llOf(q.x, q.y).map(v => Math.round(v * 1000) / 1000)); if (route3d.size > 200) route3d.clear(); route3d.set(rk, route); } }
     const [lon, lat] = llOf(p.x, p.y), uni = UNI_OF[id], U = UNIFORMS[uni] || UNIFORMS.imperial, L = soldierLook(U, 1683 + id.length * 7), gl = go ? llOf(go.x, go.y) : null;
-    out.push({ key, lon, lat, color: NATIONS[id].color, n, mine: !!mine, body: L.body, nw: !!NATIONS[id].nw, march: !!go, glon: gl ? gl[0] : null, glat: gl ? gl[1] : null, ...(via ? { via } : {}),
+    out.push({ key, lon, lat, color: NATIONS[id].color, n, mine: !!mine, body: L.body, nw: !!NATIONS[id].nw, march: !!go, glon: gl ? gl[0] : null, glat: gl ? gl[1] : null, ...(via ? { via } : {}), ...(route ? { route } : {}),
       colors: { coat: L.coat, vest: L.vest, cuff: L.cuff, legs: L.legs, hat: L.hatColor, sash: L.sash, stockings: L.stockings, linen: L.linen, skin: L.skin, hair: L.hair },
       flag: NATIONS[id].nw ? null : coloursCanvas(uni) });
   };

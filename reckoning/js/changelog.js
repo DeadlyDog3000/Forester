@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.6", date: "18 October 2026", title: "The road ahead",
+    items: [
+      "Campaign 3D map: an army on the march shows the road it's taking, dashed along the ground to an arrowhead where it's bound, in ink for yours and red for an enemy's, as the parchment map shows it.",
+    ],
+  },
+  {
     v: "1.91.5", date: "18 October 2026", title: "The woods stay put",
     items: [
       "Campaign 3D map: when a town changes hands the woods and the close-up ground round the view stay as they are, instead of vanishing and growing back in front of you at the end of every year.",

@@ -1222,9 +1222,35 @@ export class EuropeView3D {
       // (which way it faces when it isn't walking: toward where it's bound, or as it last went)
       if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); R.face = Math.atan2(gx - x, gz - z); }
       R.march = !!A.march; this.stride(R);
+      this.routeLine(R, A);
       if (R.n !== A.n) { R.n = A.n; this.countSprite(R, A); }
     }
     for (const [k, R] of M) if (!seen.has(k)) { this.dropCompany(R); M.delete(k); }
+  }
+  // (the road a marching army is on, to where it's bound: dashed along the ground, in ink for yours and red for an
+  //  enemy's, as the parchment map draws it)
+  routeLine(R, A) {
+    R.routeA = A.route ? A : null; if (this.routeDist == null) this.routeDist = this.dist;
+    const rk = A.route ? JSON.stringify(A.route) : ""; if (rk === R.routeKey) return; R.routeKey = rk;
+    if (R.line) { this.armyGroup.remove(R.line); R.line.geometry.dispose(); R.line.material.dispose(); R.line = null; }
+    if (!A.route || A.route.length < 2) return;
+    // (a ribbon of dashes laid on the ground — a line one pixel wide was lost on the land — and an arrowhead at its end;
+    //  its width and its dashes in proportion to how far off the eye is, drawn again when that changes much)
+    const W = A.route.map(([lo, la]) => toWorld(lo, la)), P = [], hw = Math.max(0.025, this.dist * 0.0028), step = hw * 2.2;
+    for (let k = 1; k < W.length; k++) { const [ax, az] = W[k - 1], [bx, bz] = W[k], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / step)); for (let i = k === 1 ? 0 : 1; i <= n; i++) P.push([ax + (bx - ax) * i / n, az + (bz - az) * i / n]); }
+    const pts = [], idx = [], yAt = (x, z) => Math.max(0.005, this.rawY(x, z)) + 0.035;
+    for (let i = 0; i < P.length; i++) {
+      const [x, z] = P[i], [xa, za] = P[Math.max(0, i - 1)], [xb, zb] = P[Math.min(P.length - 1, i + 1)]; let dx = xb - xa, dz = zb - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+      const y = yAt(x, z), n = pts.length / 3; pts.push(x - dz * hw, y, z + dx * hw, x + dz * hw, y, z - dx * hw);
+      // (three steps drawn, two left out: the dashes)
+      if (i && i % 5 < 3 && i < P.length - 4) idx.push(n - 2, n - 1, n, n - 1, n + 1, n);
+    }
+    // (the arrowhead: where it's bound)
+    if (P.length > 2) { const [x, z] = P[P.length - 1], [xa, za] = P[Math.max(0, P.length - 4)]; let dx = x - xa, dz = z - za; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d; const L = hw * 7, Wd = hw * 4, n = pts.length / 3, y = yAt(x, z);
+      pts.push(x, y, z, x - dx * L - dz * Wd, y, z - dz * L + dx * Wd, x - dx * L + dz * Wd, y, z - dz * L - dx * Wd); idx.push(n, n + 1, n + 2); }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3)); geo.setIndex(idx);
+    const line = R.line = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: A.mine ? 0x2a1c10 : 0x9a2a18, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }));
+    line.renderOrder = 3; line.userData.route = true; this.armyGroup.add(line);
   }
   // (walking — on the march, or on its way across the view — or standing at ease: the step faded in or out, not cut)
   stride(R) {
@@ -1240,6 +1266,7 @@ export class EuropeView3D {
     const sp = R.sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, sizeAttenuation: false, transparent: true })); sp.scale.set(0.045, 0.045, 1); sp.renderOrder = 7; sp.userData.over = R.co; this.armyGroup.add(sp);
   }
   dropCompany(R) {
+    if (R.line) { this.armyGroup.remove(R.line); R.line.geometry.dispose(); R.line.material.dispose(); R.line = null; }
     this.armyGroup.remove(R.co); if (R.sp) { this.armyGroup.remove(R.sp); R.sp.material.map && R.sp.material.map.dispose(); R.sp.material.dispose(); }
     for (const m of R.men) m.mixer.stopAllAction();
     R.co.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const mt of ms) if (o.userData.own || (mt.userData && mt.userData.own)) { mt.map && o.userData.own && mt.map.dispose(); mt.dispose(); } if (/^merged_/.test(o.name) || o.userData.own) { o.geometry && o.geometry.dispose(); if (o.skeleton) o.skeleton.dispose(); } });
@@ -1352,6 +1379,8 @@ export class EuropeView3D {
         }
       }
       for (const R of (this.armyMap || new Map()).values()) for (const m of R.men) m.mixer.update(dt);
+      // (the routes laid again for the new distance, when the eye has come much nearer or gone much further off)
+      if (this.armyMap && Math.abs(Math.log((this.dist + 1) / ((this.routeDist || this.dist) + 1))) > 0.35) { this.routeDist = this.dist; for (const R of this.armyMap.values()) if (R.routeA) { R.routeKey = null; this.routeLine(R, R.routeA); } }
     }
     this.renderer.render(this.scene, this.camera);
   }
