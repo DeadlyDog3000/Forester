@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.90.26", date: "18 October 2026", title: "Quays and terraces",
+    items: [
+      "Campaign 3D map: where a river runs through a town, both banks are walled in stone, with boats tied up along them (Vienna on the Danube, Lisbon on the Tagus).",
+      "Campaign 3D map: towns on a narrow strip of coast (Genoa, Ragusa, Ancona, Quebec) now grow along the shore to their full size. They had been held to a handful of houses because the sea and the hills on either side cut their room short. On steep ground they build in terraces, each house on a footing stepped into the slope.",
+      "Campaign 3D map: mountains rise from the coast as a hillside behind a port, not a wall straight up out of the sea.",
+      "Campaign 3D map: bare rock on the mountains is drawn sharp to the pixel along its edge, a ragged band below the snowline, where it was blocky patches.",
+    ],
+  },
+  {
     v: "1.90.25", date: "18 October 2026", title: "Room for the names",
     items: [
       "Campaign map: towns' names are written clear of the armies and fleets standing on the map, so Vienna's name no longer lies under your own army.",

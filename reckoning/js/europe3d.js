@@ -49,6 +49,8 @@ export function heightAt(g, lon, lat) {
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
   let h = 0.02 + ease * (0.04 + fbm(lon * 1.3, lat * 1.3, 3) * 0.28);
+  // (the mountains rise from a coast more gently than the lowland does — a hillside behind a port, not a wall over it)
+  const sh2 = Math.min(1, (land - 0.5) / 0.5), rise = sh2 * sh2 * (3 - 2 * sh2);
   const px = lon * K;
   for (let ri = 0; ri < RANGES.length; ri++) {
     // (a range is reckoned with only where it could reach: outside its box, it adds nothing)
@@ -56,7 +58,7 @@ export function heightAt(g, lon, lat) {
     const [pts, km, w] = RANGES[ri];
     let d = Infinity;
     for (let i = 1; i < pts.length; i++) d = Math.min(d, segDist(lon * K, lat, pts[i - 1][0] * K, pts[i - 1][1], pts[i][0] * K, pts[i][1]));
-    if (d < w * 3) h += ease * km * Math.exp(-(d * d) / (2 * w * w)) * (0.6 + fbm(lon * 4, lat * 4, 11) * 0.7);
+    if (d < w * 3) h += rise * km * Math.exp(-(d * d) / (2 * w * w)) * (0.6 + fbm(lon * 4, lat * 4, 11) * 0.7);
   }
   for (const [x0, y0, x1, y1, km] of PLATEAUS) {
     const ex = Math.min(lon - x0, x1 - lon), ey = Math.min(lat - y0, y1 - lat);
@@ -108,7 +110,8 @@ const WOOD_CUT = 0.26;
 export function tilledAt(lon, lat) { let t = 0; for (const [x, y, r] of TILLED) { const d = Math.hypot((lon - x) * K, lat - y) / r; if (d < 1) t = Math.max(t, 1 - d * d); } return t; }
 function groundColour(lon, lat, h, out, x, z) {
   const b = biomeAt(lon, lat, h);
-  out.setHex(BIOME_COL[b]);
+  // (bare rock and snow are drawn by the snowline, sharp to the pixel: under them, the colour of the country round about)
+  out.setHex(BIOME_COL[b === "snow" || b === "rock" ? biomeAt(lon, lat, 0.5) : b]);
   const green = b === "temperate" || b === "taiga" || b === "med";
   const till = tilledAt(lon, lat), wood = green ? woodAt(x, z) - till * WOOD_CUT : 0;
   _t[0] = green ? 1 - till * WOOD_CUT / 0.6 : 0;
@@ -174,7 +177,8 @@ const GROUND_MIX = `
   col = mix(col, vec3(0.77, 0.72, 0.56) * (0.92 + 0.16 * n2), (1.0 - smoothstep(0.035, 0.06, h)) * vB);
   vec3 floor0 = mix(vec3(0.58, 0.63, 0.52), vec3(0.13, 0.25, 0.30), clamp((-vT.w - 0.028) / 0.07, 0.0, 1.0));
   col = mix(col, floor0, smoothstep(0.004, -0.004, vT.w));
-  // the snow, its line ragged and sharp; the rock under it streaked
+  // bare rock in a broad band under the snowline, its lower edge ragged; then the snow, its line ragged and sharp
+  col = mix(col, mix(vec3(0.42, 0.40, 0.36), vec3(0.50, 0.47, 0.41), n1) * (0.86 + 0.28 * n2), smoothstep(-0.4, -0.3, vT.z + (n1 - 0.5) * 0.3));
   float sn = smoothstep(0.0, 0.08, vT.z + (n1 - 0.5) * 0.22);
   col = mix(col, vec3(0.93, 0.95, 0.97) * (0.94 + 0.08 * n2), sn);
   // and a grain over all of it
@@ -189,7 +193,7 @@ function groundMaterial() {
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground9";
+  m.customProgramCacheKey = () => "ground11";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -598,20 +602,26 @@ export class EuropeView3D {
         const RMAX = isHome ? R : R * 5.2, land = [], reach = [], gaps = [], harb = [], RAYS = 16, RS = Math.max(0.05, RMAX / 18);
         // (out from the middle each way: how far there's ground to build on — over a river or a lake, if it's narrow enough
         //  to bridge, but not over the sea; nor up a cliff)
+        // (and a town hemmed in by steep ground all round — Genoa on its mountainside — builds up it in terraces, each house
+        //  on a footing stepped into the slope, rather than not at all)
+        let steep = 1.25, terraced = false;
+        const cast = () => { land.length = reach.length = gaps.length = harb.length = 0; let cliff = 0;
         for (let k = 0; k < RAYS; k++) {
           const a = k / RAYS * 6.283, ca = Math.cos(a), sa = Math.sin(a); let good = 0, n = 0, py = this.groundY(x, z), wet = -1, lastDry = 0, far = RMAX;
           for (let d = R * 0.15, st = 0.028; d < RMAX; st = d < R * 1.6 ? 0.028 : RS, d += st) {
             const qy = this.groundY(x + ca * d, z + sa * d); n++;
             if (qy < 0.004) { if (wet < 0) wet = lastDry; if (d - wet > BRIDGE) { far = wet; harb[k] = wet; break; } continue; }
             if (wet >= 0) { if (d - wet > 0.02) gaps.push([a, wet, d, d - wet]); wet = -1; py = qy; }
-            if (Math.abs(qy - py) / st > 1.25) { far = d; break; }
+            if (Math.abs(qy - py) / st > steep) { far = d; cliff++; break; }
             good++; py = qy; lastDry = d;
           }
           if (wet >= 0) { far = Math.min(far, wet); harb[k] = wet; }
           reach.push(far); land.push(0.25 + 0.75 * good / Math.max(1, n));
         }
+          return cliff; };
+        if (cast() >= RAYS * 0.4 && !isHome && reach.reduce((t, v) => t + v, 0) / RAYS < R * 1.8) { steep = 4; terraced = true; cast(); }
         const at = (L, a) => { const f = ((a / 6.283 % 1 + 1) % 1) * RAYS, k = Math.floor(f) % RAYS, t = f - Math.floor(f); return L[k] * (1 - t) + L[(k + 1) % RAYS] * t; };
-        const reachAt = a => { const f = ((a / 6.283 % 1 + 1) % 1) * RAYS, k = Math.round(f) % RAYS; return Math.min(reach[k], reach[(k + 1) % RAYS], reach[(k + RAYS - 1) % RAYS] * 1.2); };
+        const reachAt = a => at(reach, a);   // (between two rays, between their reaches: a coast's strip of land is followed along it)
         const shape = a => {
           let v = 0.45 + 0.25 * Math.sin(2 * a + p1) + 0.15 * Math.sin(3 * a + p2);
           for (const [la, ls, lw] of lobes) { let da = Math.abs(a - la) % 6.283; if (da > Math.PI) da = 6.283 - da; v += ls * Math.exp(-(da * da) / (lw * lw)); }
@@ -665,7 +675,7 @@ export class EuropeView3D {
         slots.sort((p, q) => p[3] - q[3]);
         const kept = [], keptAt = new Map(), items = []; let miss = 0;
         for (let [hx, hz, ang, , nx, nz, t, br, st] of slots) {
-          if (kept.length >= CAP || miss > 260) break;
+          if (kept.length >= CAP || miss > 500) break;
           if (st) {
             // (a piece of street: flat stones over the ground from one end to the other, sunk where the ground slopes)
             const [x0, z0, x1, z1, sw] = st, ym = this.groundY(hx, hz);
@@ -693,20 +703,43 @@ export class EuropeView3D {
           const core = Math.max(0, 1 - t * 1.4), w = 0.022 + r() * 0.008, l = 0.03 + r() * 0.016 + core * 0.01;
           hx += nx * l / 2; hz += nz * l / 2;
           if (onStreet(hx, hz)) continue;                                   // (the street kept clear)
-          const hy = this.groundY(hx, hz);
+          const hy = this.groundY(hx, hz), sx = nx || nz ? nx : 1, sz = nx || nz ? nz : 0; let hy2 = null;
           // (no house in the water, nor hung on a cliff)
-          if (!ok(hx, hz, hy) || t > 1 && Math.abs(hy - this.groundY(hx + nx * 0.03, hz + nz * 0.03)) > 0.04) { miss++; continue; }
+          if (!ok(hx, hz, hy) || (t > 1 || terraced) && Math.abs(hy - (hy2 = this.groundY(hx + sx * 0.03, hz + sz * 0.03))) > (terraced ? 0.065 : 0.04)) { if (t > 1) miss++; continue; }
+          // (on a slope, its footing goes down to the low side)
+          const foot = terraced && hy2 != null ? Math.min(0.04, Math.max(0, hy - Math.min(hy2, this.groundY(hx - sx * 0.03, hz - sz * 0.03)))) : 0;
           miss = 0; kept.push([hx, hz]); (keptAt.get(gk) || keptAt.set(gk, []).get(gk)).push([hx, hz]);
           const ht = 0.018 + core * (0.016 + r() * 0.012) + r() * 0.005;
-          const parts = [putM(house, plaster, hx, hy - 0.004, hz, ang, w, ht + 0.004, l, WALLS[(r() * WALLS.length) | 0])];
+          const parts = [putM(house, plaster, hx, hy - 0.004 - foot, hz, ang, w, ht + 0.004 + foot, l, WALLS[(r() * WALLS.length) | 0])];
           const pal = north ? (r() < 0.55 ? SLATES : TILES) : t > 0.9 && r() < 0.35 ? THATCH : TILES;
           parts.push(putM(roof, roofing, hx, hy + ht, hz, ang, w * 1.18, (south ? 0.45 : 0.75) * w, l * 1.08, pal[(r() * pal.length) | 0]));
-          items.push({ parts, py: hy - 0.004, house: true });
+          items.push({ parts, py: hy - 0.004 - foot, house: true });
           // (out past the old town, a yard's trodden ground round each house — the fields kept clear for those to come)
           if (Math.hypot(hx - x, hz - z) > R) { this.clear(hx, hz, 0.09); if (kept.length <= NH) this.townGround(hx, hz, 0.05, groundBits, 1, 8, 0.45, hy); }
         }
         towns.set(name, { items, cap: CAP, shown: shownFor(items, NH) });
         this.clear(x, z, R * 1.15 + 0.04);
+        // (and where a river runs through it: stone embankments along both banks, and boats tied up at them)
+        if (!isHome && this.riverSeg) {
+          const seen = new Set();
+          for (let gx = Math.floor(x - R * 1.4); gx <= Math.floor(x + R * 1.4); gx++) for (let gz = Math.floor(z - R * 1.4); gz <= Math.floor(z + R * 1.4); gz++) {
+            for (const sg of this.riverSeg.get(gx * 65536 + gz) || []) {
+              if (seen.has(sg)) continue; seen.add(sg);
+              const [x0, z0, x1, z1, hw] = sg, mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, L = Math.hypot(x1 - x0, z1 - z0);
+              if (Math.hypot(mx - x, mz - z) > R * 1.25 || L < 0.001) continue;
+              const ux = (x1 - x0) / L, uz = (z1 - z0) / L, a = Math.atan2(uz, ux);
+              for (const side of [-1, 1]) {
+                const bx = mx - uz * (hw + 0.004) * side, bz = mz + ux * (hw + 0.004) * side, by = this.rawY(bx, bz);
+                putM(house, plaster, bx, by - 0.012, bz, -a, L + 0.006, 0.02, 0.008, 0x9a917f);
+                if (hash(Math.round(mx * 400), Math.round(mz * 400), side + 7) < 0.3) {
+                  const wx = mx - uz * (hw - 0.011) * side, wz = mz + ux * (hw - 0.011) * side, wy = Math.max(0, this.rawY(mx, mz)) + 0.012;
+                  putM(house, plaster, wx, wy - 0.003, wz, -a, 0.032, 0.008, 0.01, 0x4e3a2a);
+                  putM(house, plaster, wx, wy + 0.004, wz, -a, 0.0025, 0.04, 0.0025, 0x3b2c20);
+                }
+              }
+            }
+          }
+        }
         // the docks, where the town comes down to open water: a stone quay along the shore, wooden jetties run out from
         // it into the water, and boats tied up alongside them
         if (!isHome) {
