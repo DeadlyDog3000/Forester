@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.3", date: "18 October 2026", title: "The war room",
+    items: [
+      "Campaign sounds: the room the campaign is planned in, quietly under the map: a fire low in the hearth and a pendulum clock ticking on the wall. It stops when you leave the map or go into battle.",
+    ],
+  },
+  {
     v: "1.91.2", date: "18 October 2026", title: "Quicker borders",
     items: [
       "Campaign 3D map: when a town changes hands the borders are redrawn in about a third of the time, so ending the year and settling a battle no longer stutter the view.",

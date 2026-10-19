@@ -636,6 +636,26 @@ const RECIPES = {
     }
     return finish(d, 0.7);
   },
+  // the room the campaign is planned in: a fire low in the hearth, and a pendulum clock on the wall — tick and tock, the
+  // escapement's small hard click in the wooden case — made eight seconds long, to the second, so it loops on the beat
+  room(sr) {
+    const L = 8, X = 0.4, n = Math.floor(sr * (L + X)), d = new Float32Array(n);
+    const lp = new Biquad("lp", 420, 0.5, sr), hp = new Biquad("hp", 120, 0.5, sr); let flick = 0;
+    for (let i = 0; i < n; i++) { const t = i / sr; flick += (Math.random() - 0.5) * 0.002; flick *= 0.9995; d[i] = hp.run(lp.run(Math.random() * 2 - 1)) * Math.max(0.03, 0.1 + flick * 10 + 0.04 * Math.sin(t * TAU * 0.19)); }
+    crackles(d, sr, 0, L + X, 6, 0.28, 1800, 7000);
+    crackles(d, sr, 0, L + X, 1.2, 0.5, 800, 2600);
+    // (the seam: the end folded into the start)
+    const xf = Math.floor(sr * X), N = n - xf; for (let i = 0; i < xf; i++) { const k = i / xf; d[i] = d[i] * k + d[N + i] * (1 - k); }
+    const out = d.subarray(0, N);
+    // (the clock: a beat a second, the tock a shade lower and softer than the tick)
+    for (let k = 0; k < L; k++) {
+      const t = 0.25 + k, tick = k % 2 === 0, f = tick ? 1 : 0.86;
+      modes(out, sr, t, [[2400 * f, 0.012, 0.22], [3900 * f, 0.008, 0.12], [1150 * f, 0.03, 0.14], [520 * f, 0.05, 0.08]], tick ? 1 : 0.8);
+      hiss(out, sr, t, 0.006, tick ? 0.18 : 0.14, new Biquad("hp", 3000, 0.7, sr), x => Math.exp(-x / 0.0015));
+    }
+    let m = 0; for (const v of out) m = Math.max(m, Math.abs(v)); for (let i = 0; i < out.length; i++) out[i] *= 0.85 / (m || 1);
+    return out;
+  },
   // guns far off, beyond the hills: low thumps that roll on, one after another
   guns(sr) {
     const L = 3.2, d = new Float32Array(Math.floor(sr * L)); let t = 0.02;
@@ -671,7 +691,7 @@ const RECIPES = {
 const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
   whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
   quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2,
-  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, march: 3, trot: 2, sail: 2, purse: 3, spades: 2, hoof: 8, snort: 3, tack: 4 };
+  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, march: 3, trot: 2, sail: 2, purse: 3, spades: 2, room: 1, hoof: 8, snort: 3, tack: 4 };
 // (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
 for (const k in RECIPES) VARIANTS[k] ??= 2;
 
@@ -711,7 +731,7 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   last.connect(out);
   src.start();
 }
-let fireSrc = null, FIRE_AT = null, washSrc = null;
+let fireSrc = null, FIRE_AT = null, washSrc = null, roomSrc = null;
 let HOOVES = [];
 export const FOLEY = {
   play,
@@ -785,6 +805,17 @@ export const FOLEY = {
       near();
     } else if (!on && fireSrc) {
       const f = fireSrc; fireSrc = null; f.g.gain.cancelScheduledValues(a.currentTime); f.g.gain.setTargetAtTime(0, a.currentTime, 0.3); setTimeout(() => { try { f.s.stop(); } catch (e) {} }, 2000);
+    }
+  },
+  // the campaign's room, under the map while it's open: the hearth and the clock, quietly
+  room(on) {
+    const a = ac(), out = window.__foresterBus; if (!a || !out) return;
+    if (on && !roomSrc) {
+      const s = a.createBufferSource(); s.buffer = bufs("room")[0]; s.loop = true;
+      const g = a.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(0.13, a.currentTime, 0.8);
+      s.connect(g); g.connect(out); s.start(); roomSrc = { s, g };
+    } else if (!on && roomSrc) {
+      const f = roomSrc; roomSrc = null; f.g.gain.cancelScheduledValues(a.currentTime); f.g.gain.setTargetAtTime(0, a.currentTime, 0.3); setTimeout(() => { try { f.s.stop(); } catch (e) {} }, 2000);
     }
   },
   // the first Forester's blips, swapped for these (in this game only)
