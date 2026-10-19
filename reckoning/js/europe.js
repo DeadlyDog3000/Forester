@@ -62,6 +62,18 @@ export function useSheet(name) {
   { const [x, y] = gridOf(...HOME_LL); HOME = { mx: Math.floor(x), my: Math.floor(y) }; }
   BASE = null; gridCache = null; gridKey = ""; sheet = null; sheetKey = ""; prevSheet = null; coastP = null; relief = null; reliefPart = null; near = null; traced = null; TRC = new Map(); SIG = null; shapes = null;
 }
+// (the hills' shading for a sheet, worked out ahead — in idle time, before the map is first opened — so opening it
+//  doesn't stall for the third of a second it takes)
+//  — and, given the width the map will be drawn at, drawn once through, so every crown's outline and the coast are traced
+//  ahead too (the campaign's map, at the size campaign.js gives it)
+export function warmSheet(name, width = null) {
+  const was = SHEET; useSheet(name);
+  try {
+    reliefLayer();
+    const W = typeof width === "function" ? width(MAP_ASPECT) : width;
+    if (W) { const cv = document.createElement("canvas"); cv.width = W; cv.height = Math.round(W * MAP_ASPECT); drawEurope(cv, { rel: {}, war: {}, wars: [], conq: [], pact: {}, plague: {}, famine: {}, beaten: {}, news: [] }, { home: false }); }
+  } finally { if (was) useSheet(was); }
+}
 // a crown's land, or a people's, or nobody's: the peoples of the New World have their country on the map in their own
 // names, and it isn't any crown's to take
 export const PEOPLES = {

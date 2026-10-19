@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.91.4", date: "18 October 2026", title: "Ready when you are",
+    items: [
+      "Campaign: the map's hills and every crown's borders are worked out while you're in the battles menu, so opening the campaign takes about half the time it did.",
+    ],
+  },
+  {
     v: "1.91.3", date: "18 October 2026", title: "The war room",
     items: [
       "Campaign sounds: the room the campaign is planned in, quietly under the map: a fire low in the hearth and a pendulum clock ticking on the wall. It stops when you leave the map or go into battle.",

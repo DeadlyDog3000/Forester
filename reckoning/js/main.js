@@ -28,7 +28,7 @@ import { full, gate, activate, recheck, SHOP, SALES_OPEN, buyUrl, startPurchase,
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
-import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W, useSheet } from "./europe.js";
+import { NATIONS, NATION_FAITH, NEAR, ensureEurope, drawEurope, nationAt, relWord, strengthOf, the, MAP_ASPECT, citiesOf, cityAt, cityOwner, cityFirstOwner, buildGrid, CITIES, gridOf, llOf, MG_W, useSheet, warmSheet } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
@@ -203,6 +203,8 @@ function screen(id) {
   // (the campaign's map: the court's music, the Canon and the minuets; back to the menus, the title's again)
   if (id === "campaign") AUDIO.music("court"); else if (id && AUDIO._mood === "court") AUDIO.music("title");
   try { FOLEY.room(id === "campaign"); } catch (e) {}
+  // (the battles menu: the campaign's map likely next — its hills shaded ahead, while nothing else is happening)
+  if (id === "pvp" && !screen.warmed) { screen.warmed = true; (window.requestIdleCallback || (f => setTimeout(f, 600)))(() => { try { warmSheet("world", A => { const cw = Math.max(innerWidth, innerHeight / A); return Math.round(Math.min(2600, Math.max(1200, cw * Math.min(2, devicePixelRatio || 1)))); }); } catch (e) {} }, { timeout: 4000 }); }
   G.onScreen && G.onScreen(id);
 }
 function refreshTitle() {
