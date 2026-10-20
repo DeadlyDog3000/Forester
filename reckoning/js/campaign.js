@@ -975,7 +975,7 @@ function fight(o) {
   const fieldCap = (t, n) => o.field && !t.fieldart ? Math.min(1, n) : n;
   const fg = genOf(o.foe), theirBrave = fg ? 1 + (fg.st[1] - 3) * 0.06 : 1, foeGuns = isHuman(o.foe) ? as(o.foe, () => C.guns | 0) : (C.fguns[o.foe] | 0);
   const b = {
-    id: "cmp-" + ct[0], campaign: true, name: o.field ? `The field near ${ct[0]}` : o.convoy ? `The road to ${ct[0]}` : ct[0], date: `${SEASONS[s]} ${C.year}`, year: C.year, lon: ct[1], lat: ct[2],
+    id: "cmp-" + ct[0], campaign: true, name: o.field ? `The field near ${ct[0]}` : o.convoy ? `The road to ${ct[0]}` : ct[0], date: `${SEASONS[s]} ${C.year}`, year: C.year, gen: C.gen && C.gen.name ? String(C.gen.name) : null, lon: ct[1], lat: ct[2],
     at: o.field ? (o.attack ? `You fall on ${poss(the(o.foe))} army on the march` : `${poss(The(o.foe))} army falls on yours in the open`) : o.convoy ? `${The(o.foe)} ${v3(o.foe, "falls")} on your supply train to ${ct[0]}` : o.attack ? `You march on ${poss(the(o.foe))} town` : `${The(o.foe)} ${v3(o.foe, "marches")} on your town`,
     hour: hourR < 0.1 ? "night" : hourR < 0.35 ? "morning" : hourR < 0.8 ? "afternoon" : "evening",
     cloud: s === 3 ? 0.7 : s === 2 ? 0.5 : s === 0 ? 0.35 : 0.1, mist: s === 2 ? 0.3 : s === 3 ? 0.25 : 0,

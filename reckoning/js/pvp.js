@@ -2084,10 +2084,13 @@ class Arena {
       return parts.slice(0, 4).join(" · ") + (guns ? ` · ${guns} gun${guns > 1 ? "s" : ""}` : "");
     };
     const foeName = this.netBattle || (this.net && !this.multi) ? (this.foeName || "another commander") : null;
+    // (whom your company follows: the campaign's general at its head, or your own name — never "Stranger", the name of
+    //  one who hasn't given one)
+    const lead = (this.hist && this.hist.b.campaign && this.hist.b.gen) || (this.me.name && this.me.name !== "Stranger" ? this.me.name : null);
     const hourWord = { morning: "Morning", afternoon: "Afternoon", evening: "Evening", night: "Night" }[this.hour] || "";
     const shots = battle ? [
       { at: 0, len: 3.6, cap: [this.place ? this.place.text.replace(" · by night", "") : "The field", `${this.place ? this.place.at + " · " : ""}${hourWord}${this.fortSide === 0 ? " · you hold the fort" : this.fortSide === 1 ? " · they hold the fort" : ""}`, K ? `To Arms · ${sidesWord(K)}` : "To Arms", true] },
-      { at: 3.6, len: 3.3, cap: [this.uni[0].name, tally(0), K && K[0] > 1 ? `Your side · ${K[0]} companies, yours under ${this.me.name}` : `Your company · under ${this.me.name}`] },
+      { at: 3.6, len: 3.3, cap: [this.uni[0].name, tally(0), K && K[0] > 1 ? `Your side · ${K[0]} companies, yours ${lead ? `under ${lead}` : "under your command"}` : `Your company · ${lead ? `under ${lead}` : "yours to command"}`] },
       { at: 6.9, len: 3.3, cap: K ? [this.uni.slice(1).map(u => u.name).join(" · "), tally(1), `Against you · ${foeCos.length} compan${foeCos.length > 1 ? "ies" : "y"}${K.length > 2 ? ", and each against the others" : ""}`] : [this.uni[1].name, tally(1), foeName ? `Against you · under ${foeName}` : "Against you"] },
       { at: 10.2, len: 1.9, cap: null },
       { at: 12.1, len: 1.9, cap: null },

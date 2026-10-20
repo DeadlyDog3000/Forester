@@ -1203,6 +1203,8 @@ body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
 .ph-foe { position: relative; }
 .ph-name { white-space: nowrap; }
 @media (max-width: 1000px) { .ph-name { white-space: normal; } }
+/* (a narrow window: the score centred in the room left of your health and breath, never over them) */
+@media (max-width: 1300px) { #pvpHud { left: calc(50% - 115px); max-width: calc(100vw - 270px); } }
 .ph-name small { font: 600 9px var(--sans); letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink-dim); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 2px; padding: 0 4px; margin-left: 4px; vertical-align: 2px; }
 .ph-pips { display: flex; gap: 4px; }
 .ph-pips i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--gold); }

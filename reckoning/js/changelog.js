@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.21", date: "20 October 2026", title: "Your general's name",
+    items: [
+      "Battles: in a narrower window the score along the top is centred in the room left of your health, food and warmth, instead of running over them.",
+      "Campaign battles: the opening shot of your company names the general at its head (Charles of Lorraine, for the Emperor in 1683) rather than \"under Stranger\" when you haven't given a name for online play. Other battles without a name say the company is yours to command.",
+    ],
+  },
+  {
     v: "1.99.20", date: "20 October 2026", title: "A narrower window",
     items: [
       "Campaign: in a narrower window (a laptop's, or a window not filling the screen) the bar along the top is drawn tighter, and whom you're at war with stays readable, cut short with an ellipsis, instead of being squeezed to a sliver behind the buttons.",
