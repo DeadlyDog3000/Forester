@@ -13,8 +13,10 @@
   const ch = new MessageChannel(), waiting = []; ch.port1.onmessage = () => { const r = waiting.shift(); r && r(); };
   const breath = () => new Promise(r => { waiting.push(r); ch.port2.postMessage(0); });
   const errors = [];
-  addEventListener("error", e => errors.push(`${e.message} @ ${(e.filename || "").split("/").pop()}:${e.lineno}`));
-  addEventListener("unhandledrejection", e => { const m = String(e.reason && e.reason.stack || e.reason); if (e.reason !== "stop" && !/^Error: abort/.test(m)) errors.push(m.slice(0, 300)); });
+  // (all of it taken off again at the end: a run's listeners left behind held its whole chapter in memory, run after run)
+  const onErr = e => errors.push(`${e.message} @ ${(e.filename || "").split("/").pop()}:${e.lineno}`);
+  const onRej = e => { const m = String(e.reason && e.reason.stack || e.reason); if (e.reason !== "stop" && !/^Error: abort/.test(m)) errors.push(m.slice(0, 300)); };
+  addEventListener("error", onErr); addEventListener("unhandledrejection", onRej);
   const oe = console.error; console.error = (...a) => { errors.push("console.error: " + a.map(String).join(" ").slice(0, 300)); oe(...a); };
   const E = await import("./js/engine.js"), G = E.G, input = E.input;
   const { UI } = await import("./js/ui.js");
@@ -230,6 +232,7 @@
   // a frame drawn, for the picture
   for (let i = 0; i < 3; i++) { E.frame(1 / 60, false); await sleep(16); }
   ch.port1.onmessage = null; ch.port1.close(); ch.port2.close();
+  removeEventListener("error", onErr); removeEventListener("unhandledrejection", onRej); console.error = oe;
   return JSON.stringify({ chapter: O.chapter, finished: G.chapter !== O.chapter, nowChapter: G.chapter, simSecs: Math.round(simT), realSecs: Math.round((performance.now() - t0) / 1000),
     objectives: seen, shots: O.shots ? shotLog : undefined, used: log.slice(-25), stuck, errors: [...new Set(errors)] }, null, 1);
 })()

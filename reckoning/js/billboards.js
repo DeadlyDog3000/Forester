@@ -66,6 +66,8 @@ export class Billboards {
   }
   // (written as the scene is about to be drawn — before anything of it goes to the graphics card — with the eye that's
   //  drawing it: sorted from it, farthest first)
+  // a world put away: its pools let go (one with smoke still in it was kept, the whole of its world with it)
+  static drop(root) { for (const b of POOLS) { let o = b.mesh; while (o && o !== root) o = o.parent; if (o === root) POOLS.delete(b); } }
   static install(scene) {
     if (!scene || scene.__billboards) return; scene.__billboards = true;
     const prev = scene.onBeforeRender;

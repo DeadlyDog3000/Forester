@@ -7,7 +7,8 @@
 // the one thing in front of you that E would do something to.
 
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES } from "./core.js";
+import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
@@ -2743,6 +2744,11 @@ export class WorldBase {
   dispose() {
     for (const a of this.actors.slice()) a.remove();
     G.scene.remove(this.root);
+    // (its fires and its smoke's pools let go from the lists the whole game keeps: left in them, they held the whole of
+    //  this map in memory after it was gone — every chapter's world kept, one after another)
+    const under = o => { while (o && o !== this.root) o = o.parent; return o === this.root; };
+    for (const f of FLAMES) if (under(f)) FLAMES.delete(f);
+    Billboards.drop(this.root);
     // free what this map made for itself; the shared shapes and colours stay
     this.root.traverse(o => {
       if (o.geometry && !o.geometry._shared) o.geometry.dispose();

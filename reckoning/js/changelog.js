@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.15", date: "19 October 2026", title: "A lighter story",
+    items: [
+      "Story: every chapter's world was kept in memory after you'd left it, held by its own hearth fires, so a long evening's play grew heavier chapter by chapter. Now each one is let go when the next begins: nine chapters in a row take about half the memory they did, and the fires of chapters gone are no longer warmed by every frame.",
+    ],
+  },
+  {
     v: "1.99.14", date: "19 October 2026", title: "The dry south",
     items: [
       "Campaign 3D map: the dry south is open country again: the Castilian meseta round Madrid, the Mediterranean's coasts and hills are fields and villages with olive and holm-oak in stands, not a forest from end to end. Tuscany's and Spain's mountains keep their woods.",
