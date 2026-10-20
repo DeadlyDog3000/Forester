@@ -921,7 +921,11 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
     if (!id || !NATIONS[id]) continue;
     // (along the crown's own rounded outline, as its border is drawn — the squares of the grid made a staircase of it)
     let p = shapes.wash.get(id); if (!p) { p = new Path2D(); for (const L of traceOf(g, id, false, SHEET + key).loops) addLoop(p, L.map(([x, y]) => [x * S, y * S])); shapes.wash.set(id, p); }
-    c.save(); c.globalCompositeOperation = "overlay"; c.fillStyle = `rgba(255,236,190,${a})`; c.fill(p, "evenodd"); c.restore();
+    // (your own crown, lit as it always is on a campaign's map: a lighter wash, so its colour still shows, and a gilt edge
+    //  along its border instead — it was washed almost white, and looked like no one's land)
+    const mine = id === me && id !== selected;
+    c.save(); c.globalCompositeOperation = "overlay"; c.fillStyle = `rgba(255,236,190,${mine ? 0.14 : a})`; c.fill(p, "evenodd"); c.restore();
+    if (mine) { c.save(); c.strokeStyle = "rgba(196,150,52,0.55)"; c.lineWidth = Math.max(1.5, S * 0.7); c.lineJoin = "round"; c.stroke(p); c.restore(); }
   }
   // crossed swords over a crown at war (red if with you), a skull over a plague
   const centre = id => { if (shapes.mid.has(id)) return shapes.mid.get(id); let sx = 0, sy = 0, n = 0; for (let y = 0; y < GH; y += 2) for (let x = 0; x < GW; x += 2) if (g[y][x] === id) { sx += x; sy += y; n++; } const p = n ? [sx / n * S, sy / n * S] : null; shapes.mid.set(id, p); return p; };

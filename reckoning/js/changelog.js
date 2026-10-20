@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.11", date: "19 October 2026", title: "Your own country",
+    items: [
+      "Campaign parchment map: your own crown keeps its colour, with a gilt edge along its border, instead of being washed almost white so that it looked like no one's land.",
+      "Campaign 3D map: the New World of 1683 is mostly forest, the colonists' and the nations' fields cleared from it here and there, rather than open farmland like the Old World's.",
+    ],
+  },
+  {
     v: "1.99.10", date: "19 October 2026", title: "Ships in harbour",
     items: [
       "Campaign 3D map: close in, merchantmen lie at anchor off the port towns, a few to a port and more to a great one, their bows into the west wind and riding the swell under the colours of whoever holds the town.",

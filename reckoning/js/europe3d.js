@@ -224,7 +224,8 @@ const WOOD_F = 1.15;
 // (only in the farming country, though: the northern forest and the like stand as thick in the lowlands as on the hills)
 const SWELL = 0.62, hillWood = (h, o) => (Math.min(1, Math.max(0, (h - 0.12) / 0.8)) - 0.35) * 0.3 * o + (1 - o) * 0.12;
 // (how far a country is farming country, by its kind: the open fields of the middle and the south, the steppe's in part)
-const openOf = (b, lon) => b === "temperate" || b === "med" ? 1 : b === "steppe" && lon > -45 ? 0.45 : 0;
+// (the New World of 1683 mostly forest still: the colonists' fields and the nations' own cleared from it here and there)
+const openOf = (b, lon) => lon < -45 ? (b === "temperate" || b === "med" ? 0.18 : 0) : b === "temperate" || b === "med" ? 1 : b === "steppe" ? 0.45 : 0;
 export function woodAt(x, z, h = 0.4, o = 1) { let v = (inoise(x * 0.16, z * 0.16, 7) - 0.5) * SWELL + hillWood(h, o), a = 0.5, f = WOOD_F; for (let i = 0; i < 4; i++) { v += a * inoise(x * f, z * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
 // the old tilled lowlands, long since cleared — the Low Countries, the Paris basin, the Po, England's south and east,
 // Saxony, the Danish isles: the woods thinned there to copses (lon, lat, how far, in degrees)
