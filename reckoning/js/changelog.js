@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.96.0", date: "19 October 2026", title: "Sieges",
+    items: [
+      "Campaign 3D map: a town your army is besieging has its siege works round it: the lines dug in a jagged ring of redoubts outside the houses, the besiegers' camps behind them with tents in your colours, and the batteries' guns with their smoke drifting off over the town.",
+      "Campaign parchment map: a besieged town is ringed by its siege lines, the besiegers' tents behind them.",
+      "Campaign parchment map: the other crowns' armies in their own wars are drawn where they stand, their strength unknown unless your spies have told you.",
+    ],
+  },
+  {
     v: "1.95.0", date: "19 October 2026", title: "The wars of others",
     items: [
       "Campaign: the wars the other crowns fight among themselves are fought on the map. Their armies march out to the front, stand before the towns they take, fall back toward home when they're beaten, and go home at the peace; both the parchment and the land seen close show them.",

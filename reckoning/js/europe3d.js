@@ -46,6 +46,13 @@ const wakeTex = () => {
   }
   _wakeTex = new THREE.CanvasTexture(cv); _wakeTex.colorSpace = THREE.SRGBColorSpace; return _wakeTex;
 };
+let _smokeTex = null;
+const smokeTex = () => {
+  if (_smokeTex) return _smokeTex;
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64; const c = cv.getContext("2d"), g = c.createRadialGradient(32, 32, 2, 32, 32, 31);
+  g.addColorStop(0, "rgba(255,255,255,0.9)"); g.addColorStop(0.5, "rgba(255,255,255,0.45)"); g.addColorStop(1, "rgba(255,255,255,0)"); c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  _smokeTex = new THREE.CanvasTexture(cv); return _smokeTex;
+};
 const wakeGeo = () => { if (!_wakeGeo) { _wakeGeo = new THREE.PlaneGeometry(16, 44); _wakeGeo.translate(0, 22, 0); } return _wakeGeo; };
 const sync = () => { MAP_W = (BOUNDS.lon1 - BOUNDS.lon0) * K * U; MAP_H = (BOUNDS.lat1 - BOUNDS.lat0) * U; CELL = MAP_W / GW; };
 // (the land laid out as the sheet is: in its effective degrees — North America larger, as on the map)
@@ -1244,6 +1251,46 @@ export class EuropeView3D {
     }
     for (const [k, F] of M) if (!seen.has(k)) { grp.remove(F.ship); dropSp(F); M.delete(k); }
   }
+  // the towns under siege: the lines dug round them, the besiegers' tents along the lines, and the smoke drifting off the
+  //  batteries — [{ name, lon, lat, rank, color, years, breach }]. (The tents and guns are kept the same size on the
+  //  view as the companies are; the lines are dug in the land itself, so they're the town's size.)
+  sieges(list) {
+    const key = JSON.stringify(list); if (key === this.siegeKey) return; this.siegeKey = key;
+    if (this.siegeGroup) { this.scene.remove(this.siegeGroup); this.siegeGroup.traverse(o => { if (o.geometry && !o.userData.shared) o.geometry.dispose(); }); }
+    const grp = this.siegeGroup = new THREE.Group(); this.scene.add(grp); grp.userData.smoke = []; grp.userData.props = [];
+    if (!list.length) return;
+    const earth = new THREE.MeshStandardMaterial({ color: 0x5e4a30, roughness: 1 }), canvasM = new THREE.MeshStandardMaterial({ color: 0xe6dcc4, roughness: 0.95 });
+    const tentG = new THREE.ConeGeometry(0.55, 0.9, 4); tentG.translate(0, 0.45, 0); tentG.rotateY(Math.PI / 4);
+    const gunG = new THREE.BoxGeometry(0.9, 0.35, 0.5); gunG.translate(0, 0.18, 0);
+    const smokeT = smokeTex();
+    for (const S of list) {
+      const [cx, cz] = toWorld(S.lon, S.lat), r = 0.34 + S.rank * 0.1, cm = new THREE.MeshStandardMaterial({ color: S.color, roughness: 0.9 });
+      // (the lines: a bank of earth all the way round, a little outside the houses — not a ring but a line of
+      //  redoubts, jogging out and back as the engineers dug it to the ground)
+      const segs = 56, rad = a => r * (1 + 0.07 * Math.sin(a * 9) + 0.04 * Math.sin(a * 4 + S.rank));
+      const pt = a => [cx + Math.cos(a) * rad(a), cz + Math.sin(a) * rad(a)];
+      for (let i = 0; i < segs; i++) {
+        const a0 = i / segs * Math.PI * 2, a1 = (i + 1) / segs * Math.PI * 2, [x0, z0] = pt(a0), [x1, z1] = pt(a1), len = Math.hypot(x1 - x0, z1 - z0) * 1.1, x = (x0 + x1) / 2, z = (z0 + z1) / 2;
+        const b = new THREE.Mesh(new THREE.BoxGeometry(len, 0.01, 0.022), earth); b.position.set(x, this.groundY(x, z) + 0.004, z); b.rotation.y = -Math.atan2(z1 - z0, x1 - x0); grp.add(b);
+      }
+      // (the camp: three of them behind the lines, tents crowded together, a few in the besieger's colours)
+      for (let c = 0; c < 3; c++) {
+        const ca = c / 3 * Math.PI * 2 + 1.3, n = 5 + S.rank;
+        for (let i = 0; i < n; i++) {
+          const a = ca + (i - n / 2) * 0.09, rr = rad(a) + 0.09 + (i % 3) * 0.045, x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
+          const t = new THREE.Mesh(tentG, i % 4 === 0 ? cm : canvasM); t.userData.shared = true; t.position.set(x, this.groundY(x, z), z); t.rotation.y = a; t.userData.unit = 1; grp.add(t); grp.userData.props.push(t);
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        const a = i / 3 * Math.PI * 2 + 0.6, x = cx + Math.cos(a) * (r - 0.04), z = cz + Math.sin(a) * (r - 0.04);
+        const g = new THREE.Mesh(gunG, new THREE.MeshStandardMaterial({ color: 0x2c2a28, roughness: 0.6, metalness: 0.3 })); g.position.set(x, this.groundY(x, z), z); g.rotation.y = -a; g.userData.unit = 1; grp.add(g); grp.userData.props.push(g);
+        for (let k = 0; k < 4; k++) {
+          const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeT, transparent: true, depthWrite: false, opacity: 0, color: 0xdedad2 }));
+          sp.userData.base = [x, this.groundY(x, z), z]; sp.userData.phase = (k / 4 + i * 0.37) % 1; sp.renderOrder = 3; grp.add(sp); grp.userData.smoke.push(sp);
+        }
+      }
+    }
+  }
   // the armies on the land: a company of its own men in its own coats, drawn up in two ranks under its colours —
   //  stepping out on the march, standing at ease when it's halted — kept the same size on the view, as the fleets are.
   //  [{ key, lon, lat, color, n, mine, body, colors, flag (a canvas, or null), march, glon, glat, nw, via ([[lon, lat]…],
@@ -1432,6 +1479,14 @@ export class EuropeView3D {
           for (const c of hg.children) if (c.userData.wake) { const o = c.material.opacity + (Math.max(0, way) * 0.75 - c.material.opacity) * Math.min(1, dt * 3); c.material.opacity = o; c.visible = o > 0.01; }
         }
       } }
+    if (this.siegeGroup && this.siegeGroup.children.length) {
+      const k = unitDist(this.dist) * ARMY_K * 0.9, now = performance.now() / 1000;
+      for (const o of this.siegeGroup.userData.props) o.scale.setScalar(k);
+      for (const sp of this.siegeGroup.userData.smoke) {
+        const ph = (now * 0.12 + sp.userData.phase) % 1, [x, y, z] = sp.userData.base;
+        sp.position.set(x + ph * k * 2.5, y + k * (0.6 + ph * 3.2), z - ph * k * 1.2); sp.scale.setScalar(k * (1.6 + ph * 3.6)); sp.material.opacity = Math.sin(ph * Math.PI) * 0.8;
+      }
+    }
     if (this.fleetGroup) { const k = unitDist(this.dist) * FLEET_K; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
     // (the armies the same: a man about a fiftieth of the view's height, standing on the ground where he is; and their
     //  steps, their breathing, their colours stirring)

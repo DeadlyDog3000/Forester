@@ -2616,6 +2616,14 @@ function armies3d() {
   if (C.emb == null) add("mine-" + (C.ar | 0), armyPos(), C.me, field().length || C.army, true, C.go || null);
   return out;
 }
+// (the towns under siege, for the land seen close: yours, by each of your armies, and the other player's — the lines dug
+//  round them, the besiegers' tents, the guns' smoke over the batteries)
+function sieges3d() {
+  const out = [], one = (S, id) => { const ct = S && CITIES.find(c => c[0] === S.ct); if (!ct) return; out.push({ name: ct[0], lon: ct[1], lat: ct[2], rank: ct[3] | 0, color: NATIONS[id].color, years: S.years | 0, breach: (S.bat || 0) >= 1 }); };
+  eachArmy(() => { if (C.siege) one(C.siege, C.me); });
+  if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.siege) one(sl.siege, h); }
+  return out;
+}
 // (the fleets at sea, for the land seen close: yours, the other player's, and the crowns' — each heading where she's bound)
 function fleets3d() {
   if (lastF3dOf !== C) { lastF3dOf = C; lastF3d = {}; }
@@ -2685,7 +2693,7 @@ function spreadTick() {
 }
 function paint() {
   const cv = $("cmpMap"); if (!cv || !C) return; W0();
-  if (on3d && eu3d) { eu3d.me = C.me; eu3d.setMap(E(), 2, null, C.walls, C.pop); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); if (!raf3d) loop3d(); return; }
+  if (on3d && eu3d) { eu3d.me = C.me; eu3d.setMap(E(), 2, null, C.walls, C.pop); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); eu3d.sieges(sieges3d()); if (!raf3d) loop3d(); return; }
   // (marches finished since the map was last drawn: their marks drawn on it again, off the overlay)
   { const t = performance.now(); marchAnims = marchAnims.filter(A => t - A.t0 < A.dur); }
   spreadCheck();
@@ -2727,6 +2735,17 @@ function paint() {
   }
   // ---- the armies: a regiment's block under its colour, how many regiments, and where it's marching ----
   const scr = p => [(p.x * S - view.ox) * view.z, (p.y * S - view.oy) * view.z];
+  // (a town under siege: the lines drawn round it in the engineers' way — a jagged ring of redoubts — and the
+  //  besiegers' tents behind them, in their colours)
+  for (const Sg of sieges3d()) {
+    const ct = CITIES.find(t => t[0] === Sg.name); if (!ct) continue;
+    const [x, y] = scr(cellXY(ct)), R0 = (9 + Sg.rank * 3) * k * Math.min(2.2, 0.8 + view.z / ZF() * 0.4);
+    c.save(); c.strokeStyle = "rgba(70,48,26,0.9)"; c.lineWidth = 1.6 * k; c.setLineDash([3 * k, 1.6 * k]); c.beginPath();
+    for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, rr = R0 * (1 + 0.1 * Math.sin(a * 9)); i ? c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.8) : c.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr * 0.8); }
+    c.stroke(); c.setLineDash([]);
+    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + 0.4, tx = x + Math.cos(a) * R0 * 1.3, ty = y + Math.sin(a) * R0 * 1.3 * 0.8, h = 3.2 * k; c.fillStyle = i % 2 ? "rgba(236,226,200,0.95)" : Sg.color; c.strokeStyle = "rgba(60,40,20,0.85)"; c.lineWidth = 0.8 * k; c.beginPath(); c.moveTo(tx - h, ty + h * 0.6); c.lineTo(tx, ty - h); c.lineTo(tx + h, ty + h * 0.6); c.closePath(); c.fill(); c.stroke(); }
+    c.restore();
+  }
   marchView = { S, ox: view.ox, oy: view.oy, z: view.z, u: armyU(k) };
   if (lastArmyOf !== C) { lastArmyOf = C; lastArmyAt = {}; marchAnims = []; }
   const army = (p, id, n, mine, go, act = true, key = id) => {
