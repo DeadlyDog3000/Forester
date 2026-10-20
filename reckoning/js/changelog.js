@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.8", date: "19 October 2026", title: "The land, heard",
+    items: [
+      "Campaign 3D map: come down close to the land and you hear it: the wind over the country, gusting and dropping, and where the sea is in view, the surf, each wave rising, breaking and hissing back down the sand. They fade as you climb back up to the map.",
+      "Campaign: the ? guide tells of the wars of others: their armies, the year's battlefields and sieges on the map, and what pointing at them shows.",
+    ],
+  },
+  {
     v: "1.99.7", date: "19 October 2026", title: "Choosing a crown",
     items: [
       "Campaign: point at a crown when choosing one and see it before you take it up: its lands framed on the map, its chief town, a line on what it was about in 1683, whom it's at war with as the year begins, and the leagues it's sworn to.",

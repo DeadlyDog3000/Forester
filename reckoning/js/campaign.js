@@ -2254,7 +2254,18 @@ let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCi
 let ZOOM_3D = 4.2 * 2.5; const DIST_2D = 110;
 let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3d = () => {};
 // (drawn only while the campaign's map is in front of you)
-const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); raf3d = requestAnimationFrame(loop3d); };
+const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; heard3d(false); return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); heard3d(true); raf3d = requestAnimationFrame(loop3d); };
+// (the land seen close, heard: the wind over it as you come down to it, and the surf where the sea is in view — a few
+//  times a second, from a handful of points round the middle of the view)
+let heardT = 0;
+function heard3d(on) {
+  if (!on) { if (heardT) { heardT = 0; try { FOLEY.outdoors(0, 0); } catch (e) {} } return; }
+  const t = performance.now(); if (t - heardT < 250) return; heardT = t;
+  const v = eu3d, close = clamp((55 - v.dist) / 40, 0, 1); let wet = 0;
+  if (close > 0) { const r = v.dist * 0.35; for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) if (v.rawY(v.target.x + i * r, v.target.z + j * r) < 0) wet++; }
+  const sea = wet / 9;
+  try { FOLEY.outdoors(close * (1 - sea * 0.5), close * Math.min(1, sea * 1.8)); } catch (e) {}
+}
 const shown = () => !$("campaign").classList.contains("hidden") && !$("cmpPlay").classList.contains("hidden");
 // ---- a right-click with a fleet in hand: joined to another of yours, an enemy fleet engaged (or sailed after), or sailed
 //  to where you clicked ----
@@ -3407,6 +3418,7 @@ function drawSide() {
       <li><b>Victory.</b> Your crown's ambition is in the Victory card: certain towns to take and hold, and so many towns in all, within sixty years. Lose your last town and you have three years to take one back with the army you still have, or the crown is lost.</li>
       <li><b>Generals.</b> They earn traits in the field and the camp: Bold, Cautious, Siege engineer, Hero of the nation, Beloved of the men, and the vices of drink and the lash. Each counts in battle. Hover one on the general's card to see what it does.</li>
       <li><b>The other crowns.</b> They come to you with trade agreements and alliances, and a strong neighbour may demand tribute: pay, or risk war. Beat a smaller crown and you can demand it submit as your protectorate: it pays you tribute every year and fights in your wars. The great powers card ranks the crowns by their towns and people.</li>
+      <li><b>The wars of others.</b> The other crowns fight their own wars on the same map. Their armies march to their fronts and home again at the peace; the year's battlefields are marked with crossed swords in a dark ink, and a siege with its lines and tents round the town. Point at any of them to see whose it is and who fought whom. The gazette reports the battles that matter to you.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Trade.</b> Every town has its good (furs, fish, tobacco, sugar, silver, timber, iron, grain, wool, cloth, wine or silk), and each brings thalers. Trade pacts pay more for goods you don't have yourself. An enemy fleet lying off one of your ports blockades it: none of its trade gets out until you drive the fleet off.</li>
       <li><b>Government.</b> Your crown is an absolute monarchy, a constitutional monarchy or a republic, each with its strengths, and has three ministers (the Treasury, War and Justice) whose skill counts. Change one a year from the side panel. Two years of widespread unrest bring a revolution: grant what the people want, or crush it at the cost of a quarter of your army.</li>

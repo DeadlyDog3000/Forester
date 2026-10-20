@@ -650,6 +650,35 @@ const RECIPES = {
     let m = 0; for (const v of out) m = Math.max(m, Math.abs(v)); for (let i = 0; i < out.length; i++) out[i] *= 0.85 / (m || 1);
     return out;
   },
+  // the wind over open country, heard from up on the heights: a steady breath that rises into a gust and falls away
+  // again, the gusts with a low roar under them. Made long enough to loop without being heard to.
+  wind(sr) {
+    const L = 12, X = 0.8, n = Math.floor(sr * (L + X)), d = new Float32Array(n);
+    const bp = new Biquad("bp", 500, 0.6, sr), lp = new Biquad("lp", 160, 0.5, sr), p1 = rand(0, TAU), p2 = rand(0, TAU); let gust = 0.5;
+    for (let i = 0; i < n; i++) {
+      if (i % 256 === 0) { const t = i / sr; gust = Math.max(0.08, 0.5 + 0.28 * Math.sin(t * TAU * 2 / L + p1) + 0.16 * Math.sin(t * TAU * 5 / L + p2) + 0.06 * Math.sin(t * TAU * 11 / L)); bp.set("bp", 260 + gust * 560, 0.55, sr); }
+      const w = Math.random() * 2 - 1;
+      d[i] = bp.run(w) * (0.2 + gust * 0.8) + lp.run(w) * gust * gust * 1.4;
+    }
+    const xf = Math.floor(sr * X), N = n - xf; for (let i = 0; i < xf; i++) { const k = i / xf; d[i] = d[i] * k + d[N + i] * (1 - k); }
+    const out = d.subarray(0, N); let m = 0; for (const v of out) m = Math.max(m, Math.abs(v)); for (let i = 0; i < out.length; i++) out[i] *= 0.85 / (m || 1);
+    return out;
+  },
+  // the sea on a shore: a low wash always, and the waves coming in one after another — each a swell rising, breaking
+  // in a broad rush, and the foam hissing back down the sand. Made long enough to loop without being heard to.
+  surf(sr) {
+    const L = 14, X = 2.5, n = Math.floor(sr * (L + X)), d = new Float32Array(n);
+    const bed = new Biquad("lp", 260, 0.5, sr); for (let i = 0; i < n; i++) d[i] = bed.run(Math.random() * 2 - 1) * (0.35 + 0.1 * Math.sin(i / sr * TAU / 7));
+    for (let t = rand(0.2, 1.2); t < L; t += rand(3.6, 5.4)) {
+      const a = rand(0.7, 1);
+      hiss(d, sr, t, 1.6, a * 0.7, new Biquad("lp", 380, 0.6, sr), x => Math.pow(Math.min(1, x / 1.4), 2));                                       // the swell
+      hiss(d, sr, t + 1.3, 2.8, a * 0.9, new Biquad("bp", rand(900, 1400), 0.5, sr), x => Math.min(1, x / 0.12) * Math.exp(-x / 0.9));          // it breaks
+      hiss(d, sr, t + 1.6, 3.2, a * 0.35, new Biquad("hp", 2600, 0.6, sr), x => Math.min(1, x / 0.5) * Math.exp(-x / 1.4));                      // the foam going back
+    }
+    const xf = Math.floor(sr * X), N = n - xf; for (let i = 0; i < xf; i++) { const k = i / xf; d[i] = d[i] * k + d[N + i] * (1 - k); }
+    const out = d.subarray(0, N); let m = 0; for (const v of out) m = Math.max(m, Math.abs(v)); for (let i = 0; i < out.length; i++) out[i] *= 0.85 / (m || 1);
+    return out;
+  },
   // guns far off, beyond the hills: low thumps that roll on, one after another
   guns(sr) {
     const L = 3.2, d = new Float32Array(Math.floor(sr * L)); let t = 0.02;
@@ -685,7 +714,7 @@ const RECIPES = {
 const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
   whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
   quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2,
-  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, march: 3, trot: 2, sail: 2, purse: 3, spades: 2, room: 1, hoof: 8, snort: 3, tack: 4 };
+  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, march: 3, trot: 2, sail: 2, purse: 3, spades: 2, room: 1, wind: 1, surf: 1, hoof: 8, snort: 3, tack: 4 };
 // (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
 for (const k in RECIPES) VARIANTS[k] ??= 2;
 
@@ -725,7 +754,7 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   last.connect(out);
   src.start();
 }
-let fireSrc = null, FIRE_AT = null, washSrc = null, roomSrc = null;
+let fireSrc = null, FIRE_AT = null, washSrc = null, roomSrc = null, outSrc = {};
 let HOOVES = [];
 export const FOLEY = {
   play,
@@ -810,6 +839,19 @@ export const FOLEY = {
       s.connect(g); g.connect(out); s.start(); roomSrc = { s, g };
     } else if (!on && roomSrc) {
       const f = roomSrc; roomSrc = null; f.g.gain.cancelScheduledValues(a.currentTime); f.g.gain.setTargetAtTime(0, a.currentTime, 0.3); setTimeout(() => { try { f.s.stop(); } catch (e) {} }, 2000);
+    }
+  },
+  // the land seen close on the campaign's map: the wind over it, and the surf where the sea's in view — each as loud
+  //  as it's given (0 to 1), eased to it; both silent, they're let go
+  outdoors(windK = 0, seaK = 0) {
+    const a = ac(), out = window.__foresterBus; if (!a || !out) return;
+    for (const [name, k, top] of [["wind", windK, 0.11], ["surf", seaK, 0.13]]) {
+      let S = outSrc[name];
+      if (k > 0.01 && !S) { const s = a.createBufferSource(); s.buffer = bufs(name)[0]; s.loop = true; const g = a.createGain(); g.gain.value = 0; s.connect(g); g.connect(out); s.start(0, Math.random() * 6); S = outSrc[name] = { s, g, k: -1 }; }
+      if (!S) continue;
+      if (Math.abs(S.k - k) > 0.01) { S.k = k; S.g.gain.setTargetAtTime(k * top, a.currentTime, 0.6); }
+      if (k <= 0.01 && !S.stopping) { S.stopping = setTimeout(() => { if (outSrc[name] === S) { try { S.s.stop(); } catch (e) {} delete outSrc[name]; } }, 4000); }
+      else if (k > 0.01 && S.stopping) { clearTimeout(S.stopping); S.stopping = null; }
     }
   },
   // the first Forester's blips, swapped for these (in this game only)
