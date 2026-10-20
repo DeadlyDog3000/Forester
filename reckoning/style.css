@@ -1642,7 +1642,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-side .cmp-foot { align-self: center; padding: 2px 10px; border-radius: 4px; background: rgba(10, 18, 12, 0.88); }
 .cmp-side .cmp-card, .cmp-side .cmp-note, .cmp-side .cmp-news { background: rgba(12, 22, 15, 0.94); }
 .cmp-side .cmp-log { background: rgba(10, 18, 12, 0.92); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4); }
-.cmp-side .cmp-foot .tm-lnk, .cmp-side .cmp-news .tm-lnk { background: none; border: 0; padding: 4px 8px; color: var(--gold); font: 12px var(--sans); text-decoration: underline; cursor: pointer; text-shadow: 0 1px 3px #000; }
+.cmp-side .cmp-foot .tm-lnk, .cmp-side .cmp-news .tm-lnk, .cmp-side .cmp-first .tm-lnk { background: none; border: 0; padding: 4px 8px; color: var(--gold); font: 12px var(--sans); text-decoration: underline; cursor: pointer; text-shadow: 0 1px 3px #000; }
 .cmp-zoom { left: 14px; right: auto; top: auto; bottom: 14px; z-index: 2; }
 @media (max-width: 900px) { .cmp-side { width: auto; left: 10px; top: auto; height: 45vh; } }
 .cmp-bb .btn { min-width: 0; padding: 8px 14px; }
@@ -2037,6 +2037,17 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-rank[data-selc] { cursor: pointer; border-radius: 3px; }
 .cmp-rank[data-selc]:hover { background: rgba(255,255,255,0.06); }
 /* scholars idle */
+.cmp-first { border-color: rgba(232,201,106,0.55); }
+.cmp-first-h { display: flex; align-items: baseline; justify-content: space-between; }
+.cmp-first-h b { font: 600 14px var(--serif); color: #e8c96a; }
+.cmp-first-h small { color: rgba(241,230,204,0.6); }
+.cmp-first ol { list-style: none; margin: 6px 0 4px; padding: 0; display: grid; gap: 5px; }
+.cmp-first li { position: relative; padding-left: 22px; display: grid; }
+.cmp-first li::before { content: ""; position: absolute; left: 2px; top: 3px; width: 11px; height: 11px; border: 1.5px solid rgba(232,201,106,0.7); border-radius: 2px; }
+.cmp-first li.done::before { content: "✓"; background: rgba(232,201,106,0.85); color: #1d1a14; font: 700 10px/11px var(--sans); text-align: center; }
+.cmp-first li b { font: 600 13px var(--serif); }
+.cmp-first li small { color: rgba(241,230,204,0.65); font-size: 11.5px; }
+.cmp-first li.done b, .cmp-first li.done small { opacity: 0.45; text-decoration: line-through; }
 .cmp-idle { display: flex; align-items: center; gap: 10px; border-color: rgba(232,201,106,0.55); }
 .cmp-idle span { flex: 1; display: grid; gap: 2px; }
 .cmp-idle b { font: 600 13.5px var(--serif); color: #e8c96a; }

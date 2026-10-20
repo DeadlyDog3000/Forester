@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.2", date: "19 October 2026", title: "Your first year",
+    items: [
+      "Campaign: a new player's first campaign opens with a card for the first year: choose your army, send it on its way, raise regiments, set your scholars to work and end the year. Each step is ticked off as you do it, the card goes once they're all done, and it can be put away at any time. Anyone who has played the campaign before never sees it.",
+    ],
+  },
+  {
     v: "1.99.1", date: "19 October 2026", title: "Villages",
     items: [
       "Campaign 3D map: the open country between the towns has its villages: a handful of houses round a green, the larger with a church and its spire, thatched in the north and the middle of Europe and tiled in the south. None stand in the woods, beside a town or on a river; from higher up only the church villages show, so the land doesn't turn to a speckle.",

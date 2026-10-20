@@ -2317,7 +2317,7 @@ export function initCampaign(c, battle, withPlayer) {
     if (C && C.mp) { if (!mp || mp.gone) return; doAct({ k: "end" }); sfx("quill", 0.35); return; }
     // (what's on the move as the year turns: your armies marching, your fleets under sail — heard going)
     const marching = !!C.go || (C.armies || []).some(a => a.go), sailing = (C.fleets || []).some(f => f.go);
-    const since = C.paperN | 0; endSeason();
+    const since = C.paperN | 0; endSeason(); firstDid("year");
     if (marching) sfx("march", 0.38, 250); if (sailing) sfx("sail", 0.35, marching ? 900 : 250);
     sfx("parchment", 0.55);
     // (what happened since the last paper — while the season turned, and what you did in it: a war you declared, a
@@ -3041,7 +3041,25 @@ function armyHit(cv, px, py) {
 }
 // (once, for a campaign of before 1.52: what's new in it, where to find it)
 const TIPKEY = "reckoning.campaign.tip.1-55";
-function newsTip() { try { if (localStorage.getItem(TIPKEY)) return; localStorage.setItem(TIPKEY, "1"); } catch (e) { return; } if (!note) note = "How the campaign works: every town has its people, and regiments are raised in your towns, a kind at a time: choose a town to recruit, or use Your towns. Leave regiments to hold a town, form new armies from garrisons, and click an enemy army to fight it in the field. The ? at the top explains the rest."; }
+// ---- a new player's first year: what to do, a step at a time, each ticked off as it's done — once, over all their
+//  campaigns (one who played before it came never sees it), and put away when they like ----
+const FIRSTKEY = "reckoning.campaign.first";
+let first = (() => { try { const f = JSON.parse(localStorage.getItem(FIRSTKEY)); if (f) return f; return localStorage.getItem(TIPKEY) ? { off: 1 } : {}; } catch (e) { return { off: 1 }; } })();
+const firstSave = () => { try { localStorage.setItem(FIRSTKEY, JSON.stringify(first)); } catch (e) {} };
+const firstDid = k => { if (first[k] || first.off) return; first[k] = 1; firstSave(); };
+const FIRST = [
+  ["army", "Choose your army", "Click its men on the map."],
+  ["march", "Send it on its way", "Right-click a town, or the ground, in its reach."],
+  ["recruit", "Raise regiments", "Click one of your towns, or open Your towns below."],
+  ["learn", "Set your scholars to work", "Learning, at the top."],
+  ["year", "End the year", "The red button. The world moves on, and its news comes to you."],
+];
+function firstCard() {
+  if (!C || C.mp || C.over || first.off || FIRST.every(([k]) => first[k])) return "";
+  const n = FIRST.filter(([k]) => first[k]).length;
+  return `<div class="cmp-card cmp-first"><div class="cmp-first-h"><b>Your first year</b><small>${n} of ${FIRST.length}</small></div><ol>${FIRST.map(([k, t, d]) => `<li class="${first[k] ? "done" : ""}"><b>${t}</b><small>${d}</small></li>`).join("")}</ol><button class="tm-lnk" data-firstoff="1">Put this away</button></div>`;
+}
+function newsTip() { if (firstCard()) return; try { if (localStorage.getItem(TIPKEY)) return; localStorage.setItem(TIPKEY, "1"); } catch (e) { return; } if (!note) note = "How the campaign works: every town has its people, and regiments are raised in your towns, a kind at a time: choose a town to recruit, or use Your towns. Leave regiments to hold a town, form new armies from garrisons, and click an enemy army to fight it in the field. The ? at the top explains the rest."; }
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
   if (C) newsTip();
@@ -3264,7 +3282,8 @@ function drawSide() {
     if (e.kind === "attack") h += `<div class="cmp-ev war"><b>${e.colo ? `${esc(poss(The(e.foe)))} colonial army marches` : `${esc(The(e.foe))} ${v3(e.foe, "marches")}`} on ${esc(e.ct)}!</b><small>${e.att} regiments${e.of > e.att && knowsArmy(e.foe) ? ` of its ${e.of}` : ""} against your ${e.def} (${e.army === false ? "the garrison: your army is too far off to come" : "garrison and army"})${e.walls ? " · behind its walls" : ""}. Your odds: ${Math.round((1 - odds(e.att, e.def, e.walls)) * 100)}%.</small><span><button class="btn primary" data-ev="${i}" data-how="fight">Fight it yourself</button><button class="btn" data-ev="${i}" data-how="auto">Leave it to the garrison</button></span></div>`;
     if (e.kind === "peace") h += `<div class="cmp-ev"><b>${esc(The(e.foe))} ${v3(e.foe, "offers")} peace</b><small>${e.cede ? `If you give up ${esc(e.cede)} and its country.` : e.gold ? `And ${e.gold} thalers to have it.` : "Each side keeps what it holds."}</small><span><button class="btn primary" data-ev="${i}" data-how="yes">Make peace</button><button class="btn" data-ev="${i}" data-how="no">Fight on</button></span></div>`;
   }
-  h += idle;
+  if (armySel) firstDid("army"); if (C.tech && C.tech.cur) firstDid("learn");
+  h += idle + firstCard();
   if (note) h += `<div class="cmp-note">${esc(note)}</div>`;
   if (news.length) h += `<div class="cmp-news"><b>The year's news</b>${news.slice(0, 8).map(l => `<div>${esc(l.title)}${l.sub ? ` <span>${esc(l.sub)}</span>` : ""}</div>`).join("")}<button class="tm-lnk" data-act="gazette">Read the gazette</button> <button class="tm-lnk" data-act="news">Close</button></div>`;
   // the town or the crown chosen on the map
@@ -3379,6 +3398,7 @@ function drawSide() {
 }
 function sideClick(e) {
   if (e.target.closest("[data-learnb]")) { $("cmpTechB").click(); return; }
+  if (e.target.closest("[data-firstoff]")) { first.off = 1; firstSave(); drawMap(); return; }
   { const sc = e.target.closest("[data-selc]"); if (sc && NATIONS[sc.dataset.selc]) { sel = sc.dataset.selc; selCity = null; selFoe = null; armySel = false; note = ""; drawMap(); sfx("parchment", 0.28); $("cmpSide").scrollTop = 0; return; } }
   const b = e.target.closest("button"); if (!b || !C) return;
   window.__uisfx && window.__uisfx.click && window.__uisfx.click();
@@ -3448,6 +3468,8 @@ window.__cmp = { get eu3d() { return eu3d; }, enter3d: () => enter3d(), fight: o
 function doAct(a) {
   if (C && C.mp && mp && !mp.host) { mp.net.send({ t: "cact", a }); return; }
   const r = apply(C.me, a) || {};
+  // (done, not refused: what's done is heard — a refusal is only a note)
+  if (r.sfx || r.fight) { if (["move", "march", "siege", "field"].includes(a.k)) firstDid("march"); else if (a.k === "recruit") firstDid("recruit"); }
   react(r);
   // (a mission done by what was just done: the reward told at once, over the map)
   { const m = missionsCheck(false); if (m) { answer(m); sfx("coin", 0.5); drawMap(); } }
