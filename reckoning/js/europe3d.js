@@ -60,6 +60,7 @@ export const toWorld = (lon, lat) => { const [ex, ey] = fwd(lon, lat); return [(
 export const toLL = (x, z) => inv(BOUNDS.lon0 + x / (K * U), BOUNDS.lat1 - z / U);
 
 
+let _dryV = null;   // (a spare vector, for where a company would stand)
 // ---- the land: which ground is land, from the map's grid, softened into a coast ----
 let landGrid = null;
 function landAt(g, lon, lat) {
@@ -670,6 +671,29 @@ export class EuropeView3D {
     }
     // (the fields don't lie in a ring: they run out along the better ground and stop short where the woods hold)
     return best;
+  }
+  // which way round its town an army stands, to be on land: the turn from in front of it (kept for the army's bearing and
+  // distance, so it's sought again only when those change)
+  dryTurn(R, ry, d) {
+    const key = Math.round(ry * 8) * 1000 + Math.round(d * 40);
+    if (R._dry && R._dry.key === key && R._dry.x === R.co.position.x && R._dry.z === R.co.position.z) return R._dry.turn;
+    // (measured at the size it's drawn at now — still at the last frame's, the first frame after the eye has moved in)
+    const cx = R.co.position.x, cz = R.co.position.z, was = R.inner.position.clone(), sc0 = R.co.scale.x, p = _dryV || (_dryV = new THREE.Vector3());
+    R.co.scale.setScalar(R.nudge / d);
+    // (the first way round that's dry there and beyond; failing that, dry where it stands)
+    let turn = 0, best = -1;
+    for (const t of [0, 0.7, -0.7, 1.4, -1.4, 2.1, -2.1, Math.PI]) {
+      // (where the company would stand, turned so: measured through its own frame, as it's drawn)
+      const wx0 = d * 0.6, wz0 = d * 0.8, wx = Math.cos(t) * wx0 - Math.sin(t) * wz0, wz = Math.sin(t) * wx0 + Math.cos(t) * wz0;
+      R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz);
+      R.co.updateMatrixWorld(true); R.inner.getWorldPosition(p);
+      // (and dry a good way past it too: not drawn up along the water's edge)
+      const q = (this.rawY(p.x, p.z) > 0.004 ? 2 : 0) + (this.rawY(cx + (p.x - cx) * 1.6, cz + (p.z - cz) * 1.6) > 0.004 ? 1 : 0);
+      if (q > best) { best = q; turn = t; } if (q === 3) break;
+    }
+    R.inner.position.copy(was); R.co.scale.setScalar(sc0); R.co.updateMatrixWorld(true);
+    R._dry = { key, x: cx, z: cz, turn };
+    return turn;
   }
   rawY(x, z) { const [lon, lat] = toLL(x, z); return Math.max(-0.16, heightAt(this.g, lon, lat) * EXAG); }
   // (the ground's height for what stands on it: a river counts as water, so a town bridges it and builds round it)
@@ -1342,7 +1366,8 @@ export class EuropeView3D {
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; tex.set(k, t); return t;
     };
     for (const m of list) {
-      const [x, z] = toWorld(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army" || m.kind === "party";
+      // (on its town's dry ground, as the town itself is: not on a staff out in the water off a port)
+      const [x, z] = this.spotXZ(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army" || m.kind === "party";
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
       sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.62 : swords ? 0.5 : 0.42), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       if (arm || swords) sp.userData.over = { y0, stack: arm ? 1 : 0 };
@@ -1470,7 +1495,8 @@ export class EuropeView3D {
       const look = JSON.stringify([A.body, A.colors, !!A.nw, !!A.flag, !!A.mine, !!this.armyReady]);
       let R = M.get(A.key);
       if (R && R.look !== look) { this.dropCompany(R); M.delete(A.key); R = null; }
-      const [x, z] = toWorld(A.lon, A.lat);
+      // (on dry ground, as its town is: a port's spot on the map's grain can fall out in the water — Copenhagen's in the Sound)
+      const [rx, rz] = toWorld(A.lon, A.lat), [x, z] = this.spotXZ(A.lon, A.lat);
       if (!R) { R = this.makeCompany(A); R.look = look; R.co.position.set(x, 0, z); M.set(A.key, R); }
       else if (Math.hypot(R.to[0] - x, R.to[1] - z) > 0.02) {
         // (on the march: from where it stands now — mid-way, if it was already going — along its road, or straight)
@@ -1484,7 +1510,7 @@ export class EuropeView3D {
       // (standing in a town: drawn a little in front of it, toward the eye, so the town's name doesn't hide it)
       if (this.townXZSheet !== SHEET) { this.townXZSheet = SHEET; this.townXZ = CITIES.map(c => [...toWorld(c[1], c[2]), c[3] | 0]); }
       // (out past the houses: further for a great city, whose streets spread wider, than for a market town)
-      { const t = this.townXZ.find(([tx, tz]) => Math.hypot(tx - x, tz - z) < 0.35); R.nudge = t ? TOWN_CLEAR + t[2] * 0.12 : 0; }
+      { const t = this.townXZ.find(([tx, tz]) => Math.hypot(tx - rx, tz - rz) < 0.35); R.nudge = t ? TOWN_CLEAR + t[2] * 0.12 : 0; }
       // (which way it faces when it isn't walking: toward where it's bound, or as it last went)
       if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); R.face = Math.atan2(gx - x, gz - z); }
       R.march = !!A.march; this.stride(R);
@@ -1671,7 +1697,11 @@ export class EuropeView3D {
           if (q >= 1) { R.glide = null; R.co.position.x = R.to[0]; R.co.position.z = R.to[1]; this.stride(R); }
         }
         const r0 = R.co.rotation.y; R.co.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 6);
-        { const ry = R.co.rotation.y, d = R.glide ? 0 : R.nudge / k, cur = R.inner.userData.d || 0, nd = cur + (d - cur) * Math.min(1, dt * 4); R.inner.userData.d = nd; const wx = nd * 0.6, wz = nd * 0.8; R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz); }
+        { const ry = R.co.rotation.y, d = R.glide ? 0 : R.nudge / k, cur = R.inner.userData.d || 0, nd = cur + (d - cur) * Math.min(1, dt * 4); R.inner.userData.d = nd;
+          // (and turned round the town, if need be, to stand on dry ground: at a town on the water — Stockholm, Venice —
+          //  out in front of it was out in the lake)
+          const turn = d > 0 ? this.dryTurn(R, ry, d) : 0, wx0 = nd * 0.6, wz0 = nd * 0.8, wx = Math.cos(turn) * wx0 - Math.sin(turn) * wz0, wz = Math.sin(turn) * wx0 + Math.cos(turn) * wz0;
+          R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz); }
       }
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }

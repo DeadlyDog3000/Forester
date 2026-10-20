@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.26", date: "20 October 2026", title: "Armies on dry land",
+    items: [
+      "Campaign 3D map: an army at a town on the water stands on dry ground beside it, turned round the town if it must be, rather than out in the lake at Stockholm or in the Sound off Copenhagen. A port's flag stands at the town too, not on a staff out in the water.",
+    ],
+  },
+  {
     v: "1.99.25", date: "20 October 2026", title: "Smoother coasts from on high",
     items: [
       "Campaign 3D map: seen from high up, the coasts run as lines rather than in the map grid's stairs, Sweden's east coast, Gotland and Brittany among them. The far ground now comes down to the water without a step at the shore, and leaves out a ripple finer than it can draw. Small islands such as Malta and the Cyclades still show, and close in the coast is as it was.",
