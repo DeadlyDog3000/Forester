@@ -307,7 +307,7 @@ const NAMES = [
   ["Haudenosaunee", -76.4, 42.55, -1], ["Wabanaki", -69.6, 45.9, -1], ["Cherokee", -84.1, 35.2, -1], ["Muscogee", -84.9, 32.3, -1], ["Choctaw", -89.6, 32.1, -1],
   ["Shawnee", -83.4, 38.9, -1], ["Illinois", -89.6, 40.2, -1], ["Anishinaabe", -85.5, 44.2, -1], ["Dakota", -95.4, 45.6, -1], ["Cree", -84.5, 50.5, -1], ["Pawnee", -98.2, 40.6, -1], ["Osage", -94.2, 37.6, -1], ["Caddo", -94.4, 32.4, -1],
 ];
-const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6],
+export const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6],
   ["OCEANUS\nATLANTICUS", -40, 44], ["MARE DEL NORT", -62, 33], ["SINUS\nMEXICANUS", -90.5, 25.6], ["MARE\nCHRISTIANUM", -82, 59.5], ["MARE\nGLACIALE", -55, 63.4]];
 // rivers, as the engraver would have traced them: a few points each, from the mouth up
 export const RIVERS = [

@@ -16,7 +16,7 @@
 // Alps would be a wrinkle.
 
 import { THREE, rng } from "./core.js";
-import { NATIONS, CITIES, RIVERS, LAKES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv } from "./europe.js";
+import { NATIONS, CITIES, RIVERS, LAKES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv, SEAS } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
 import { ensureModel, modelCopy, mergeRig, makeMusket } from "./models.js";
 
@@ -460,6 +460,7 @@ export class EuropeView3D {
     // (and the deep under it, past the edges of the land, so the sky doesn't show through the water there)
     const deep = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.6, MAP_H * 1.6).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x1d3540 }));
     deep.position.set(MAP_W / 2, -0.4, MAP_H / 2); this.scene.add(deep);
+    this.seaNames();
     this.kinds = treeKinds();
     this.cells = new Map();          // patches of trees, by cell key
     this.labels = []; this.towns = new Map(); this.growing = []; this.clearings = new Map();
@@ -1593,6 +1594,7 @@ export class EuropeView3D {
         }
       } }
     this.hearths(); this.anchorages();
+    if (this.seaGroup) { const o = Math.max(0, Math.min(1, (this.dist - 13) / 12)); this.seaGroup.visible = o > 0.01; if (o !== this._seaO) { this._seaO = o; for (const m of this.seaGroup.children) m.material.opacity = o; } }
     if (this.siegeGroup && this.siegeGroup.children.length) {
       const k = unitDist(this.dist) * ARMY_K * 0.9, now = performance.now() / 1000;
       for (const o of this.siegeGroup.userData.props) o.scale.setScalar(k);
@@ -1679,6 +1681,29 @@ export class EuropeView3D {
       if (!sp.visible) continue;
       const ph = (now * 0.07 + sp.userData.phase) % 1, [x, y, z] = sp.userData.base;
       sp.position.set(x + ph * ph * 0.12, y + ph * 0.2, z - ph * 0.03); sp.scale.setScalar(0.045 + ph * 0.13); sp.material.opacity = Math.min(1, Math.sin(Math.min(1, ph * 1.6) * Math.PI * 0.5) * (1 - ph) * 1.5) * fade;
+    }
+  }
+  // the seas' names, as the parchment letters them: laid on the water in a faded ink, the letters spaced wide — read from
+  //  up high, and fading away as you come down to the coast, where they'd only lie across the ships
+  seaNames() {
+    sync();
+    if (this.seaGroup) { this.scene.remove(this.seaGroup); for (const m of this.seaGroup.children) { m.material.map.dispose(); m.material.dispose(); m.geometry.dispose(); } this._seaO = null; }
+    // (lettered again once the map's own face has loaded, if it hadn't yet)
+    if (document.fonts && document.fonts.status !== "loaded" && !this._seaWait) { this._seaWait = true; document.fonts.ready.then(() => this.seaNames()); }
+    const g = this.seaGroup = new THREE.Group(); this.scene.add(g);
+    for (const [name, lon, lat, ang = 0] of SEAS) {
+      const lines = name.split("\n"), cv = document.createElement("canvas"), W = 1024, LH = 120; cv.width = W; cv.height = LH * lines.length + 20;
+      const c = cv.getContext("2d"); c.font = 'italic 92px "IM Fell English", "Cormorant Garamond", Georgia, serif'; c.textAlign = "center"; c.textBaseline = "middle"; c.fillStyle = "rgba(20,38,52,0.8)";
+      const span = t => [...t].reduce((s, x) => s + c.measureText(x).width + 14, -14);
+      // (the longest line kept inside the sheet: the lettering made smaller to fit, not cut off at the edge)
+      const longest = Math.max(...lines.map(span)); if (longest > W - 40) c.font = `italic ${Math.floor(92 * (W - 40) / longest)}px "IM Fell English", "Cormorant Garamond", Georgia, serif`;
+      const wide = (t, y) => { const ch = [...t], gap = 14, w = span(t); let x = W / 2 - w / 2; for (const k of ch) { const cw = c.measureText(k).width; c.fillText(k, x + cw / 2, y); x += cw + gap; } return w; };
+      lines.forEach((t, i) => wide(t, 10 + LH * (i + 0.5)));
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+      // (as wide as the sea will take: the oceans broad, the gulfs and the narrow seas less)
+      const sw = /^OCEANUS/.test(name) ? 30 : /ADRIATICUM|AEGAEUM|BOTHNICUS/.test(name) ? 13 : 19, h = sw * cv.height / W;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(sw, h), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, opacity: 0 }));
+      const [x, z] = toWorld(lon, lat); m.rotation.set(-Math.PI / 2, 0, -ang * Math.PI / 180); m.position.set(x, 0.01, z); m.renderOrder = 1.5; g.add(m);
     }
   }
   // ships lying at anchor off the port towns near the middle of the view, close in: merchantmen and coasters, a few to a

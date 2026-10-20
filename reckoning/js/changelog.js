@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.12", date: "19 October 2026", title: "The seas named",
+    items: [
+      "Campaign 3D map: from up high the seas carry their names as the parchment letters them, laid on the water in a faded ink along the sea's own lie: Oceanus Atlanticus, Mare Balticum, Mare Adriaticum, Pontus Euxinus and the rest. They fade as you come down to the coast.",
+    ],
+  },
+  {
     v: "1.99.11", date: "19 October 2026", title: "Your own country",
     items: [
       "Campaign parchment map: your own crown keeps its colour, with a gilt edge along its border, instead of being washed almost white so that it looked like no one's land.",
