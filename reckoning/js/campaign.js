@@ -54,6 +54,8 @@ function muster(id, men) {
 
 // ---- the state ----
 let C = null, ctx = null, startBattle = null;
+// (where Back goes: the battles menu, or the title, whichever the campaign was opened from)
+let cmpHome = "pvp";
 const MPKEY = "reckoning.campaign.mp.v1";
 // (three campaigns kept side by side: a new one doesn't cost you the one you have)
 const SLOTS = 3, SLOTKEY = "reckoning.campaign.slot", slotKey = i => i ? `${KEY}.${i + 1}` : KEY;
@@ -2298,7 +2300,7 @@ export function initCampaign(c, battle, withPlayer) {
   ctx = c; startBattle = battle; fieldWithPlayer = withPlayer || null;
   ZOOM_3D = 4.2 * ZF(); addEventListener("resize", () => { ZOOM_3D = 4.2 * ZF(); });
   // (leaving a campaign of two: the link closed — the host keeps it to take up again — and the one alone as it was)
-  $("cmpBack").onclick = () => { if (mp) leaveMp(); ctx.screen("pvp"); };
+  $("cmpBack").onclick = () => { if (mp) leaveMp(); ctx.screen(cmpHome); };
   $("cmpNew").onclick = () => { if (!mp) drawPick(); };
   $("cmpPick").addEventListener("click", e => {
     const r = e.target.closest("[data-mpresume]"); if (r && mp && mp.host) { mp.net.send({ t: "cpick", crown: "" }); resumeMp(); return; }
@@ -2532,7 +2534,8 @@ export function initCampaign(c, battle, withPlayer) {
   addEventListener("blur", () => keys.clear());
 }
 // To Arms → Campaign: the one you have, or a crown to choose
-export function openCampaign(fromMenu = false) {
+export function openCampaign(fromMenu = false, home = null) {
+  if (home) cmpHome = home;
   // (from the battles menu: your own campaigns — the story's, if it was the one open, put away for the story to take up)
   if (fromMenu && C && C.story) { persist(); C = null; sel = null; selCity = null; note = ""; news = []; slot = ownSlot(); storyHomeBtn(); }
   ctx.screen("campaign");
@@ -2599,7 +2602,7 @@ function drawPick() {
     <div class="cmp-ph"><h2>${have.length ? "Or begin a new one" : "Choose your crown"}</h2><p class="sub">Europe and the New World in 1683. Raise armies, make friends and enemies, take towns and hold them. The great powers have the most to lose; the small states the most to win.${have.length >= SLOTS ? ` <b>You have ${SLOTS} campaigns: a new one takes the place of the one longest left alone.</b>` : ""}</p></div>
     <div class="cmp-crowns">${list.map(x => `<button class="cmp-crown" data-crown="${x.id}"><i style="background:${NATIONS[x.id].color}"></i><b>${esc(NATIONS[x.id].name)}</b><small>${word(x.s)} · ${x.n} town${x.n > 1 ? "s" : ""} · ${"★".repeat(x.s)}</small></button>`).join("")}</div>
     <div class="pv-acts"><button class="btn ghost" id="cmpPickBack">${C ? "Back to your campaign" : "Back"}</button></div>`;
-  $("cmpPickBack").onclick = () => { if (C) drawMap(true); else ctx.screen("pvp"); };
+  $("cmpPickBack").onclick = () => { if (C) drawMap(true); else ctx.screen(cmpHome); };
 }
 // the marks over the towns, for the land seen close: your own ringed, the other player's dashed, the ones you can
 // march on with crossed swords

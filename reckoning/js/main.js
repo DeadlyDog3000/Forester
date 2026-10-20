@@ -220,7 +220,7 @@ function refreshTitle() {
   $("btnNew").classList.toggle("primary", !s); $("btnNew").classList.toggle("tm-second", !!s);
   // (the demo: said so on the cards, and the way to the rest)
   const f = full();
-  $("tmStoryKick").textContent = f ? "Single player" : "Single player · demo";
+  $("tmStoryKick").textContent = f ? "The story · the campaign" : "Demo · Part One of the story";
   $("tmOnlineKick").textContent = f ? "Multiplayer" : "Multiplayer · full game";
   UI.show("btnUnlock", !f);
 }
@@ -334,7 +334,7 @@ let mpSlotWas = null;
 function mpDone() { if (mpSlotWas != null) { useSlot(mpSlotWas); mpSlotWas = null; } }
 $("btnMulti").onclick = () => { if (!gate("worlds")) return; back = "title"; openLobby(); };
 // ---- the full game: the page that offers it, from the title or wherever the demo stops ----
-const BUY_WHY = { story: "That's the end of Part One, and of the demo. The rest of the story is in the full game — and your save carries straight on.", online: "Battles, duels and the campaign are in the full game. The demo is Part One of the story.", worlds: "The Worlds & colonies are in the full game.", title: "Everything the demo has, and the rest." };
+const BUY_WHY = { story: "That's the end of Part One, and of the demo. The rest of the story is in the full game — and your save carries straight on.", online: "Battles, duels and the campaign are in the full game. The demo is Part One of the story.", worlds: "The Worlds & colonies are in the full game.", campaign: "The campaign is in the full game: Europe in 1683, and a crown of your own to rule, alone or with a friend. The demo is Part One of the story.", title: "Everything the demo has, and the rest." };
 G.openBuy = what => {
   if (G.mode === "play" || G.mode === "pause") { toTitle(); }
   $("buyKick").textContent = what === "story" ? "The demo ends here" : "The full game";

@@ -142,7 +142,9 @@ export function initPvp(c) {
   $("pvpBots").onclick = () => openMuster("bots");
   $("pvpDuel").onclick = () => openMuster("duel");
   $("pvpHist").onclick = () => openMuster("hist");
-  $("pvpCampaign").onclick = () => openCampaign(true);
+  $("pvpCampaign").onclick = () => openCampaign(true, "pvp");
+  // (and from the title, beside the story: the campaign's a game for one as much as for two)
+  $("btnCampaign").onclick = () => gate("campaign") && openCampaign(true, "title");
   // (a campaign's battle fought by hand: its field and its armies, as the campaign gives them)
   initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); }, fieldWithPlayer);
   $("pvpCancel").onclick = () => cancelSearch();

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.6", date: "19 October 2026", title: "The campaign from the title",
+    items: [
+      "Title: the campaign has its own place, beside the story under Single Player: \"The campaign · Europe, 1683 · a crown of your own to rule\". It was only to be found under Online, though it's a game for one as much as for two; it's still there too. Back from the campaign returns to wherever you came from.",
+    ],
+  },
+  {
     v: "1.99.5", date: "19 October 2026", title: "Cloud shadows",
     items: [
       "Campaign 3D map: the shadows of clouds drift slowly over the land and the sea on the west wind, soft and broad, never so dark the map can't be read under them.",
