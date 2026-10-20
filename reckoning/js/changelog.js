@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.94.0", date: "19 October 2026", title: "The balance of Europe",
+    items: [
+      "Campaign: the wars the other crowns fight among themselves follow their strength more closely. A small state rarely takes a great power's towns unless strong allies fight beside it, as the Holy League's did from the Sultan; a crown with several wars at once is less badly divided; and a much weaker side that wins a year's fighting mostly throws the attack back rather than marching on. The Turk no longer reaches Zürich and Frankfurt, nor Aragon Paris.",
+      "Campaign 3D map: an army at a town stands off to its south-east, clear of the town's name as well as its roofs.",
+    ],
+  },
+  {
     v: "1.93.1", date: "19 October 2026", title: "From on high",
     items: [
       "Campaign 3D map: seen from high up, armies and ships no longer swell to the size of a county; they shrink on the view as you climb, so a squadron sits on the water off its port instead of across the town and the coast.",

@@ -27,7 +27,7 @@ export const U = 10;                                       // units per degree o
 let MAP_W = 1, MAP_H = 1, CELL = 1;
 // (the companies and the ships kept the same size on the view however near or far: a man about a thirtieth of the view's
 //  height, a ship's length about a fifteenth; and a company at a town drawn up clear in front of its houses, this far
-//  out on the land, never among the roofs where it can't be seen)
+//  out on the land and off to the south-east, never among the roofs or under the town's name where it can't be seen)
 const ARMY_K = 0.03, FLEET_K = 0.005, TOWN_CLEAR = 0.38;
 // (…but only close in: from high over a country they'd be the size of a county, a ship astride London and the coast —
 //  so above a ten-unit height they grow more slowly than the view does, and shrink on the view as you go up)
@@ -1451,7 +1451,7 @@ export class EuropeView3D {
           if (q >= 1) { R.glide = null; R.co.position.x = R.to[0]; R.co.position.z = R.to[1]; this.stride(R); }
         }
         const r0 = R.co.rotation.y; R.co.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 6);
-        { const ry = R.co.rotation.y, d = R.glide ? 0 : R.nudge / k, cur = R.inner.userData.d || 0, nd = cur + (d - cur) * Math.min(1, dt * 4); R.inner.userData.d = nd; R.inner.position.set(-nd * Math.sin(ry), 0, nd * Math.cos(ry)); }
+        { const ry = R.co.rotation.y, d = R.glide ? 0 : R.nudge / k, cur = R.inner.userData.d || 0, nd = cur + (d - cur) * Math.min(1, dt * 4); R.inner.userData.d = nd; const wx = nd * 0.6, wz = nd * 0.8; R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz); }
       }
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }

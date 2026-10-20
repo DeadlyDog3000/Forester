@@ -2167,9 +2167,12 @@ function crownsWar(g, ids) {
     // (the Holy League in its first years fought as one — Sobieski's Poles came to Vienna with the whole of their army)
     const holyLeague = (x, y) => C.year < 1700 && (leagueOf(x, y) || {}).n === "the Holy League";
     const fronts = id => Math.max(1, W.filter(v => v.a === id || v.b === id).length);
-    const pow = id => ((C.foes[id] || 0) + NATIONS[id].strength * 4) / Math.pow(fronts(id), 0.5);
-    const help = (x, foe) => W.filter(v => v !== w && ((v.a === foe && v.b !== x) || (v.b === foe && v.a !== x))).map(v => v.a === foe ? v.b : v.a).filter(y => NATIONS[y] && !isHuman(y) && (leagueOf(x, y) || C.ally[y] && x === C.me)).reduce((t, y) => t + pow(y) * (holyLeague(x, y) ? 0.8 : 0.4), 0);
-    const sa = pow(w.a) + help(w.a, w.b), sb = pow(w.b) + help(w.b, w.a), aWins = R() < sa / (sa + sb);
+    const pow = id => ((C.foes[id] || 0) + NATIONS[id].strength * 4) / Math.pow(fronts(id), 0.3);
+    const help = (x, foe) => W.filter(v => v !== w && ((v.a === foe && v.b !== x) || (v.b === foe && v.a !== x))).map(v => v.a === foe ? v.b : v.a).filter(y => NATIONS[y] && !isHuman(y) && (leagueOf(x, y) || C.ally[y] && x === C.me)).reduce((t, y) => t + pow(y) * (holyLeague(x, y) ? 0.8 : 0.2), 0);
+    // (the odds of a year's fighting going one's way, the strength of each side squared: a crown with half its
+    //  enemy's strength wins a fifth of the time, not a third — small states took towns from great powers only with
+    //  great allies at their side, as the Holy League's did from the Sultan)
+    const sa = pow(w.a) + help(w.a, w.b), sb = pow(w.b) + help(w.b, w.a), aWins = R() < sa * sa / (sa * sa + sb * sb);
     const win = aWins ? w.a : w.b, lose = aWins ? w.b : w.a, gg = grid();
     const canTake = ct => !hasWalls(ct, lose, gg) || (C.fguns[win] | 0) > 0;
     let target = citiesOfNow(gg, lose).filter(ct => distFrom(gg, win, ct) <= REACH && canTake(ct));
@@ -2185,6 +2188,9 @@ function crownsWar(g, ids) {
       }
     }
     C.foes[lose] = Math.max(0, C.foes[lose] - 3 - Math.floor(R() * 4)); C.foes[win] = Math.max(0, C.foes[win] - 1 - Math.floor(R() * 2));
+    // (the much weaker side, winning, mostly throws the attack back and holds what it has: it hasn't the men to go on
+    //  and take a great power's town)
+    { const sw = aWins ? sa : sb, sl = aWins ? sb : sa; if (sw < sl * 0.6 && R() < 0.7) { w.battles++; continue; } }
     // (a crown's own seat holds out longest: taken only on a second good day, unless it's nearly all the crown has left)
     if (target.length) { const ct = pick(target); if (ct[3] === 3 && citiesOfNow(gg, lose).length > 3 && R() < 0.6) { w.battles++; continue; } seize(ct, win); if (ct[3] >= 2 || w.withYou) sayAll(`${The(win)} ${v3(win, "takes")} ${ct[0]} from ${the(lose)}`); }
     w.battles++;
