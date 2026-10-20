@@ -293,7 +293,7 @@ float cloudShadow(vec2 p, float t) {
   return 1.0 - 0.24 * smoothstep(0.54, 0.68, n);
 }`;
 const GROUND_FS = `
-uniform float uTime;
+uniform float uTime; uniform float uSpring; uniform float uAutumn;
 varying vec4 vT; varying float vB; varying float vO; varying float vD; varying vec3 vWP;
 float ih(ivec2 c, int s) { uint h = uint(c.x) * 374761393u + uint(c.y) * 668265263u + uint(s) * 1442695041u; h = (h ^ (h >> 13)) * 1274126177u; return float(h ^ (h >> 16)) / 4294967296.0; }
 float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f); ivec2 c = ivec2(i);
@@ -342,6 +342,9 @@ const GROUND_MIX = `
     quilt = mix(quilt, mix(block, quilt, 0.15), 1.0 - smoothstep(0.06, 0.14, px));
   }
   crop = mix(quilt, crop, mid * 0.8 + 0.2);
+  // (the year's season on the fields: young green corn in spring, stubble and ripe gold, the ploughed brown, in autumn)
+  crop = mix(crop, crop * vec3(0.86, 1.08, 0.82), uSpring * 0.8);
+  crop = mix(crop, mix(vec3(0.74, 0.62, 0.36), vec3(0.55, 0.45, 0.32), step(0.6, gh(fid + 41.0))), uAutumn * 0.55);
   float hedge = (1.0 - smoothstep(0.0, 0.06, edge)) * fine * step(0.45, gh(fid + fid2 + 11.0)) * smoothstep(0.35, 0.6, gn(wp * 70.0));
   // (the finest of the woods' grain let go far off, where no tree stands to need it: the woods there whole woods, not a
   //  speckle of dark and light that reads, from on high, as a soldier's camouflage)
@@ -354,6 +357,12 @@ const GROUND_MIX = `
   // (the northern forest, far off, mostly one dark: its clearings and bogs softened, or it reads as a camouflage)
   float wk = mix(0.8, 0.45, (1.0 - vO) * smoothstep(0.02, 0.06, px));
   col = mix(col, col * vec3(0.5, 0.62, 0.55) * (0.78 + 0.3 * crown + 0.2 * (n2 - 0.5)), w * wk);
+  // (the broad-leaved woods of the farming country turning in autumn, seen from on high as they are close in: rust and gold
+  //  in patches; fresher in spring. The northern pines keep their dark)
+  { float lum = dot(col, vec3(0.3, 0.59, 0.11)), an = gn(wp * 2.3 + 5.0) * 0.6 + gn(wp * 7.1) * 0.4;
+    vec3 aut = mix(mix(vec3(0.62, 0.30, 0.10), vec3(0.70, 0.50, 0.14), smoothstep(0.35, 0.6, an)), vec3(0.30, 0.38, 0.14), smoothstep(0.62, 0.8, an));
+    col = mix(col, aut * (lum / 0.3), uAutumn * w * vO * 0.5); }
+  col = mix(col, col * vec3(0.95, 1.1, 0.9), uSpring * w * vO * 0.6);
   col = mix(col, col * vec3(0.78, 0.86, 0.8), (1.0 - vO) * vT.x * smoothstep(0.02, 0.06, px) * 0.6);
   // sand at the water's edge, and the sea floor under the shallows going dark as it deepens
   float h = vT.w + (n1 - 0.5) * 0.012;
@@ -371,14 +380,15 @@ const GROUND_MIX = `
 }`;
 function groundMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+  m.userData.uSpring = { value: 0 }; m.userData.uAutumn = { value: 0 };
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>" + GROUND_VS)
       .replace("#include <begin_vertex>", "#include <begin_vertex>\n vT = aT; vB = aB; vO = aO; vD = aD; vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    sh.uniforms.uTime = { value: 0 }; m.userData.shader = sh;
+    sh.uniforms.uTime = { value: 0 }; sh.uniforms.uSpring = m.userData.uSpring; sh.uniforms.uAutumn = m.userData.uAutumn; m.userData.shader = sh;
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS + CLOUD_GLSL)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground22";
+  m.customProgramCacheKey = () => "ground26";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -469,6 +479,13 @@ export class EuropeView3D {
     this.labels = []; this.towns = new Map(); this.growing = []; this.clearings = new Map();
     this.target = new THREE.Vector3(); this.dist = 30;
     this.visible = false;
+  }
+  // the season of the year shown on the land: 0 spring, 1 summer, 2 autumn (3 winter is shown as autumn's end)
+  season(s) {
+    const k = s === 0 ? 1 : s >= 2 ? 2 : 0; if (k === this.seasonK) return; this.seasonK = k;
+    const m = this.groundMat || (this.groundMat = groundMaterial()); m.userData.uSpring.value = k === 1 ? 1 : 0; m.userData.uAutumn.value = k === 2 ? 1 : 0;
+    // (the trees round the view planted again in their new colours)
+    for (const c of this.cells.values()) c.forEach(o => { this.scene.remove(o); o.dispose(); }); this.cells.clear();
   }
   // the political map changed (a conquest) or first shown: rebuild what depends on it
   // (walls: a campaign's walled towns, { name: level } — a ring of stone round each)
@@ -761,7 +778,15 @@ export class EuropeView3D {
     for (const [kind, ms] of Object.entries(per)) {
       if (!ms.length) continue;
       const k = this.kinds[kind], im = new THREE.InstancedMesh(k.geo, k.mat, ms.length);
-      ms.forEach((m, i) => im.setMatrixAt(i, m)); this.scene.add(im); out.push(im);
+      ms.forEach((m, i) => im.setMatrixAt(i, m));
+      // (the leaves as the season has them: in autumn the broad-leaved woods turning, gold, rust and brown among the
+      //  green still; in spring a fresher green. The pines keep theirs)
+      if (kind === "broad" && this.seasonK) {
+        // (as a share of the leaves' own green, so the colour comes out as itself and not muddied by it)
+        const base = k.mat.color, c = new THREE.Color(), AUT = [0xd8962e, 0xc0641e, 0x9a4422, 0xd0b040, null, null, null], SPR = [0x6aa83e, 0x78b448, null];
+        ms.forEach((m, i) => { const L = this.seasonK === 2 ? AUT : SPR, want = L[(hash(gx * 131 + i, gz * 71 + i, 23) * L.length) | 0]; if (want == null) c.setRGB(1, 1, 1); else { c.setHex(want); c.setRGB(c.r / base.r, c.g / base.g, c.b / base.b); } im.setColorAt(i, c); });
+      }
+      this.scene.add(im); out.push(im);
     }
     return out.concat(this.hamlets(gx, gz));
   }

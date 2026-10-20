@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.18", date: "20 October 2026", title: "The seasons",
+    items: [
+      "Campaign 3D map: the land shows the season the year's news is dated. In spring the leaves and the young corn are a fresh green; in autumn the broad-leaved woods turn gold, rust and brown among the green, close in and from on high, and the fields lie in stubble, ripe gold and ploughed brown. The pine forests keep their dark.",
+    ],
+  },
+  {
     v: "1.99.17", date: "20 October 2026", title: "Fewer villages",
     items: [
       "Campaign 3D map: villages are much rarer: about one to every ten or so miles of farmed lowland, fewer in the dry south, the steppe and the north, so the open country reads as fields with a village here and there.",

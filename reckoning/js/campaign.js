@@ -2798,7 +2798,7 @@ function spreadTick() {
 }
 function paint() {
   const cv = $("cmpMap"); if (!cv || !C) return; W0();
-  if (on3d && eu3d) { eu3d.me = C.me; eu3d.setMap(E(), 2, null, C.walls, C.pop); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); eu3d.sieges(sieges3d()); if (!raf3d) loop3d(); return; }
+  if (on3d && eu3d) { eu3d.me = C.me; eu3d.season(C.s | 0); eu3d.setMap(E(), 2, null, C.walls, C.pop); eu3d.marks(marks3d()); eu3d.fleets(fleets3d()); eu3d.armies(armies3d()); eu3d.sieges(sieges3d()); if (!raf3d) loop3d(); return; }
   // (marches finished since the map was last drawn: their marks drawn on it again, off the overlay)
   { const t = performance.now(); marchAnims = marchAnims.filter(A => t - A.t0 < A.dur); }
   spreadCheck();
