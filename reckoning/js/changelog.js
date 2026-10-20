@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.9", date: "19 October 2026", title: "Hearth smoke",
+    items: [
+      "Campaign 3D map: close in, smoke goes up thinly from the towns' chimneys and leans away on the west wind, a few columns over a town and more over a city.",
+    ],
+  },
+  {
     v: "1.99.8", date: "19 October 2026", title: "The land, heard",
     items: [
       "Campaign 3D map: come down close to the land and you hear it: the wind over the country, gusting and dropping, and where the sea is in view, the surf, each wave rising, breaking and hissing back down the sand. They fade as you climb back up to the map.",

@@ -1591,6 +1591,7 @@ export class EuropeView3D {
           for (const c of hg.children) if (c.userData.wake) { const o = c.material.opacity + (Math.max(0, way) * 0.75 - c.material.opacity) * Math.min(1, dt * 3); c.material.opacity = o; c.visible = o > 0.01; }
         }
       } }
+    this.hearths();
     if (this.siegeGroup && this.siegeGroup.children.length) {
       const k = unitDist(this.dist) * ARMY_K * 0.9, now = performance.now() / 1000;
       for (const o of this.siegeGroup.userData.props) o.scale.setScalar(k);
@@ -1648,6 +1649,36 @@ export class EuropeView3D {
     // (any ship of the squadron, not only the one leading it)
     for (const [k, F] of this.fleetMap) for (const hg of F.ship.userData.hulls || [F.ship]) { hg.getWorldPosition(v); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
     return best;
+  }
+  // the towns' hearths, close in: thin smoke going up from the chimneys of the towns near the middle of the view and
+  //  leaning away on the west wind — a few columns to a town, more to a city; a pool of them, moved from town to town
+  //  as the view goes
+  hearths() {
+    const far = this.dist > 9.5 || !this.cityGroup;
+    if (far) { if (this.hearthGrp) this.hearthGrp.visible = false; return; }
+    if (!this.hearthGrp) {
+      const g = this.hearthGrp = new THREE.Group(), t = smokeTex(); g.userData.sp = [];
+      for (let i = 0; i < 54; i++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false, opacity: 0, color: 0xd9d6d0 })); sp.renderOrder = 3; sp.visible = false; g.add(sp); g.userData.sp.push(sp); }
+      this.scene.add(g);
+    }
+    const g = this.hearthGrp; g.visible = true;
+    const key = Math.round(this.target.x * 2) + "," + Math.round(this.target.z * 2) + "|" + this.towns.size;
+    if (key !== g.userData.key) {
+      g.userData.key = key;
+      const cols = [], near = CITIES.filter(ct => { const [x, z] = toWorld(ct[1], ct[2]); return Math.hypot(x - this.target.x, z - this.target.z) < 6.5 && this.towns.has(ct[0]); }).map(ct => { const [x, z] = this.spotXZ(ct[1], ct[2]); return { ct, x, z, d: Math.hypot(x - this.target.x, z - this.target.z) }; }).sort((a, b) => a.d - b.d);
+      for (const o of near) {
+        const n = 1 + o.ct[3] * 2, r = (TOWN_R[o.ct[3]] || 0.2) * 0.55;
+        for (let i = 0; i < n && cols.length < 18; i++) { const a = hash(i, o.ct[1] * 100 | 0, 7) * 6.283, d = Math.sqrt(hash(i, o.ct[2] * 100 | 0, 9)) * r, x = o.x + Math.cos(a) * d, z = o.z + Math.sin(a) * d, y = this.groundY(x, z); if (y > 0.004) cols.push([x, y + 0.02, z]); }
+        if (cols.length >= 18) break;
+      }
+      g.userData.sp.forEach((sp, i) => { const c = cols[Math.floor(i / 3)]; sp.visible = !!c; if (c) { sp.userData.base = c; sp.userData.phase = (i % 3) / 3 + hash(i, 3, 5) * 0.2; } });
+    }
+    const now = performance.now() / 1000, fade = Math.min(1, (9.5 - this.dist) / 3);
+    for (const sp of g.userData.sp) {
+      if (!sp.visible) continue;
+      const ph = (now * 0.07 + sp.userData.phase) % 1, [x, y, z] = sp.userData.base;
+      sp.position.set(x + ph * ph * 0.12, y + ph * 0.2, z - ph * 0.03); sp.scale.setScalar(0.045 + ph * 0.13); sp.material.opacity = Math.min(1, Math.sin(Math.min(1, ph * 1.6) * Math.PI * 0.5) * (1 - ph) * 1.5) * fade;
+    }
   }
   // the mark under a point on the view (its name), of those whose names match `rx`
   markAt(px, py, rx) {
