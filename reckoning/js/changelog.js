@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.20", date: "20 October 2026", title: "A narrower window",
+    items: [
+      "Campaign: in a narrower window (a laptop's, or a window not filling the screen) the bar along the top is drawn tighter, and whom you're at war with stays readable, cut short with an ellipsis, instead of being squeezed to a sliver behind the buttons.",
+    ],
+  },
+  {
     v: "1.99.19", date: "20 October 2026", title: "Rivers in proportion",
     items: [
       "Campaign 3D map: close in, the rivers are a third narrower, in proportion to the towns on them, rather than broader than the city they run through. From high up they still show as they did.",
