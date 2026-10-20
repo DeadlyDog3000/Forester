@@ -73,6 +73,8 @@ function landG(g, gx, gy) {
   const L = (x, y) => { y = y < 0 ? 0 : y >= GH ? GH - 1 : y; x = x < 0 ? 0 : x >= GW ? GW - 1 : x; return g[y] && g[y][x] ? 1 : 0; };
   return L(x0, y0) * (1 - fx) * (1 - fy) + L(x0 + 1, y0) * fx * (1 - fy) + L(x0, y0 + 1) * (1 - fx) * fy + L(x0 + 1, y0 + 1) * fx * fy;
 }
+// (FOOT: set while the far ground is raised — the width, in the grid's cells, between its corners; 0 for the close ground)
+let FOOT = 0;
 // (each range's reach, a box round it: as far out as it lifts the ground at all)
 const RBOX = RANGES.map(([pts, , w]) => { const xs = pts.map(p => p[0] * K), ys = pts.map(p => p[1]), m = w * 3; return [Math.min(...xs) - m, Math.max(...xs) + m, Math.min(...ys) - m, Math.max(...ys) + m]; });
 // (the towns: the mountains ease round each, so a town stands on a shelf of gentler ground at the hills' foot and not
@@ -120,7 +122,7 @@ function straitCut(lon, lat) {
   for (const [x0, y0, x1, y1, w] of STRAITS) {
     if (lon < Math.min(x0, x1) - w * 7 || lon > Math.max(x0, x1) + w * 7 || lat < Math.min(y0, y1) - w * 7 || lat > Math.max(y0, y1) + w * 7) continue;
     // (its shore wandering a little, not the smooth side of a capsule)
-    const d = segDist(lon * K, lat, x0 * K, y0, x1 * K, y1) / (w * (0.82 + fbm(lon * 9.1, lat * 9.1, 51, 2) * 0.36)); if (d < 2) c = Math.max(c, d < 1 ? 1 : 2 - d); if (d < 7) straitNear = Math.max(straitNear, 1 - d / 7);
+    const d = segDist(lon * K, lat, x0 * K, y0, x1 * K, y1) / (w * (FOOT ? 1 : 0.82 + fbm(lon * 9.1, lat * 9.1, 51, 2) * 0.36)); if (d < 2) c = Math.max(c, d < 1 ? 1 : 2 - d); if (d < 7) straitNear = Math.max(straitNear, 1 - d / 7);
   }
   return c;
 }
@@ -144,12 +146,15 @@ export function heightAt(g, lon, lat) {
   const l0 = landG(g, gx, gy), cut = straitCut(lon, lat); let bar = 0, land = l0 + (fbm(lon * 3.1, lat * 3.1, 7) - 0.5) * 0.45 - cut * 1.2 + (bar = barLift(lon, lat)) * 0.9;
   // (and along the coast a finer wander, so an island isn't an octagon cut round one cell of the grid, nor a headland its
   //  stairs: only where it's coast at all)
-  if (l0 > 0.001 && l0 < 0.999) land += (fbm(lon * 8.3, lat * 8.3, 43, 2) - 0.5) * 2.4 * l0 * (1 - l0);
+  //  (not on the far ground: finer than its corners are apart, it only made the coast jagged from on high)
+  if (!FOOT && l0 > 0.001 && l0 < 0.999) land += (fbm(lon * 8.3, lat * 8.3, 43, 2) - 0.5) * 2.4 * l0 * (1 - l0);
   if (land < 0.62 && l0 < 0.999 && !cut && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.72 + (w - 0.78) * 0.5); }
-  if (land < 0.5) return -0.18 + land * 0.3;
+  // (the far ground going through the water's level at the coast without a step, so between two of its corners the
+  //  coast falls where it should and not always hard by the one on land)
+  if (land < 0.5) return FOOT ? (land - 0.5) * 0.36 : -0.18 + land * 0.3;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
-  let h = 0.02 + ease * (0.04 + fbm(lon * 1.3, lat * 1.3, 3) * 0.28);
+  let h = (FOOT ? 0.02 * Math.min(1, (land - 0.5) / 0.08) : 0.02) + ease * (0.04 + fbm(lon * 1.3, lat * 1.3, 3) * 0.28);
   // (the mountains rise from a coast more gently than the lowland does — a hillside behind a port, not a wall over it)
   //  (reckoned over the land round about, not just here: so the slope follows the lie of the coast, not the map grid's
   //  steps along it)
@@ -520,7 +525,7 @@ export class EuropeView3D {
     const nx = Math.min(900, Math.round(360 * GW / 400)), nz = Math.round(nx * MAP_H / MAP_W), geo = new THREE.PlaneGeometry(MAP_W, MAP_H, nx, nz).rotateX(-Math.PI / 2);
     geo.translate(MAP_W / 2, 0, MAP_H / 2);
     // (a little under the fine ground, so where both are drawn the fine one's coast is the one you see)
-    this.base = this.terrainMesh(geo, -0.02);
+    FOOT = GW / nx; this.base = this.terrainMesh(geo, -0.02); FOOT = 0;
     // (its heights, row by row, for the fine patch to meet at its edges)
     const p = this.base.geometry.attributes.position;
     this.baseN = [nx, nz]; this.baseH = new Float32Array(p.count); for (let i = 0; i < p.count; i++) this.baseH[i] = p.getY(i);

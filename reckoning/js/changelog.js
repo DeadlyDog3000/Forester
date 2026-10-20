@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.25", date: "20 October 2026", title: "Smoother coasts from on high",
+    items: [
+      "Campaign 3D map: seen from high up, the coasts run as lines rather than in the map grid's stairs, Sweden's east coast, Gotland and Brittany among them. The far ground now comes down to the water without a step at the shore, and leaves out a ripple finer than it can draw. Small islands such as Malta and the Cyclades still show, and close in the coast is as it was.",
+    ],
+  },
+  {
     v: "1.99.24", date: "20 October 2026", title: "The Khan's men",
     items: [
       "Campaign: the Crimean Khanate's generals are Tatar beys and mirzas (Devlet Mirza, Kaplan Bey) rather than the Sultan's pashas, and a man called Agha or Mirza is no longer shortened to his title alone.",
