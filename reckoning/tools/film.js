@@ -694,4 +694,4 @@ export const film = {
     return n;
   },
 };
-window.film = film;
+window.film = film; window.__lines = lines;

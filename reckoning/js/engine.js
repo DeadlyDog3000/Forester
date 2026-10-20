@@ -2699,7 +2699,9 @@ export function frame(dt, skipRender) {
   }
   if (G.player && w) updateCamera(dt);
   // a filming rig can take the camera over for a shot (the trailer is captured this way)
-  if (G.camOverride) G.camOverride(camera, dt);
+  // (the sky kept about the eye wherever an override has put it: left where the player stood, it came apart into black
+  //  holes the moment the eye was carried off across a battlefield)
+  if (G.camOverride) { G.camOverride(camera, dt); sky.position.copy(camera.position); }
   updateMarker(dt);
   updateWaypoint();
   if (live && w) updateMinimap(dt);

@@ -29,6 +29,9 @@ let MAP_W = 1, MAP_H = 1, CELL = 1;
 //  height, a ship's length about a fifteenth; and a company at a town drawn up clear in front of its houses, this far
 //  out on the land, never among the roofs where it can't be seen)
 const ARMY_K = 0.03, FLEET_K = 0.005, TOWN_CLEAR = 0.38;
+// (…but only close in: from high over a country they'd be the size of a county, a ship astride London and the coast —
+//  so above a ten-unit height they grow more slowly than the view does, and shrink on the view as you go up)
+const unitDist = d => d <= 10 ? d : d * Math.pow(10 / d, 0.45);
 // a ship's wake: a pale vee of foam opening out astern, fading as it goes
 let _wakeTex = null, _wakeGeo = null;
 const wakeTex = () => {
@@ -1429,12 +1432,12 @@ export class EuropeView3D {
           for (const c of hg.children) if (c.userData.wake) { const o = c.material.opacity + (Math.max(0, way) * 0.75 - c.material.opacity) * Math.min(1, dt * 3); c.material.opacity = o; c.visible = o > 0.01; }
         }
       } }
-    if (this.fleetGroup) { const k = this.dist * FLEET_K; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
+    if (this.fleetGroup) { const k = unitDist(this.dist) * FLEET_K; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
     // (the armies the same: a man about a fiftieth of the view's height, standing on the ground where he is; and their
     //  steps, their breathing, their colours stirring)
     if (this.armyGroup) {
       const now = performance.now(), dt = Math.min(0.1, (now - (this.armyT || now)) / 1000); this.armyT = now;
-      const k = this.dist * ARMY_K;
+      const k = unitDist(this.dist) * ARMY_K;
       // (the companies on the march across the view: along their road, starting off and drawing up gently, turned the
       //  way they go — and the turn itself eased, not snapped)
       for (const R of (this.armyMap || new Map()).values()) {
@@ -1468,14 +1471,15 @@ export class EuropeView3D {
   }
   // the company under a point on the view, by where it's drawn (stepped out in front of a town, walking): its key, or null
   armyAt(px, py, reach = 34) {
-    if (!this.armyMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * ARMY_K * 0.9;
+    if (!this.armyMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = unitDist(this.dist) * ARMY_K * 0.9;
     for (const [k, R] of this.armyMap) { R.inner.getWorldPosition(v); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
     return best;
   }
   // the fleet under a point on the view, by where her ship is drawn: its name, or null
   fleetAt(px, py, reach = 30) {
-    if (!this.fleetMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * FLEET_K * 10;
-    for (const [k, F] of this.fleetMap) { v.copy(F.ship.position); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
+    if (!this.fleetMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = unitDist(this.dist) * FLEET_K * 10;
+    // (any ship of the squadron, not only the one leading it)
+    for (const [k, F] of this.fleetMap) for (const hg of F.ship.userData.hulls || [F.ship]) { hg.getWorldPosition(v); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
     return best;
   }
   // what is under a point on the view: a city's name, or the ground (lon, lat)

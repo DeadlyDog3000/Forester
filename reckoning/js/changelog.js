@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.93.1", date: "19 October 2026", title: "From on high",
+    items: [
+      "Campaign 3D map: seen from high up, armies and ships no longer swell to the size of a county; they shrink on the view as you climb, so a squadron sits on the water off its port instead of across the town and the coast.",
+      "Campaign 3D map: clicking any ship of a squadron picks the fleet, not only the one leading it.",
+    ],
+  },
+  {
     v: "1.93.0", date: "19 October 2026", title: "Squadrons",
     items: [
       "Campaign 3D map: a fleet is drawn as a squadron, one ship for every two it has (up to three) sailing in echelon, each rolling on the swell, with a wake of foam astern while it's under way.",
