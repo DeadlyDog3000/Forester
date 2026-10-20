@@ -779,7 +779,8 @@ export class EuropeView3D {
     for (let i = 0; i < 4; i++) {
       const cx = gx + (i % 2) * 0.5 + 0.1 + r() * 0.3, cz = gz + (i >> 1) * 0.5 + 0.1 + r() * 0.3, [lon, lat] = toLL(cx, cz), h = heightAt(this.g, lon, lat), n = 4 + ((r() * 7) | 0), ang0 = r() * 3.14, roll = r();
       if (h < 0.03 || h > 2.2) continue;
-      const per = { temperate: 1, med: 0.75, steppe: 0.3, taiga: 0.2 }[biomeAt(lon, lat, h)] || 0; if (roll > per) continue;
+      // (and rare: about one to a square in the farmed lowlands, fewer in the dry south, the steppe and the north)
+      const per = ({ temperate: 1, med: 0.75, steppe: 0.3, taiga: 0.2 }[biomeAt(lon, lat, h)] || 0) * 0.26; if (roll > per) continue;
       if (woodAt(cx, cz, h, openOf(biomeAt(lon, lat, h), lon), dryOf(biomeAt(lon, lat, h))) - tilledAt(lon, lat) * WOOD_CUT > 0.42 || this.cleared(cx, cz) || this.riverAt(cx, cz, 0.07) || this.townNear(cx, cz) > 0.02) continue;
       const south = lat < 45, north = lat > 54, spread = 0.035 + n * 0.0075; sm = n >= 6 ? "" : ".s";
       for (let k = 0; k < n; k++) {

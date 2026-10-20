@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.17", date: "20 October 2026", title: "Fewer villages",
+    items: [
+      "Campaign 3D map: villages are much rarer: about one to every ten or so miles of farmed lowland, fewer in the dry south, the steppe and the north, so the open country reads as fields with a village here and there.",
+    ],
+  },
+  {
     v: "1.99.16", date: "20 October 2026", title: "Villages spread out",
     items: [
       "Campaign 3D map: the villages are spread out over the country, a few miles apart, rather than huddled together, and each village's houses stand more loosely round its green.",
