@@ -229,6 +229,7 @@
   }
   // a frame drawn, for the picture
   for (let i = 0; i < 3; i++) { E.frame(1 / 60, false); await sleep(16); }
+  ch.port1.onmessage = null; ch.port1.close(); ch.port2.close();
   return JSON.stringify({ chapter: O.chapter, finished: G.chapter !== O.chapter, nowChapter: G.chapter, simSecs: Math.round(simT), realSecs: Math.round((performance.now() - t0) / 1000),
     objectives: seen, shots: O.shots ? shotLog : undefined, used: log.slice(-25), stuck, errors: [...new Set(errors)] }, null, 1);
 })()

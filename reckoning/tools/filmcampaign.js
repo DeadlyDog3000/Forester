@@ -13,7 +13,8 @@
 // Not part of the game.
 
 const FPS = 30;
-const yieldF = () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = r; c.port2.postMessage(0); });
+// (each channel shut once it's answered: left open, every one of them was kept alive, and a long take with them)
+const yieldF = () => new Promise(r => { const c = new MessageChannel(); c.port1.onmessage = () => { c.port1.close(); c.port2.close(); r(); }; c.port2.postMessage(0); });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const E = t => t * t * (3 - 2 * t);
 const mix = (a, b, t) => a + (b - a) * t;

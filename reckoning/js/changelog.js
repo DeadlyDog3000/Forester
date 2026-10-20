@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.14", date: "19 October 2026", title: "The dry south",
+    items: [
+      "Campaign 3D map: the dry south is open country again: the Castilian meseta round Madrid, the Mediterranean's coasts and hills are fields and villages with olive and holm-oak in stands, not a forest from end to end. Tuscany's and Spain's mountains keep their woods.",
+    ],
+  },
+  {
     v: "1.99.13", date: "19 October 2026", title: "Roads through the woods",
     items: [
       "Campaign 3D map: a long campaign no longer slows the game down. With the land seen close open, every year's conquests kept the whole of the old towns in memory, about eighty megabytes a year; now they're let go, and the game holds steady however many years you play. The story's Europe window had the same fault, now mended.",

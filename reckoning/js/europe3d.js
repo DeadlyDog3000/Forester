@@ -207,7 +207,7 @@ const _c = new THREE.Color(), _c2 = new THREE.Color();
 // (what the ground's colour is made of, beside the colour itself: how wooded, how much open ploughland, how far over
 //  the snowline, the height, and whether sand may lie at the water's edge — handed on to the drawing as they are, so the
 //  edges of a wood, a snowfield or a shore are drawn sharp across a pixel, not smeared between the mesh's corners)
-const _t = [0, 0, 0, 0, 0, 0];
+const _t = [0, 0, 0, 0, 0, 0, 0];
 // the woods' noise: in the ground's own units, and hashed in whole 32-bit numbers so the drawing works it out exactly as
 // this does — the trees stand on the forest floor it darkens, however far off the view, at whatever grain the mesh is
 const ihash = (x, y, s) => { let h = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(s, 1442695041)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -222,11 +222,14 @@ const WOOD_F = 1.15;
 // (and the woods on the high ground — the hills and the mountains' flanks wooded, the valleys and the plains ploughed —
 //  as the country was, and as it reads from on high: the land's own shape, not a mottle laid over it)
 // (only in the farming country, though: the northern forest and the like stand as thick in the lowlands as on the hills)
-const SWELL = 0.62, hillWood = (h, o) => (Math.min(1, Math.max(0, (h - 0.12) / 0.8)) - 0.35) * 0.3 * o + (1 - o) * 0.12;
+// (and the dry south — the meseta, the Mediterranean's hills — thinly wooded wherever it lies: olive and holm-oak in
+//  stands, not forest)
+const SWELL = 0.62, hillWood = (h, o, dry = 0) => (Math.min(1, Math.max(0, (h - 0.12) / 0.8)) - 0.35) * 0.3 * o * (1 - dry * 0.7) + (1 - o) * 0.12 - dry * 0.1;
+const dryOf = b => b === "med" ? 1 : 0;
 // (how far a country is farming country, by its kind: the open fields of the middle and the south, the steppe's in part)
 // (the New World of 1683 mostly forest still: the colonists' fields and the nations' own cleared from it here and there)
 const openOf = (b, lon) => lon < -45 ? (b === "temperate" || b === "med" ? 0.18 : 0) : b === "temperate" || b === "med" ? 1 : b === "steppe" ? 0.45 : 0;
-export function woodAt(x, z, h = 0.4, o = 1) { let v = (inoise(x * 0.16, z * 0.16, 7) - 0.5) * SWELL + hillWood(h, o), a = 0.5, f = WOOD_F; for (let i = 0; i < 4; i++) { v += a * inoise(x * f, z * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
+export function woodAt(x, z, h = 0.4, o = 1, dry = 0) { let v = (inoise(x * 0.16, z * 0.16, 7) - 0.5) * SWELL + hillWood(h, o, dry), a = 0.5, f = WOOD_F; for (let i = 0; i < 4; i++) { v += a * inoise(x * f, z * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
 // the old tilled lowlands, long since cleared — the Low Countries, the Paris basin, the Po, England's south and east,
 // Saxony, the Danish isles: the woods thinned there to copses (lon, lat, how far, in degrees)
 const TILLED = [[4.6, 51.9, 1.9], [2.5, 49.1, 2.3], [0.2, 52.2, 2.3], [-1.6, 51.0, 1.4], [9.9, 45.2, 1.6], [12.0, 51.3, 1.4], [10.3, 55.6, 1.4], [7.0, 51.5, 1.0], [11.4, 44.6, 0.9]];
@@ -237,24 +240,24 @@ export function tilledAt(lon, lat) { let t = 0; for (const [x, y, r] of TILLED) 
 const SOFT = [[0, 0, 0], [0.2, 0.07, 0.12], [-0.07, 0.2, -0.12], [-0.2, -0.07, 0.06], [0.07, -0.2, -0.06]], _cBio = new THREE.Color();
 function groundColour(lon, lat, h, out, x, z, soft = false) {
   const b = biomeAt(lon, lat, h);
-  let green = 0, openW = 0, n = 0; out.setRGB(0, 0, 0);
+  let green = 0, openW = 0, dryW = 0, n = 0; out.setRGB(0, 0, 0);
   for (const [ox, oy, oh] of soft ? SOFT : SOFT.slice(0, 1)) {
     let bb = ox || oy ? biomeAt(lon + ox, lat + oy, h + oh) : b;
     // (bare rock and snow are drawn by the snowline, sharp to the pixel: under them, the colour of the country round about)
     if (bb === "snow" || bb === "rock") bb = biomeAt(lon + ox, lat + oy, 0.5);
     _cBio.setHex(BIOME_COL[bb]); out.r += _cBio.r; out.g += _cBio.g; out.b += _cBio.b; n++;
     if (bb === "temperate" || bb === "taiga" || bb === "med") green++;
-    openW += openOf(bb, lon);
+    openW += openOf(bb, lon); dryW += dryOf(bb);
   }
-  out.r /= n; out.g /= n; out.b /= n; green /= n; openW /= n;
-  const till = tilledAt(lon, lat), wood = green ? woodAt(x, z, h, openW) - till * WOOD_CUT : 0;
+  out.r /= n; out.g /= n; out.b /= n; green /= n; openW /= n; dryW /= n;
+  const till = tilledAt(lon, lat), wood = green ? woodAt(x, z, h, openW, dryW) - till * WOOD_CUT : 0;
   _t[0] = green * (1 - till * WOOD_CUT / 0.6);
   // (the open country: fields wherever it's tilled land and not the woods)
   _t[1] = openW * (1 - Math.min(1, Math.max(0, (wood - 0.38) * 8)));
   _t[2] = b === "desert" ? -1 : Math.max(-1, Math.min(1, h - (snowAt(lon, lat) - 0.12)));
   _t[3] = h;
   _t[4] = b === "snow" || b === "rock" ? 0 : 1;
-  _t[5] = openW;
+  _t[5] = openW; _t[6] = dryW;
   // (the steppe not one tan from end to end: greener where the grass grows long by the rivers and hollows, drier and
   //  paler on the rises; the desert the same, its sand redder in one place and paler in another)
   // (the northern forest's floor and the tundra the same: a brown bog here, a pale stand of birch there)
@@ -275,8 +278,8 @@ function groundColour(lon, lat, h, out, x, z, soft = false) {
 // with a canopy's dapple, the patchwork of fields with hedges between, sand at the shore, the sea floor going deep, the
 // snowline ragged; and a grain over all of it, the finer grains faded out as they'd shimmer far off
 const GROUND_VS = `
-attribute vec4 aT; attribute float aB; attribute float aO;
-varying vec4 vT; varying float vB; varying float vO; varying vec3 vWP;`;
+attribute vec4 aT; attribute float aB; attribute float aO; attribute float aD;
+varying vec4 vT; varying float vB; varying float vO; varying float vD; varying vec3 vWP;`;
 const GN_GLSL = `
 float gh(vec2 p) { p = mod(p, 512.0); vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -291,12 +294,12 @@ float cloudShadow(vec2 p, float t) {
 }`;
 const GROUND_FS = `
 uniform float uTime;
-varying vec4 vT; varying float vB; varying float vO; varying vec3 vWP;
+varying vec4 vT; varying float vB; varying float vO; varying float vD; varying vec3 vWP;
 float ih(ivec2 c, int s) { uint h = uint(c.x) * 374761393u + uint(c.y) * 668265263u + uint(s) * 1442695041u; h = (h ^ (h >> 13)) * 1274126177u; return float(h ^ (h >> 16)) / 4294967296.0; }
 float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f); ivec2 c = ivec2(i);
   float a = ih(c, s), b = ih(c + ivec2(1, 0), s), d = ih(c + ivec2(0, 1), s), e = ih(c + ivec2(1, 1), s);
   return a + (b - a) * f.x + (d - a) * f.y + (a - b - d + e) * f.x * f.y; }
-float woodN(vec2 p, float keep, float h, float o) { float v = (inz(p * 0.16, 7) - 0.5) * ${SWELL.toFixed(3)} + (clamp((h - 0.12) / 0.8, 0.0, 1.0) - 0.35) * 0.3 * o + (1.0 - o) * 0.12, a = 0.5, f = ${WOOD_F.toFixed(3)}; for (int i = 0; i < 4; i++) { float k = i < 2 ? 1.0 : i == 2 ? mix(0.25, 1.0, keep) : keep; v += a * mix(0.5, inz(p * f, 13 + i * 17), k); a *= 0.5; f *= 2.03; } return v; }
+float woodN(vec2 p, float keep, float h, float o, float dry) { float v = (inz(p * 0.16, 7) - 0.5) * ${SWELL.toFixed(3)} + (clamp((h - 0.12) / 0.8, 0.0, 1.0) - 0.35) * 0.3 * o * (1.0 - dry * 0.7) + (1.0 - o) * 0.12 - dry * 0.1, a = 0.5, f = ${WOOD_F.toFixed(3)}; for (int i = 0; i < 4; i++) { float k = i < 2 ? 1.0 : i == 2 ? mix(0.25, 1.0, keep) : keep; v += a * mix(0.5, inz(p * f, 13 + i * 17), k); a *= 0.5; f *= 2.03; } return v; }
 vec3 cropOf(float c) { return c < 0.26 ? vec3(0.76, 0.66, 0.34) : c < 0.46 ? vec3(0.52, 0.63, 0.30) : c < 0.64 ? vec3(0.58, 0.66, 0.34) : c < 0.8 ? vec3(0.70, 0.63, 0.37) : c < 0.92 ? vec3(0.62, 0.55, 0.36) : vec3(0.56, 0.50, 0.34); }
 ${GN_GLSL}`;
 const GROUND_MIX = `
@@ -342,7 +345,7 @@ const GROUND_MIX = `
   float hedge = (1.0 - smoothstep(0.0, 0.06, edge)) * fine * step(0.45, gh(fid + fid2 + 11.0)) * smoothstep(0.35, 0.6, gn(wp * 70.0));
   // (the finest of the woods' grain let go far off, where no tree stands to need it: the woods there whole woods, not a
   //  speckle of dark and light that reads, from on high, as a soldier's camouflage)
-  float wood = woodN(wp, 1.0 - smoothstep(0.03, 0.07, px), vT.w, vO) - (1.0 - vT.x) * 0.6;
+  float wood = woodN(wp, 1.0 - smoothstep(0.03, 0.07, px), vT.w, vO, vD) - (1.0 - vT.x) * 0.6;
   float open = vT.y * (1.0 - clamp((wood - 0.38) * 8.0, 0.0, 1.0)) * (0.75 + 0.25 * smoothstep(0.3, 0.6, n1));
   col = mix(col, mix(crop, vec3(0.27, 0.36, 0.18), hedge * 0.75), open * 0.82);
   // the woods: dark where the trees stand, the edge crisp and a little ragged; a canopy's dapple close in
@@ -370,12 +373,12 @@ function groundMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>" + GROUND_VS)
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\n vT = aT; vB = aB; vO = aO; vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n vT = aT; vB = aB; vO = aO; vD = aD; vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
     sh.uniforms.uTime = { value: 0 }; m.userData.shader = sh;
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS + CLOUD_GLSL)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground21";
+  m.customProgramCacheKey = () => "ground22";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -532,7 +535,7 @@ export class EuropeView3D {
   terrainMesh(geo, dy = 0, edge = null) { const it = this.terrainGen(geo, dy, edge); let r; do r = it.next(); while (!r.done); return r.value; }
   // (the same, a piece at a time: it yields every so many corners, so a big patch can be worked out over several frames)
   *terrainGen(geo, dy = 0, edge = null) {
-    const p = geo.attributes.position, col = new Float32Array(p.count * 3), at = new Float32Array(p.count * 4), ab = new Float32Array(p.count), ao = new Float32Array(p.count);
+    const p = geo.attributes.position, col = new Float32Array(p.count * 3), at = new Float32Array(p.count * 4), ab = new Float32Array(p.count), ao = new Float32Array(p.count), ad = new Float32Array(p.count);
     for (let i = 0; i < p.count; i++) {
       if ((i & 255) === 255) yield;
       const x = p.getX(i), z = p.getZ(i), [lon, lat] = toLL(x, z), h = heightAt(this.g, lon, lat);
@@ -543,9 +546,9 @@ export class EuropeView3D {
       groundColour(lon, lat, h, _c, x, z, !!edge); col.set([_c.r, _c.g, _c.b], i * 3);
       // (round a town the woods give way to its fields)
       const tn = this.townNear(x, z); if (tn > 0) { _t[0] *= 1 - tn; if (_t[4]) _t[1] = Math.max(_t[1], tn); }
-      at.set([_t[0], _t[1], _t[2], _t[3]], i * 4); ab[i] = _t[4]; ao[i] = _t[5];
+      at.set([_t[0], _t[1], _t[2], _t[3]], i * 4); ab[i] = _t[4]; ao[i] = _t[5]; ad[i] = _t[6];
     }
-    geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.setAttribute("aT", new THREE.BufferAttribute(at, 4)); geo.setAttribute("aB", new THREE.BufferAttribute(ab, 1)); geo.setAttribute("aO", new THREE.BufferAttribute(ao, 1)); geo.computeVertexNormals();
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.setAttribute("aT", new THREE.BufferAttribute(at, 4)); geo.setAttribute("aB", new THREE.BufferAttribute(ab, 1)); geo.setAttribute("aO", new THREE.BufferAttribute(ao, 1)); geo.setAttribute("aD", new THREE.BufferAttribute(ad, 1)); geo.computeVertexNormals();
     const m = new THREE.Mesh(geo, this.groundMat || (this.groundMat = groundMaterial()));
     return m;
   }
@@ -744,7 +747,7 @@ export class EuropeView3D {
       const list = per[kind] = [];
       for (let i = 0; i < max; i++) {
         const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z);
-        const h = heightAt(this.g, lon, lat), wood = woodAt(x, z, h, openOf(biomeAt(lon, lat, h), lon)) - tilledAt(lon, lat) * WOOD_CUT;
+        const h = heightAt(this.g, lon, lat), bm = biomeAt(lon, lat, h), wood = woodAt(x, z, h, openOf(bm, lon), dryOf(bm)) - tilledAt(lon, lat) * WOOD_CUT;
         if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
         if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.065) || this.roadAt(x, z, 0.03)) continue;
         // (no wood growing in a town, nor in the fields close round it)
@@ -776,7 +779,7 @@ export class EuropeView3D {
       const cx = gx + r(), cz = gz + r(), [lon, lat] = toLL(cx, cz), h = heightAt(this.g, lon, lat), n = 4 + ((r() * 7) | 0), ang0 = r() * 3.14, roll = r();
       if (h < 0.03 || h > 2.2) continue;
       const per = { temperate: 1, med: 0.75, steppe: 0.3, taiga: 0.2 }[biomeAt(lon, lat, h)] || 0; if (roll > per) continue;
-      if (woodAt(cx, cz, h, openOf(biomeAt(lon, lat, h), lon)) - tilledAt(lon, lat) * WOOD_CUT > 0.42 || this.cleared(cx, cz) || this.riverAt(cx, cz, 0.07) || this.townNear(cx, cz) > 0.02) continue;
+      if (woodAt(cx, cz, h, openOf(biomeAt(lon, lat, h), lon), dryOf(biomeAt(lon, lat, h))) - tilledAt(lon, lat) * WOOD_CUT > 0.42 || this.cleared(cx, cz) || this.riverAt(cx, cz, 0.07) || this.townNear(cx, cz) > 0.02) continue;
       const south = lat < 45, north = lat > 54, spread = 0.02 + n * 0.0045; sm = n >= 6 ? "" : ".s";
       for (let k = 0; k < n; k++) {
         const a = r() * 6.28, d = 0.008 + Math.sqrt(r()) * spread, hx = cx + Math.cos(a) * d, hz = cz + Math.sin(a) * d, hy = this.groundY(hx, hz);
