@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.10", date: "19 October 2026", title: "Ships in harbour",
+    items: [
+      "Campaign 3D map: close in, merchantmen lie at anchor off the port towns, a few to a port and more to a great one, their bows into the west wind and riding the swell under the colours of whoever holds the town.",
+    ],
+  },
+  {
     v: "1.99.9", date: "19 October 2026", title: "Hearth smoke",
     items: [
       "Campaign 3D map: close in, smoke goes up thinly from the towns' chimneys and leans away on the west wind, a few columns over a town and more over a city.",

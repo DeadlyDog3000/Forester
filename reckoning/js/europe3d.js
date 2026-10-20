@@ -1591,7 +1591,7 @@ export class EuropeView3D {
           for (const c of hg.children) if (c.userData.wake) { const o = c.material.opacity + (Math.max(0, way) * 0.75 - c.material.opacity) * Math.min(1, dt * 3); c.material.opacity = o; c.visible = o > 0.01; }
         }
       } }
-    this.hearths();
+    this.hearths(); this.anchorages();
     if (this.siegeGroup && this.siegeGroup.children.length) {
       const k = unitDist(this.dist) * ARMY_K * 0.9, now = performance.now() / 1000;
       for (const o of this.siegeGroup.userData.props) o.scale.setScalar(k);
@@ -1679,6 +1679,35 @@ export class EuropeView3D {
       const ph = (now * 0.07 + sp.userData.phase) % 1, [x, y, z] = sp.userData.base;
       sp.position.set(x + ph * ph * 0.12, y + ph * 0.2, z - ph * 0.03); sp.scale.setScalar(0.045 + ph * 0.13); sp.material.opacity = Math.min(1, Math.sin(Math.min(1, ph * 1.6) * Math.PI * 0.5) * (1 - ph) * 1.5) * fade;
     }
+  }
+  // ships lying at anchor off the port towns near the middle of the view, close in: merchantmen and coasters, a few to a
+  //  port and more to a great one, their bows all into the west wind, riding the swell under their holder's colours —
+  //  as big as ships are beside the houses, not the fleets' marks
+  anchorages() {
+    const far = this.dist > 8.5 || !this.cityGroup || !this.g;
+    if (far) { if (this.anchorGrp) this.anchorGrp.visible = false; return; }
+    if (!this.anchorGrp) { this.anchorGrp = new THREE.Group(); this.anchorGrp.userData.pool = []; this.scene.add(this.anchorGrp); ensureModel("ship"); }
+    const g = this.anchorGrp; g.visible = true;
+    const key = Math.round(this.target.x * 2) + "," + Math.round(this.target.z * 2) + "|" + this.towns.size;
+    if (key !== g.userData.key) {
+      const spots = [];
+      const near = CITIES.filter(ct => { const [x, z] = toWorld(ct[1], ct[2]); return Math.hypot(x - this.target.x, z - this.target.z) < 6 && this.towns.has(ct[0]); });
+      for (const ct of near) {
+        const [tx, tz] = this.spotXZ(ct[1], ct[2]); let w = null;
+        // (the open water off the town: the nearest sea with sea round it, not a river or a creek)
+        for (let d = 0.18; d <= 0.7 && !w; d += 0.06) for (let k = 0; k < 16 && !w; k++) { const a = k / 16 * 6.283, x = tx + Math.cos(a) * d, z = tz + Math.sin(a) * d; if (this.rawY(x, z) < -0.02 && this.rawY(x + 0.06, z) < 0 && this.rawY(x - 0.06, z) < 0 && this.rawY(x, z + 0.06) < 0 && this.rawY(x, z - 0.06) < 0) w = [x, z, a]; }
+        if (!w) continue;
+        const own = cityOwner(this.g, ct), col = own && NATIONS[own] ? NATIONS[own].color : "#e8e0d0", n = 1 + ct[3];
+        for (let i = 0; i < n; i++) { const a = w[2] + (i - (n - 1) / 2) * 0.35, d = 0.05 + (i % 2) * 0.05; spots.push([w[0] + Math.cos(a) * d, w[1] + Math.sin(a) * d, col, hash(i, ct[1] * 100 | 0, 13)]); }
+      }
+      if (spots.length && !modelCopy("ship")) return;      // (the model not loaded yet: tried again next frame)
+      g.userData.key = key;
+      const pool = g.userData.pool;
+      while (pool.length < Math.min(20, spots.length)) { const m = modelCopy("ship"); if (!m) break; const sh = new THREE.Group(); m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); sh.userData.flags = (sh.userData.flags || []).concat(o.material); } } }); sh.add(m.scene); sh.scale.setScalar(0.0034); g.add(sh); pool.push(sh); }
+      pool.forEach((sh, i) => { const sp = spots[i]; sh.visible = !!sp; if (!sp) return; sh.position.set(sp[0], 0, sp[1]); sh.rotation.y = -Math.PI / 2 + (sp[3] - 0.5) * 0.3; sh.userData.roll = sp[3] * 6.28; for (const fm of sh.userData.flags || []) fm.color.set(sp[2]); });
+    }
+    const now = performance.now() / 1000;
+    for (const sh of g.userData.pool) if (sh.visible) { sh.rotation.z = Math.sin(now * 0.9 + sh.userData.roll) * 0.06; sh.rotation.x = Math.sin(now * 0.7 + sh.userData.roll * 1.3) * 0.03; }
   }
   // the mark under a point on the view (its name), of those whose names match `rx`
   markAt(px, py, rx) {
