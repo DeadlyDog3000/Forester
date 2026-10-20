@@ -219,7 +219,10 @@ function inoise(x, y, s) {
 }
 const WOOD_F = 1.15;
 // (and over it a broader swell: whole countries well wooded, others mostly fields, not the same mottle everywhere)
-export function woodAt(x, z) { let v = (inoise(x * 0.16, z * 0.16, 7) - 0.5) * 0.4, a = 0.5, f = WOOD_F; for (let i = 0; i < 4; i++) { v += a * inoise(x * f, z * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
+// (and the woods on the high ground — the hills and the mountains' flanks wooded, the valleys and the plains ploughed —
+//  as the country was, and as it reads from on high: the land's own shape, not a mottle laid over it)
+const SWELL = 0.62, hillWood = h => (Math.min(1, Math.max(0, (h - 0.12) / 0.8)) - 0.35) * 0.3;
+export function woodAt(x, z, h = 0.4) { let v = (inoise(x * 0.16, z * 0.16, 7) - 0.5) * SWELL + hillWood(h), a = 0.5, f = WOOD_F; for (let i = 0; i < 4; i++) { v += a * inoise(x * f, z * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
 // the old tilled lowlands, long since cleared — the Low Countries, the Paris basin, the Po, England's south and east,
 // Saxony, the Danish isles: the woods thinned there to copses (lon, lat, how far, in degrees)
 const TILLED = [[4.6, 51.9, 1.9], [2.5, 49.1, 2.3], [0.2, 52.2, 2.3], [-1.6, 51.0, 1.4], [9.9, 45.2, 1.6], [12.0, 51.3, 1.4], [10.3, 55.6, 1.4], [7.0, 51.5, 1.0], [11.4, 44.6, 0.9]];
@@ -240,7 +243,7 @@ function groundColour(lon, lat, h, out, x, z, soft = false) {
     if (bb === "temperate" || bb === "med") openW++; else if (bb === "steppe" && lon > -45) openW += 0.45;
   }
   out.r /= n; out.g /= n; out.b /= n; green /= n; openW /= n;
-  const till = tilledAt(lon, lat), wood = green ? woodAt(x, z) - till * WOOD_CUT : 0;
+  const till = tilledAt(lon, lat), wood = green ? woodAt(x, z, h) - till * WOOD_CUT : 0;
   _t[0] = green * (1 - till * WOOD_CUT / 0.6);
   // (the open country: fields wherever it's tilled land and not the woods)
   _t[1] = openW * (1 - Math.min(1, Math.max(0, (wood - 0.38) * 8)));
@@ -275,7 +278,7 @@ float ih(ivec2 c, int s) { uint h = uint(c.x) * 374761393u + uint(c.y) * 6682652
 float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f); ivec2 c = ivec2(i);
   float a = ih(c, s), b = ih(c + ivec2(1, 0), s), d = ih(c + ivec2(0, 1), s), e = ih(c + ivec2(1, 1), s);
   return a + (b - a) * f.x + (d - a) * f.y + (a - b - d + e) * f.x * f.y; }
-float woodN(vec2 p) { float v = (inz(p * 0.16, 7) - 0.5) * 0.4, a = 0.5, f = ${WOOD_F.toFixed(3)}; for (int i = 0; i < 4; i++) { v += a * inz(p * f, 13 + i * 17); a *= 0.5; f *= 2.03; } return v; }
+float woodN(vec2 p, float keep, float h) { float v = (inz(p * 0.16, 7) - 0.5) * ${SWELL.toFixed(3)} + (clamp((h - 0.12) / 0.8, 0.0, 1.0) - 0.35) * 0.3, a = 0.5, f = ${WOOD_F.toFixed(3)}; for (int i = 0; i < 4; i++) { float k = i < 2 ? 1.0 : i == 2 ? mix(0.25, 1.0, keep) : keep; v += a * mix(0.5, inz(p * f, 13 + i * 17), k); a *= 0.5; f *= 2.03; } return v; }
 vec3 cropOf(float c) { return c < 0.26 ? vec3(0.76, 0.66, 0.34) : c < 0.46 ? vec3(0.52, 0.63, 0.30) : c < 0.64 ? vec3(0.58, 0.66, 0.34) : c < 0.8 ? vec3(0.70, 0.63, 0.37) : c < 0.92 ? vec3(0.62, 0.55, 0.36) : vec3(0.56, 0.50, 0.34); }
 float gh(vec2 p) { p = mod(p, 512.0); vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
 float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -303,11 +306,29 @@ const GROUND_MIX = `
   vec3 crop = mix((c1 + c2) * 0.5, c1, smoothstep(0.0, 0.3, edge));
   float fur = sin(dot(fr * wp, gh(fid + 9.0) < 0.5 ? vec2(0.0, 1.0) : vec2(1.0, 0.0)) * 520.0) * 0.5 + 0.5;
   crop *= 1.0 - 0.07 * fur * fine * step(0.3, gh(fid + 5.0));
-  crop = mix(vec3(0.60, 0.59, 0.33), crop, mid * 0.8 + 0.2);
+  // (far off, where a field is less than a pixel: the parishes' fields taken together — meadow green in one, ripe corn
+  //  in the next, brown fallow beyond — a quilt, not one tan from end to end)
+  float pq = gn(wp * 1.7 + 11.0) * 0.65 + gn(wp * 4.3) * 0.35;
+  vec3 quilt = mix(mix(vec3(0.50, 0.58, 0.30), vec3(0.64, 0.61, 0.34), smoothstep(0.3, 0.55, pq)), vec3(0.58, 0.52, 0.35), smoothstep(0.62, 0.8, pq));
+  // (and between the two, the fields in their blocks: a parish's worth sown alike, the next block another crop — big
+  //  enough to see from well up, their edges softened by how much ground a pixel covers, so they never shimmer)
+  {
+    vec2 r2 = (fr * wp) * vec2(1.25, 2.9) + fa * 53.0, ri = floor(r2), rf = r2 - ri, b1 = ri, b2 = ri; float e1 = 9.0, e2 = 9.0;
+    for (int j = -1; j <= 1; j++) for (int i = -1; i <= 1; i++) {
+      vec2 g = vec2(float(i), float(j)), o = vec2(gh(ri + g + 71.0), gh(ri + g + 89.0)) * 0.8 + 0.1, rr = g + o - rf; float d = dot(rr, rr);
+      if (d < e1) { e2 = e1; b2 = b1; e1 = d; b1 = ri + g; } else if (d < e2) { e2 = d; b2 = ri + g; }
+    }
+    vec3 k1 = cropOf(gh(b1 + 23.0)) * (0.93 + 0.14 * gh(b1 + 5.0)), k2 = cropOf(gh(b2 + 23.0)) * (0.93 + 0.14 * gh(b2 + 5.0));
+    vec3 block = mix((k1 + k2) * 0.5, k1, smoothstep(0.0, max(0.05, px * 5.0), sqrt(e2) - sqrt(e1)));
+    quilt = mix(quilt, mix(block, quilt, 0.15), 1.0 - smoothstep(0.06, 0.14, px));
+  }
+  crop = mix(quilt, crop, mid * 0.8 + 0.2);
   float hedge = (1.0 - smoothstep(0.0, 0.06, edge)) * fine * step(0.45, gh(fid + fid2 + 11.0)) * smoothstep(0.35, 0.6, gn(wp * 70.0));
-  float wood = woodN(wp) - (1.0 - vT.x) * 0.6;
+  // (the finest of the woods' grain let go far off, where no tree stands to need it: the woods there whole woods, not a
+  //  speckle of dark and light that reads, from on high, as a soldier's camouflage)
+  float wood = woodN(wp, 1.0 - smoothstep(0.03, 0.07, px), vT.w) - (1.0 - vT.x) * 0.6;
   float open = vT.y * (1.0 - clamp((wood - 0.38) * 8.0, 0.0, 1.0)) * (0.75 + 0.25 * smoothstep(0.3, 0.6, n1));
-  col = mix(col, mix(crop, vec3(0.27, 0.36, 0.18), hedge * 0.75), open * 0.7);
+  col = mix(col, mix(crop, vec3(0.27, 0.36, 0.18), hedge * 0.75), open * 0.82);
   // the woods: dark where the trees stand, the edge crisp and a little ragged; a canopy's dapple close in
   float w = smoothstep(0.5, 0.515, wood + (n1 - 0.5) * 0.02);
   float crown = mix(0.5, mix(gn(wp * 13.0), gn(wp * 13.0) * 0.55 + gn(wp * 31.0) * 0.45, mid), far);
@@ -333,7 +354,7 @@ function groundMaterial() {
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground11";
+  m.customProgramCacheKey = () => "ground16";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -673,9 +694,9 @@ export class EuropeView3D {
       const list = per[kind] = [];
       for (let i = 0; i < max; i++) {
         const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z);
-        const wood = woodAt(x, z) - tilledAt(lon, lat) * WOOD_CUT;
+        const h = heightAt(this.g, lon, lat), wood = woodAt(x, z, h) - tilledAt(lon, lat) * WOOD_CUT;
         if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
-        const h = heightAt(this.g, lon, lat); if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.065)) continue;
+        if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.065)) continue;
         // (no wood growing in a town, nor in the fields close round it)
         if (this.cleared(x, z)) continue;
         const s = 0.7 + r() * 0.7;

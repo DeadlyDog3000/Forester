@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.0", date: "19 October 2026", title: "The lie of the land",
+    items: [
+      "Campaign 3D map: the woods follow the land, as they did: the hills and the mountains' flanks wooded (the Wienerwald, the Bohemian forest, the Alps' foothills, the Vosges), the valleys and the plains ploughed. From on high, Europe reads as whole forests and open country instead of a mottle, and the New World's eastern woods stand unbroken from the coast inland.",
+      "Campaign 3D map: farmland seen from higher up is a quilt of fields in their blocks, meadow green, ripe corn and brown fallow, instead of one tan; and the woods far off are whole woods, without the speckle that read as camouflage.",
+    ],
+  },
+  {
     v: "1.98.0", date: "19 October 2026", title: "Battle news",
     items: [
       "Campaign: point at a battlefield's crossed swords, on the parchment or the land seen close, to read which battle it was: the town it was fought for or near, the year, who fought it and who won the day.",
