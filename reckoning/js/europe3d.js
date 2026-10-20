@@ -775,14 +775,15 @@ export class EuropeView3D {
     let sm = "";
     const put = (k, x, y, z, ry, sx, sy, sz, col) => { o.position.set(x, y, z); o.rotation.set(0, ry, 0); o.scale.set(sx, sy, sz); o.updateMatrix(); L[k + sm].push([o.matrix.clone(), col]); };
     const WALL = [0xe8dfca, 0xe2d6bc, 0xd9cdb4, 0xcfc4ae, 0xb8ab94], TILE = [0xa64a30, 0x9a3f2a, 0xb05a38, 0x8c4430], THATCH = [0x9c8455, 0x8a7448, 0xa08a5c], SLATE = [0x55605e, 0x4a5452];
-    for (let i = 0; i < 6; i++) {
-      const cx = gx + r(), cz = gz + r(), [lon, lat] = toLL(cx, cz), h = heightAt(this.g, lon, lat), n = 4 + ((r() * 7) | 0), ang0 = r() * 3.14, roll = r();
+    // (one at most to each quarter of the square, kept off its edges: the villages a few miles apart, not in a huddle)
+    for (let i = 0; i < 4; i++) {
+      const cx = gx + (i % 2) * 0.5 + 0.1 + r() * 0.3, cz = gz + (i >> 1) * 0.5 + 0.1 + r() * 0.3, [lon, lat] = toLL(cx, cz), h = heightAt(this.g, lon, lat), n = 4 + ((r() * 7) | 0), ang0 = r() * 3.14, roll = r();
       if (h < 0.03 || h > 2.2) continue;
       const per = { temperate: 1, med: 0.75, steppe: 0.3, taiga: 0.2 }[biomeAt(lon, lat, h)] || 0; if (roll > per) continue;
       if (woodAt(cx, cz, h, openOf(biomeAt(lon, lat, h), lon), dryOf(biomeAt(lon, lat, h))) - tilledAt(lon, lat) * WOOD_CUT > 0.42 || this.cleared(cx, cz) || this.riverAt(cx, cz, 0.07) || this.townNear(cx, cz) > 0.02) continue;
-      const south = lat < 45, north = lat > 54, spread = 0.02 + n * 0.0045; sm = n >= 6 ? "" : ".s";
+      const south = lat < 45, north = lat > 54, spread = 0.035 + n * 0.0075; sm = n >= 6 ? "" : ".s";
       for (let k = 0; k < n; k++) {
-        const a = r() * 6.28, d = 0.008 + Math.sqrt(r()) * spread, hx = cx + Math.cos(a) * d, hz = cz + Math.sin(a) * d, hy = this.groundY(hx, hz);
+        const a = r() * 6.28, d = 0.012 + Math.sqrt(r()) * spread, hx = cx + Math.cos(a) * d, hz = cz + Math.sin(a) * d, hy = this.groundY(hx, hz);
         if (hy < 0.006 || this.riverAt(hx, hz, 0.03) || this.roadAt(hx, hz, 0.018)) continue;
         const w = 0.017 + r() * 0.006, l = 0.024 + r() * 0.012, ht = 0.013 + r() * 0.006, ry = ang0 + (r() < 0.5 ? 0 : 1.571) + (r() - 0.5) * 0.4;
         const pal = south ? TILE : north ? (r() < 0.5 ? SLATE : THATCH) : r() < 0.65 ? THATCH : TILE;

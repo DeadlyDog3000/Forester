@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.16", date: "20 October 2026", title: "Villages spread out",
+    items: [
+      "Campaign 3D map: the villages are spread out over the country, a few miles apart, rather than huddled together, and each village's houses stand more loosely round its green.",
+    ],
+  },
+  {
     v: "1.99.15", date: "19 October 2026", title: "A lighter story",
     items: [
       "Story: every chapter's world was kept in memory after you'd left it, held by its own hearth fires, so a long evening's play grew heavier chapter by chapter. Now each one is let go when the next begins: nine chapters in a row take about half the memory they did, and the fires of chapters gone are no longer warmed by every frame.",
