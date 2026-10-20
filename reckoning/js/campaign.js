@@ -297,6 +297,7 @@ function gazette(items) {
   const mineT = new Set(citiesOfNow(grid(), C.me).map(c => c[0]));
   const kind = l => { if (l.kind === "learn") return "learn"; if (l.kind === "war") return "war"; const t = l.title, all = t + " " + (l.sub || ""), mine = [...mineT].some(n => all.includes(n));
     // (your own realm's doings, at home; the wars, yours and the world's; the courts' alliances and treaties; the rest)
+    if (/^at war$/i.test(t)) return "war";
     if (/\byour\b|^the regiments|regiments (raised|broken|merged)|launched|riots? in|rising in|is cast|governor|treasury|: (bold|cautious|siege engineer|hero of the nation|beloved of the men|drunkard|flogger)$|is (sacked|occupied)|^(a )?mission/i.test(t) || (mine && !/marches|army|siege|fallen|takes/i.test(t))) return "home";
     if (/has fallen|falls to|is yours|surrenders|takes .* from| takes /i.test(t)) return "fall";
     if (/declares war|are at war|marches|army|siege|beaten|victory|field|at sea|ships an army|holds|raid|broken|war party|^winter in/i.test(t)) return "war";
@@ -528,6 +529,8 @@ const yearsTo = t => overSea(armyPos(), t) ? 1 : Math.max(1, Math.ceil(mdist(arm
 //  its war is — before the town it takes, falling back home when it's beaten, home again at the peace — so the wars
 //  among the other crowns are there to be seen, not only read of in the news)
 const ownWar = id => !C.mp && NATIONS[id] && !isHuman(id) && !C.E.war[id] && !(C.foeGo && C.foeGo[id]);
+// (the town a place is nearest, within a few days' march: to name a battle by)
+const townNear = p => { let bd = 7, best = null; for (const ct of CITIES) { const t = cellXY(ct), d = Math.hypot(t.x - p.x, t.y - p.y) - ct[3] * 0.6; if (d < bd) { bd = d; best = ct[0]; } } return best; };
 const othersAtWar = () => { const g = grid(), s = new Set(); for (const w of C.E.wars || []) for (const id of [w.a, w.b]) if (ownWar(id) && alive(g, id)) s.add(id); return [...s]; };
 function warMove(id, to, d) { if (!ownWar(id)) return; const fp = foeArmyPos(id); if (!fp || !to) return; const st = stepToward(fp, to, d); if (st.sea) return; C.foePos[id] = { x: st.x, y: st.y }; }
 function foeArmyPos(id) { C.foePos ||= {}; if (!C.foePos[id] || !isFinite(C.foePos[id].x)) { const h = homeOf(grid(), id); if (h) C.foePos[id] = { x: h.x, y: h.y }; } return C.foePos[id] || null; }
@@ -2165,7 +2168,18 @@ function crownsWar(g, ids) {
   }
   // (where the crowns fought this year: marked on the map until the next year's fighting)
   C.E.fought = [];
-  const fought = (p, took) => { if (p && isFinite(p.x) && C.E.fought.length < 24) C.E.fought.push({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, took: took || null }); };
+  // (each with who won it and who lost, and the town it was fought for or nearest, to name it by; and the battles that
+  //  matter to you — a great power's, an ally's, a neighbour's — in the year's news, three at the most)
+  let told = 0;
+  const nearYou = id => !!C.ally[id] || citiesOfNow(grid(), C.me).some(ct => distFrom(grid(), id, ct) <= REACH);
+  const fought = (p, took, win, lose) => {
+    if (!p || !isFinite(p.x) || C.E.fought.length >= 24) return;
+    const at = took || townNear(p);
+    C.E.fought.push({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, took: took || null, w: win, l: lose, at, yr: C.year });
+    if (took || told >= 3 || !at) return;
+    if (Math.max(NATIONS[win].strength, NATIONS[lose].strength) < 3 && !nearYou(win) && !nearYou(lose)) return;
+    told++; sayAll(`${The(win)} ${v3(win, "beats")} ${the(lose)} near ${at}`, `${poss(The(lose))} army falls back toward home.`);
+  };
   // (a crown at peace with everyone marches its army home again)
   { const gg = grid(), busy = new Set(W.flatMap(w => [w.a, w.b])); for (const id of Object.keys(C.foePos || {})) if (!busy.has(id) && ownWar(id) && alive(gg, id)) { const h = homeOf(gg, id); if (h && mdist(C.foePos[id], h) > 1) warMove(id, h, MARCH); } }
   for (const w of W.slice()) {
@@ -2201,14 +2215,14 @@ function crownsWar(g, ids) {
     C.foes[lose] = Math.max(0, C.foes[lose] - 3 - Math.floor(R() * 4)); C.foes[win] = Math.max(0, C.foes[win] - 1 - Math.floor(R() * 2));
     // (the much weaker side, winning, mostly throws the attack back and holds what it has: it hasn't the men to go on
     //  and take a great power's town)
-    { const sw = aWins ? sa : sb, sl = aWins ? sb : sa; if (sw < sl * 0.6 && R() < 0.7) { { const pa = foeArmyPos(win), pb = foeArmyPos(lose); fought(pa && pb && !overSea(pa, pb) ? { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 } : pb); } warMove(lose, homeOf(gg, lose), MARCH * 0.6); w.battles++; continue; } }
+    { const sw = aWins ? sa : sb, sl = aWins ? sb : sa; if (sw < sl * 0.6 && R() < 0.7) { { const pa = foeArmyPos(win), pb = foeArmyPos(lose); fought(pa && pb && !overSea(pa, pb) ? { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 } : pb, null, win, lose); } warMove(lose, homeOf(gg, lose), MARCH * 0.6); w.battles++; continue; } }
     // (a crown's own seat holds out longest: taken only on a second good day, unless it's nearly all the crown has left)
     if (target.length) {
-      const ct = pick(target), tc = cellXY(ct); fought(tc, ct[0]);
+      const ct = pick(target), tc = cellXY(ct); fought(tc, ct[0], win, lose);
       // (the winner's army before the town it fought for; the loser's falling back toward home)
       { const sh = landNear(gg, { x: tc.x + 1.2, y: tc.y + 0.9 }, 5) || tc; warMove(win, sh, MARCH * 1.5); warMove(lose, homeOf(gg, lose), MARCH * 0.6); }
       if (ct[3] === 3 && citiesOfNow(gg, lose).length > 3 && R() < 0.6) { w.battles++; continue; }
-      seize(ct, win); if (ct[3] >= 2 || w.withYou) sayAll(`${The(win)} ${v3(win, "takes")} ${ct[0]} from ${the(lose)}`);
+      seize(ct, win); if (ct[3] >= 2 || w.withYou || nearYou(win)) sayAll(`${The(win)} ${v3(win, "takes")} ${ct[0]} from ${the(lose)}`, `${poss(The(lose))} army beaten before its walls.`);
     }
     w.battles++;
     if (!w.withYou && w.battles >= 3 && R() < 0.3) { W.splice(W.indexOf(w), 1); sayAll(`${The(w.a)} and ${the(w.b)} make peace`); }
@@ -2357,8 +2371,8 @@ export function initCampaign(c, battle, withPlayer) {
     const p = toMap(pos(e)), ct = cityAt(cv, ...p, view.z), id = nationAt(E(), cv, ...p);
     cv.style.cursor = ct || id ? "pointer" : "grab";
     if (ct !== hovCity || id !== hov) { hovCity = ct; hov = id; paint(); }
-    const px = pos(e), fh = foeHit(cv, ...px), ah = !fh && armyHit(cv, ...px), sh = !fh && !ah && fleetHit(cv, ...px);
-    if (fh || ah) { cv.style.cursor = "pointer"; armyTip(fh, ah, e); } else if (sh) { cv.style.cursor = "pointer"; fleetTip(sh, e); } else townTip(ct, e);
+    const px = pos(e), fh = foeHit(cv, ...px), ah = !fh && armyHit(cv, ...px), wh = !fh && !ah && warHit(cv, ...px), sh = !fh && !ah && !wh && fleetHit(cv, ...px), bf = !fh && !ah && !wh && !sh && !ct && fieldHit(cv, ...px);
+    if (bf) fieldTip(bf, e); else if (wh) { cv.style.cursor = "pointer"; armyTip(wh, null, e); } else if (fh || ah) { cv.style.cursor = "pointer"; armyTip(fh, ah, e); } else if (sh) { cv.style.cursor = "pointer"; fleetTip(sh, e); } else townTip(ct, e);
   };
   cv.onmouseleave = () => { drag = null; hov = null; hovCity = null; townTip(null); paint(); };
   // (right-click: your army sent there)
@@ -2389,6 +2403,8 @@ export function initCampaign(c, battle, withPlayer) {
     if (hit && hit.id !== (C.ar | 0)) { doAct({ k: "usearmy", id: hit.id }); armySel = false; }
     if (hit) { armySel = !armySel; selCity = null; sel = null; note = armySel ? `${(C.armies || []).length ? `The ${armyName(C.ar | 0).toLowerCase()}` : "Your army"}: right-click anywhere on the map to march there. A year's march takes it about 350 km; a town within that is in its reach.` : ""; drawMap(); sfx("drum", 0.25); return; }
     armySel = false;
+    const wh = !thru && warHit(cv, ...pos(e));
+    if (wh) { selCity = null; sel = wh; note = ""; drawMap(); sfx("drum", 0.2); return; }
     const p = toMap(pos(e)), ct = (thru ? dot.ct : null) || cityAt(cv, ...p, view.z) || loyTownAt(...p);
     selCity = ct || null; sel = ct ? cityOwner(grid(), ct) : nationAt(E(), cv, ...p); note = "";
     // (the peoples' country: whose it is, and that it isn't a crown's)
@@ -2437,9 +2453,11 @@ export function initCampaign(c, battle, withPlayer) {
         if (!C) return;
         const mm = ak && ak.match(/^mine-(\d+)$/), fid = ak && (ak.startsWith("foe-") ? ak.slice(4) : ak.startsWith("war-") ? ak.slice(4) : ak.startsWith("p-") ? ak.slice(2) : null);
         const sh = !ak && fleetOf3d(eu3d.fleetAt(px, py)); if (sh) eu3d.el.style.cursor = "pointer";
+        const bfn = !ak && !sh && !(hit && hit.city) && eu3d.markAt(px, py, /^fought:/), bf3 = bfn && (C.E.fought || []).find(f => "fought:" + f.x + "," + f.y === bfn);
         if (mm) armyTip(null, { id: +mm[1] }, e);
         else if (fid && (NATIONS[fid] || isColo(fid))) armyTip(fid, null, e);
         else if (sh) fleetTip(sh, e);
+        else if (bf3) fieldTip(bf3, e);
         else townTip(hit && hit.city ? CITIES.find(c => c[0] === hit.city) || null : null, e);
       });
       addEventListener("mouseup", e => {
@@ -2654,7 +2672,7 @@ function fleetTip(sh, e) {
   for (const s2 of f.ships) kinds[s2.k] = (kinds[s2.k] || 0) + 1;
   const mix = Object.entries(kinds).map(([k, n]) => `${n} ${(n === 1 ? SHIPS[k].one : SHIPS[k].name).toLowerCase()}`).join(", ");
   el.innerHTML = `<b>${esc(sh.mine != null && (C.fleets || []).length > 1 ? fleetName(f) : who)}</b><small>${f.ships.length} ship${f.ships.length === 1 ? "" : "s"}: ${esc(mix)}</small><span>${f.go ? "Under sail" : sh.mine != null ? "At anchor · click, then right-click the sea to sail" : sh.mine == null && atWar(crownOf(sh.foe.replace(/^p:([^:]+):.*$/, "$1"))) ? "At war with you" : "At anchor"}</span>`;
-  el.style.display = "block"; el.style.left = Math.min(innerWidth - 220, e.clientX + 16) + "px"; el.style.top = Math.min(innerHeight - 70, e.clientY + 14) + "px";
+  placeTip(el, e);
 }
 function armyTip(foe, mine, e) {
   let el = $("cmpTip"); if (!el) { el = document.createElement("div"); el.id = "cmpTip"; el.className = "cmp-tip"; $("campaign").appendChild(el); }
@@ -2662,7 +2680,20 @@ function armyTip(foe, mine, e) {
   else if (foe && isColo(foe)) { const b = crownOf(foe), c = coloOf(foe) || {}; el.innerHTML = `<b>${esc(poss(The(b)))} colonial army</b><small>${knowsArmy(b) ? `${c.n | 0} regiments` : "Its size unknown"} · its colonists and soldiers in the New World</small><span>${c.go ? `Marching on ${esc(c.go)}` : "Holding its colonies"}${canField(foe) ? " · within your reach" : ""}</span>`; }
   else if (foe) { const tg = C.foeGo && C.foeGo[foe], fg = C.foeGen && C.foeGen[foe]; el.innerHTML = `<b>${esc(poss(The(foe)))} army</b><small>${knowsArmy(foe) ? `${C.foes[foe] | 0} regiments` : "Its size unknown"}${fg ? ` · under ${esc(fg.name)}` : ""}</small><span>${tg ? `Marching on ${esc(tg)}` : !C.E.war[foe] ? (en => en.length ? `At war with ${esc(en.length > 1 ? en.slice(0, -1).map(x => the(x)).join(", ") + " and " + the(en[en.length - 1]) : the(en[0]))} · not with you` : "At home")((C.E.wars || []).filter(w => w.a === foe || w.b === foe).map(w => w.a === foe ? w.b : w.a)) : "In the field"}${C.E.war[foe] && canField(foe) ? " · within your reach" : ""}</span>`; }
   else { const id = mine.id, A = id === (C.ar | 0) ? C : (C.armies || []).find(a => a.id === id) || {}, n = (C.units || []).filter(u => !u.at && (u.ar | 0) === id).length; el.innerHTML = `<b>${(C.armies || []).length ? esc(armyName(id)) : "Your army"}</b><small>${n} regiments${A.gen ? ` · under ${esc(A.gen.name)}` : " · no general"}</small><span>${A.siege ? `Besieging ${esc(A.siege.ct)}` : A.go ? "On the march" : A.moved ? "Marched this year" : "Ready to march"}</span>`; }
-  el.style.display = "block"; el.style.left = Math.min(innerWidth - 220, e.clientX + 16) + "px"; el.style.top = Math.min(innerHeight - 70, e.clientY + 14) + "px";
+  placeTip(el, e);
+}
+// (a battlefield: where, between whom, who had the day)
+function fieldTip(f, e) {
+  let el = $("cmpTip"); if (!el) { el = document.createElement("div"); el.id = "cmpTip"; el.className = "cmp-tip"; $("campaign").appendChild(el); }
+  const w = f.w && NATIONS[f.w] ? f.w : null, l = f.l && NATIONS[f.l] ? f.l : null;
+  el.innerHTML = `<b>${f.at ? `The battle ${f.took ? "for" : "near"} ${esc(f.at)}` : "A battlefield"}</b><small>${f.yr || C.year - 1}${w && l ? ` · ${esc(The(w))} against ${esc(the(l))}` : ""}</small><span>${w && l ? (f.took ? `${esc(The(w))} ${v3(w, "won")} the day and took the town.` : `${esc(The(w))} ${v3(w, "won")} the day; ${esc(poss(the(l)))} army fell back.`) : "Fought this year."}</span>`;
+  placeTip(el, e);
+}
+// (beside the pointer, and kept whole inside the window: flipped to the pointer's other side near the right or bottom edge)
+function placeTip(el, e) {
+  el.style.display = "block"; el.style.left = "0px"; el.style.top = "0px"; el.style.width = ""; el.style.maxWidth = "300px"; const w = Math.min(innerWidth - 8, el.offsetWidth + 1), h = el.offsetHeight; el.style.width = w + "px";
+  el.style.left = Math.max(4, e.clientX + 16 + w > innerWidth - 4 ? e.clientX - 12 - w : e.clientX + 16) + "px";
+  el.style.top = Math.max(4, e.clientY + 14 + h > innerHeight - 4 ? e.clientY - 10 - h : e.clientY + 14) + "px";
 }
 // (a town under the pointer: its name, how great it is, whose, and its people — beside the pointer)
 function townTip(ct, e) {
@@ -2671,7 +2702,7 @@ function townTip(ct, e) {
   if (!el) { el = document.createElement("div"); el.id = "cmpTip"; el.className = "cmp-tip"; $("campaign").appendChild(el); }
   const o = cityOwner(grid(), ct), r = popRate(ct);
   el.innerHTML = `<b>${esc(ct[0])}</b><small>${["", "A town", "A city", "A great city"][ct[3]]}${o ? ` · ${o === C.me ? "yours" : esc(NATIONS[o].name)}` : ""}</small><span>${fmtN(popOf(ct))} people${o === C.me && r ? ` · ${r > 0 ? "+" : "−"}${Math.abs(r * 100).toFixed(1)}% a year` : ""}</span>${o === C.me ? `<span>${orderWord(orderOf(ct))}${garUnits(ct[0]).length ? ` · ${garUnits(ct[0]).length} regiment${garUnits(ct[0]).length > 1 ? "s" : ""} holding it` : ""}${raising(ct[0]).length ? ` · raising ${raising(ct[0]).length}` : ""}</span>` : ""}`;
-  el.style.display = "block"; el.style.left = Math.min(innerWidth - 200, e.clientX + 16) + "px"; el.style.top = Math.min(innerHeight - 70, e.clientY + 14) + "px";
+  placeTip(el, e);
 }
 // ---- land changing hands, shown spreading: out from the taker's own border across the province, a square at a time,
 //  rather than the whole of it changing colour at once ----
@@ -2988,6 +3019,18 @@ function foeHit(cv, px, py) {
     const x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); if (Math.hypot(px - x, py - y - 3 * u) < 16 * u) return id;
   }
   for (const [id, c] of Object.entries(colonies())) { if (!atWar(id) || !(c.n > 0)) continue; const p = { x: c.pos.x + (foeOff[id + COLO] || 0), y: c.pos.y }, x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); if (Math.hypot(px - x, py - y - 3 * u) < 16 * u) return id + COLO; }
+  return null;
+}
+// (the other crowns' armies at war with each other, not with you: pointed at, they're said, and clicked, their crown)
+function warHit(cv, px, py) {
+  if (!C) return null; const S = cv.width / MG_W, u = armyU(cv.width / 1300);
+  for (const id of othersAtWar()) { const p0 = foeArmyPos(id); if (!p0 || !isFinite(p0.x)) continue; const p = { x: p0.x + (foeOff[id] || 0), y: p0.y }, x = (p.x * S - view.ox) * view.z, y = (p.y * S - view.oy) * view.z + townNudge(p, u); if (Math.hypot(px - x, py - y - 3 * u) < 16 * u) return id; }
+  return null;
+}
+// (a battlefield of the year's wars, pointed at on the parchment: where its crossed swords are drawn)
+function fieldHit(cv, px, py) {
+  if (!C || !C.E.fought) return null; const S = cv.width / MG_W, k = armyU(cv.width / 1300);
+  for (const f of C.E.fought) { const x = (f.x * S - view.ox) * view.z, y = (f.y * S - view.oy) * view.z - 6 * k; if (Math.hypot(px - x, py - y) < 9 * k) return f; }
   return null;
 }
 function armyHit(cv, px, py) {

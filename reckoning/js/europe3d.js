@@ -1194,6 +1194,7 @@ export class EuropeView3D {
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
       sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.62 : swords ? 0.5 : 0.42), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       if (arm || swords) sp.userData.over = { y0, stack: arm ? 1 : 0 };
+      sp.userData.name = m.name;
       grp.add(sp);
     }
     this.scene.add(grp);
@@ -1544,6 +1545,12 @@ export class EuropeView3D {
     if (!this.fleetMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = unitDist(this.dist) * FLEET_K * 10;
     // (any ship of the squadron, not only the one leading it)
     for (const [k, F] of this.fleetMap) for (const hg of F.ship.userData.hulls || [F.ship]) { hg.getWorldPosition(v); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
+    return best;
+  }
+  // the mark under a point on the view (its name), of those whose names match `rx`
+  markAt(px, py, rx) {
+    if (!this.markGroup) return null; const v = new THREE.Vector3(); let best = null, bd = 14;
+    for (const sp of this.markGroup.children) { const n = sp.userData.name; if (!n || (rx && !rx.test(n))) continue; v.copy(sp.position).project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = n; } }
     return best;
   }
   // what is under a point on the view: a city's name, or the ground (lon, lat)

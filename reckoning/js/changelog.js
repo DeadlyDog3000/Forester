@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.98.0", date: "19 October 2026", title: "Battle news",
+    items: [
+      "Campaign: point at a battlefield's crossed swords, on the parchment or the land seen close, to read which battle it was: the town it was fought for or near, the year, who fought it and who won the day.",
+      "Campaign: the year's gazette reports the battles that matter to you, a great power's or a neighbour's, by the town they were fought near, and every town taken near your borders, not only the great cities.",
+      "Campaign parchment map: point at another crown's army in its own wars to see whose it is, who leads it and whom it's fighting, as on the land seen close; click it for that crown.",
+      "Campaign: the map's notes beside the pointer stay whole inside the window, turning to the pointer's other side near an edge, instead of running off the bottom.",
+    ],
+  },
+  {
     v: "1.97.0", date: "19 October 2026", title: "Battlefields",
     items: [
       "Campaign: where the other crowns fought each other this year is marked on both maps until next year's fighting: crossed swords in a dark ink, and on the land seen close the smoke still drifting off the field.",
