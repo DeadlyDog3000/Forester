@@ -53,8 +53,8 @@ async function settle(v) {
 //  low, but the film's does — so the far ones are left off)
 function fixSize(v, k) {
   if (k == null) return;
-  if (v.armyGroup) for (const o of v.armyGroup.children) if (o.userData.army) o.scale.setScalar(k * 0.022);
-  if (v.fleetGroup) for (const o of v.fleetGroup.children) if (o.userData.fleet) o.scale.setScalar(k * 0.0036);
+  if (v.armyGroup) for (const o of v.armyGroup.children) if (o.userData.army) o.scale.setScalar(k * 0.03);
+  if (v.fleetGroup) for (const o of v.fleetGroup.children) if (o.userData.fleet) o.scale.setScalar(k * 0.005);
 }
 // (a march or a voyage drawn out longer than the map plays it, the men's own steps left at their pace)
 function slowGlides(v, f) {

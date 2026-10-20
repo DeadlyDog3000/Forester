@@ -1722,6 +1722,7 @@ function station(n, k, out) {
   const ct = CITIES.find(c => c[0] === n); if (!ct || cityOwner(grid(), ct) !== C.me || !armyAt(ct)) return "Your army must stand at the town.";
   reconcile();
   if (out) { const all = !k || k === "*", L = garUnits(n).filter(u => all || u.k === k); if (!L.length) return null; for (const u of all ? L : [L[0]]) { delete u.at; u.ar = C.ar | 0; } }
+  else if (k === "*") { const L = field(); if (!L.length) return null; for (const u of L) u.at = n; }
   else { const L = field().filter(u => u.k === k); if (!L.length) return null; L.reduce((a, b) => (b.hp > a.hp ? b : a)).at = n; }
   C.army = Math.round(unitSum()); persist(); return null;
 }
@@ -2142,7 +2143,7 @@ function endSeason(part = {}) {
   });
   // (an army sent to join another, there now: the two made one)
   { const keep = C.ar | 0; for (let pass = 0; pass < 6; pass++) { let done = false; for (const id of armyIds()) { useArmy(id); const to = C.joinTo; if (to == null) continue; const T = (C.armies || []).find(a => a.id === to); if (!T) { C.joinTo = null; continue; } if (T.pos && !T.siege && C.emb == null && dist2(T.pos, armyPos()) <= 3) { C.joinTo = null; const name = armyName(to); if (!joinArmy(to)) { say(`Reinforcements reach the ${name.toLowerCase()}`, `The regiments sent to join it march into its camp: ${armyStr()}.`); done = true; break; } } } if (!done) break; } useArmy(armyIds().includes(keep) ? keep : armyIds()[0]); }
-  say(`${C.year}`, `${income(grid()) - upkeep() >= 0 ? "+" : ""}${income(grid()) - upkeep()} thalers a year. ${C.events.filter(e => !e.done).length ? "Things need your word." : ""}`);
+  say(`${C.year}`, `${income(grid()) - upkeep() >= 0 ? "+" : "−"}${Math.abs(income(grid()) - upkeep())} thalers profit a year. ${C.events.filter(e => !e.done).length ? "Things need your word." : ""}`);
   checkEnd(); persist();
 }
 function crownsWar(g, ids) {
@@ -2972,7 +2973,7 @@ function drawMap(fit = false) {
 function drawTop() {
   const g = grid(), n = citiesOfNow(g, C.me).length, net = income(g) - upkeep(), wars = Object.keys(C.E.war).filter(id => C.E.war[id]);
   $("cmpTop").innerHTML = `<span class="cmp-crownname"><i style="background:${NATIONS[C.me].color}"></i>${esc(NATIONS[C.me].name)}</span>
-    <span><small>Year</small><b>${C.year}</b></span><span title="${esc(`A year: ${income(g)} thalers in — from your towns at ${TAX[C.tax ?? 1].n.toLowerCase()} taxes, and trade — and ${upkeep()} out on the upkeep of ${(C.units || []).length} regiments`)}"><small>Treasury</small><b>${C.gold}</b> <em class="${net >= 0 ? "up" : "down"}">${net >= 0 ? "+" : ""}${net}</em></span>
+    <span><small>Year</small><b>${C.year}</b></span><span title="${esc(`Profit a year: ${net >= 0 ? "+" : "−"}${Math.abs(net)} thalers. In: ${income(g)} from your towns at ${TAX[C.tax ?? 1].n.toLowerCase()} taxes, and trade. Out: ${upkeep()} on the upkeep of ${(C.units || []).length} regiments${shipUp() ? " and the fleet" : ""}. What you spend on raising, building and the rest comes out as you spend it.`)}"><small>Treasury</small><b>${C.gold}</b> <em class="${net >= 0 ? "up" : "down"}">${net >= 0 ? "+" : "−"}${Math.abs(net)} profit a year</em></span>
     <span><small>${(C.armies || []).length ? `Armies · ${armyIds().length}` : "Army"}</small><b>${allField().length}</b> regiments${(C.units || []).some(u => u.at) ? ` <em title="Regiments in your towns' garrisons">+${C.units.filter(u => u.at).length}</em>` : ""}</span><span><small>People</small><b>${fmtN(citiesOfNow(g, C.me).reduce((t, ct) => t + popOf(ct), 0))}</b></span><span><small>Towns</small><b>${n}</b> of ${(goalOf() || {}).n || WIN_CITIES}</span><span class="cmp-wars" title="${esc(wars.length ? wars.map(id => NATIONS[id].name).join(", ") : "")}"><small>At war with</small><b>${wars.length ? wars.slice(0, 2).map(id => esc(NATIONS[id].name)).join(", ") + (wars.length > 2 ? ` +${wars.length - 2} more` : "") : "nobody"}</b></span>${C.mp ? (() => { const o = humans().find(h => h !== C.me), ready = C.mp.ready[o]; return `<span class="cmp-mate"><small>${esc(nameOf(o))}</small><b><i style="background:${NATIONS[o].color}"></i>${esc(NATIONS[o].name)}</b><em class="${ready ? "up" : ""}">${mp && mp.gone ? "has left" : ready ? "ready to end the year" : "playing their year"}</em></span>`; })() : ""}`;
   const open = C.events.filter(e => !e.done).length, mine = C.mp && C.mp.ready[C.me], other = C.mp && humans().find(h => h !== C.me);
   $("cmpEnd").disabled = !!C.over || open > 0 || !!(mp && mp.gone); $("cmpEnd").textContent = C.over ? "The campaign is over" : open ? "Answer what's waiting first" : mine ? `Waiting for ${nameOf(other)}…` : "End the year";
@@ -3051,7 +3052,7 @@ function garHtml(ct) {
   if (!G.length && !here) return "";
   let h = `<div class="cmp-subh">Garrison regiments${G.length ? ` · ${G.length}` : ""}</div>`;
   if (G.length) h += `<div class="cmp-gar">${Object.entries(by).map(([k, c]) => `<span title="${esc(TROOPS[k].name)}">${unitImg(k, "sm")}<b>${c}</b>${here ? `<button class="tm-lnk" data-unstation="${k}">To the army</button>` : ""}</span>`).join("")}${here && G.length > 1 ? `<button class="tm-lnk" data-unstation="*">All to the army</button>` : ""}</div>`;
-  if (here && Object.keys(fk).length) h += `<div class="cmp-gar leave"><small>Leave in ${esc(n)}:</small>${Object.entries(fk).map(([k, c]) => `<button class="cmp-rmini" data-station="${k}" title="Leave a regiment of ${esc(TROOPS[k].name.toLowerCase())} to hold ${esc(n)} (${c} in the army)">${unitImg(k)}</button>`).join("")}</div>`;
+  if (here && Object.keys(fk).length) h += `<div class="cmp-gar leave"><small>Leave in ${esc(n)}:</small>${Object.entries(fk).map(([k, c]) => `<button class="cmp-rmini" data-station="${k}" title="Leave a regiment of ${esc(TROOPS[k].name.toLowerCase())} to hold ${esc(n)} (${c} in the army)">${unitImg(k)}</button>`).join("")}${field().length > 1 ? `<button class="tm-lnk" data-station="*" title="Every regiment of this army goes into ${esc(n)}'s garrison">The whole army</button>` : ""}</div>`;
   else if (G.length && !here) h += `<small class="cmp-fine">Bring an army here to take them into it.</small>`;
   if (G.length && armyIds().length && field().length + (C.armies || []).length) h += `<div class="cmp-gar send"><small>Send to:</small>${armyIds().filter(id => (C.units || []).some(u => !u.at && (u.ar | 0) === id)).map(id => `<button class="tm-lnk" data-sendgar="${id}" title="March ${esc(n)}'s garrison out to the ${esc(armyName(id).toLowerCase())}, and join it when it gets there">${esc(armyName(id))}</button>`).join("")}</div>`;
   if (G.length) h += `<div class="cmp-acts"><button class="btn" data-form="1" title="March the garrison out as an army of its own">Form a new army from the garrison</button></div>`;

@@ -25,6 +25,25 @@ export const U = 10;                                       // units per degree o
 // (the sheet's size, from the one in use — Europe's for the story, the world's for a campaign: taken up afresh whenever
 //  the land's built or drawn)
 let MAP_W = 1, MAP_H = 1, CELL = 1;
+// (the companies and the ships kept the same size on the view however near or far: a man about a thirtieth of the view's
+//  height, a ship's length about a fifteenth; and a company at a town drawn up clear in front of its houses, this far
+//  out on the land, never among the roofs where it can't be seen)
+const ARMY_K = 0.03, FLEET_K = 0.005, TOWN_CLEAR = 0.38;
+// a ship's wake: a pale vee of foam opening out astern, fading as it goes
+let _wakeTex = null, _wakeGeo = null;
+const wakeTex = () => {
+  if (_wakeTex) return _wakeTex;
+  const cv = document.createElement("canvas"); cv.width = 64; cv.height = 128; const c = cv.getContext("2d");
+  for (let y = 0; y < 128; y++) {
+    const k = y / 127, half = 6 + k * 26, a = (1 - k) * 0.9;
+    const g = c.createLinearGradient(32 - half, 0, 32 + half, 0);
+    g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(0.12, `rgba(255,255,255,${a})`); g.addColorStop(0.3, `rgba(255,255,255,${a * 0.25})`);
+    g.addColorStop(0.7, `rgba(255,255,255,${a * 0.25})`); g.addColorStop(0.88, `rgba(255,255,255,${a})`); g.addColorStop(1, "rgba(255,255,255,0)");
+    c.fillStyle = g; c.fillRect(32 - half, y, half * 2, 1);
+  }
+  _wakeTex = new THREE.CanvasTexture(cv); _wakeTex.colorSpace = THREE.SRGBColorSpace; return _wakeTex;
+};
+const wakeGeo = () => { if (!_wakeGeo) { _wakeGeo = new THREE.PlaneGeometry(16, 44); _wakeGeo.translate(0, 22, 0); } return _wakeGeo; };
 const sync = () => { MAP_W = (BOUNDS.lon1 - BOUNDS.lon0) * K * U; MAP_H = (BOUNDS.lat1 - BOUNDS.lat0) * U; CELL = MAP_W / GW; };
 // (the land laid out as the sheet is: in its effective degrees — North America larger, as on the map)
 export const toWorld = (lon, lat) => { const [ex, ey] = fwd(lon, lat); return [(ex - BOUNDS.lon0) * K * U, (BOUNDS.lat1 - ey) * U]; };
@@ -1182,14 +1201,25 @@ export class EuropeView3D {
     const dropSp = F => { if (F.sp) { grp.remove(F.sp); F.sp.material.map.dispose(); F.sp.material.dispose(); F.sp = null; } };
     for (const f of list) {
       seen.add(f.name);
-      const look = f.color + "|" + !!f.mine + "|" + !!this.fleetModel, [x, z] = toWorld(f.lon, f.lat);
+      // (a squadron, not a lone ship: one hull for every two in the fleet, up to three, the others astern in echelon)
+      const hulls = Math.max(1, Math.min(3, Math.ceil((f.n | 0) / 2)));
+      const look = f.color + "|" + !!f.mine + "|" + !!this.fleetModel + "|" + hulls, [x, z] = toWorld(f.lon, f.lat);
       let F = M.get(f.name);
       if (F && F.look !== look) { grp.remove(F.ship); dropSp(F); M.delete(f.name); F = null; }
       if (!F) {
         const ship = new THREE.Group(); ship.position.set(x, 0, z); ship.rotation.y = f.yaw || 0; ship.userData.fleet = true;
-        const m = modelCopy("ship");
-        if (m) { m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(f.color); } } }); ship.add(m.scene); }
-        else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; ship.add(hull); }
+        const SLOTS = [[0, 0], [-9, -24], [9, -30]], hullsG = [];
+        for (let h = 0; h < hulls; h++) {
+          const hg = new THREE.Group(); hg.position.set(SLOTS[h][0], 0, SLOTS[h][1]);
+          const m = modelCopy("ship");
+          if (m) { m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(f.color); } } }); hg.add(m.scene); }
+          else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; hg.add(hull); }
+          // (her wake: a pale vee of foam spreading behind her, seen only while she's under way)
+          const wk = new THREE.Mesh(wakeGeo(), new THREE.MeshBasicMaterial({ map: wakeTex(), transparent: true, opacity: 0, depthWrite: false })); wk.userData.wake = true; wk.renderOrder = 2;
+          wk.rotation.x = -Math.PI / 2; wk.position.set(0, 0.6, -24); hg.add(wk);
+          hg.userData.roll = h * 1.7; ship.add(hg); hullsG.push(hg);
+        }
+        ship.userData.hulls = hullsG;
         const pen = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.6), new THREE.MeshBasicMaterial({ color: f.color, side: THREE.DoubleSide })); pen.geometry.translate(3.5, 0, 0); pen.position.set(0, 25, 2.5); pen.rotation.y = Math.PI / 2; ship.add(pen);
         grp.add(ship); F = { ship, look, to: [x, z], face: f.yaw || 0, n: null, sp: null, glide: null }; M.set(f.name, F);
       } else if (Math.hypot(F.to[0] - x, F.to[1] - z) > 0.02) {
@@ -1240,8 +1270,9 @@ export class EuropeView3D {
       }
       R.to = [x, z];
       // (standing in a town: drawn a little in front of it, toward the eye, so the town's name doesn't hide it)
-      if (this.townXZSheet !== SHEET) { this.townXZSheet = SHEET; this.townXZ = CITIES.map(c => toWorld(c[1], c[2])); }
-      R.nudge = this.townXZ.some(([tx, tz]) => Math.hypot(tx - x, tz - z) < 0.35) ? 3.2 : 0;
+      if (this.townXZSheet !== SHEET) { this.townXZSheet = SHEET; this.townXZ = CITIES.map(c => [...toWorld(c[1], c[2]), c[3] | 0]); }
+      // (out past the houses: further for a great city, whose streets spread wider, than for a market town)
+      { const t = this.townXZ.find(([tx, tz]) => Math.hypot(tx - x, tz - z) < 0.35); R.nudge = t ? TOWN_CLEAR + t[2] * 0.12 : 0; }
       // (which way it faces when it isn't walking: toward where it's bound, or as it last went)
       if (A.march && A.glon != null) { const [gx, gz] = toWorld(A.glon, A.glat); R.face = Math.atan2(gx - x, gz - z); }
       R.march = !!A.march; this.stride(R);
@@ -1391,13 +1422,19 @@ export class EuropeView3D {
           if (q >= 1) { F.glide = null; F.ship.position.x = F.to[0]; F.ship.position.z = F.to[1]; if (!F.bound) F.face = F.ship.rotation.y; }
         }
         const r0 = F.ship.rotation.y; F.ship.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 3);
+        // (each hull rolling a little on the swell, and her wake showing as she makes way)
+        const way = F.glide ? Math.min(1, Math.min((now - F.glide.t0) / 600, (F.glide.t0 + F.glide.dur - now) / 900)) : 0;
+        for (const hg of F.ship.userData.hulls || []) {
+          hg.rotation.z = Math.sin(now / 1100 + hg.userData.roll) * 0.05; hg.rotation.x = Math.sin(now / 1500 + hg.userData.roll * 0.7) * 0.025;
+          for (const c of hg.children) if (c.userData.wake) { const o = c.material.opacity + (Math.max(0, way) * 0.75 - c.material.opacity) * Math.min(1, dt * 3); c.material.opacity = o; c.visible = o > 0.01; }
+        }
       } }
-    if (this.fleetGroup) { const k = this.dist * 0.0036; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
+    if (this.fleetGroup) { const k = this.dist * FLEET_K; for (const o of this.fleetGroup.children) { if (o.userData.fleet) o.scale.setScalar(k); else if (o.userData.over) o.position.set(o.userData.over.position.x, k * 38, o.userData.over.position.z); } }
     // (the armies the same: a man about a fiftieth of the view's height, standing on the ground where he is; and their
     //  steps, their breathing, their colours stirring)
     if (this.armyGroup) {
       const now = performance.now(), dt = Math.min(0.1, (now - (this.armyT || now)) / 1000); this.armyT = now;
-      const k = this.dist * 0.022;
+      const k = this.dist * ARMY_K;
       // (the companies on the march across the view: along their road, starting off and drawing up gently, turned the
       //  way they go — and the turn itself eased, not snapped)
       for (const R of (this.armyMap || new Map()).values()) {
@@ -1411,7 +1448,7 @@ export class EuropeView3D {
           if (q >= 1) { R.glide = null; R.co.position.x = R.to[0]; R.co.position.z = R.to[1]; this.stride(R); }
         }
         const r0 = R.co.rotation.y; R.co.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 6);
-        { const ry = R.co.rotation.y, d = R.glide ? 0 : R.nudge, cur = R.inner.userData.d || 0, nd = cur + (d - cur) * Math.min(1, dt * 4); R.inner.userData.d = nd; R.inner.position.set(-nd * Math.sin(ry), 0, nd * Math.cos(ry)); }
+        { const ry = R.co.rotation.y, d = R.glide ? 0 : R.nudge / k, cur = R.inner.userData.d || 0, nd = cur + (d - cur) * Math.min(1, dt * 4); R.inner.userData.d = nd; R.inner.position.set(-nd * Math.sin(ry), 0, nd * Math.cos(ry)); }
       }
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }
@@ -1431,13 +1468,13 @@ export class EuropeView3D {
   }
   // the company under a point on the view, by where it's drawn (stepped out in front of a town, walking): its key, or null
   armyAt(px, py, reach = 34) {
-    if (!this.armyMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * 0.022 * 0.9;
+    if (!this.armyMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * ARMY_K * 0.9;
     for (const [k, R] of this.armyMap) { R.inner.getWorldPosition(v); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
     return best;
   }
   // the fleet under a point on the view, by where her ship is drawn: its name, or null
   fleetAt(px, py, reach = 30) {
-    if (!this.fleetMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * 0.0036 * 10;
+    if (!this.fleetMap) return null; let best = null, bd = reach; const v = new THREE.Vector3(), lift = this.dist * FLEET_K * 10;
     for (const [k, F] of this.fleetMap) { v.copy(F.ship.position); v.y += lift; v.project(this.camera); if (v.z > 1) continue; const d = Math.hypot((v.x + 1) / 2 * this.w - px, (1 - v.y) / 2 * this.h - py); if (d < bd) { bd = d; best = k; } }
     return best;
   }

@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.93.0", date: "19 October 2026", title: "Squadrons",
+    items: [
+      "Campaign 3D map: a fleet is drawn as a squadron, one ship for every two it has (up to three) sailing in echelon, each rolling on the swell, with a wake of foam astern while it's under way.",
+      "Campaign 3D map: armies and fleets are drawn about a third larger, and an army at a town stands drawn up in front of it rather than among its roofs, further out for a great city.",
+      "Campaign: a town's garrison can take the whole army at once (\"The whole army\" beside the regiments to leave there), as well as one regiment at a time.",
+      "Campaign: the treasury's yearly figure now says \"profit a year\": what comes in from your towns and trade less the upkeep of your regiments and ships. Point at it for the sums.",
+      "Campaign: the war room's ticking clock is gone; only the fire in the hearth is left under the map.",
+    ],
+  },
+  {
     v: "1.92.7", date: "18 October 2026", title: "Ships of the line",
     items: [
       "Campaign map: point at a fleet, on the parchment or the land seen close, to see whose it is, how many ships and of what kinds, and whether she's under sail.",

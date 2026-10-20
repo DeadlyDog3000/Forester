@@ -557,8 +557,8 @@ Object.assign(SHOTS, {
     cam(t, c) {
       const L = lines(); if (!L) return; const B = L.B, k = E(t);
       this.s ||= { x: B.x, z: B.z }; this.s.x += (B.x - this.s.x) * 0.05; this.s.z += (B.z - this.s.z) * 0.05; const S = this.s;
-      const x = S.x + L.r[0] * (11 - k * 2) + L.f[0] * 3, z = S.z + L.r[1] * (11 - k * 2) + L.f[1] * 3;
-      rig.look(c, [x, gy(x, z) + 1.6, z], [S.x - L.f[0] * 3, gy(S.x, S.z) + 1.4, S.z - L.f[1] * 3], 46);
+      const x = S.x - L.r[0] * (17 - k * 2) + L.f[0] * 4, z = S.z - L.r[1] * (17 - k * 2) + L.f[1] * 4;
+      rig.look(c, [x, gy(x, z) + 2.6, z], [S.x - L.f[0] * 5, gy(S.x, S.z) + 1.6, S.z - L.f[1] * 5], 42);
     },
     done() { this.s = null; },
   },
@@ -677,10 +677,16 @@ export const film = {
     const tall = shape === "tall";
     const camFn = S.cam ? (t, c) => { S.cam.call(S, t, c); if (tall) { c.fov = Math.min(80, c.fov * 1.55); c.updateProjectionMatrix(); } } : null;
     let i = 0;
+    // (the camera eased toward where the shot puts it each frame, never jumped there: a shot that follows something —
+    //  a walker, a herd, a line of men whose middle shifts as they fall — would otherwise carry every wobble of it)
+    const sm = S.smooth ?? 0.18, P = new THREE.Vector3(), Q = new THREE.Quaternion(); let first = true;
     const n = await rig.shot(`${shape}/${name}`, S.secs, (t, c) => {
       if (S.tick) S.tick.call(S, t, i);
       i++;
-      if (camFn) camFn(t, c);
+      if (camFn) {
+        camFn(t, c);
+        if (sm < 1) { if (first) { P.copy(c.position); Q.copy(c.quaternion); first = false; } else { P.lerp(c.position, sm); Q.slerp(c.quaternion, sm); c.position.copy(P); c.quaternion.copy(Q); } }
+      }
       else if (tall) { c.fov = 78; c.updateProjectionMatrix(); }
     }, { from });
     rig.hands(true);

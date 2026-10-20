@@ -636,8 +636,8 @@ const RECIPES = {
     }
     return finish(d, 0.7);
   },
-  // the room the campaign is planned in: a fire low in the hearth, and a pendulum clock on the wall — tick and tock, the
-  // escapement's small hard click in the wooden case — made eight seconds long, to the second, so it loops on the beat
+  // the room the campaign is planned in: a fire low in the hearth (no clock: its ticking wore on players), made long
+  // enough to loop without being heard to
   room(sr) {
     const L = 8, X = 0.4, n = Math.floor(sr * (L + X)), d = new Float32Array(n);
     const lp = new Biquad("lp", 420, 0.5, sr), hp = new Biquad("hp", 120, 0.5, sr); let flick = 0;
@@ -647,12 +647,6 @@ const RECIPES = {
     // (the seam: the end folded into the start)
     const xf = Math.floor(sr * X), N = n - xf; for (let i = 0; i < xf; i++) { const k = i / xf; d[i] = d[i] * k + d[N + i] * (1 - k); }
     const out = d.subarray(0, N);
-    // (the clock: a beat a second, the tock a shade lower and softer than the tick)
-    for (let k = 0; k < L; k++) {
-      const t = 0.25 + k, tick = k % 2 === 0, f = tick ? 1 : 0.86;
-      modes(out, sr, t, [[2400 * f, 0.012, 0.22], [3900 * f, 0.008, 0.12], [1150 * f, 0.03, 0.14], [520 * f, 0.05, 0.08]], tick ? 1 : 0.8);
-      hiss(out, sr, t, 0.006, tick ? 0.18 : 0.14, new Biquad("hp", 3000, 0.7, sr), x => Math.exp(-x / 0.0015));
-    }
     let m = 0; for (const v of out) m = Math.max(m, Math.abs(v)); for (let i = 0; i < out.length; i++) out[i] *= 0.85 / (m || 1);
     return out;
   },
@@ -807,7 +801,7 @@ export const FOLEY = {
       const f = fireSrc; fireSrc = null; f.g.gain.cancelScheduledValues(a.currentTime); f.g.gain.setTargetAtTime(0, a.currentTime, 0.3); setTimeout(() => { try { f.s.stop(); } catch (e) {} }, 2000);
     }
   },
-  // the campaign's room, under the map while it's open: the hearth and the clock, quietly
+  // the campaign's room, under the map while it's open: the hearth, quietly
   room(on) {
     const a = ac(), out = window.__foresterBus; if (!a || !out) return;
     if (on && !roomSrc) {
