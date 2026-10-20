@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.95.0", date: "19 October 2026", title: "The wars of others",
+    items: [
+      "Campaign: the wars the other crowns fight among themselves are fought on the map. Their armies march out to the front, stand before the towns they take, fall back toward home when they're beaten, and go home at the peace; both the parchment and the land seen close show them.",
+      "Campaign 3D map: point at another crown's army to see whose it is, who leads it, and whom it's fighting (\"not with you\").",
+    ],
+  },
+  {
     v: "1.94.0", date: "19 October 2026", title: "The balance of Europe",
     items: [
       "Campaign: the wars the other crowns fight among themselves follow their strength more closely. A small state rarely takes a great power's towns unless strong allies fight beside it, as the Holy League's did from the Sultan; a crown with several wars at once is less badly divided; and a much weaker side that wins a year's fighting mostly throws the attack back rather than marching on. The Turk no longer reaches Zürich and Frankfurt, nor Aragon Paris.",
