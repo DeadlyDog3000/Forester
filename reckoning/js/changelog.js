@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.24", date: "20 October 2026", title: "The Khan's men",
+    items: [
+      "Campaign: the Crimean Khanate's generals are Tatar beys and mirzas (Devlet Mirza, Kaplan Bey) rather than the Sultan's pashas, and a man called Agha or Mirza is no longer shortened to his title alone.",
+      "Campaign news: \"You are in the Holy League, with Poland–Lithuania, Venice and the Papal States\" rather than \"You are of\"; a people such as the Wabanaki go to war \"as their league binds them\"; plague in a single crown thins \"its\" armies; and a riot reads \"Its people take to the streets\".",
+    ],
+  },
+  {
     v: "1.99.23", date: "20 October 2026", title: "The gazette's wording",
     items: [
       "Campaign gazette: the opening news reads \"You are already at war with…\" instead of naming your own crown as though it were someone else's, and a march with no numbers known reads \"Its army is two years' march off\" rather than the clipped \"Its army, two years' march off\".",

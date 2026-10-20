@@ -255,7 +255,7 @@ function begin(me, into = slot) {
   if (NATIONS[me].nw) { const g = grid(), T = citiesOfNow(g, me); if (T.length === 1) { const kinds = {}; for (const u of C.units) if (!u.at) kinds[u.k] = (kinds[u.k] || 0) + 1; const k = Object.entries(kinds).sort((x, y) => y[1] - x[1])[0]; for (let i = 0; i < 6; i++) C.units.push({ k: k ? k[0] : "militia", hp: 1, at: T[0][0] }); } }
   // (where you stand in 1683: your league, your wars)
   const al = Object.keys(C.ally).filter(id => C.ally[id]), wr = Object.keys(C.E.war).filter(id => C.E.war[id]);
-  for (const L of LEAGUES_1683.filter(L => L.ids.includes(me))) say(`You are of ${L.n}`, `With ${L.ids.filter(x => x !== me).map(x => the(x)).join(", ")}.`);
+  for (const L of LEAGUES_1683.filter(L => L.ids.includes(me))) { const o = L.ids.filter(x => x !== me).map(x => the(x)); say(`You are in ${L.n}`, `With ${o.length > 1 ? o.slice(0, -1).join(", ") + " and " + o[o.length - 1] : o[0]}.`); }
   if (wr.length) say(`At war`, `You are already at war with ${wr.length > 1 ? wr.slice(0, -1).map(x => the(x)).join(", ") + " and " + the(wr[wr.length - 1]) : the(wr[0])}.`);
   say(`${The(me)} — ${C.year}`, `You take the crown. ${citiesOfNow(grid(), me).length} towns, ${C.army} regiments, ${C.gold} thalers in the treasury.${al.length ? ` Allies: ${al.length}.` : ""}`);
   save();
@@ -1833,7 +1833,7 @@ function riots(g) {
     if ((C.riotN[ct[0]] = (C.riotN[ct[0]] || 0) + 1) >= 2 && !C.events.some(e => !e.done && e.kind === "rising" && e.ct === ct[0])) { C.riotN[ct[0]] = 0; C.events.push({ kind: "rising", ct: ct[0], att: Math.round(popOf(ct) / 4000) + 3 }); }
     const w = Math.round(worth(ct) * TAX[taxAt(ct)].k); C.gold -= Math.min(Math.max(0, C.gold), w);   // (what's lost to the riot: never more than the chest holds)
     C.pop[ct[0]] = Math.round(popOf(ct) * 0.97);
-    say(`Riots in ${ct[0]}`, `${taxAt(ct) === 2 ? "The heavy taxes" : "The crowds"} drive its people into the streets. The town pays ${w ? `none of its ${w} thalers` : "nothing"} this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
+    say(`Riots in ${ct[0]}`, `${taxAt(ct) === 2 ? "The heavy taxes drive its people into the streets." : "Its people take to the streets."} The town pays ${w ? `none of its ${w} thalers` : "nothing"} this year${garUnits(ct[0]).length ? "" : "; a regiment in its garrison would keep order"}.`);
   }
 }
 // (the army's thin regiments filled up again from your towns: fast at home, slowly abroad, hardly at all in a siege)
@@ -2128,7 +2128,7 @@ function endSeason(part = {}) {
   }
   // a plague or a bad harvest, now and then
   if (world) {
-    if (R() < 0.08 && ids.length) { const id = pick(ids); C.E.plague[id] = 3; sayAll(`Plague in ${the(id)}`, "Their armies thin."); C.foes[id] = Math.round(C.foes[id] * 0.8); }
+    if (R() < 0.08 && ids.length) { const id = pick(ids); C.E.plague[id] = 3; sayAll(`Plague in ${the(id)}`, v3(id, "is") === "are" ? "Their armies thin." : "Its armies thin."); C.foes[id] = Math.round(C.foes[id] * 0.8); }
     for (const id of Object.keys(C.E.plague)) if (--C.E.plague[id] <= 0) delete C.E.plague[id];
   }
   // the season turns
@@ -2165,7 +2165,7 @@ function crownsWar(g, ids) {
     if (nb.length) {
       const b = pick(nb); W.push({ a, b, battles: 0 }); sayAll(`${The(a)} and ${the(b)} are at war`);
       // (and the attacked crown's league comes in on its side — one or two of them, as treaties were kept)
-      for (const x of alliesOf(b).filter(x => x !== a && x !== C.me && !isHuman(x) && alive(g, x) && !leagueOf(x, a) && sameSide(x, a) && !W.some(w => (w.a === x && w.b === a) || (w.a === a && w.b === x))).slice(0, 2)) if (R() < 0.6) { W.push({ a: x, b: a, battles: 0 }); sayAll(`${The(x)} ${v3(x, "comes")} in on ${poss(the(b))} side`, `Against ${the(a)}, as its league binds it.`); }
+      for (const x of alliesOf(b).filter(x => x !== a && x !== C.me && !isHuman(x) && alive(g, x) && !leagueOf(x, a) && sameSide(x, a) && !W.some(w => (w.a === x && w.b === a) || (w.a === a && w.b === x))).slice(0, 2)) if (R() < 0.6) { W.push({ a: x, b: a, battles: 0 }); sayAll(`${The(x)} ${v3(x, "comes")} in on ${poss(the(b))} side`, `Against ${the(a)}, as ${v3(x, "is") === "are" ? "their league binds them" : "its league binds it"}.`); }
     }
   }
   // (where the crowns fought this year: marked on the map until the next year's fighting)

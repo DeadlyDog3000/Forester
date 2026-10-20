@@ -163,11 +163,13 @@ const NAMES = {
   hu: [["Miklós", "Pál", "Ferenc", "István", "János", "Ádám"], ["Esterházy", "Bercsényi", "Batthyány", "Pálffy", "Zrínyi", "Károlyi", "Teleki"]],
   ro: [["Constantin", "Șerban", "Gheorghe", "Mihai", "Radu", "Dumitru"], ["Cantacuzino", "Brâncoveanu", "Duca", "Cantemir", "Băleanu", "Ghica"]],
   tr: [["Mustafa", "Ahmed", "Mehmed", "Hasan", "Hüseyin", "Ibrahim", "Süleyman", "Ali", "Ismail", "Osman"], ["Pasha", "Pasha", "Pasha", "Agha", "Bey"]],
+  // (the Khan's men: Tatar beys and mirzas of the great clans, not the Sultan's pashas)
+  crh: [["Devlet", "Selim", "Kaplan", "Mengli", "Saadet", "Adil", "Bahadır", "Mansur", "Azamat", "Kantemir"], ["Mirza", "Mirza", "Bey", "Bey", "Agha"]],
   ar: [["Hassan", "Muhammad", "Abdallah", "Ali", "Uthman", "Ahmad", "Yusuf"], ["Bey", "Pasha", "Dey", "Agha"]],
 };
 const TONGUE = { france: "fr", savoy: "fr", england: "en", scotland: "en", ireland: "en", castile: "es", aragon: "es", portugal: "es", naples: "it", sicily: "it", milan: "it",
   venice: "it", tuscany: "it", papal: "it", hre: "de", austria: "de", bavaria: "de", saxony: "de", brandenburg: "de", dutch: "nl", sweden: "sv", denmark: "da", poland: "pl",
-  russia: "ru", cossacks: "ru", hungary: "hu", transylvania: "hu", moldavia: "ro", wallachia: "ro", ottoman: "tr", crimea: "tr", algiers: "ar", tunis: "ar", tripoli: "ar", morocco: "ar" };
+  russia: "ru", cossacks: "ru", hungary: "hu", transylvania: "hu", moldavia: "ro", wallachia: "ro", ottoman: "tr", crimea: "crh", algiers: "ar", tunis: "ar", tripoli: "ar", morocco: "ar" };
 // (the woods' nations: their leaders known by one name, as the French and English records of the time give them)
 const NW_NAMES = {
   p_iroquois: ["Garakontié", "Otreouti", "Teganissorens", "Sadekanaktie", "Tekarihoga", "Ohonsiowanne", "Aradgi", "Tahajadoris", "Hotreouati", "Skanudharoua"],
@@ -184,7 +186,7 @@ const NW_NAMES = {
   p_caddo: ["Bigotes", "Xinesi", "Tinhiouen", "Cocay", "Hasinai", "Dehahuit"],
   p_cree: ["Mouchouaouastiirinioek", "Kiskatinaw", "Maskwa", "Wapistan", "Atihk", "Kakakiw"],
 };
-const LOOK = { native: "native", fr: "west", en: "west", es: "west", it: "west", de: "west", nl: "west", sv: "north", da: "north", pl: "east", ru: "east", hu: "east", ro: "east", tr: "ottoman", ar: "ottoman" };
+const LOOK = { native: "native", fr: "west", en: "west", es: "west", it: "west", de: "west", nl: "west", sv: "north", da: "north", pl: "east", ru: "east", hu: "east", ro: "east", tr: "ottoman", crh: "ottoman", ar: "ottoman" };
 // the portraits painted for new men: how many of each look there are, generals (g) and governors (v)
 export const POOL = { g: { west: 10, north: 4, east: 8, ottoman: 8, native: 6 }, v: { west: 8, north: 3, east: 6, ottoman: 6, native: 4 } };
 const TRAITS = {
@@ -208,7 +210,7 @@ export function newMan(crown, role, r = Math.random) {
   const n = POOL[kind][look], port = `${kind}-${look}-${String(1 + Math.floor(r() * n)).padStart(2, "0")}`;
   const roll = () => { const x = r() + r() + r(); return Math.max(1, Math.min(5, Math.round(x * 5 / 3 + 0.2))); };
   const st = role === "general" ? [roll(), roll(), Math.max(0, roll() - 1)] : [Math.max(0, roll() - 1), roll(), roll()];
-  return { id: `m${Date.now().toString(36)}${(seq++).toString(36)}`, role, name, short: nw ? name : name.split(" ").slice(-1)[0] === "Pasha" || name.split(" ").slice(-1)[0] === "Bey" ? name : name.split(" ").slice(1).join(" "), port, gen: true, st, d: pick((nw ? TRAITS_NW : TRAITS)[kind], r), served: 0 };
+  return { id: `m${Date.now().toString(36)}${(seq++).toString(36)}`, role, name, short: nw ? name : /^(Pasha|Bey|Agha|Mirza)$/.test(name.split(" ").slice(-1)[0]) ? name : name.split(" ").slice(1).join(" "), port, gen: true, st, d: pick((nw ? TRAITS_NW : TRAITS)[kind], r), served: 0 };
 }
 // the historical men of a crown, made into characters (governors only of towns it holds)
 export function historicalOf(crown, holds) {
