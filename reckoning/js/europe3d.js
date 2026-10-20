@@ -276,7 +276,20 @@ function groundColour(lon, lat, h, out, x, z, soft = false) {
 const GROUND_VS = `
 attribute vec4 aT; attribute float aB; attribute float aO;
 varying vec4 vT; varying float vB; varying float vO; varying vec3 vWP;`;
+const GN_GLSL = `
+float gh(vec2 p) { p = mod(p, 512.0); vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(gh(i), gh(i + vec2(1, 0)), f.x), mix(gh(i + vec2(0, 1)), gh(i + vec2(1, 1)), f.x), f.y); }`;
+// (the shadows of clouds drifting over the land and the sea, slowly, on the wind from the west: broad and soft, a
+//  darker patch here and there, never so dark the map can't be read under it)
+const CLOUD_GLSL = `
+float cloudShadow(vec2 p, float t) {
+  vec2 q = p * 0.07 + vec2(t * 0.0016, t * 0.0005);
+  float n = gn(q) * 0.55 + gn(q * 2.3 + 7.0) * 0.3 + gn(q * 5.1 + 3.0) * 0.15;
+  return 1.0 - 0.24 * smoothstep(0.54, 0.68, n);
+}`;
 const GROUND_FS = `
+uniform float uTime;
 varying vec4 vT; varying float vB; varying float vO; varying vec3 vWP;
 float ih(ivec2 c, int s) { uint h = uint(c.x) * 374761393u + uint(c.y) * 668265263u + uint(s) * 1442695041u; h = (h ^ (h >> 13)) * 1274126177u; return float(h ^ (h >> 16)) / 4294967296.0; }
 float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f); ivec2 c = ivec2(i);
@@ -284,9 +297,7 @@ float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 
   return a + (b - a) * f.x + (d - a) * f.y + (a - b - d + e) * f.x * f.y; }
 float woodN(vec2 p, float keep, float h, float o) { float v = (inz(p * 0.16, 7) - 0.5) * ${SWELL.toFixed(3)} + (clamp((h - 0.12) / 0.8, 0.0, 1.0) - 0.35) * 0.3 * o + (1.0 - o) * 0.12, a = 0.5, f = ${WOOD_F.toFixed(3)}; for (int i = 0; i < 4; i++) { float k = i < 2 ? 1.0 : i == 2 ? mix(0.25, 1.0, keep) : keep; v += a * mix(0.5, inz(p * f, 13 + i * 17), k); a *= 0.5; f *= 2.03; } return v; }
 vec3 cropOf(float c) { return c < 0.26 ? vec3(0.76, 0.66, 0.34) : c < 0.46 ? vec3(0.52, 0.63, 0.30) : c < 0.64 ? vec3(0.58, 0.66, 0.34) : c < 0.8 ? vec3(0.70, 0.63, 0.37) : c < 0.92 ? vec3(0.62, 0.55, 0.36) : vec3(0.56, 0.50, 0.34); }
-float gh(vec2 p) { p = mod(p, 512.0); vec3 q = fract(vec3(p.xyx) * 0.1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
-float gn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-  return mix(mix(gh(i), gh(i + vec2(1, 0)), f.x), mix(gh(i + vec2(0, 1)), gh(i + vec2(1, 1)), f.x), f.y); }`;
+${GN_GLSL}`;
 const GROUND_MIX = `
 {
   vec2 wp = vWP.xz; float px = length(fwidth(wp));                 // the ground a pixel covers
@@ -351,6 +362,7 @@ const GROUND_MIX = `
   col = mix(col, vec3(0.93, 0.95, 0.97) * (0.94 + 0.08 * n2), sn);
   // and a grain over all of it
   col *= 0.9 + 0.2 * mix(0.5, n1, 0.7) + (n2 - 0.5) * 0.12;
+  col *= cloudShadow(wp, uTime);
   diffuseColor.rgb = col;
 }`;
 function groundMaterial() {
@@ -358,10 +370,11 @@ function groundMaterial() {
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>" + GROUND_VS)
       .replace("#include <begin_vertex>", "#include <begin_vertex>\n vT = aT; vB = aB; vO = aO; vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS)
+    sh.uniforms.uTime = { value: 0 }; m.userData.shader = sh;
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS + CLOUD_GLSL)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground19";
+  m.customProgramCacheKey = () => "ground21";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -392,7 +405,7 @@ function seaMaterial() {
   m.onBeforeCompile = sh => {
     sh.uniforms.uTime = { value: 0 }; m.userData.shader = sh;
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaWP;").replace("#include <begin_vertex>", "#include <begin_vertex>\n vSeaWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaWP; uniform float uTime;")
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaWP; uniform float uTime;" + GN_GLSL + CLOUD_GLSL)
       // (the waves worked out once: their slope for the light, their height for the water's own light and dark)
       .replace("#include <color_fragment>", `#include <color_fragment>
       vec2 sp = vSeaWP.xz; float spx = length(fwidth(sp)), sa = 1.0 - smoothstep(0.006, 0.05, spx);
@@ -400,11 +413,11 @@ function seaMaterial() {
       float p1 = dot(sp, d1) * 26.0 - uTime * 1.1, p2 = dot(sp, d2) * 47.0 - uTime * 1.6 + sin(sp.x * 9.0) * 1.5, p3 = dot(sp, d3) * 83.0 - uTime * 2.3 + sin(sp.y * 13.0) * 2.0;
       vec2 seaG = d1 * cos(p1) * 0.55 + d2 * cos(p2) * 0.3 + d3 * cos(p3) * 0.15;
       float seaH = sin(p1) * 0.55 + sin(p2) * 0.3 + sin(p3) * 0.15;
-      diffuseColor.rgb *= 1.0 + seaH * 0.09 * sa;`)
+      diffuseColor.rgb *= (1.0 + seaH * 0.09 * sa) * cloudShadow(sp, uTime);`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
       normal = normalize(normal + (viewMatrix * vec4(seaG.x, 0.0, seaG.y, 0.0)).xyz * 0.45 * sa);`);
   };
-  m.customProgramCacheKey = () => "sea3";
+  m.customProgramCacheKey = () => "sea5";
   return m;
 }
 // ---- trees and bushes: each kind one instanced mesh ----
@@ -1524,7 +1537,7 @@ export class EuropeView3D {
   size(w, h) { this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.w = w; this.h = h; }
   frame() {
     sync();
-    if (this.seaMat && this.seaMat.userData.shader) this.seaMat.userData.shader.uniforms.uTime.value = performance.now() / 1000;
+    { const t = performance.now() / 1000; for (const m of [this.seaMat, this.groundMat]) if (m && m.userData.shader) m.userData.shader.uniforms.uTime.value = t; }
     // (the near plane drawn back as the eye goes up, so the sea and the low coast don't fight over the same depth)
     const nr = Math.max(0.01, this.dist * 0.004); if (Math.abs(this.camera.near - nr) > nr * 0.1) { this.camera.near = nr; this.camera.updateProjectionMatrix(); }
     if (!this.visible || !this.g) return;

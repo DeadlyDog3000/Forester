@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.5", date: "19 October 2026", title: "Cloud shadows",
+    items: [
+      "Campaign 3D map: the shadows of clouds drift slowly over the land and the sea on the west wind, soft and broad, never so dark the map can't be read under them.",
+    ],
+  },
+  {
     v: "1.99.4", date: "19 October 2026", title: "Moving water",
     items: [
       "Campaign 3D map: the sea moves. Close in, swells run across it one way and a chop another, catching the light, so the water round a fleet or a harbour is alive instead of a flat sheet; from higher up it stills, so it never shimmers.",
