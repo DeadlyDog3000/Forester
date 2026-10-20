@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.7", date: "19 October 2026", title: "Choosing a crown",
+    items: [
+      "Campaign: point at a crown when choosing one and see it before you take it up: its lands framed on the map, its chief town, a line on what it was about in 1683, whom it's at war with as the year begins, and the leagues it's sworn to.",
+    ],
+  },
+  {
     v: "1.99.6", date: "19 October 2026", title: "The campaign from the title",
     items: [
       "Title: the campaign has its own place, beside the story under Single Player: \"The campaign · Europe, 1683 · a crown of your own to rule\". It was only to be found under Online, though it's a game for one as much as for two; it's still there too. Back from the campaign returns to wherever you came from.",

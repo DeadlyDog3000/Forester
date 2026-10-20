@@ -2600,9 +2600,63 @@ function drawPick() {
   const have = campaigns();
   $("cmpPick").innerHTML = `${have.length ? `<div class="cmp-ph"><h2>Your campaigns</h2></div><div class="cmp-saves">${have.map(({ i, c }) => `<div class="cmp-save${C && i === slot ? " on" : ""}"><button class="cmp-crown" data-slot="${i}"><i style="background:${NATIONS[c.me].color}"></i><b>${esc(NATIONS[c.me].name)}</b><small>${c.year} · ${c.towns != null ? `${c.towns} town${c.towns === 1 ? "" : "s"} · ` : ""}${c.over === "lost" ? "lost" : c.won ? "Europe won" : `${c.gold} thalers`}</small></button><button class="cmp-drop" data-drop="${i}" title="Give up this campaign">×</button></div>`).join("")}</div>` : ""}
     <div class="cmp-ph"><h2>${have.length ? "Or begin a new one" : "Choose your crown"}</h2><p class="sub">Europe and the New World in 1683. Raise armies, make friends and enemies, take towns and hold them. The great powers have the most to lose; the small states the most to win.${have.length >= SLOTS ? ` <b>You have ${SLOTS} campaigns: a new one takes the place of the one longest left alone.</b>` : ""}</p></div>
-    <div class="cmp-crowns">${list.map(x => `<button class="cmp-crown" data-crown="${x.id}"><i style="background:${NATIONS[x.id].color}"></i><b>${esc(NATIONS[x.id].name)}</b><small>${word(x.s)} · ${x.n} town${x.n > 1 ? "s" : ""} · ${"★".repeat(x.s)}</small></button>`).join("")}</div>
+    <div class="cmp-pickwrap"><div class="cmp-crowns">${list.map(x => `<button class="cmp-crown" data-crown="${x.id}"><i style="background:${NATIONS[x.id].color}"></i><b>${esc(NATIONS[x.id].name)}</b><small>${word(x.s)} · ${x.n} town${x.n > 1 ? "s" : ""} · ${"★".repeat(x.s)}</small></button>`).join("")}</div>
+    <aside class="cmp-prev" id="cmpPrev"><canvas id="cmpPrevMap"></canvas><div id="cmpPrevText"></div></aside></div>
     <div class="pv-acts"><button class="btn ghost" id="cmpPickBack">${C ? "Back to your campaign" : "Back"}</button></div>`;
   $("cmpPickBack").onclick = () => { if (C) drawMap(true); else ctx.screen(cmpHome); };
+  // (a crown pointed at: its lands on the map, and how it stands in 1683 — the first of them, till you point at another)
+  const grid0 = $("cmpPick").querySelector(".cmp-crowns");
+  const show = id => { if (id && id !== pickShown) pickPreview(id, g, list.find(x => x.id === id), word); };
+  grid0.addEventListener("mouseover", e => { const b = e.target.closest("[data-crown]"); if (b) show(b.dataset.crown); });
+  grid0.addEventListener("focusin", e => { const b = e.target.closest("[data-crown]"); if (b) show(b.dataset.crown); });
+  pickShown = null; show(list[0] && list[0].id);
+}
+// ---- the crown you're looking at, before you take it up: where it lies, and where it stands ----
+// (what each of the greater crowns was about in 1683, in a line; the rest are told by their towns and their wars)
+const CROWN_1683 = {
+  ottoman: "At the height of its reach: the Grand Vizier's army is on the road to Vienna, and the Crimean Tatars ride with it.",
+  france: "Louis XIV's kingdom, the strongest in Europe, taking towns along its eastern frontier by law and by force.",
+  austria: "The Emperor Leopold's own lands, with Vienna itself about to be besieged by the Turk.",
+  russia: "Muscovy under the regency of Sophia: vast, and still turned inward.",
+  castile: "Spain under Charles II: a great empire past its best, at war with France over the Low Countries.",
+  hre: "The Empire's princes and free cities, bound loosely under the Emperor, and called to arms against the Turk.",
+  poland: "John III Sobieski's commonwealth, sworn to the Emperor's aid against the Turk.",
+  england: "Charles II's kingdom: rich in trade and ships, at peace on the Continent, with colonies over the Atlantic.",
+  sweden: "Charles XI's Baltic empire, holding the shores from Stockholm round to Stettin and Bremen.",
+  dutch: "The Republic of the United Provinces: few towns, but the richest trade in Europe and a great fleet.",
+  venice: "The Most Serene Republic, mistress of the Adriatic, old enemy of the Turk.",
+  papal: "The Pope's own state. Innocent XI is gathering the Christian crowns into a league against the Turk.",
+  denmark: "Christian V's kingdom, holding the Sound and Norway, the old rival of Sweden.",
+  brandenburg: "The Great Elector's lands, scattered from the Rhine to the Baltic.",
+  portugal: "Twenty years free of Spain again, with an empire overseas.",
+  saxony: "John George III's rich Saxony, which will send its regiments to Vienna's relief.",
+  bavaria: "Max Emanuel's Bavaria, young and ambitious, which will march to Vienna's relief.",
+  hungary: "Thököly's Hungary of the rebels, allied to the Sultan against the Emperor.",
+  crimea: "The Khan's Tatar horsemen, riding with the Sultan against Poland and the Emperor.",
+  cossacks: "The Hetmanate on the Dnieper, under the Tsar's protection.",
+};
+let pickShown = null;
+function pickPreview(id, g, x, word) {
+  pickShown = id;
+  const cv = $("cmpPrevMap"), tx = $("cmpPrevText"); if (!cv || !tx) return;
+  const W = 520, H = Math.round(W * MAP_ASPECT); if (cv.width !== W) { cv.width = W; cv.height = H; }
+  // (the map framed on its lands, a margin round them — the whole of them, the colonies over the sea as well)
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const ct of citiesOfNow(g, id)) { const p = cellXY(ct); x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  const S = W / MG_W, w = Math.max(60, (x1 - x0) * 1.5 + 40), h = Math.max(40, (y1 - y0) * 1.5 + 30);
+  const z = clamp(Math.min(MG_W / w, MG_H / h), 1, 7), ox = clamp((x0 + x1) / 2 * S - W / (2 * z), 0, W - W / z), oy = clamp((y0 + y1) / 2 * S - H / (2 * z), 0, H - H / z);
+  const E0 = { conq: [], wars: WARS_1683.map(([a, b]) => ({ a, b })), war: {}, plague: {}, rev: 0 };
+  try { drawEurope(cv, E0, { selected: id, home: false, view: { z, ox, oy }, zf: 1 }); } catch (e) { /* (the preview's only a nicety) */ }
+  const wars = WARS_1683.filter(w => w.includes(id)).map(w => w[0] === id ? w[1] : w[0]).filter(o => NATIONS[o]);
+  const leagues = LEAGUES_1683.filter(L => L.ids.includes(id));
+  const big = citiesOfNow(g, id).sort((a, b) => b[3] - a[3])[0];
+  const list = a => a.length > 1 ? a.slice(0, -1).join(", ") + " and " + a[a.length - 1] : a[0] || "";
+  tx.innerHTML = `<h3><i style="background:${NATIONS[id].color}"></i>${esc(NATIONS[id].name)}</h3>
+    <small>${word(x.s)} · ${x.n} town${x.n > 1 ? "s" : ""}${big ? ` · its chief town ${esc(big[0])}` : ""}</small>
+    ${CROWN_1683[id] ? `<p>${esc(CROWN_1683[id])}</p>` : ""}
+    <p><b>${wars.length ? "At war" : "At peace"}</b> ${wars.length ? `with ${esc(list(wars.map(the)))}.` : "with everyone, as the year begins."}</p>
+    ${leagues.map(L => `<p><b>Of ${esc(L.n)}</b> with ${esc(list(L.ids.filter(o => o !== id && NATIONS[o]).map(the)))}.</p>`).join("")}
+    <small class="cmp-prev-go">Click to take up this crown.</small>`;
 }
 // the marks over the towns, for the land seen close: your own ringed, the other player's dashed, the ones you can
 // march on with crossed swords

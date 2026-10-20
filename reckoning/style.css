@@ -1571,6 +1571,17 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 #campaign { width: 100%; }
 .cmp-pick { width: min(1100px, calc(100vw - 32px)); margin: 0 auto; }
 .cmp-ph { text-align: center; margin-bottom: 14px; }
+.cmp-pickwrap { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
+.cmp-pickwrap .cmp-crowns { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.cmp-prev { border: 1px solid var(--edge); border-radius: 4px; background: rgba(9, 24, 16, 0.82); padding: 10px; color: var(--ink); text-align: left; }
+.cmp-prev canvas { display: block; width: 100%; height: auto; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.5); }
+.cmp-prev h3 { display: flex; align-items: center; gap: 8px; margin: 10px 0 2px; font: 20px var(--serif); }
+.cmp-prev h3 i { width: 12px; height: 22px; border-radius: 2px; border: 1px solid rgba(0, 0, 0, 0.4); }
+.cmp-prev small { display: block; font: 11.5px var(--sans); color: var(--ink-dim); }
+.cmp-prev p { margin: 8px 0 0; font: 13px/1.45 var(--sans); }
+.cmp-prev p b { color: var(--gold); font-weight: 600; }
+.cmp-prev .cmp-prev-go { margin-top: 10px; font-style: italic; }
+@media (max-width: 900px) { .cmp-pickwrap { grid-template-columns: 1fr; } .cmp-prev { display: none; } }
 .cmp-crowns { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; max-height: 62vh; overflow-y: auto; padding: 2px; }
 .cmp-crown { display: grid; grid-template-columns: 14px 1fr; gap: 2px 10px; align-items: center; padding: 9px 11px; border: 1px solid var(--edge); border-radius: 4px; background: rgba(9, 24, 16, 0.6); color: var(--ink); text-align: left; cursor: pointer; }
 .cmp-crown:hover { border-color: var(--gold); background: rgba(46, 106, 64, 0.4); }
