@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.22", date: "20 October 2026", title: "After a campaign battle",
+    items: [
+      "Campaign battles: the result no longer talks of ratings (\"against bots: not rated\"), nor offers the frontier's camp. It's the campaign's battle, so it's Title or Back to the campaign.",
+      "Battle results: the buttons sit in one even row, rather than three of different sizes on two.",
+      "Campaign: in a narrower window, \"Answer what's waiting first\" folds onto two lines so it doesn't push the war list under the buttons beside it.",
+    ],
+  },
+  {
     v: "1.99.21", date: "20 October 2026", title: "Your general's name",
     items: [
       "Battles: in a narrower window the score along the top is centred in the room left of your health, food and warmth, instead of running over them.",

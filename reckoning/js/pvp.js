@@ -2225,7 +2225,9 @@ class Arena {
     ctx.end();
     $("pvpEndK").textContent = left ? "They left the field" : won ? "Victory" : "Defeat";
     $("pvpEndT").textContent = this.multi ? (won ? (this.routEnd ? "They broke and ran" : "The field is yours") : (this.routEnd ? "Your men broke and ran" : "The day is lost")) : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
-    $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}<br>${rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
+    // (a battle of a campaign: no word of ratings — it's the campaign's, not the frontier's)
+    const cmpB = lastMode === "campaign" || !!this.cmpEnd || !!(this.hist && this.hist.b.campaign);
+    $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}${cmpB ? "" : "<br>"}${cmpB ? "" : rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
     // (a historical battle: kept as won or not, on that side — and how it went in truth)
     // (a campaign's: its outcome back to the campaign, which takes or loses the town)
     // (two players of a campaign: rated nowhere, and the outcome back to the campaign they share)
@@ -2237,7 +2239,7 @@ class Arena {
     }
     if (lastMode === "story" && this.hist && this.hist.b.after) $("pvpEndS").innerHTML += `<div class="pv-histend"><b>${won && !left ? "As it happened" : "The city held all the same"}</b> ${esc(this.hist.b.after[won && !left ? 0 : 1])}</div>`;
     $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : lastMode === "story" ? "Back to the story" : "Again";
-    $("pvpLoadout").classList.toggle("hidden", lastMode === "story");
+    $("pvpLoadout").classList.toggle("hidden", lastMode === "story" || cmpB);
     endReplay(rec);
     ctx.screen("pvpEnd");
   }
