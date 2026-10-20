@@ -1981,6 +1981,8 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .gz-cols h3 { font: 600 13px var(--display); letter-spacing: 0.12em; text-transform: uppercase; text-align: center; margin: 0 0 6px; border-bottom: 1px solid rgba(36,25,14,0.5); padding-bottom: 3px; }
 .gz-cols p { font-size: 14px; line-height: 1.4; margin: 0 0 7px; text-align: justify; hyphens: auto; }
 .gz-foot { text-align: center; margin-top: 10px; }
+/* (in a short window the paper scrolls, and its button stays at its foot, in sight, rather than half under the edge) */
+.gz-foot { position: sticky; bottom: -18px; margin: 10px -28px -18px; padding: 10px 28px 14px; background: linear-gradient(180deg, rgba(236, 226, 200, 0), #ece2c8 38%); z-index: 1; }
 /* (a discovery: a printer's ornament for its woodcut, a kicker over the headline, and set apart in a ruled box) */
 .gz-kicker { display: block; font: 600 11px var(--display); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 4px; }
 .gz-head.gz-learn { grid-template-columns: auto 1fr; }

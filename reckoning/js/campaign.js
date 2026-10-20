@@ -256,7 +256,7 @@ function begin(me, into = slot) {
   // (where you stand in 1683: your league, your wars)
   const al = Object.keys(C.ally).filter(id => C.ally[id]), wr = Object.keys(C.E.war).filter(id => C.E.war[id]);
   for (const L of LEAGUES_1683.filter(L => L.ids.includes(me))) say(`You are of ${L.n}`, `With ${L.ids.filter(x => x !== me).map(x => the(x)).join(", ")}.`);
-  if (wr.length) say(`At war`, `${The(me)} ${v3(me, "is")} already at war with ${wr.length > 1 ? wr.slice(0, -1).map(x => the(x)).join(", ") + " and " + the(wr[wr.length - 1]) : the(wr[0])}.`);
+  if (wr.length) say(`At war`, `You are already at war with ${wr.length > 1 ? wr.slice(0, -1).map(x => the(x)).join(", ") + " and " + the(wr[wr.length - 1]) : the(wr[0])}.`);
   say(`${The(me)} — ${C.year}`, `You take the crown. ${citiesOfNow(grid(), me).length} towns, ${C.army} regiments, ${C.gold} thalers in the treasury.${al.length ? ` Allies: ${al.length}.` : ""}`);
   save();
 }
@@ -2095,7 +2095,7 @@ function endSeason(part = {}) {
     const near = mine.filter(c => !overSea(co.pos, cellXY(c)) && mdist(co.pos, cellXY(c)) <= MARCH * 3 && (!hasWalls(c, C.me, g2) || (C.fguns[id] | 0) > 0)); if (!near.length && !co.go) continue;
     const ct = (co.go && mine.find(c => c[0] === co.go)) || near.sort((a, b) => mdist(co.pos, cellXY(a)) - mdist(co.pos, cellXY(b)))[0]; if (!ct) { co.go = null; continue; }
     const tc = cellXY(ct);
-    if (mdist(co.pos, tc) > MARCH) { const st = stepToward(co.pos, tc, MARCH); co.pos = { x: st.x, y: st.y }; co.go = ct[0]; say(`${poss(The(id))} colonial army marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${co.n} regiments` : "An army of its colonists and soldiers"}, ${marchOff(st, tc)}`); continue; }
+    if (mdist(co.pos, tc) > MARCH) { const st = stepToward(co.pos, tc, MARCH); co.pos = { x: st.x, y: st.y }; co.go = ct[0]; say(`${poss(The(id))} colonial army marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${co.n} regiments, ` : "An army of its colonists and soldiers is "}${marchOff(st, tc)}`); continue; }
     co.pos = { x: tc.x + 0.8, y: tc.y + 0.6 }; co.go = null;
     const att = Math.max(2, Math.round(co.n * (0.55 + R() * 0.25)));
     C.events.push({ kind: "attack", colo: true, foe: id, ct: ct[0], att, of: co.n, def: garrison(ct) + levy(mine.length) + helpNear(ct), walls: hasWalls(ct, C.me), army: helpNear(ct) > 0 });
@@ -2119,7 +2119,7 @@ function endSeason(part = {}) {
     // its army on the road: there this year if it's near enough, else a year's march nearer — seen coming
     const fp = foeArmyPos(id), tc = cellXY(ct);
     if (fp && overSea(fp, tc)) { if (!invade(id, fp, ct)) delete C.foeGo[id]; continue; }
-    if (fp && mdist(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${poss(The(id))} ${NATIONS[id].nw ? "war party" : "army"} marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${C.foes[id]} ${NATIONS[id].nw ? "bands of warriors" : "regiments"}` : NATIONS[id].nw ? "Its warriors" : "Its army"}, ${marchOff(st, tc)}`); continue; }
+    if (fp && mdist(fp, tc) > MARCH) { const st = stepToward(fp, tc, MARCH); C.foePos[id] = { x: st.x, y: st.y }; C.foeGo[id] = ct[0]; say(`${poss(The(id))} ${NATIONS[id].nw ? "war party" : "army"} marches toward ${ct[0]}`, `${knowsArmy(id) ? `Some ${C.foes[id]} ${NATIONS[id].nw ? "bands of warriors" : "regiments"}, ` : NATIONS[id].nw ? "Its warriors are " : "Its army is "}${marchOff(st, tc)}`); continue; }
     if (fp) C.foePos[id] = { x: tc.x, y: tc.y }; delete C.foeGo[id];
     const att = Math.round(C.foes[id] * (0.45 + R() * 0.25));
     // (your army comes to its help only if it's near)
@@ -3125,7 +3125,7 @@ const FIRST = [
 function firstCard() {
   if (!C || C.mp || C.over || first.off || FIRST.every(([k]) => first[k])) return "";
   const n = FIRST.filter(([k]) => first[k]).length;
-  return `<div class="cmp-card cmp-first"><div class="cmp-first-h"><b>Your first year</b><small>${n} of ${FIRST.length}</small></div><ol>${FIRST.map(([k, t, d]) => `<li class="${first[k] ? "done" : ""}"><b>${t}</b><small>${d}</small></li>`).join("")}</ol><button class="tm-lnk" data-firstoff="1">Put this away</button></div>`;
+  return `<div class="cmp-card cmp-first"><div class="cmp-first-h"><b>${C.year > 1683 ? "Getting started" : "Your first year"}</b><small>${n} of ${FIRST.length}</small></div><ol>${FIRST.map(([k, t, d]) => `<li class="${first[k] ? "done" : ""}"><b>${t}</b><small>${d}</small></li>`).join("")}</ol><button class="tm-lnk" data-firstoff="1">Put this away</button></div>`;
 }
 function newsTip() { if (firstCard()) return; try { if (localStorage.getItem(TIPKEY)) return; localStorage.setItem(TIPKEY, "1"); } catch (e) { return; } if (!note) note = "How the campaign works: every town has its people, and regiments are raised in your towns, a kind at a time: choose a town to recruit, or use Your towns. Leave regiments to hold a town, form new armies from garrisons, and click an enemy army to fight it in the field. The ? at the top explains the rest."; }
 function drawMap(fit = false) {

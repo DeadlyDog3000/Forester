@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.23", date: "20 October 2026", title: "The gazette's wording",
+    items: [
+      "Campaign gazette: the opening news reads \"You are already at war with…\" instead of naming your own crown as though it were someone else's, and a march with no numbers known reads \"Its army is two years' march off\" rather than the clipped \"Its army, two years' march off\".",
+      "Campaign gazette: in a short window, where the paper scrolls, Lay it aside stays at its foot in sight rather than half under the window's edge.",
+      "Campaign: the getting-started list is titled \"Getting started\" once the first year is over, rather than \"Your first year\" in 1687.",
+    ],
+  },
+  {
     v: "1.99.22", date: "20 October 2026", title: "After a campaign battle",
     items: [
       "Campaign battles: the result no longer talks of ratings (\"against bots: not rated\"), nor offers the frontier's camp. It's the campaign's battle, so it's Title or Back to the campaign.",
