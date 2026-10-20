@@ -293,6 +293,11 @@ const PAPERS = {
   papal: ["Diario di Roma", "Con Licenza de' Superiori"], tuscany: ["Gazzetta di Firenze", "Con Licenza de' Superiori"], milan: ["Gazzetta di Milano", "Con Licenza"], naples: ["Avvisi di Napoli", "Con Licenza"],
   savoy: ["Gazzetta di Torino", "Con Privilegio"], brandenburg: ["Berlinische Zeitung", "Mit Churfürstlicher Freiheit"], saxony: ["Leipziger Post-Zeitung", "Mit Churfürstlicher Freiheit"], bavaria: ["Münchner Ordinari-Zeitung", "Mit Churfürstlicher Freiheit"],
 };
+// (and what each cost, in the coin of the place: Venice's in the gazzetta, the coin that gave the gazettes their name)
+const PRICES = { england: "One Penny", scotland: "One Penny", ireland: "One Penny", france: "Two Sols", dutch: "Two Stuivers", hre: "One Kreuzer", austria: "One Kreuzer",
+  castile: "Two Cuartos", aragon: "Two Cuartos", portugal: "Ten Réis", sweden: "Two Öre", denmark: "Two Skilling", poland: "One Grosz", russia: "One Kopeck", venice: "One Gazzetta",
+  papal: "One Baiocco", tuscany: "One Crazia", milan: "One Soldo", naples: "One Grano", savoy: "One Soldo", brandenburg: "One Groschen", saxony: "One Groschen", bavaria: "One Kreuzer" };
+const priceOf = id => NATIONS[id] && NATIONS[id].nw ? "Told at the fire" : `Price ${PRICES[id] || "One Penny"}`;
 const paperOf = id => PAPERS[id] || (NATIONS[id] && NATIONS[id].nw ? ["Words from the Council Fire", "As the runners told it"] : ["The European Mercury", "Being the News of the Year"]);
 function gazette(items) {
   if (!C || !items || !items.length) return;
@@ -318,7 +323,7 @@ function gazette(items) {
   for (const L of Object.values(cols)) L.sort((a, b) => (/declares? war|^War declared|are at war/.test(b.title) ? 1 : 0) - (/declares? war|^War declared|are at war/.test(a.title) ? 1 : 0));
   const el = document.createElement("div"); el.className = "cmp-gazette"; el.id = "cmpGazette";
   el.innerHTML = `<div class="gz-paper">
-    <div class="gz-mast"><small>${esc(motto)}</small><h1>${esc(name)}</h1><div class="gz-line"><span>Numb. ${num}</span><span>${esc(SEASONS[C.s] || "Spring")}, in the Year ${C.year}</span><span>Price One Penny</span></div></div>
+    <div class="gz-mast"><small>${esc(motto)}</small><h1>${esc(name)}</h1><div class="gz-line"><span>Numb. ${num}</span><span>${esc(SEASONS[C.s] || "Spring")}, in the Year ${C.year}</span><span>${esc(priceOf(C.me))}</span></div></div>
     <div class="gz-head${hk === "learn" ? " gz-learn" : ""}">${hk === "learn" ? `<div class="gz-seal" aria-hidden="true">✦</div>` : img ? `<img class="gz-cut" src="${esc(img)}" alt="">` : ""}<div>${hk === "learn" ? `<small class="gz-kicker">From the Learned World</small>` : /declares? war|^War declared/.test(head.title) ? `<small class="gz-kicker">Extraordinary</small>` : ""}<h2>${esc(head.title)}</h2>${head.sub ? `<p class="gz-lead${String(head.sub || "").length < 60 ? " gz-short" : ""}">${esc(head.sub)}</p>` : ""}</div></div>
     ${learned.map(l => `<div class="gz-learnbox"><span class="gz-seal" aria-hidden="true">✦</span><div><small class="gz-kicker">From the Learned World</small><b>${esc(l.title)}</b><p>${esc(l.sub || "")}</p></div></div>`).join("")}
     ${Object.keys(cols).length ? `<div class="gz-cols">${Object.entries(cols).map(([h, L]) => `<section><h3>${esc(h)}</h3>${L.slice(0, 7).map(l => `<p><b>${esc(l.title)}.</b> ${esc(l.sub || "")}</p>`).join("")}</section>`).join("")}</div>` : ""}
@@ -367,7 +372,7 @@ function statePaper() {
   const [name, motto] = paperOf(me);
   const el = document.createElement("div"); el.className = "cmp-gazette"; el.id = "cmpGazette";
   el.innerHTML = `<div class="gz-paper gz-state">
-    <div class="gz-mast"><small>${esc(motto)}</small><h1>${esc(name)}</h1><div class="gz-line"><span>Numb. 1</span><span>${esc(SEASONS[C.s] || "Spring")}, in the Year ${C.year}</span><span>Price One Penny</span></div></div>
+    <div class="gz-mast"><small>${esc(motto)}</small><h1>${esc(name)}</h1><div class="gz-line"><span>Numb. 1</span><span>${esc(SEASONS[C.s] || "Spring")}, in the Year ${C.year}</span><span>${esc(priceOf(C.me))}</span></div></div>
     <div class="gz-head">${img ? `<img class="gz-cut" src="${esc(img)}" alt="">` : ""}<div><small class="gz-kicker">The State of the Realm</small><h2>${esc(NATIONS[me].nw ? `The council fire at ${cap ? cap[0] : NATIONS[me].name}` : `A new reign in ${cap ? cap[0] : NATIONS[me].name}`)}</h2>
       <p class="gz-lead">${esc(`${The(me)} ${v3(me, "has")} ${mine.length} town${mine.length === 1 ? "" : "s"}, ${C.army} regiments under arms and ${C.gold} thalers in the treasury. ${wr.length ? `${wr.length === 1 ? "One war is" : `${wr.length} wars are`} already being fought, ${al.length ? `with ${al.length} all${al.length === 1 ? "y" : "ies"} sworn to you` : "and no ally sworn to you"}.` : al.length ? `The realm is at peace, with ${al.length} all${al.length === 1 ? "y" : "ies"} sworn to it.` : "The realm is at peace, and stands alone."}`)}</p></div></div>
     ${G ? `<div class="gz-learnbox"><span class="gz-seal" aria-hidden="true">♛</span><div><small class="gz-kicker">The Crown's Ambition</small><b>${esc(list(G.towns))}</b><p>${esc(`Hold ${G.towns.length > 1 ? "these" : "it"}, and ${G.n} towns in all, by ${G.by}.`)}</p></div></div>` : ""}

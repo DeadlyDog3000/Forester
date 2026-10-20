@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.27", date: "20 October 2026", title: "A gazzetta for the gazette",
+    items: [
+      "Campaign gazette: each crown's paper is priced in its own coin rather than in English pennies: a kreuzer in Vienna, a grosz in Warsaw, two öre in Stockholm, a kopeck for the Vedomosti, and in Venice a gazzetta, the coin that gave the gazettes their name. The woods' nations' news is told at the fire.",
+    ],
+  },
+  {
     v: "1.99.26", date: "20 October 2026", title: "Armies on dry land",
     items: [
       "Campaign 3D map: an army at a town on the water stands on dry ground beside it, turned round the town if it must be, rather than out in the lake at Stockholm or in the Sound off Copenhagen. A port's flag stands at the town too, not on a staff out in the water.",
