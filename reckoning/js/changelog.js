@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.13", date: "19 October 2026", title: "Roads through the woods",
+    items: [
+      "Campaign 3D map: a long campaign no longer slows the game down. With the land seen close open, every year's conquests kept the whole of the old towns in memory, about eighty megabytes a year; now they're let go, and the game holds steady however many years you play. The story's Europe window had the same fault, now mended.",
+      "Campaign 3D map: a road through a forest runs down a lane cut through the trees, as it should, instead of under their crowns; and no village house stands on a road.",
+      "Campaign 3D map: a company on the march raises dust behind it on the road, hanging and settling as it goes on.",
+    ],
+  },
+  {
     v: "1.99.12", date: "19 October 2026", title: "The seas named",
     items: [
       "Campaign 3D map: from up high the seas carry their names as the parchment letters them, laid on the water in a faded ink along the sea's own lie: Oceanus Atlanticus, Mare Balticum, Mare Adriaticum, Pontus Euxinus and the rest. They fade as you come down to the coast.",

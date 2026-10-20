@@ -491,7 +491,7 @@ export class EuropeView3D {
     this.buildBorders(); this.buildCities(homePop);
     if (fresh) {
       this.detailJob = null; if (this.detail) { this.scene.remove(this.detail); this.detail.geometry.dispose(); this.detail = null; }
-      for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear();
+      for (const c of this.cells.values()) c.forEach(m => { this.scene.remove(m); m.dispose(); }); this.cells.clear();
     }
   }
   // all of Europe, coarsely: what you see far off, and under the fine patch
@@ -711,6 +711,11 @@ export class EuropeView3D {
     m.customProgramCacheKey = () => "river2";
     this.rivers = new THREE.Mesh(g, m); this.rivers.renderOrder = 2; this.rivers.frustumCulled = false; this.scene.add(this.rivers);
   }
+  roadAt(x, z, m = 0) {
+    const L = this.roadSeg && this.roadSeg.get(Math.floor(x) * 65536 + Math.floor(z)); if (!L) return false;
+    for (const [x0, z0, x1, z1, hw] of L) { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz || 1))), ex = x - x0 - dx * t, ez = z - z0 - dz * t; if (ex * ex + ez * ez < (hw + m) * (hw + m)) return true; }
+    return false;
+  }
   riverAt(x, z, m = 0) {
     const L = this.riverSeg && this.riverSeg.get(Math.floor(x) * 65536 + Math.floor(z)); if (!L) return false;
     for (const [x0, z0, x1, z1, hw] of L) { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz || 1))), ex = x - x0 - dx * t, ez = z - z0 - dz * t; if (ex * ex + ez * ez < (hw + m) * (hw + m)) return true; }
@@ -741,7 +746,7 @@ export class EuropeView3D {
         const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z);
         const h = heightAt(this.g, lon, lat), wood = woodAt(x, z, h, openOf(biomeAt(lon, lat, h), lon)) - tilledAt(lon, lat) * WOOD_CUT;
         if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
-        if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.065)) continue;
+        if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.065) || this.roadAt(x, z, 0.03)) continue;
         // (no wood growing in a town, nor in the fields close round it)
         if (this.cleared(x, z)) continue;
         const s = 0.7 + r() * 0.7;
@@ -775,7 +780,7 @@ export class EuropeView3D {
       const south = lat < 45, north = lat > 54, spread = 0.02 + n * 0.0045; sm = n >= 6 ? "" : ".s";
       for (let k = 0; k < n; k++) {
         const a = r() * 6.28, d = 0.008 + Math.sqrt(r()) * spread, hx = cx + Math.cos(a) * d, hz = cz + Math.sin(a) * d, hy = this.groundY(hx, hz);
-        if (hy < 0.006 || this.riverAt(hx, hz, 0.03)) continue;
+        if (hy < 0.006 || this.riverAt(hx, hz, 0.03) || this.roadAt(hx, hz, 0.018)) continue;
         const w = 0.017 + r() * 0.006, l = 0.024 + r() * 0.012, ht = 0.013 + r() * 0.006, ry = ang0 + (r() < 0.5 ? 0 : 1.571) + (r() - 0.5) * 0.4;
         const pal = south ? TILE : north ? (r() < 0.5 ? SLATE : THATCH) : r() < 0.65 ? THATCH : TILE;
         put("box", hx, hy - 0.004, hz, ry, w, ht + 0.004, l, WALL[(r() * WALL.length) | 0]);
@@ -921,6 +926,10 @@ export class EuropeView3D {
   *buildRoads(edges) {
     if (this.roads) { this.scene.remove(this.roads); this.roads.geometry.dispose(); this.roads = null; }
     const pos = [], nrm = [], side = [], hwA = [], col = [], idx = [];
+    // (each stretch of road filed by the squares it crosses, so the woods can be kept off it: a road through a forest is a
+    //  lane cut through the trees, not a line drawn over their crowns)
+    const seg = this.roadSeg = new Map();
+    for (const { P, hw } of edges) for (let i = 1; i < P.length; i++) { const [x0, z0] = P[i - 1], [x1, z1] = P[i]; for (let gx = Math.floor(Math.min(x0, x1) - 0.1); gx <= Math.floor(Math.max(x0, x1) + 0.1); gx++) for (let gz = Math.floor(Math.min(z0, z1) - 0.1); gz <= Math.floor(Math.max(z0, z1) + 0.1); gz++) { const k = gx * 65536 + gz; (seg.get(k) || seg.set(k, []).get(k)).push([x0, z0, x1, z1, hw]); } }
     for (const { P, hw } of edges) {
       const N = P.length;
       for (let i = 0; i < N; i++) {
@@ -951,13 +960,18 @@ export class EuropeView3D {
     };
     m.customProgramCacheKey = () => "road2";
     this.roads = new THREE.Mesh(g, m); this.roads.renderOrder = 1; this.roads.frustumCulled = false; this.scene.add(this.roads);
+    // (the woods already planted round the view planted again, now that the roads through them are known)
+    for (const c of this.cells.values()) c.forEach(o => { this.scene.remove(o); o.dispose(); }); this.cells.clear();
   }
   buildCities(homePop, sync = false) {
     this.cityJob = this.cityGen(homePop);
     if (sync) { this.pumpCities(Infinity); return; }
     // (driven on its own, a slice at a time between frames — the view isn't always being drawn — and drawn once done)
     const job = this.cityJob, ch = new MessageChannel();
-    ch.port1.onmessage = () => { if (this.cityJob !== job) return; this.pumpCities(10); if (this.cityJob) ch.port2.postMessage(0); else if (this.visible) this.frame(); };
+    // (the channel shut once the job's done or given way to a newer one: left open, it was kept alive with the whole of the
+    //  finished build in its grip — every year's conquests another eighty megabytes never let go)
+    const done = () => { ch.port1.onmessage = null; ch.port1.close(); ch.port2.close(); };
+    ch.port1.onmessage = () => { if (this.cityJob !== job) return done(); this.pumpCities(10); if (this.cityJob) ch.port2.postMessage(0); else { done(); if (this.visible) this.frame(); } };
     ch.port2.postMessage(0);
   }
   pumpCities(budget = 12) {
@@ -1253,7 +1267,7 @@ export class EuropeView3D {
     const sig = M => { if (!M) return null; let h = 0; for (const [k, L] of M) for (const [x, z, r] of L) h = (h + (((k % 1000003) * 31 + Math.round(x * 100) * 7 + Math.round(z * 100) * 13 + Math.round(r * 1000)) * 2654435761 % 4294967291)) % 9007199254740881; return h; };   // (order-free: the towns are laid nearest the view first)
     const sameClear = !!this.clearings && !!this._clearNext && this.clearings.size === this._clearNext.size && sig(this.clearings) === sig(this._clearNext);
     this.cityGroup = grp; this.labels = labels; this.towns = towns; this.growing = []; this.clearings = this._clearNext; this._clearNext = null;
-    if (!sameClear) { for (const c of this.cells.values()) c.forEach(m => this.scene.remove(m)); this.cells.clear(); }
+    if (!sameClear) { for (const c of this.cells.values()) c.forEach(m => { this.scene.remove(m); m.dispose(); }); this.cells.clear(); }
     this.scene.add(grp);
     if (early) { this.scene.remove(early); for (const im of early.children) im.dispose(); }
   }
@@ -1635,6 +1649,17 @@ export class EuropeView3D {
         }
       }
       for (const R of (this.armyMap || new Map()).values()) for (const m of R.men) m.mixer.update(dt);
+      // (the dust a company raises on the march: puffs left behind it on the road, rising and spreading as they settle)
+      { const D = this.dust ||= { grp: (() => { const g = new THREE.Group(); this.scene.add(g); return g; })(), list: [], last: new Map() };
+        for (const [key, R] of this.armyMap || []) if (R.glide && now - (D.last.get(key) || 0) > 110) {
+          D.last.set(key, now); let p = D.list.find(q => !q.live);
+          if (!p && D.list.length < 60) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex(), transparent: true, depthWrite: false, opacity: 0, color: 0xcbb994 })); sp.renderOrder = 3; D.grp.add(sp); p = { sp }; D.list.push(p); }
+          if (p) { const ry = R.co.rotation.y, back = k * (2.6 + Math.random() * 1.5), side = (Math.random() - 0.5) * k * 4.5; p.live = true; p.t0 = now; p.x = R.co.position.x - Math.sin(ry) * back + Math.cos(ry) * side; p.z = R.co.position.z - Math.cos(ry) * back - Math.sin(ry) * side; p.y = Math.max(0, this.groundY(p.x, p.z)); }
+        }
+        for (const p of D.list) {
+          const a = p.live ? (now - p.t0) / 1600 : 1; if (a >= 1) { p.live = false; p.sp.visible = false; continue; }
+          p.sp.visible = true; p.sp.position.set(p.x, p.y + k * (0.5 + a * 1.5), p.z); p.sp.scale.setScalar(k * (2.6 + a * 4.5)); p.sp.material.opacity = Math.sin(Math.min(1, a * 2.2) * Math.PI * 0.5) * (1 - a) * 0.7;
+        } }
       // (the routes laid again for the new distance, when the eye has come much nearer or gone much further off)
       if (this.armyMap && Math.abs(Math.log((this.dist + 1) / ((this.routeDist || this.dist) + 1))) > 0.35) { this.routeDist = this.dist; for (const R of this.armyMap.values()) if (R.routeA) { R.routeKey = null; this.routeLine(R, R.routeA); } }
     }
