@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.19", date: "20 October 2026", title: "Rivers in proportion",
+    items: [
+      "Campaign 3D map: close in, the rivers are a third narrower, in proportion to the towns on them, rather than broader than the city they run through. From high up they still show as they did.",
+    ],
+  },
+  {
     v: "1.99.18", date: "20 October 2026", title: "The seasons",
     items: [
       "Campaign 3D map: the land shows the season the year's news is dated. In spring the leaves and the young corn are a fresh green; in autumn the broad-leaved woods turn gold, rust and brown among the green, close in and from on high, and the fields lie in stubble, ripe gold and ploughed brown. The pine forests keep their dark.",

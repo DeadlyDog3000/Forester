@@ -709,7 +709,7 @@ export class EuropeView3D {
       const beside = side0.map((_, i) => { let t = 0, n = 0; for (let k = Math.max(0, i - 10); k <= Math.min(N - 1, i + 10); k++) { t += side0[k]; n++; } return t / n > 0.45; });
       for (let i = 0; i < N; i++) {
         const [x, z] = W[i], [dx, dz] = dir[i];
-        const hw = 0.018 + 0.03 * (1 - i / N) * big, raw = this.rawY(x, z), dry = raw > 0.002 && !beside[i];
+        const hw = 0.012 + 0.022 * (1 - i / N) * big, raw = this.rawY(x, z), dry = raw > 0.002 && !beside[i];
         // (a hair over the ground — and over the coarse ground's line where that runs higher, far off)
         const y = Math.max(0, raw) + 0.012 + Math.min(0.04, Math.max(0, this.baseY(x, z) - raw)), n0 = pos.length / 3;
         for (const [sd, a] of [[-1.7, 0], [-1, 1], [1, 1], [1.7, 0]]) { pos.push(x, y, z); nrm.push(-dz, dx); side.push(sd); hwA.push(hw); col.push(0.25, 0.43, 0.52, dry ? a * 0.95 : 0); }
