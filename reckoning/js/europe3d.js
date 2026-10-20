@@ -1264,6 +1264,15 @@ export class EuropeView3D {
     const gunG = new THREE.BoxGeometry(0.9, 0.35, 0.5); gunG.translate(0, 0.18, 0);
     const smokeT = smokeTex();
     for (const S of list) {
+      // (a battlefield of the year: only the smoke drifting off it, where the armies met)
+      if (S.field) {
+        const [fx, fz] = toWorld(S.lon, S.lat);
+        for (let k = 0; k < 5; k++) {
+          const ox = Math.cos(k * 2.4) * 0.12, oz = Math.sin(k * 2.4) * 0.08, sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeT, transparent: true, depthWrite: false, opacity: 0, color: 0xd8d2c6 }));
+          sp.userData.base = [fx + ox, this.groundY(fx + ox, fz + oz), fz + oz]; sp.userData.phase = k / 5; sp.renderOrder = 3; grp.add(sp); grp.userData.smoke.push(sp);
+        }
+        continue;
+      }
       const [cx, cz] = toWorld(S.lon, S.lat), r = 0.34 + S.rank * 0.1, cm = new THREE.MeshStandardMaterial({ color: S.color, roughness: 0.9 });
       // (the lines: a bank of earth all the way round, a little outside the houses — not a ring but a line of
       //  redoubts, jogging out and back as the engineers dug it to the ground)

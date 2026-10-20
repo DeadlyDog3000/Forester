@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.97.0", date: "19 October 2026", title: "Battlefields",
+    items: [
+      "Campaign: where the other crowns fought each other this year is marked on both maps until next year's fighting: crossed swords in a dark ink, and on the land seen close the smoke still drifting off the field.",
+    ],
+  },
+  {
     v: "1.96.0", date: "19 October 2026", title: "Sieges",
     items: [
       "Campaign 3D map: a town your army is besieging has its siege works round it: the lines dug in a jagged ring of redoubts outside the houses, the besiegers' camps behind them with tents in your colours, and the batteries' guns with their smoke drifting off over the town.",

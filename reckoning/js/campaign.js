@@ -2163,6 +2163,9 @@ function crownsWar(g, ids) {
       for (const x of alliesOf(b).filter(x => x !== a && x !== C.me && !isHuman(x) && alive(g, x) && !leagueOf(x, a) && sameSide(x, a) && !W.some(w => (w.a === x && w.b === a) || (w.a === a && w.b === x))).slice(0, 2)) if (R() < 0.6) { W.push({ a: x, b: a, battles: 0 }); sayAll(`${The(x)} ${v3(x, "comes")} in on ${poss(the(b))} side`, `Against ${the(a)}, as its league binds it.`); }
     }
   }
+  // (where the crowns fought this year: marked on the map until the next year's fighting)
+  C.E.fought = [];
+  const fought = (p, took) => { if (p && isFinite(p.x) && C.E.fought.length < 24) C.E.fought.push({ x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, took: took || null }); };
   // (a crown at peace with everyone marches its army home again)
   { const gg = grid(), busy = new Set(W.flatMap(w => [w.a, w.b])); for (const id of Object.keys(C.foePos || {})) if (!busy.has(id) && ownWar(id) && alive(gg, id)) { const h = homeOf(gg, id); if (h && mdist(C.foePos[id], h) > 1) warMove(id, h, MARCH); } }
   for (const w of W.slice()) {
@@ -2198,10 +2201,10 @@ function crownsWar(g, ids) {
     C.foes[lose] = Math.max(0, C.foes[lose] - 3 - Math.floor(R() * 4)); C.foes[win] = Math.max(0, C.foes[win] - 1 - Math.floor(R() * 2));
     // (the much weaker side, winning, mostly throws the attack back and holds what it has: it hasn't the men to go on
     //  and take a great power's town)
-    { const sw = aWins ? sa : sb, sl = aWins ? sb : sa; if (sw < sl * 0.6 && R() < 0.7) { warMove(lose, homeOf(gg, lose), MARCH * 0.6); w.battles++; continue; } }
+    { const sw = aWins ? sa : sb, sl = aWins ? sb : sa; if (sw < sl * 0.6 && R() < 0.7) { { const pa = foeArmyPos(win), pb = foeArmyPos(lose); fought(pa && pb && !overSea(pa, pb) ? { x: (pa.x + pb.x) / 2, y: (pa.y + pb.y) / 2 } : pb); } warMove(lose, homeOf(gg, lose), MARCH * 0.6); w.battles++; continue; } }
     // (a crown's own seat holds out longest: taken only on a second good day, unless it's nearly all the crown has left)
     if (target.length) {
-      const ct = pick(target), tc = cellXY(ct);
+      const ct = pick(target), tc = cellXY(ct); fought(tc, ct[0]);
       // (the winner's army before the town it fought for; the loser's falling back toward home)
       { const sh = landNear(gg, { x: tc.x + 1.2, y: tc.y + 0.9 }, 5) || tc; warMove(win, sh, MARCH * 1.5); warMove(lose, homeOf(gg, lose), MARCH * 0.6); }
       if (ct[3] === 3 && citiesOfNow(gg, lose).length > 3 && R() < 0.6) { w.battles++; continue; }
@@ -2590,6 +2593,8 @@ function marks3d() {
     if (own === C.me) { out.push({ ...at, kind: "ring", color: threat.has(ct[0]) ? "#c0281a" : NATIONS[C.me].color }); if (threat.has(ct[0])) out.push({ ...at, kind: "swords", color: "#c0281a" }); }
     else { if (isHuman(own)) out.push({ ...at, kind: "dash", color: NATIONS[own].color }); if (atWar(own) && inMarch(ct)) out.push({ ...at, kind: "swords", color: "#b0281a", dim: !!C.moved }); }
   }
+  // (the year's battlefields of the other crowns' wars: crossed swords in a darker ink)
+  for (const f of (C.E && C.E.fought) || []) { const [lon, lat] = llOf(f.x, f.y); out.push({ name: "fought:" + f.x + "," + f.y, lon, lat, kind: "swords", color: "#5a3a22", dim: false }); }
   return out;
 }
 // the armies on the land, for the near view: each as a company of its own men in its own coats (europe3d.js armies)
@@ -2622,6 +2627,7 @@ function sieges3d() {
   const out = [], one = (S, id) => { const ct = S && CITIES.find(c => c[0] === S.ct); if (!ct) return; out.push({ name: ct[0], lon: ct[1], lat: ct[2], rank: ct[3] | 0, color: NATIONS[id].color, years: S.years | 0, breach: (S.bat || 0) >= 1 }); };
   eachArmy(() => { if (C.siege) one(C.siege, C.me); });
   if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.siege) one(sl.siege, h); }
+  for (const f of (C.E && C.E.fought) || []) { const [lon, lat] = llOf(f.x, f.y); out.push({ name: "fought", lon, lat, rank: 0, color: "#888", field: true }); }
   return out;
 }
 // (the fleets at sea, for the land seen close: yours, the other player's, and the crowns' — each heading where she's bound)
@@ -2735,6 +2741,8 @@ function paint() {
   }
   // ---- the armies: a regiment's block under its colour, how many regiments, and where it's marching ----
   const scr = p => [(p.x * S - view.ox) * view.z, (p.y * S - view.oy) * view.z];
+  // (the year's battlefields in the other crowns' wars: crossed swords in a darker ink, where they met)
+  for (const f of (C.E && C.E.fought) || []) { const [x, y] = scr(f); swords(x, y - 6 * k, 4.2 * k, "rgba(84,54,30,0.85)"); }
   // (a town under siege: the lines drawn round it in the engineers' way — a jagged ring of redoubts — and the
   //  besiegers' tents behind them, in their colours)
   for (const Sg of sieges3d()) {
