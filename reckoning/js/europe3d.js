@@ -682,7 +682,8 @@ export class EuropeView3D {
       const key = gx + "," + gz; have.add(key);
       if (!this.cells.has(key)) this.cells.set(key, this.plant(gx, gz));
     }
-    for (const [key, ms] of this.cells) if (!have.has(key)) { ms.forEach(m => this.scene.remove(m)); this.cells.delete(key); }
+    for (const [key, ms] of this.cells) if (!have.has(key)) { ms.forEach(m => { this.scene.remove(m); m.dispose(); }); this.cells.delete(key); }
+    const near = this.dist < 6.5; if (near !== this._hNear) { this._hNear = near; for (const ms of this.cells.values()) for (const m of ms) if (m.userData.small) m.visible = near; }
   }
   plant(gx, gz) {
     const r = rng(gx * 7919 + gz * 104729 + 17), per = {}, o = new THREE.Object3D();
@@ -709,6 +710,43 @@ export class EuropeView3D {
       if (!ms.length) continue;
       const k = this.kinds[kind], im = new THREE.InstancedMesh(k.geo, k.mat, ms.length);
       ms.forEach((m, i) => im.setMatrixAt(i, m)); this.scene.add(im); out.push(im);
+    }
+    return out.concat(this.hamlets(gx, gz));
+  }
+  // the villages of the open country between the towns: a handful of houses round a green, the larger with a church —
+  // thatch in the north and the middle, tile in the south; none in the woods, by a town, or on the water's edge
+  hamlets(gx, gz) {
+    const [lon0] = toLL(gx + 0.5, gz + 0.5); if (lon0 < -45) return [];   // (the New World: its own towns and the woods' nations', no villages of Europe's kind)
+    const r = rng(gx * 4241 + gz * 92821 + 3), K = this._hk ||= { box: new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), roof: gable(), spire: new THREE.ConeGeometry(0.5, 1, 4).translate(0, 0.5, 0), mat: new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }) };
+    // (the small ones apart from those with a church: from further up only the larger are shown, or the country's a speckle)
+    const L = { box: [], roof: [], spire: [], "box.s": [], "roof.s": [] }, o = new THREE.Object3D(), c = new THREE.Color();
+    let sm = "";
+    const put = (k, x, y, z, ry, sx, sy, sz, col) => { o.position.set(x, y, z); o.rotation.set(0, ry, 0); o.scale.set(sx, sy, sz); o.updateMatrix(); L[k + sm].push([o.matrix.clone(), col]); };
+    const WALL = [0xe8dfca, 0xe2d6bc, 0xd9cdb4, 0xcfc4ae, 0xb8ab94], TILE = [0xa64a30, 0x9a3f2a, 0xb05a38, 0x8c4430], THATCH = [0x9c8455, 0x8a7448, 0xa08a5c], SLATE = [0x55605e, 0x4a5452];
+    for (let i = 0; i < 6; i++) {
+      const cx = gx + r(), cz = gz + r(), [lon, lat] = toLL(cx, cz), h = heightAt(this.g, lon, lat), n = 4 + ((r() * 7) | 0), ang0 = r() * 3.14, roll = r();
+      if (h < 0.03 || h > 2.2) continue;
+      const per = { temperate: 1, med: 0.75, steppe: 0.3, taiga: 0.2 }[biomeAt(lon, lat, h)] || 0; if (roll > per) continue;
+      if (woodAt(cx, cz, h) - tilledAt(lon, lat) * WOOD_CUT > 0.42 || this.cleared(cx, cz) || this.riverAt(cx, cz, 0.07) || this.townNear(cx, cz) > 0.02) continue;
+      const south = lat < 45, north = lat > 54, spread = 0.02 + n * 0.0045; sm = n >= 6 ? "" : ".s";
+      for (let k = 0; k < n; k++) {
+        const a = r() * 6.28, d = 0.008 + Math.sqrt(r()) * spread, hx = cx + Math.cos(a) * d, hz = cz + Math.sin(a) * d, hy = this.groundY(hx, hz);
+        if (hy < 0.006 || this.riverAt(hx, hz, 0.03)) continue;
+        const w = 0.017 + r() * 0.006, l = 0.024 + r() * 0.012, ht = 0.013 + r() * 0.006, ry = ang0 + (r() < 0.5 ? 0 : 1.571) + (r() - 0.5) * 0.4;
+        const pal = south ? TILE : north ? (r() < 0.5 ? SLATE : THATCH) : r() < 0.65 ? THATCH : TILE;
+        put("box", hx, hy - 0.004, hz, ry, w, ht + 0.004, l, WALL[(r() * WALL.length) | 0]);
+        put("roof", hx, hy + ht, hz, ry, w * 1.2, (south ? 0.45 : 0.8) * w, l * 1.08, pal[(r() * pal.length) | 0]);
+      }
+      // (the church: its tower and spire over the roofs, at the green's edge)
+      if (n >= 6) { const hy = this.groundY(cx, cz); if (hy >= 0.006) { put("box", cx, hy - 0.004, cz, ang0, 0.013, 0.05, 0.013, 0xd6ccb8); put("box", cx + Math.cos(ang0) * 0.016, hy - 0.004, cz - Math.sin(ang0) * 0.016, ang0, 0.016, 0.022, 0.03, 0xe2d6bc); put("spire", cx, hy + 0.046, cz, ang0 + 0.785, 0.016, 0.03, 0.016, south ? 0xa64a30 : 0x4a5a58); } }
+    }
+    const out = [];
+    for (const [k, list] of Object.entries(L)) {
+      if (!list.length) continue;
+      const im = new THREE.InstancedMesh(K[k.split(".")[0]], K.mat, list.length);
+      list.forEach(([m, col], i) => { im.setMatrixAt(i, m); im.setColorAt(i, c.setHex(col)); });
+      if (k.endsWith(".s")) { im.userData.small = true; im.visible = this.dist < 6.5; }
+      this.scene.add(im); out.push(im);
     }
     return out;
   }

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.1", date: "19 October 2026", title: "Villages",
+    items: [
+      "Campaign 3D map: the open country between the towns has its villages: a handful of houses round a green, the larger with a church and its spire, thatched in the north and the middle of Europe and tiled in the south. None stand in the woods, beside a town or on a river; from higher up only the church villages show, so the land doesn't turn to a speckle.",
+    ],
+  },
+  {
     v: "1.99.0", date: "19 October 2026", title: "The lie of the land",
     items: [
       "Campaign 3D map: the woods follow the land, as they did: the hills and the mountains' flanks wooded (the Wienerwald, the Bohemian forest, the Alps' foothills, the Vosges), the valleys and the plains ploughed. From on high, Europe reads as whole forests and open country instead of a mottle, and the New World's eastern woods stand unbroken from the coast inland.",
