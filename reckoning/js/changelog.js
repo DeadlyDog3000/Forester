@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.3", date: "19 October 2026", title: "Forest and snow",
+    items: [
+      "Campaign 3D map: the northern forest stands thick again, in the lowlands as on the hills: Sweden, Finland and Muscovy are dark with pine and spruce, with clearings and bogs between, and seen from high up they're one forest rather than a camouflage.",
+      "Campaign 3D map: the snow lies on the high peaks, not over whole ranges. The Alps, the Pyrenees and the Carpathians show their snowfields on the summits, bare rock below and green valleys running up between them.",
+    ],
+  },
+  {
     v: "1.99.2", date: "19 October 2026", title: "Your first year",
     items: [
       "Campaign: a new player's first campaign opens with a card for the first year: choose your army, send it on its way, raise regiments, set your scholars to work and end the year. Each step is ticked off as you do it, the card goes once they're all done, and it can be put away at any time. Anyone who has played the campaign before never sees it.",
