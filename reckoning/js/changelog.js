@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.4", date: "19 October 2026", title: "Moving water",
+    items: [
+      "Campaign 3D map: the sea moves. Close in, swells run across it one way and a chop another, catching the light, so the water round a fleet or a harbour is alive instead of a flat sheet; from higher up it stills, so it never shimmers.",
+    ],
+  },
+  {
     v: "1.99.3", date: "19 October 2026", title: "Forest and snow",
     items: [
       "Campaign 3D map: the northern forest stands thick again, in the lowlands as on the hills: Sweden, Finland and Muscovy are dark with pine and spruce, with clearings and bogs between, and seen from high up they're one forest rather than a camouflage.",

@@ -385,6 +385,28 @@ function gable() {
   const n = g.toNonIndexed(); n.computeVertexNormals(); return n;
 }                                  // km to units, ten times over
 
+// the sea's drawing: the water moving close in — swells running across it one way and a chop another, catching the sun —
+// and stilled as the eye goes up, where the ripples would be smaller than a pixel and only shimmer
+function seaMaterial() {
+  const m = new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.28, metalness: 0.1, transparent: true, opacity: 0.72, depthWrite: false });
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uTime = { value: 0 }; m.userData.shader = sh;
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaWP;").replace("#include <begin_vertex>", "#include <begin_vertex>\n vSeaWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaWP; uniform float uTime;")
+      // (the waves worked out once: their slope for the light, their height for the water's own light and dark)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+      vec2 sp = vSeaWP.xz; float spx = length(fwidth(sp)), sa = 1.0 - smoothstep(0.006, 0.05, spx);
+      vec2 d1 = normalize(vec2(0.8, 0.6)), d2 = normalize(vec2(-0.35, 0.94)), d3 = normalize(vec2(0.97, -0.24));
+      float p1 = dot(sp, d1) * 26.0 - uTime * 1.1, p2 = dot(sp, d2) * 47.0 - uTime * 1.6 + sin(sp.x * 9.0) * 1.5, p3 = dot(sp, d3) * 83.0 - uTime * 2.3 + sin(sp.y * 13.0) * 2.0;
+      vec2 seaG = d1 * cos(p1) * 0.55 + d2 * cos(p2) * 0.3 + d3 * cos(p3) * 0.15;
+      float seaH = sin(p1) * 0.55 + sin(p2) * 0.3 + sin(p3) * 0.15;
+      diffuseColor.rgb *= 1.0 + seaH * 0.09 * sa;`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+      normal = normalize(normal + (viewMatrix * vec4(seaG.x, 0.0, seaG.y, 0.0)).xyz * 0.45 * sa);`);
+  };
+  m.customProgramCacheKey = () => "sea3";
+  return m;
+}
 // ---- trees and bushes: each kind one instanced mesh ----
 function treeKinds() {
   const trunk = new THREE.CylinderGeometry(0.004, 0.006, 0.03, 5).translate(0, 0.015, 0);
@@ -417,7 +439,7 @@ export class EuropeView3D {
     this.scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x5a5040, 1.1));
     const sun = new THREE.DirectionalLight(0xfff0d8, 1.6); sun.position.set(-40, 60, 30); this.scene.add(sun);
     // the sea: one sheet, at nought
-    const sea = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.6, MAP_H * 1.6).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.35, metalness: 0.1, transparent: true, opacity: 0.72, depthWrite: false }));
+    const sea = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W * 1.6, MAP_H * 1.6).rotateX(-Math.PI / 2), this.seaMat = seaMaterial());
     // (see-through enough that the sandy shallows along a coast show under it, the deeps dark)
     sea.renderOrder = 1;
     sea.position.set(MAP_W / 2, 0, MAP_H / 2); this.scene.add(sea);
@@ -1502,6 +1524,7 @@ export class EuropeView3D {
   size(w, h) { this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); this.w = w; this.h = h; }
   frame() {
     sync();
+    if (this.seaMat && this.seaMat.userData.shader) this.seaMat.userData.shader.uniforms.uTime.value = performance.now() / 1000;
     // (the near plane drawn back as the eye goes up, so the sea and the low coast don't fight over the same depth)
     const nr = Math.max(0.01, this.dist * 0.004); if (Math.abs(this.camera.near - nr) > nr * 0.1) { this.camera.near = nr; this.camera.updateProjectionMatrix(); }
     if (!this.visible || !this.g) return;
