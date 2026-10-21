@@ -302,7 +302,7 @@ function play(chapter, opts) {
 
 // a new game: first, which of the six saves it goes in
 // (a first game, every save empty: nothing to choose between — straight on, into the first)
-$("btnNew").onclick = () => { slotMode = "new"; if (Array.from({ length: SLOTS }, (_, i) => readSlot(i + 1)).every(s => !s)) { setSlot(1); back = "title"; screen("modeSel"); return; } back = "title"; buildSlots(); screen("slots"); };
+$("btnNew").onclick = () => { slotMode = "new"; if (Array.from({ length: SLOTS }, (_, i) => readSlot(i + 1)).every(s => !s)) { setSlot(1); back = "title"; modeFrom = "title"; screen("modeSel"); return; } back = "title"; buildSlots(); screen("slots"); };
 $("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots(); screen("slots"); };
 // ---- a lost game brought back: the app puts by a copy of all the saves before every new version; any of them can be
 // put back in place of the saves now (which are themselves put by first, so nothing is lost by trying) ----
@@ -503,7 +503,10 @@ function startNew(who, look) {
 }
 // ---- a new game: the story, free play, or the frontier on your own ----
 let newMode = "story";
-$("modeBack").onclick = () => { back = "title"; screen("slots"); };   // (and the saves' own Back, from there, to the title)
+// (back the way you came: to the saves, and from there to the title; or, with no saves yet and so none shown, to the
+//  title itself — once to an empty page of saves)
+let modeFrom = "slots";
+$("modeBack").onclick = () => { back = "title"; if (modeFrom === "title") screen("title"); else { buildSlots(); screen("slots"); } };
 for (const b of document.querySelectorAll("[data-mode]")) b.onclick = () => {
   newMode = b.dataset.mode;
   if (newMode === "frontier") { openSoloFrontier(); return; }
@@ -542,7 +545,7 @@ $("slotList").addEventListener("click", e => {
   if ((act === "delete" || (act === "new" && s && slotMode === "new")) && !(slotArmed && slotArmed.n === n && slotArmed.act === act)) { slotArmed = { n, act }; buildSlots(); return; }
   slotArmed = null;
   if (act === "play") { setSlot(n); G.who = s.who || "brother"; play(s.chapter || 1); }
-  else if (act === "new") { setSlot(n); back = "slots"; slotMode = "new"; screen("modeSel"); }
+  else if (act === "new") { setSlot(n); back = "slots"; slotMode = "new"; modeFrom = "slots"; screen("modeSel"); }
   else if (act === "delete") { clearSlot(n); if (n === getSlot()) refreshTitle(); buildSlots(); }
   else if (act === "export") {
     const blob = new Blob([JSON.stringify({ game: "forester-reckoning", version: CHANGELOG[0].v, save: n, data: s }, null, 1)], { type: "application/json" });

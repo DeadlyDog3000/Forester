@@ -412,7 +412,7 @@ body.talking #hint { bottom: 298px; }
 .insp-acts button.danger.armed { background: rgba(200, 70, 50, 0.45); }
 
 /* the six saves */
-#slotList { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; width: min(940px, 92vw); margin: 6px auto 18px; }
+#slotList { flex-shrink: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; width: min(940px, 92vw); margin: 6px auto 18px; }
 .slot { position: relative; padding: 14px 16px 12px; background: rgba(9, 24, 16, 0.72); border: 1px solid var(--edge); border-radius: 6px; text-align: left; }
 .slot.cur { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
 .slot .sl-n { font: 600 11px var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
@@ -1644,7 +1644,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .camp-alt { grid-template-columns: 1fr 1fr; }
 /* (the map: the whole window, the bar and the panel laid over it) */
 .cmp-play { position: fixed; inset: 0; width: auto; height: auto; margin: 0; display: block; z-index: 5; background: #14100b; }
-.cmp-main { position: absolute; inset: 0; display: block; }
+.cmp-main { position: absolute; inset: 0; display: block; overflow: clip; }   /* (the panel put away slides off its right edge: clipped there, not a sideways scroll of the whole screen) */
 .cmp-mapwrap { position: absolute; inset: 0; border: 0; border-radius: 0; display: block; }
 .cmp-mapwrap canvas { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: none; max-height: none; }
 .cmp-mapwrap canvas.eu3d { left: 0; top: 0; transform: none; width: 100vw; height: 100vh; display: none; cursor: grab; opacity: 0; transition: opacity 0.45s ease; pointer-events: none; }

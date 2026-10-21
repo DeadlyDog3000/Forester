@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.28", date: "20 October 2026", title: "Back the way you came",
+    items: [
+      "Title: with no saves yet, Begin the story then Back now returns to the title. Before, it went to an empty Saves page with nothing on it but its Back button.",
+      "Saves: in a shorter window the six saves no longer slide under the Back button; the page scrolls instead.",
+      "Campaign: putting the side panel away no longer leaves the whole screen able to scroll sideways, with a scrollbar along the bottom of the map.",
+    ],
+  },
+  {
     v: "1.99.27", date: "20 October 2026", title: "A gazzetta for the gazette",
     items: [
       "Campaign gazette: each crown's paper is priced in its own coin rather than in English pennies: a kreuzer in Vienna, a grosz in Warsaw, two öre in Stockholm, a kopeck for the Vedomosti, and in Venice a gazzetta, the coin that gave the gazettes their name. The woods' nations' news is told at the fire.",
