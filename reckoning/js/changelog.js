@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.37", date: "20 October 2026", title: "Water and shore",
+    items: [
+      "The story's water (the Elbe at Hamburg, the pond, a frontier's sea): the wind's ripples are irregular, as real ones are, and drift down the wind, instead of running in ruled lines. The waves' slopes are worked out across the whole surface, so every crest is crisp. The sky is reflected more the lower you look, and the sun's reflection is a glitter of sparks rather than one soft blob. On a sea with waves, the crests are sharp and the troughs broad, and light shows green through their tops.",
+      "Campaign 3D map: the sea's chop is irregular and drifts with the wind, rather than lying in even stripes, and a line of surf breaks along the coasts, with white water running in over the shallows.",
+      "Campaign 3D map: a town's square, church and hall always stand on land. At a port the coast is drawn round the town's heart instead of through it, so a church no longer stands half out over the water. Copenhagen's heart is an island bridged to the town, Stockholm's old town sits on its own island, and the Bosporus still runs past Constantinople.",
+    ],
+  },
+  {
     v: "1.99.36", date: "20 October 2026", title: "A real sea",
     items: [
       "Battles at sea: the sea is made again. Eight waves run down the wind and fan out either side of it, long swells and short chop together, each with the sharp crest and broad trough of a real sea's waves rather than a smooth rolling hill. The ships ride the same waves.",

@@ -90,6 +90,19 @@ function townCalm(lon, lat) {
   }
   return m;
 }
+// (and the ground under a town's middle — its square, its church, its hall — always land: at a port the map's coast could
+//  run through the square, and the church stood half out over the water. The coast is drawn round the town's heart
+//  instead, easing back to where it was a little way out; a strait or a lake's water cut through is left as it is)
+function townLand(lon, lat) {
+  const px = lon * K, bx = Math.floor(lon), by = Math.floor(lat); let m = 0;
+  for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+    const L = TBIN.get((bx + i) * 1000 + by + j); if (!L) continue;
+    // (its edge a shore's, ragged, not a ring)
+    for (const [tx, ty, r] of L) { const rc = 0.011 + (r - 0.07) * 0.12, d = Math.hypot(px - tx, lat - ty) + (fbm(lon * 70, lat * 70, 17, 2) - 0.5) * rc * 0.9; if (d < rc * 1.9) m = Math.max(m, 0.95 * (1 - smoothstep01((d - rc) / (rc * 0.9)))); }
+  }
+  return m;
+}
+const smoothstep01 = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
 // (the waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound, Messina's strait, the Zuiderzee, the lakes — cut through the land as
 //  channels, so Constantinople stands on its strait and not on an isthmus) [lon, lat, lon, lat, half-width in degrees]
 const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23, 0.011], [26.15, 40.03, 26.45, 40.2, 0.045], [26.45, 40.2, 26.75, 40.42, 0.045], [12.6, 56.05, 12.72, 55.65, 0.05],
@@ -149,6 +162,7 @@ export function heightAt(g, lon, lat) {
   //  stairs: only where it's coast at all)
   //  (not on the far ground: finer than its corners are apart, it only made the coast jagged from on high)
   if (!FOOT && l0 > 0.001 && l0 < 0.999) land += (fbm(lon * 8.3, lat * 8.3, 43, 2) - 0.5) * 2.4 * l0 * (1 - l0);
+  if (land < 0.95) { const tl = townLand(lon, lat) * (1 - Math.min(1, cut)); if (tl > land) land = tl; }
   if (land < 0.62 && l0 < 0.999 && !cut && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.72 + (w - 0.78) * 0.5); }
   // (the far ground going through the water's level at the coast without a step, so between two of its corners the
   //  coast falls where it should and not always hard by the one on land)
@@ -375,6 +389,15 @@ const GROUND_MIX = `
   col = mix(col, vec3(0.77, 0.72, 0.56) * (0.92 + 0.16 * n2), (1.0 - smoothstep(0.035, 0.06, h)) * vB);
   vec3 floor0 = mix(vec3(0.58, 0.63, 0.52), vec3(0.13, 0.25, 0.30), clamp((-vT.w - 0.028) / 0.07, 0.0, 1.0));
   col = mix(col, floor0, smoothstep(0.004, -0.004, vT.w));
+  // the surf: a white line where the water meets the land, and the waves' white running in over the shallows to it in
+  //  bands, the way the sea breaks on a beach — seen through the water, and only close enough in to be told apart
+  { float dep = -vT.w - (n1 - 0.5) * 0.003;
+    float zone = smoothstep(0.0, 0.003, dep) * (1.0 - smoothstep(0.01, 0.026, dep));
+    float bands = smoothstep(0.72, 0.96, sin(dep * 950.0 + uTime * 1.7 + n2 * 3.0) * 0.5 + 0.5);
+    float edge = 1.0 - smoothstep(0.0, 0.0045, abs(dep - 0.002));
+    float surf = (edge + bands * zone * 0.85) * (0.65 + 0.35 * n2) * (1.0 - smoothstep(0.008, 0.04, px));
+    //  (bright: it's seen through the sea's own colour, which takes most of it)
+    col = mix(col, vec3(1.0), clamp(surf, 0.0, 1.0)); }
   // bare rock in a broad band under the snowline, its lower edge ragged; then the snow, its line ragged and sharp
   col = mix(col, mix(vec3(0.42, 0.40, 0.36), vec3(0.50, 0.47, 0.41), n1) * (0.86 + 0.28 * n2), smoothstep(-0.4, -0.3, vT.z + (n1 - 0.5) * 0.3));
   float sn = smoothstep(0.0, 0.08, vT.z + (n1 - 0.5) * 0.22);
@@ -394,7 +417,7 @@ function groundMaterial() {
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS + CLOUD_GLSL)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground26";
+  m.customProgramCacheKey = () => "ground27";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -421,7 +444,7 @@ function gable() {
 // the sea's drawing: the water moving close in — swells running across it one way and a chop another, catching the sun —
 // and stilled as the eye goes up, where the ripples would be smaller than a pixel and only shimmer
 function seaMaterial() {
-  const m = new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.28, metalness: 0.1, transparent: true, opacity: 0.72, depthWrite: false });
+  const m = new THREE.MeshStandardMaterial({ color: 0x3e6f86, roughness: 0.2, metalness: 0.1, transparent: true, opacity: 0.72, depthWrite: false });
   m.onBeforeCompile = sh => {
     sh.uniforms.uTime = { value: 0 }; m.userData.shader = sh;
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSeaWP;").replace("#include <begin_vertex>", "#include <begin_vertex>\n vSeaWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
@@ -429,15 +452,20 @@ function seaMaterial() {
       // (the waves worked out once: their slope for the light, their height for the water's own light and dark)
       .replace("#include <color_fragment>", `#include <color_fragment>
       vec2 sp = vSeaWP.xz; float spx = length(fwidth(sp)), sa = 1.0 - smoothstep(0.006, 0.05, spx);
-      vec2 d1 = normalize(vec2(0.8, 0.6)), d2 = normalize(vec2(-0.35, 0.94)), d3 = normalize(vec2(0.97, -0.24));
-      float p1 = dot(sp, d1) * 26.0 - uTime * 1.1, p2 = dot(sp, d2) * 47.0 - uTime * 1.6 + sin(sp.x * 9.0) * 1.5, p3 = dot(sp, d3) * 83.0 - uTime * 2.3 + sin(sp.y * 13.0) * 2.0;
-      vec2 seaG = d1 * cos(p1) * 0.55 + d2 * cos(p2) * 0.3 + d3 * cos(p3) * 0.15;
-      float seaH = sin(p1) * 0.55 + sin(p2) * 0.3 + sin(p3) * 0.15;
+      //  (one long swell from the west, and over it the wind's chop: two sizes of it, irregular as the sea is and not in
+      //  ruled lines, drifting down the wind; the finer gone before it would only shimmer)
+      vec2 d1 = normalize(vec2(0.8, 0.6));
+      float p1 = dot(sp, d1) * 26.0 - uTime * 1.1 + gn(sp * 3.0) * 2.5;
+      vec2 q1 = sp * 38.0 + vec2(uTime * 0.9, uTime * 0.55), q2 = sp * 105.0 + vec2(-uTime * 1.4, uTime * 1.2);
+      float n1 = gn(q1), n2 = gn(q2), e = 0.2, fa = 1.0 - smoothstep(0.004, 0.02, spx);
+      vec2 g1 = vec2(gn(q1 + vec2(e, 0.0)) - n1, gn(q1 + vec2(0.0, e)) - n1) / e, g2 = vec2(gn(q2 + vec2(e, 0.0)) - n2, gn(q2 + vec2(0.0, e)) - n2) / e;
+      vec2 seaG = d1 * cos(p1) * 0.45 + g1 * 0.32 + g2 * 0.2 * fa;
+      float seaH = sin(p1) * 0.5 + (n1 - 0.5) * 0.7 + (n2 - 0.5) * 0.3 * fa;
       diffuseColor.rgb *= (1.0 + seaH * 0.09 * sa) * cloudShadow(sp, uTime);`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
       normal = normalize(normal + (viewMatrix * vec4(seaG.x, 0.0, seaG.y, 0.0)).xyz * 0.45 * sa);`);
   };
-  m.customProgramCacheKey = () => "sea5";
+  m.customProgramCacheKey = () => "sea6";
   return m;
 }
 // ---- trees and bushes: each kind one instanced mesh ----

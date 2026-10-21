@@ -12,44 +12,55 @@ import { G } from "./engine.js";
 // the waves: a few long swells running across the surface, each its own length, way and pace (a deep-water wave's
 // pace from its length, as the sea's own are), summed — the surface lifted and dropped by them, its slope carried to
 // the light; the same sum in JS below (waveAt), so a float or a duck rides them
+const CHOP = "1.6";
 const WAVES = [[0.96, 0.28, 1.0, 0.5], [-0.37, 0.93, 0.61, 0.28], [0.66, -0.75, 0.39, 0.15], [-0.98, -0.2, 0.24, 0.07], [0.2, 0.98, 0.15, 0.04]];
 const WAVE_GLSL = `
   uniform float uAmp, uLen, uRoughOn; uniform sampler2D uRough; uniform vec4 uRoughBox;
   // how rough the sea is here (1 as it is; a sheltered bay less, the open ocean in the north far more): see setRough
   float roughAt(vec2 p) { return uRoughOn > 0.5 ? texture2D(uRough, (p - uRoughBox.xy) * uRoughBox.zw).r * 3.0 : 1.0; }
+  // (each wave's water going round as it passes — Gerstner's waves: the crests drawn sharp and the troughs broad; how
+  //  sharp, in proportion to the wave's own steepness, so a calm surface stays smooth. wOff: the sideways carry; wJ:
+  //  how much the crests are pinched, for the shading)
+  vec2 wOff; float wJ;
   vec3 waves(vec2 p, float t) {
-    float h = 0.0; vec2 s = vec2(0.0);
-    ${WAVES.map(([dx, dz, l, a]) => `{ float L = ${l.toFixed(3)} * uLen, k = 6.2832 / L, w = sqrt(9.8 * k), ph = k * dot(vec2(${dx}, ${dz}), p) - w * t, A = ${a.toFixed(3)} * uAmp;
-      h += A * sin(ph); s += A * k * vec2(${dx}, ${dz}) * cos(ph); }`).join("\n    ")}
+    float h = 0.0; vec2 s = vec2(0.0); wOff = vec2(0.0); wJ = 0.0;
+    ${WAVES.map(([dx, dz, l, a]) => `{ float L = ${l.toFixed(3)} * uLen, k = 6.2832 / L, w = sqrt(9.8 * k), ph = k * dot(vec2(${dx}, ${dz}), p) - w * t, A = ${a.toFixed(3)} * uAmp, Q = min(${CHOP}, 0.85 / (${WAVES.length}.0 * k * A + 1e-4));
+      float c = cos(ph), sn = sin(ph); h += A * sn; s += A * k * vec2(${dx}, ${dz}) * c; wOff += Q * A * vec2(${dx}, ${dz}) * c; wJ += Q * k * A * sn; }`).join("\n    ")}
     return vec3(h, s);
   }`;
 const vtx = `
   uniform float uT;
-  varying vec3 vW; varying vec2 vUv; varying vec3 vWave; varying float vR;
+  varying vec3 vW; varying vec2 vUv; varying vec3 vWave; varying float vR; varying vec2 vX;
   ${WAVE_GLSL}
   #include <fog_pars_vertex>
   void main() {
     vUv = uv;
     vec4 wp = modelMatrix * vec4(position, 1.0);
-    vWave = vec3(0.0); vR = 1.0;
-    if (uAmp > 0.0) { vR = roughAt(wp.xz); vWave = waves(wp.xz, uT) * vR; wp.y += vWave.x; }
+    vWave = vec3(0.0); vR = 1.0; vX = wp.xz;
+    if (uAmp > 0.0) { vR = roughAt(wp.xz); vWave = waves(wp.xz, uT) * vR; wp.y += vWave.x; wp.xz += wOff * vR; }
     vW = wp.xyz;
     vec4 mvPosition = viewMatrix * wp;
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
   }`;
 const frag = `
-  uniform float uT, uWind, uRain, uIce, uSwell, uAmp;
+  uniform float uT, uWind, uRain, uIce, uSwell;
   uniform vec3 uDeep, uZenith, uHorizon, uSunDir, uSunCol, uTrees; uniform float uFlow;
-  varying vec3 vW; varying vec2 vUv; varying vec3 vWave; varying float vR;
+  varying vec3 vW; varying vec2 vUv; varying vec3 vWave; varying float vR; varying vec2 vX;
+  ${WAVE_GLSL}
   float wHash(vec2 q) { return fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453); }
   float wNoise(vec2 q) { vec2 i = floor(q), f = fract(q); f = f * f * (3.0 - 2.0 * f); return mix(mix(wHash(i), wHash(i + vec2(1, 0)), f.x), mix(wHash(i + vec2(0, 1)), wHash(i + vec2(1, 1)), f.x), f.y); }
   #include <fog_pars_fragment>
   void main() {
     vec2 p = vW.xz;
-    // the surface: slow swells, a finer cat's-paw where the wind catches it, and rings where the rain falls
-    float w = (0.012 + uWind * 0.03) * uSwell;
-    vec2 g = vec2(sin(p.x * 1.3 + uT * 0.9) + 0.6 * sin(p.x * 3.1 - p.y * 1.7 + uT * 1.7), cos(p.y * 1.5 - uT * 0.8) + 0.6 * cos(p.y * 2.9 + p.x * 2.3 - uT * 1.9)) * w;
+    // the surface: the wind's ripples — two sizes of them drifting down the wind, irregular as the real ones are, gone
+    //  into a smooth sheen in the distance — and rings where the rain falls
+    float dist = length(cameraPosition - vW);
+    float w = (0.025 + uWind * 0.06) * uSwell * 1.6;
+    vec2 wd = normalize(vec2(0.96, 0.28)), q1 = p * 0.85 + wd * uT * 0.45, q2 = p * 2.6 + wd * uT * 0.9 + vec2(13.1, 7.7);
+    float e = 0.15, n1 = wNoise(q1), n2 = wNoise(q2);
+    vec2 g = (vec2(wNoise(q1 + vec2(e, 0.0)) - n1, wNoise(q1 + vec2(0.0, e)) - n1) / e * (1.0 - smoothstep(25.0, 140.0, dist))
+           + vec2(wNoise(q2 + vec2(e, 0.0)) - n2, wNoise(q2 + vec2(0.0, e)) - n2) / e * 0.45 * (1.0 - smoothstep(8.0, 45.0, dist))) * w;
     g += vec2(sin(p.x * 9.0 + p.y * 4.0 + uT * 5.0), cos(p.y * 8.0 - p.x * 5.0 + uT * 4.3)) * uRain * 0.035;
     // (running water: ripples carried downstream, v along the stream, u across it)
     float fl = 0.0;
@@ -58,9 +69,10 @@ const frag = `
       g += vec2(sin(ph * 3.1) * 0.05, cos(ph * 2.3 + vUv.x * 5.0) * 0.05);
       fl = smoothstep(0.82, 1.0, sin(ph * 1.7 + vUv.x * 3.0) * 0.5 + 0.5) * (0.4 + 0.6 * abs(vUv.x - 0.5) * 2.0);
     }
-    // (the swells' own slope under the ripples)
-    g += vWave.yz;
-    vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
+    // (the swells' own slope under the ripples, reckoned here and not only at the mesh's corners: every crest crisp)
+    float crestJ = 0.0;
+    if (uAmp > 0.0) { vec3 wv = waves(vX, uT) * vR; g += wv.yz; crestJ = wJ * vR; }
+    vec3 n = normalize(vec3(-g.x, max(0.25, 1.0 - crestJ), -g.y));
     if (uIce > 0.5) n = normalize(vec3(-g.x * 0.05, 1.0, -g.y * 0.05));
     vec3 v = normalize(cameraPosition - vW);
     // (what it reflects: the sky, paler toward the horizon; and how much, more at a glancing look)
@@ -68,16 +80,20 @@ const frag = `
     vec3 sky = mix(uHorizon, uZenith, clamp(r.y * 1.4, 0.0, 1.0));
     // (low down, what it holds is the trees standing round it: dark, a little green, going up into the sky)
     sky = mix(uTrees, sky, smoothstep(0.32, 0.75, r.y));
-    float fres = 0.04 + 0.96 * pow(1.0 - max(dot(n, v), 0.0), 4.0);
-    vec3 col = mix(uDeep, sky, clamp(fres * 0.85 + 0.03, 0.0, 1.0));
-    // the sun's glint
-    col += uSunCol * pow(max(dot(r, uSunDir), 0.0), 160.0) * 1.6;
+    float fres = 0.02 + 0.98 * pow(1.0 - max(dot(n, v), 0.0), 5.0);
+    // (the water's own body: on a sea with waves, light coming through the thin tops of them, greenish)
+    vec3 deep = uDeep;
+    if (uAmp > 0.0) { float sss = pow(clamp(dot(v, -normalize(uSunDir + n * 0.6)), 0.0, 1.0), 3.0) * clamp(vWave.x / (uAmp * vR + 1e-3) * 0.5 + 0.4, 0.0, 1.0); deep += vec3(0.02, 0.09, 0.07) * sss * length(uSunCol); }
+    vec3 col = mix(deep, sky, clamp(fres * 0.9 + 0.02, 0.0, 1.0));
+    // the sun's glint: a hard spark on each ripple near you, spread to a glitter further off (not one round blob)
+    vec3 hv = normalize(uSunDir + v); float nh = max(dot(n, hv), 0.0), rough = mix(1400.0, 160.0, smoothstep(5.0, 160.0, dist));
+    col += uSunCol * (pow(nh, rough) * 2.6 + pow(nh, rough * 0.06) * 0.05) * (0.3 + 0.7 * fres * 4.0);
     // ice: pale, grey and still
     if (uIce > 0.5) col = mix(vec3(0.62, 0.68, 0.74) * (0.5 + 0.5 * length(uHorizon)), sky, fres * 0.5);
     col += vec3(0.5, 0.55, 0.58) * fl * 0.12 * (0.3 + 0.7 * length(uHorizon));
     // white water on the crests of the bigger waves, broken up, lit as the day is
     if (uAmp * vR > 0.15 && uIce < 0.5) {
-      float crest = vWave.x / (uAmp * vR), br = wNoise(p * 0.9 + vec2(uT * 0.25, -uT * 0.18)) * 0.65 + wNoise(p * 3.1 - vec2(uT * 0.4, uT * 0.3)) * 0.35;
+      float crest = vWave.x / (uAmp * vR) * 0.6 + crestJ * 0.9, br = wNoise(p * 0.9 + vec2(uT * 0.25, -uT * 0.18)) * 0.65 + wNoise(p * 3.1 - vec2(uT * 0.4, uT * 0.3)) * 0.35;
       float foam = smoothstep(0.5, 0.85, crest + (br - 0.5) * 0.55) * smoothstep(0.35, 0.65, br) * (0.35 + 0.65 * uWind) * clamp(0.5 + (vR - 1.0) * 0.6, 0.3, 1.4);
       col = mix(col, vec3(0.86, 0.9, 0.92) * (0.35 + 0.65 * length(uHorizon) / 1.5), foam * 0.6);
     }
@@ -135,7 +151,10 @@ export class WaterMat {
 // how high the water stands at x, z now, on one water's waves (the shader's own sum): for a float, a duck, a boat
 export function waveAt(wm, x, z) {
   const u = wm.uni, A = u.uAmp.value, t = u.uT.value; if (!A) return 0;
-  let h = 0;
-  for (const [dx, dz, l, a] of WAVES) { const L = l * u.uLen.value, k = 6.2832 / L, w = Math.sqrt(9.8 * k); h += a * A * Math.sin(k * (dx * x + dz * z) - w * t); }
-  return h * wm.roughAt(x, z);
+  const R = wm.roughAt(x, z), Ch = +CHOP, W = WAVES.map(([dx, dz, l, a]) => { const L = l * u.uLen.value, k = 6.2832 / L, Am = a * A; return { dx, dz, k, w: Math.sqrt(9.8 * k), Am, Q: Math.min(Ch, 0.85 / (WAVES.length * k * Am + 1e-4)) }; });
+  // (the water over x, z came from a little upwind of it: that point found first, then its height)
+  let px = x, pz = z;
+  for (let it = 0; it < 3; it++) { let ox = 0, oz = 0; for (const v of W) { const c = Math.cos(v.k * (v.dx * px + v.dz * pz) - v.w * t) * v.Q * v.Am * R; ox += v.dx * c; oz += v.dz * c; } px = x - ox; pz = z - oz; }
+  let h = 0; for (const v of W) h += v.Am * Math.sin(v.k * (v.dx * px + v.dz * pz) - v.w * t);
+  return h * R;
 }
