@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.33", date: "20 October 2026", title: "Out of the Seine",
+    items: [
+      "Campaign 3D map: an army at a town on a river is drawn up on the open ground beside it, not standing in the river: at Paris it no longer stands in the Seine.",
+    ],
+  },
+  {
     v: "1.99.32", date: "20 October 2026", title: "A crown lost",
     items: [
       "Campaign: losing your last town for good now has a page of its own, as victory and the years running out do: your crown is lost, how many years you held it, and Another campaign or Look at the map. Before, it was only a line at the side of the map.",

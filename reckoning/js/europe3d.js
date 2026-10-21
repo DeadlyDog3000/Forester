@@ -688,7 +688,9 @@ export class EuropeView3D {
       R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz);
       R.co.updateMatrixWorld(true); R.inner.getWorldPosition(p);
       // (and dry a good way past it too: not drawn up along the water's edge)
-      const q = (this.rawY(p.x, p.z) > 0.004 ? 2 : 0) + (this.rawY(cx + (p.x - cx) * 1.6, cz + (p.z - cz) * 1.6) > 0.004 ? 1 : 0);
+      // (dry meaning out of the rivers too: the Seine runs through Paris, and a company drawn up on it stood in it)
+      const dry = (x, z, m) => this.rawY(x, z) > 0.004 && !this.riverAt(x, z, m);
+      const q = (dry(p.x, p.z, 0.12) ? 2 : 0) + (dry(cx + (p.x - cx) * 1.6, cz + (p.z - cz) * 1.6, 0.04) ? 1 : 0);
       if (q > best) { best = q; turn = t; } if (q === 3) break;
     }
     R.inner.position.copy(was); R.co.scale.setScalar(sc0); R.co.updateMatrixWorld(true);
