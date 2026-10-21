@@ -88,13 +88,13 @@ const YOU = () => `${P.you} (you)`;
 // line twice while they try the same lane a third time.
 const CAUGHT = [
   "A hand on your collar. The watch has you.",
-  "\"Got one!\" The lantern swings up into your face.",
+  "“Got one!” The lantern swings up into your face.",
   "Too slow. The halberd shaft comes down across your path.",
   "They know your face now. Every one of them.",
   "Caught — and somewhere, your {sib} is still waiting at the gate.",
   "The watchman's grip is iron. Father's name is spat in your ear.",
   "A whistle, boots on stone, and nowhere left to run.",
-  "\"The merchant's brat!\" Half the lane turns to look.",
+  "“The merchant's brat!” Half the lane turns to look.",
   "They drag you back toward the square. Not like this.",
   "You were seen. In this city, being seen is enough.",
 ];

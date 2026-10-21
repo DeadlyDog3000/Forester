@@ -129,7 +129,9 @@ const foeArmy = id => isHuman(id) ? (s2 => s2 ? (s2.army | 0) + (s2.armies || []
 const setFoeArmy = (id, v) => { if (isHuman(id)) { const s2 = sliceOf(id); if (s2) s2.army = Math.max(0, Math.round((s2.army | 0) + v - foeArmy(id))); } else C.foes[id] = v; };
 // (a verb after a crown's name: a people takes the plural — "the Cherokee march", not "marches")
 // (a name's possessive: "the Papal States'", not "States's")
-const poss = n => /s$/.test(n) ? n + "'" : n + "'s";
+// (a possessive: "Castile's", "the Cossacks'" — and a single place whose name ends in s, "Tunis's", "Naples's")
+const PLURAL_N = new Set(Object.values(NATIONS).filter(n => n.people).map(n => n.name));
+const poss = n => !/s$/.test(n) ? n + "'s" : /\b(States|Provinces|Netherlands|Isles|Islands|Cossacks)$/.test(n) || PLURAL_N.has(n.replace(/^the /i, "")) ? n + "'" : n + "'s";
 // (a crown named in the plural takes a plural verb, as a people does: the Papal States wall Genova)
 const v3 = (id, v) => !(NATIONS[id] && (NATIONS[id].people || /\b(States|Provinces|Netherlands|Isles|Islands|Cossacks)$/.test(NATIONS[id].name))) || (C && C.mp && C.mp.names[id]) ? v : v === "has" ? "have" : v === "is" ? "are" : v === "marches" ? "march" : v.replace(/s$/, "");
 const nameOf = id => (C.mp && C.mp.names[id]) || The(id);

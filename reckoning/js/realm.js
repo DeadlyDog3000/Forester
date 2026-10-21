@@ -106,7 +106,7 @@ export const canStudy = (done, id) => !done[id] && (TECHS[id].req || []).every(r
 // pay sticks to his fingers); a governor's corruption, production (what the town yields and builds) and defence
 export const HISTORICAL = {
   france: [
-    { g: 1, name: "François-Henri de Montmorency, duc de Luxembourg", short: "Luxembourg", port: "luxembourg", st: [5, 4, 3], d: "\"The Upholsterer of Notre-Dame\", for the captured flags he sent there. Hunchbacked, brilliant, feared." },
+    { g: 1, name: "François-Henri de Montmorency, duc de Luxembourg", short: "Luxembourg", port: "luxembourg", st: [5, 4, 3], d: "“The Upholsterer of Notre-Dame”, for the captured flags he sent there. Hunchbacked, brilliant, feared." },
     { name: "Sébastien Le Prestre de Vauban", short: "Vauban", town: "Strassburg", port: "vauban", st: [1, 4, 5], d: "The king's engineer: he has fortified a hundred towns and taken fifty." },
     { name: "Gabriel Nicolas de La Reynie", short: "La Reynie", town: "Paris", port: "lareynie", st: [2, 4, 3], d: "First lieutenant-general of police of Paris: lanterns in the streets, order in the city." },
   ],
@@ -114,7 +114,7 @@ export const HISTORICAL = {
     { g: 1, name: "Charles V, Duke of Lorraine", short: "Lorraine", port: "lorraine", st: [5, 5, 1], d: "A duke without a duchy, the Emperor's best general. He will relieve Vienna." },
     { name: "Ernst Rüdiger von Starhemberg", short: "Starhemberg", town: "Wien", port: "starhemberg", st: [1, 3, 5], d: "Commander of Vienna's garrison: he will hold the city two months against the Turk." },
   ],
-  hre: [{ g: 1, name: "Louis William, Margrave of Baden-Baden", short: "Türkenlouis", port: "baden", st: [4, 5, 2], d: "\"Türkenlouis\": he will win twenty-five battles against the Turks." }],
+  hre: [{ g: 1, name: "Louis William, Margrave of Baden-Baden", short: "Türkenlouis", port: "baden", st: [4, 5, 2], d: "“Türkenlouis”: he will win twenty-five battles against the Turks." }],
   poland: [
     { g: 1, name: "Stanisław Jan Jabłonowski", short: "Jabłonowski", port: "jablonowski", st: [4, 4, 3], d: "Great Crown Hetman: he will lead the right wing at Vienna." },
     { name: "Marcin Kątski", short: "Kątski", town: "Kamieniec", port: "katski", st: [2, 3, 4], d: "General of the artillery, master of the guns at Vienna." },
@@ -137,10 +137,10 @@ export const HISTORICAL = {
   castile: [{ name: "Ottone Enrico del Caretto, Marquis of Grana", short: "Grana", town: "Brussel", port: "grana", st: [2, 3, 3], d: "Governor of the Spanish Netherlands, holding them against France with too few men." }],
   venice: [{ g: 1, name: "Francesco Morosini", short: "Morosini", port: "morosini", st: [4, 4, 2], d: "Defender of Candia: he will take the Morea and fire on the Parthenon." }],
   savoy: [{ g: 1, name: "Victor Amadeus II, Duke of Savoy", short: "Victor Amadeus", port: "victoramadeus", st: [3, 4, 2], d: "Seventeen years old and already scheming: he will end his days a king." }],
-  bavaria: [{ g: 1, name: "Maximilian II Emanuel, Elector of Bavaria", short: "Max Emanuel", port: "maxemanuel", st: [3, 5, 3], d: "\"The Blue King\": dashing, extravagant, and first through the breach at Belgrade." }],
-  saxony: [{ g: 1, name: "John George III, Elector of Saxony", short: "John George", port: "johngeorge", st: [3, 4, 2], d: "\"The Saxon Mars\": he will lead his own army to Vienna." }],
+  bavaria: [{ g: 1, name: "Maximilian II Emanuel, Elector of Bavaria", short: "Max Emanuel", port: "maxemanuel", st: [3, 5, 3], d: "“The Blue King”: dashing, extravagant, and first through the breach at Belgrade." }],
+  saxony: [{ g: 1, name: "John George III, Elector of Saxony", short: "John George", port: "johngeorge", st: [3, 4, 2], d: "“The Saxon Mars”: he will lead his own army to Vienna." }],
   denmark: [{ name: "Ulrik Frederik Gyldenløve", short: "Gyldenløve", town: "Christiania", port: "gyldenlove", st: [3, 3, 3], d: "Viceroy of Norway, a king's natural son: he founds towns and forts." }],
-  hungary: [{ g: 1, name: "Imre Thököly", short: "Thököly", port: "thokoly", st: [3, 5, 3], d: "\"King of the Kuruc\": leader of the Protestant rising against the Habsburgs." }],
+  hungary: [{ g: 1, name: "Imre Thököly", short: "Thököly", port: "thokoly", st: [3, 5, 3], d: "“King of the Kuruc”: leader of the Protestant rising against the Habsburgs." }],
   crimea: [{ g: 1, name: "Murad Giray", short: "Murad Giray", port: "muradgiray", st: [3, 4, 3], d: "Khan of Crimea: his Tatar horse ride with the Sultan's army." }],
   cossacks: [{ g: 1, name: "Ivan Samoylovych", short: "Samoylovych", port: "samoylovych", st: [3, 3, 4], d: "Hetman of Left-bank Ukraine: rich, careful, and the Tsar's man." }],
   transylvania: [{ g: 1, name: "Michael I Apafi", short: "Apafi", port: "apafi", st: [2, 2, 3], d: "Prince of Transylvania, a vassal of the Turk, who prefers his books to war." }],

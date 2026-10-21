@@ -7,12 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.42", date: "21 October 2026", title: "Small things",
+    items: [
+      "Campaign: a place whose name ends in s takes an s of its own (“Algiers’s markets”, “Tunis’s”), while a people’s name keeps just the apostrophe (“the Cossacks’ army”).",
+      "What’s new: quotations open and close with proper curly quotes.",
+    ],
+  },
+  {
     v: "1.99.41", date: "21 October 2026", title: "Words and labels",
     items: [
       "Campaign: a general killed in a battle is no longer also given that battle's mark on him, such as turning cautious after a second defeat he didn't live through, or growing in command.",
-      "Campaign: a year at a loss says so (\"A loss of 290 thalers a year\"), in the news and at the top of the screen, instead of \"−290 thalers profit a year\".",
-      "Campaign: when a town is attacked, the card says the garrison is \"behind its walls\" in the same breath, instead of tacking it on after a dot.",
-      "Campaign: the Cossacks are spoken of as \"they\" (\"Their armies thin\").",
+      "Campaign: a year at a loss says so (“A loss of 290 thalers a year”), in the news and at the top of the screen, instead of “−290 thalers profit a year”.",
+      "Campaign: when a town is attacked, the card says the garrison is “behind its walls” in the same breath, instead of tacking it on after a dot.",
+      "Campaign: the Cossacks are spoken of as “they” (“Their armies thin”).",
       "Battles at sea: each ship's name sits just above her masthead, rather than hanging high in the air over a ship close by.",
     ],
   },
@@ -71,7 +78,7 @@ export const CHANGELOG = [
     v: "1.99.34", date: "20 October 2026", title: "Battles at sea, in the game's own hand",
     items: [
       "Battles at sea (the campaign's and the historical ones): the opening orders, the ship and fleet panels and the result are drawn as the land battles' and the campaign's are, with the dark green of the field, the gold edge and serif headings, and the red button to Clear for action, instead of a slate-blue page and a green button of their own.",
-      "Battles at sea: \"Q larboard ready\" and \"E starboard ready\" sit on one line each.",
+      "Battles at sea: “Q larboard ready” and “E starboard ready” sit on one line each.",
     ],
   },
   {
@@ -95,15 +102,15 @@ export const CHANGELOG = [
   {
     v: "1.99.30", date: "20 October 2026", title: "The guide's keys",
     items: [
-      "The guide (H): its keys are printed light on the page, \"Press G for your government\", rather than as dark blots you could hardly read; so too on the plans, the government, skills and inventory pages.",
-      "The map (J): the key and \"J close\" sit beside the sheet where there's room, or else neatly in its corners inside the frame, rather than hanging half over its edge in a narrower window.",
+      "The guide (H): its keys are printed light on the page, “Press G for your government”, rather than as dark blots you could hardly read; so too on the plans, the government, skills and inventory pages.",
+      "The map (J): the key and “J close” sit beside the sheet where there's room, or else neatly in its corners inside the frame, rather than hanging half over its edge in a narrower window.",
     ],
   },
   {
     v: "1.99.29", date: "20 October 2026", title: "Nothing written over anything",
     items: [
       "The story and free play: a hint is set above the strip of keys while both are shown. In a narrower window the keys run to two rows, and the hint was written across them.",
-      "Health, food and warmth sit clear of the map's \"K · key\" tab, which covered the end of the health bar; online, the news ticker sits below them rather than over them.",
+      "Health, food and warmth sit clear of the map's “K · key” tab, which covered the end of the health bar; online, the news ticker sits below them rather than over them.",
     ],
   },
   {
@@ -136,30 +143,30 @@ export const CHANGELOG = [
     v: "1.99.24", date: "20 October 2026", title: "The Khan's men",
     items: [
       "Campaign: the Crimean Khanate's generals are Tatar beys and mirzas (Devlet Mirza, Kaplan Bey) rather than the Sultan's pashas, and a man called Agha or Mirza is no longer shortened to his title alone.",
-      "Campaign news: \"You are in the Holy League, with Poland–Lithuania, Venice and the Papal States\" rather than \"You are of\"; a people such as the Wabanaki go to war \"as their league binds them\"; plague in a single crown thins \"its\" armies; and a riot reads \"Its people take to the streets\".",
+      "Campaign news: “You are in the Holy League, with Poland–Lithuania, Venice and the Papal States” rather than “You are of”; a people such as the Wabanaki go to war “as their league binds them”; plague in a single crown thins “its” armies; and a riot reads “Its people take to the streets”.",
     ],
   },
   {
     v: "1.99.23", date: "20 October 2026", title: "The gazette's wording",
     items: [
-      "Campaign gazette: the opening news reads \"You are already at war with…\" instead of naming your own crown as though it were someone else's, and a march with no numbers known reads \"Its army is two years' march off\" rather than the clipped \"Its army, two years' march off\".",
+      "Campaign gazette: the opening news reads “You are already at war with…” instead of naming your own crown as though it were someone else's, and a march with no numbers known reads “Its army is two years' march off” rather than the clipped “Its army, two years' march off”.",
       "Campaign gazette: in a short window, where the paper scrolls, Lay it aside stays at its foot in sight rather than half under the window's edge.",
-      "Campaign: the getting-started list is titled \"Getting started\" once the first year is over, rather than \"Your first year\" in 1687.",
+      "Campaign: the getting-started list is titled “Getting started” once the first year is over, rather than “Your first year” in 1687.",
     ],
   },
   {
     v: "1.99.22", date: "20 October 2026", title: "After a campaign battle",
     items: [
-      "Campaign battles: the result no longer talks of ratings (\"against bots: not rated\"), nor offers the frontier's camp. It's the campaign's battle, so it's Title or Back to the campaign.",
+      "Campaign battles: the result no longer talks of ratings (“against bots: not rated”), nor offers the frontier's camp. It's the campaign's battle, so it's Title or Back to the campaign.",
       "Battle results: the buttons sit in one even row, rather than three of different sizes on two.",
-      "Campaign: in a narrower window, \"Answer what's waiting first\" folds onto two lines so it doesn't push the war list under the buttons beside it.",
+      "Campaign: in a narrower window, “Answer what's waiting first” folds onto two lines so it doesn't push the war list under the buttons beside it.",
     ],
   },
   {
     v: "1.99.21", date: "20 October 2026", title: "Your general's name",
     items: [
       "Battles: in a narrower window the score along the top is centred in the room left of your health, food and warmth, instead of running over them.",
-      "Campaign battles: the opening shot of your company names the general at its head (Charles of Lorraine, for the Emperor in 1683) rather than \"under Stranger\" when you haven't given a name for online play. Other battles without a name say the company is yours to command.",
+      "Campaign battles: the opening shot of your company names the general at its head (Charles of Lorraine, for the Emperor in 1683) rather than “under Stranger” when you haven't given a name for online play. Other battles without a name say the company is yours to command.",
     ],
   },
   {
@@ -253,7 +260,7 @@ export const CHANGELOG = [
   {
     v: "1.99.6", date: "19 October 2026", title: "The campaign from the title",
     items: [
-      "Title: the campaign has its own place, beside the story under Single Player: \"The campaign · Europe, 1683 · a crown of your own to rule\". It was only to be found under Online, though it's a game for one as much as for two; it's still there too. Back from the campaign returns to wherever you came from.",
+      "Title: the campaign has its own place, beside the story under Single Player: “The campaign · Europe, 1683 · a crown of your own to rule”. It was only to be found under Online, though it's a game for one as much as for two; it's still there too. Back from the campaign returns to wherever you came from.",
     ],
   },
   {
@@ -321,7 +328,7 @@ export const CHANGELOG = [
     v: "1.95.0", date: "19 October 2026", title: "The wars of others",
     items: [
       "Campaign: the wars the other crowns fight among themselves are fought on the map. Their armies march out to the front, stand before the towns they take, fall back toward home when they're beaten, and go home at the peace; both the parchment and the land seen close show them.",
-      "Campaign 3D map: point at another crown's army to see whose it is, who leads it, and whom it's fighting (\"not with you\").",
+      "Campaign 3D map: point at another crown's army to see whose it is, who leads it, and whom it's fighting (“not with you”).",
     ],
   },
   {
@@ -343,8 +350,8 @@ export const CHANGELOG = [
     items: [
       "Campaign 3D map: a fleet is drawn as a squadron, one ship for every two it has (up to three) sailing in echelon, each rolling on the swell, with a wake of foam astern while it's under way.",
       "Campaign 3D map: armies and fleets are drawn about a third larger, and an army at a town stands drawn up in front of it rather than among its roofs, further out for a great city.",
-      "Campaign: a town's garrison can take the whole army at once (\"The whole army\" beside the regiments to leave there), as well as one regiment at a time.",
-      "Campaign: the treasury's yearly figure now says \"profit a year\": what comes in from your towns and trade less the upkeep of your regiments and ships. Point at it for the sums.",
+      "Campaign: a town's garrison can take the whole army at once (“The whole army” beside the regiments to leave there), as well as one regiment at a time.",
+      "Campaign: the treasury's yearly figure now says “profit a year”: what comes in from your towns and trade less the upkeep of your regiments and ships. Point at it for the sums.",
       "Campaign: the war room's ticking clock is gone; only the fire in the hearth is left under the map.",
     ],
   },
@@ -357,7 +364,7 @@ export const CHANGELOG = [
   {
     v: "1.92.6", date: "18 October 2026", title: "Greensleeves",
     items: [
-      "Music: \"Greensleeves\", the old English air every tavern and court of the 1680s knew, joins the Canon, the minuets and the Prelude on the campaign's map, and is played some evenings at home.",
+      "Music: “Greensleeves”, the old English air every tavern and court of the 1680s knew, joins the Canon, the minuets and the Prelude on the campaign's map, and is played some evenings at home.",
     ],
   },
   {
@@ -499,7 +506,7 @@ export const CHANGELOG = [
   {
     v: "1.90.58", date: "18 October 2026", title: "Wary courts",
     items: [
-      "Campaign: the Diplomacy screen marks each crown that is wary of you for the towns you've taken from others of its faith (\"Wary: 1 Catholic town taken\"), so you can see where your conquests have cost you goodwill.",
+      "Campaign: the Diplomacy screen marks each crown that is wary of you for the towns you've taken from others of its faith (“Wary: 1 Catholic town taken”), so you can see where your conquests have cost you goodwill.",
     ],
   },
   {
@@ -529,7 +536,7 @@ export const CHANGELOG = [
   {
     v: "1.90.53", date: "18 October 2026", title: "The gazette's lead",
     items: [
-      "Campaign: the gazette's lead story lines up under its headline. A short one (\"Its army, three years' march off.\") is set plainly instead of as a great drop capital with the rest of the word left stranded across the page.",
+      "Campaign: the gazette's lead story lines up under its headline. A short one (“Its army, three years' march off.”) is set plainly instead of as a great drop capital with the rest of the word left stranded across the page.",
     ],
   },
   {
@@ -572,7 +579,7 @@ export const CHANGELOG = [
   {
     v: "1.90.46", date: "18 October 2026", title: "Logs for the door",
     items: [
-      "Story: when a cabin's walls are up but there aren't two logs on the stack for its door, the objective says to stack them first (\"Stack 2 more logs for a door, then hew it at the sawhorse\") and the marker points to the nearest standing spruce. It used to send you to the sawhorse with nothing to hew.",
+      "Story: when a cabin's walls are up but there aren't two logs on the stack for its door, the objective says to stack them first (“Stack 2 more logs for a door, then hew it at the sawhorse”) and the marker points to the nearest standing spruce. It used to send you to the sawhorse with nothing to hew.",
     ],
   },
   {
@@ -622,7 +629,7 @@ export const CHANGELOG = [
   {
     v: "1.90.38", date: "18 October 2026", title: "Numbers beside the names",
     items: [
-      "Campaign 3D map: an army standing in a town has its count of regiments written beside the town's name, not across it (\"Wien 57\", not \"W57en\").",
+      "Campaign 3D map: an army standing in a town has its count of regiments written beside the town's name, not across it (“Wien 57”, not “W57en”).",
     ],
   },
   {
@@ -779,15 +786,15 @@ export const CHANGELOG = [
     v: "1.90.18", date: "18 October 2026", title: "The council's missions",
     items: [
       "Campaign: playing a nation of the woods, you're no longer offered stone walls to build, or set a mission to raise them. Their towns stand behind palisades, as the help says.",
-      "Campaign: a nation of the woods gets its missions from its council, not from \"the Crown\" and \"the court\".",
+      "Campaign: a nation of the woods gets its missions from its council, not from “the Crown” and “the court”.",
       "Campaign: a woods nation's force thrown back from your town is its war party, not its army, as everywhere else.",
-      "Campaign: building missions read \"Build the drill yard at Berlin\", not \"Raise drill yard at Berlin\".",
+      "Campaign: building missions read “Build the drill yard at Berlin”, not “Raise drill yard at Berlin”.",
     ],
   },
   {
     v: "1.90.17", date: "18 October 2026", title: "Before the town",
     items: [
-      "Campaign: right-clicking a woods nation's town attacks the town, even with their war party camped in it. The click used to be taken for the war party, and your army went after it, \"marching to the Cree army\", and never attacked the town.",
+      "Campaign: right-clicking a woods nation's town attacks the town, even with their war party camped in it. The click used to be taken for the war party, and your army went after it, “marching to the Cree army”, and never attacked the town.",
       "Campaign: a small enemy army can be fought in the field. Under three regiments, it used to be refused, and your army only marched after it year after year.",
       "Campaign: right-clicking an enemy town more than a year's march away marches on it, and the paper says when your army stands before it. If a town can't be attacked for another reason, you're told why and your army stays where it is. Before, it marched to the spot, said nothing, and never attacked.",
       "Campaign: an army that arrives where it was sent can give battle that year, at the town it was sent against or the army it went after. It marches on again next year. Arriving used to use up the year.",
@@ -798,8 +805,8 @@ export const CHANGELOG = [
     v: "1.90.16", date: "18 October 2026", title: "News of the year",
     items: [
       "Campaign: learning takes years. Each study takes two years at the least, three for what's built on it and four for the furthest. Each costs twice what it did, when a realm with a few colleges learnt something every year. The Learning screen shows the year of study you're in and how many are left.",
-      "Campaign: a discovery makes the newspaper. \"A discovery: crop rotation\" takes the headline under a printer's ornament, with how many years your scholars spent at it. If something bigger has the headline, it gets its own ruled box \"From the Learned World\".",
-      "Campaign: a war you declare is in the newspaper too (\"War declared on Saxony\"), and a war declared on you heads its column. The paper now carries everything since the last one, not only what happened as the year turned: what you did during the year, a war or a treaty, used to be left out.",
+      "Campaign: a discovery makes the newspaper. “A discovery: crop rotation” takes the headline under a printer's ornament, with how many years your scholars spent at it. If something bigger has the headline, it gets its own ruled box “From the Learned World”.",
+      "Campaign: a war you declare is in the newspaper too (“War declared on Saxony”), and a war declared on you heads its column. The paper now carries everything since the last one, not only what happened as the year turned: what you did during the year, a war or a treaty, used to be left out.",
       "Campaign: a new Diplomacy screen (the button at the top, or P). Every crown is listed: at war with you, allied, bound by a pact or truce, or neither. Each shows its regard for you, its towns, its army if your spies know it, and the wars it's fighting. Click one to deal with it.",
       "Campaign: right-click gives orders only to an army you've chosen. It used to march whichever army was last in hand, chosen or not, so a garrison's new army set off after you'd put it down. A chosen army stays chosen after a march order, and Esc puts it down.",
       "Campaign: right-clicking an enemy army more than a year's march off sends your army after it, not just to where it stood. Once you're within a year's march it's held and can't slip away, so you can fall on it next year. If you can't attack it now (already marched this year, a siege, or under five regiments), you're told why and your army stays where it is. Before, it marched to the empty spot while the enemy walked off.",
@@ -820,8 +827,8 @@ export const CHANGELOG = [
       "Among the trees, the dither where needles thin out close to your eyes no longer shows purple smears against the sky. The lens's faint colour fringe was splitting the dither's dots into red and blue.",
       "Talking to someone you've walked right up to, you take a step back first. Their face no longer fills the whole screen for the conversation, as the charcoal burner's did in VII.",
       "V. Far, Far Away: as you come to each fork, a marker shows the road on, and points you back if you've taken the wrong track. The hint had always said to go the way the marker points, but there was no marker.",
-      "V. Far, Far Away: your sibling's advice at a fork is dropped once you've passed it. Before, it could come late, at the next fork, and tell you the wrong way. And if you walk faster than the talk on the road, the \"three days pass\" moment no longer pulls you back to the middle of the road.",
-      "V. Far, Far Away: the \"Look at the ruin\" marker is at the doorway, where you look in, not in the middle of the burned cabin.",
+      "V. Far, Far Away: your sibling's advice at a fork is dropped once you've passed it. Before, it could come late, at the next fork, and tell you the wrong way. And if you walk faster than the talk on the road, the “three days pass” moment no longer pulls you back to the middle of the road.",
+      "V. Far, Far Away: the “Look at the ruin” marker is at the doorway, where you look in, not in the middle of the burned cabin.",
       "IV. The Marsh Gate: the green glow round the little door fades as you come up to it. At the door it had covered half the screen while your sibling spoke. You also stand back from the wall to talk, not with your face in the stones.",
       "VIII. Martinmas: at the fire that night, Henning stands round to your left, and you see him past the flames, not through them.",
       "I. The House by the Harbour: supper has a round rye loaf on a board and pewter plates, where there was a block and white slabs. The candle and the loaf no longer stand between you and Father.",
@@ -838,22 +845,22 @@ export const CHANGELOG = [
   {
     v: "1.90.13", date: "18 October 2026", title: "The cabin's doorway",
     items: [
-      "VI. The Clearing: the marker for \"Rebuild the cabin\" stands at the cabin's doorway, where you raise it, and not in the middle of the ruin. Following it before led you in among the fallen logs, with nothing to press.",
-      "VI. The Clearing: once the walls go up, the objective doesn't flick back to \"Fell spruces… 1 of 20 logs stacked\".",
+      "VI. The Clearing: the marker for “Rebuild the cabin” stands at the cabin's doorway, where you raise it, and not in the middle of the ruin. Following it before led you in among the fallen logs, with nothing to press.",
+      "VI. The Clearing: once the walls go up, the objective doesn't flick back to “Fell spruces… 1 of 20 logs stacked”.",
       "X. The Stranger: while Marta's cabin still wants logs and your arms are empty, the marker is on the stack, where you take them. Before, it stayed on the building site, so following it left you standing there with nothing to put down.",
     ],
   },
   {
     v: "1.90.12", date: "18 October 2026", title: "Name them first",
     items: [
-      "Character builder: pressing Into the game without a roleplay name now says \"Give them a name first\" in the name box. Before, the box only turned orange and nothing happened.",
+      "Character builder: pressing Into the game without a roleplay name now says “Give them a name first” in the name box. Before, the box only turned orange and nothing happened.",
     ],
   },
   {
     v: "1.90.11", date: "18 October 2026", title: "Face to face",
     items: [
       "Character builder: on Face, your character turns to look at you and stays there, instead of slowly spinning until you're looking at the back of their head. Whole still turns slowly, so you can see the clothes all round.",
-      "Worlds & colonies: an empty Wide World says \"No one in the world just now: be the first\" instead of \"0 people in the world now\".",
+      "Worlds & colonies: an empty Wide World says “No one in the world just now: be the first” instead of “0 people in the world now”.",
     ],
   },
   {
@@ -872,7 +879,7 @@ export const CHANGELOG = [
   {
     v: "1.90.8", date: "18 October 2026", title: "Wien has its name",
     items: [
-      "Campaign map: every capital is named, even where its country's name runs across it. Wien under \"AUSTRIA\", Dresden under \"SAXONY\" and Warszawa went unnamed before. The name is now written over the country's lettering, haloed so both can be read.",
+      "Campaign map: every capital is named, even where its country's name runs across it. Wien under “AUSTRIA”, Dresden under “SAXONY” and Warszawa went unnamed before. The name is now written over the country's lettering, haloed so both can be read.",
       "Campaign map: an army standing in a town stands just to the left of it, and a second or third army further left again, so the town's name to its right isn't hidden under them.",
     ],
   },
@@ -976,7 +983,7 @@ export const CHANGELOG = [
   {
     v: "1.88.5", date: "18 October 2026", title: "Honest marching news",
     items: [
-      "Campaign: an enemy army marching on one of your towns from far away now says how many years off it is (\"three years' march off\"), and counts down. Before, it said it would be at the walls next year, every year.",
+      "Campaign: an enemy army marching on one of your towns from far away now says how many years off it is (“three years' march off”), and counts down. Before, it said it would be at the walls next year, every year.",
       "Campaign: an enemy army already on the road keeps marching each year until it arrives, so it comes when the news says it will.",
     ],
   },
@@ -1307,7 +1314,7 @@ export const CHANGELOG = [
     v: "1.70.0", date: "17 October 2026", title: "Militia, and garrisons that wait",
     items: [
       "Militia: townsmen called out and handed a musket. A regiment of them costs less than half what musketeers do, in thalers and in upkeep, and every crown can raise them in any town. They're far less skilled: they shoot wide, load slowly, and break sooner. In battle they stand with the musketeers.",
-      "Campaign: regiments you raise stay in the town that raised them, as part of its garrison, instead of joining the nearest army. To send them on, choose the town and pick an army under \"Send to\": the garrison marches out, follows that army wherever it goes, and joins it when it gets there. You can still bring an army to the town to take them in.",
+      "Campaign: regiments you raise stay in the town that raised them, as part of its garrison, instead of joining the nearest army. To send them on, choose the town and pick an army under “Send to”: the garrison marches out, follows that army wherever it goes, and joins it when it gets there. You can still bring an army to the town to take them in.",
       "Campaign: an army you right-click another of yours to join keeps going after it, year after year, and joins it when it arrives. You no longer need to right-click it again.",
       "Campaign: when you move an army, its own mark slides across the map to where you sent it. Fleets do the same.",
     ],
@@ -1377,7 +1384,7 @@ export const CHANGELOG = [
   {
     v: "1.61.1", date: "17 October 2026", title: "The Papal States wall Genova",
     items: [
-      "Campaign: a crown with a plural name takes a plural verb in the year's news: the Papal States wall Genova, not \"walls\".",
+      "Campaign: a crown with a plural name takes a plural verb in the year's news: the Papal States wall Genova, not “walls”.",
     ],
   },
   {
@@ -1390,7 +1397,7 @@ export const CHANGELOG = [
   {
     v: "1.60.12", date: "17 October 2026", title: "Near the Sahara",
     items: [
-      "Battles on the Earth are named as English has it: near the Sahara, near the Dzungar Khanate, near the Holy Roman Empire, near Spain. Before, it was \"Near The Sahara\" and \"Near Dzungar Khanate\".",
+      "Battles on the Earth are named as English has it: near the Sahara, near the Dzungar Khanate, near the Holy Roman Empire, near Spain. Before, it was “Near The Sahara” and “Near Dzungar Khanate”.",
     ],
   },
   {
@@ -1422,7 +1429,7 @@ export const CHANGELOG = [
     v: "1.60.7", date: "17 October 2026", title: "Struck, and retaken",
     items: [
       "Campaign: a ship of yours that struck her colours in a sea battle you went on to win is retaken, and stays in your fleet. Before, she was lost as if the enemy had carried her off. The same holds for theirs when they win.",
-      "Sea battles: the tally at the end says only what happened (\"2 sunk; 1 got away\"), and the right way round: beaten, the enemy's ships still hold the sea, not \"got away\".",
+      "Sea battles: the tally at the end says only what happened (“2 sunk; 1 got away”), and the right way round: beaten, the enemy's ships still hold the sea, not “got away”.",
     ],
   },
   {
@@ -1442,7 +1449,7 @@ export const CHANGELOG = [
     v: "1.60.4", date: "17 October 2026", title: "A town left to its garrison",
     items: [
       "Campaign: a town held by its garrison alone, your army too far off to come, is fought with the garrison's men and the guns on its walls, not your army's. Losing it no longer costs your army its guns, its spirit or its general, who were never there.",
-      "Campaign: a march on one of your towns says how much of the enemy's army comes (\"23 regiments of its 43\"), and when your army is too far off to help.",
+      "Campaign: a march on one of your towns says how much of the enemy's army comes (“23 regiments of its 43”), and when your army is too far off to help.",
     ],
   },
   {
@@ -1454,14 +1461,14 @@ export const CHANGELOG = [
   {
     v: "1.60.2", date: "17 October 2026", title: "One count for the army",
     items: [
-      "Campaign: the army is counted the same way everywhere, by its regiments as on its roll and in the bar along the top. When their ranks are thin it says what they come to at full strength too: \"36 regiments (27 at full strength)\". Before, the attack cards counted only the full-strength figure, and the two numbers didn't agree.",
+      "Campaign: the army is counted the same way everywhere, by its regiments as on its roll and in the bar along the top. When their ranks are thin it says what they come to at full strength too: “36 regiments (27 at full strength)”. Before, the attack cards counted only the full-strength figure, and the two numbers didn't agree.",
       "How it works: right-click attacks, attacking a town after marching up to it, and field battles against the other player.",
     ],
   },
   {
     v: "1.60.1", date: "17 October 2026", title: "Friend from foe at sea",
     items: [
-      "Battles at sea: every ship carries a small label in her side's colour, \"Your frigate\" or \"French ship of the line\", so friend and foe can be told apart across the water. A ship's label turns to struck, sinking or sunk when she's out of the fight.",
+      "Battles at sea: every ship carries a small label in her side's colour, “Your frigate” or “French ship of the line”, so friend and foe can be told apart across the water. A ship's label turns to struck, sinking or sunk when she's out of the fight.",
       "Your flagship, sailed far out of the fight with nobody at the helm, is brought about by her sailing master and headed back toward the battle.",
     ],
   },
@@ -1749,7 +1756,7 @@ export const CHANGELOG = [
   {
     v: "1.51.27", date: "16 October 2026", title: "Proposals, in their words",
     items: [
-      "Campaign: a nation of the woods proposes the fur trade, not a trade pact, in proper grammar: \"The Cherokee propose the fur trade\".",
+      "Campaign: a nation of the woods proposes the fur trade, not a trade pact, in proper grammar: “The Cherokee propose the fur trade”.",
     ],
   },
   {
@@ -1773,7 +1780,7 @@ export const CHANGELOG = [
   {
     v: "1.51.23", date: "16 October 2026", title: "War parties, in words",
     items: [
-      "Campaign: the news speaks of a nation of the woods as it should: \"the Cree's war party marches toward York Factory\", \"the Wabanaki march on Boston!\", \"the Cherokee offer peace\".",
+      "Campaign: the news speaks of a nation of the woods as it should: “the Cree's war party marches toward York Factory”, “the Wabanaki march on Boston!”, “the Cherokee offer peace”.",
     ],
   },
   {
@@ -1835,7 +1842,7 @@ export const CHANGELOG = [
   {
     v: "1.51.13", date: "16 October 2026", title: "How the campaign works",
     items: [
-      "Campaign: a folding \"How it works\" card in the side panel covers the year's march, ships over the Atlantic, sieges and supply, taking provinces, the woods' nations and their palisades, generals and governors, and leagues.",
+      "Campaign: a folding “How it works” card in the side panel covers the year's march, ships over the Atlantic, sieges and supply, taking provinces, the woods' nations and their palisades, generals and governors, and leagues.",
     ],
   },
   {
@@ -1904,7 +1911,7 @@ export const CHANGELOG = [
       "Campaign: a crown's own seat holds out longest. It falls only on a second good day, unless it's nearly all the crown has left.",
       "Campaign: allies only join wars they can reach. Denmark won't sail off to fight the Haudenosaunee.",
       "Campaign map: an army standing in a town is drawn just below it, so the town isn't hidden.",
-      "Words: \"the Papal States' side\", not \"the Papal States's\".",
+      "Words: “the Papal States' side”, not “the Papal States's”.",
     ],
   },
   {
@@ -2002,7 +2009,7 @@ export const CHANGELOG = [
     v: "1.45.1", date: "16 October 2026", title: "The shop opens",
     items: [
       "Forester: Reckoning is on sale: CA$14.99, from the title screen or the game's page. Pay through Stripe's checkout and the game unlocks by itself. Your key works on up to three computers.",
-      "The free demo is Part One of the story: the first six chapters, up to \"Ashes\". Battles, duels, the campaign and the Worlds & colonies are in the full game. Buy it and your save carries straight on.",
+      "The free demo is Part One of the story: the first six chapters, up to “Ashes”. Battles, duels, the campaign and the Worlds & colonies are in the full game. Buy it and your save carries straight on.",
       "Everyone who played before the shop opened keeps the full game, free, as an alpha supporter. Thank you.",
     ],
   },
@@ -2102,7 +2109,7 @@ export const CHANGELOG = [
   {
     v: "1.41.1", date: "15 October 2026", title: "Your saves, kept safe",
     items: [
-      "Lost a game? On the Saves screen, \"Lost a game? Bring back an earlier copy of your saves\" lists the copies of all your saves the app put by before each new version. Choose one and the game restarts with your games, your name online and your records as they were. Your saves as they are now are put by first, so trying one loses nothing.",
+      "Lost a game? On the Saves screen, “Lost a game? Bring back an earlier copy of your saves” lists the copies of all your saves the app put by before each new version. Choose one and the game restarts with your games, your name online and your records as they were. Your saves as they are now are put by first, so trying one loses nothing.",
       "The app now keeps a copy of everything the game saves (your games, who you are online, your records) in a file of its own, renewed every minute. If the game ever starts with its storage wiped, it brings it all back from that copy by itself: no lost games, and no new stranger in place of you online.",
       "A copy of the saves is now put by at every game update, not only when the app itself is reinstalled. The newest ten are kept, and the fullest of them too, however old. Before, the copies were weeded by their names, which could throw away the newest first.",
       "Online hosting on your own network works again after an update. The updated app had been starting without its link to the page.",
@@ -2139,7 +2146,7 @@ export const CHANGELOG = [
   {
     v: "1.40.0", date: "15 October 2026", title: "Ride into battle",
     items: [
-      "Ride into battle yourself: choose \"On horseback\" under Mount in your arms. You go quicker than any man on foot, your sabre reaches further and hits harder at the gallop, and you're thrown when you fall. It costs 150 thalers from your purse, as any trooper does, and nothing in historical and campaign battles. The other player sees you mounted in an online battle.",
+      "Ride into battle yourself: choose “On horseback” under Mount in your arms. You go quicker than any man on foot, your sabre reaches further and hits harder at the gallop, and you're thrown when you fall. It costs 150 thalers from your purse, as any trooper does, and nothing in historical and campaign battles. The other player sees you mounted in an online battle.",
       "Squares: infantry formed in square (Formation → Square) take half the harm from horsemen, and a seasoned enemy officer forms square when your horse comes at his men, then goes back into line once it's past.",
       "Cavalry ride for what horse is good against, the gun crews, men running away and men out on their own, and keep clear of the pikes.",
     ],
@@ -2147,11 +2154,11 @@ export const CHANGELOG = [
   {
     v: "1.39.3", date: "15 October 2026", title: "The rout, and the map",
     items: [
-      "A side that breaks is shown breaking: the battle's top bar counts the men running as well as the men standing, and a battle won because the last of them fled ends with \"They break and run!\" (or, the other way, \"Your men break and run\").",
+      "A side that breaks is shown breaking: the battle's top bar counts the men running as well as the men standing, and a battle won because the last of them fled ends with “They break and run!” (or, the other way, “Your men break and run”).",
       "Campaign: your towns are ringed in your colour on the map, every enemy town your army can reach is marked with crossed swords (dimmed once you've marched that season), and a town that's about to be attacked is marked in red.",
       "Campaign: when a season ends, its news is laid out at the top: who went to war, which towns fell, who's marching on you.",
       "Map: Riga is Sweden's (the border runs south of it, along the Daugava), Azov the Sultan's, and the Crimea the Khan's.",
-      "The \"First Blood\" achievement says what it's for: winning a battle or a duel.",
+      "The “First Blood” achievement says what it's for: winning a battle or a duel.",
     ],
   },
   {
@@ -2737,7 +2744,7 @@ export const CHANGELOG = [
   {
     v: "0.99.6", date: "11 October 2026", title: "Degrees and leagues",
     items: [
-      "On the big map (J), the pointer tells you where it is: on the Earth its latitude and longitude and the kind of country there (\"54°N 8°E · the sea\"), on any other land the country.",
+      "On the big map (J), the pointer tells you where it is: on the Earth its latitude and longitude and the kind of country there (“54°N 8°E · the sea”), on any other land the country.",
       "The map's scale bar grows with the view: fifty paces close in, then a thousand paces, a league, five leagues, a hundred leagues across the whole world.",
       "The game's name card no longer sits over the corner of the big map.",
     ],
@@ -2745,7 +2752,7 @@ export const CHANGELOG = [
   {
     v: "0.99.5", date: "11 October 2026", title: "Where you are",
     items: [
-      "Frontier: cross into new country and its name comes up — the taiga, the broadleaf woods, the high meadows, desert — and on the Earth, the great feature of the land you're in: \"The taiga — Siberia\", \"Desert — the Sahara\", \"Rain forest — the Amazon\". You're told where you've begun, too, when you arrive on the Earth.",
+      "Frontier: cross into new country and its name comes up — the taiga, the broadleaf woods, the high meadows, desert — and on the Earth, the great feature of the land you're in: “The taiga — Siberia”, “Desert — the Sahara”, “Rain forest — the Amazon”. You're told where you've begun, too, when you arrive on the Earth.",
       "The Earth's great grasslands are open grass now, as they should be: the prairies of the Great Plains, the pampas, the steppe of the Ukraine and of Tartary.",
       "The welcome on the Earth says you're on the Earth (it said lake country).",
     ],
@@ -2869,7 +2876,7 @@ export const CHANGELOG = [
   {
     v: "0.91.1", date: "10 October 2026", title: "Into your pack",
     items: [
-      "Frontier: what you gather goes into your own pack, not straight into the stores, as in the settlement. Stone from the rocks, and what you loot from a fallen player's sack, ride on your back (T shows them) until you empty them into the store at the hearth or a woodshed (F there: \"Put in the store\"). A site raised takes its stone from the store first, then from your pack. Fall, and it's what's in your arms and your pack that spills, not your stores at home. Logs you hand to someone come out of your arms.",
+      "Frontier: what you gather goes into your own pack, not straight into the stores, as in the settlement. Stone from the rocks, and what you loot from a fallen player's sack, ride on your back (T shows them) until you empty them into the store at the hearth or a woodshed (F there: “Put in the store”). A site raised takes its stone from the store first, then from your pack. Fall, and it's what's in your arms and your pack that spills, not your stores at home. Logs you hand to someone come out of your arms.",
       "Adding logs to a building site works again, in Frontier and at the settlement's own sites: the site's F wasn't being counted, so it never finished. Tested by carrying logs from the store to a woodshed's site three times and raising it.",
       "A building site no longer shows a pale ghost of the building. It's laid out as in the settlement: stakes at its corners with a cord between them, a sign of what it has and still wants, and the logs heaped beside it. No grass grows inside the cord.",
       "Every stump is its own: as thick as the tree was, with its kind's bark (a birch's white, a spruce's dark red-brown), cut on a slant with its growth rings showing, a fringe of torn splinters where it broke over, its roots running into the ground, and moss on some.",
@@ -2990,7 +2997,7 @@ export const CHANGELOG = [
   {
     v: "0.84.2", date: "10 October 2026", title: "Everyone to bed",
     items: [
-      "Sleeping works in a co-op colony. Before, a guest going to bed was done in the host's game: the host's screen went dark and the host was moved to the bed, while the guest got nothing. Now each of you goes to bed on your own (F at a bed, at night). The screen dims and you wait, and everyone is told who's in bed (\"Guesty has gone to bed, 1 of 2\"). When the last of you lies down, the night passes for everyone and you all wake in the morning. A step gets you up again if you change your mind.",
+      "Sleeping works in a co-op colony. Before, a guest going to bed was done in the host's game: the host's screen went dark and the host was moved to the bed, while the guest got nothing. Now each of you goes to bed on your own (F at a bed, at night). The screen dims and you wait, and everyone is told who's in bed (“Guesty has gone to bed, 1 of 2”). When the last of you lies down, the night passes for everyone and you all wake in the morning. A step gets you up again if you change your mind.",
     ],
   },
   {
@@ -3770,14 +3777,14 @@ export const CHANGELOG = [
     items: [
       "The front menu fits a laptop's screen: the title was cut off at the top and the buttons ran off the bottom. It's set a little closer together when the window is short, and never crops the top.",
       "In the government's People list, the words after each name (their temper, their faith, a mark against them) are readable on the parchment. They were pale and nearly invisible. The list fits without scrolling sideways.",
-      "Two settlers with the same name, sent for together before that was mended, are now told apart: the second is \"the younger\". Their opinions, feuds and shops could otherwise be muddled between them.",
+      "Two settlers with the same name, sent for together before that was mended, are now told apart: the second is “the younger”. Their opinions, feuds and shops could otherwise be muddled between them.",
     ],
   },
   {
     v: "0.44.4", date: "6 October 2026", title: "Readable, and the whole map",
     items: [
       "The tech tree is readable: what you haven't learned yet was dark on dark, and its names couldn't be read at all. The next things you can study are paper plates with a red edge, and the learned ones are green.",
-      "The map grows with your land: Nova Aquilia, all the ground you've claimed and the raiders' camps are all on it now, where some had run off the top. Your first settlement is marked with its own name, not \"The Clearing\". The map's close key no longer sits under the frame counter.",
+      "The map grows with your land: Nova Aquilia, all the ground you've claimed and the raiders' camps are all on it now, where some had run off the top. Your first settlement is marked with its own name, not “The Clearing”. The map's close key no longer sits under the frame counter.",
       "The cave is properly dark. An even warm light from outside was falling on every rock face, so the whole cave looked flat brown. Now the rock is lit only where your lantern and the torches reach.",
       "The undersides of eaves and little roofs aren't so black by day: the light thrown back up off the ground is a little brighter.",
     ],
@@ -4078,7 +4085,7 @@ export const CHANGELOG = [
       "Everything yields less: fields give 4 rye (5 with a well), a loaf takes 2.5 rye, trees give fewer logs, and works and ore rocks make less. Food fills you less.",
       "No reaping or sowing in winter, and nobody tells you to. Your sibling only worries about food when the bread is short too.",
       "Logs from a tree felled far out stay where it fell, and haulers gather up logs left lying about, and dig out the stumps left in the settlement when they've nothing to carry. You still stack the woodshed yourself.",
-      "Research advice names the whole path (\"Research Land Ownership, then Township, for a town hall\"), so it can always be done.",
+      "Research advice names the whole path (“Research Land Ownership, then Township, for a town hall”), so it can always be done.",
       "; flies a free camera, with no HUD. Right-click is no longer a second F.",
       "Your breathing is softer, like breath and not like grass.",
       "Trees keep their own shape when you start felling them (no more turning into a fir the moment you swing), and every tree falls its own way: taller ones slower, birches quicker, with a twist, a roll and a bounce as it lands.",
@@ -4177,7 +4184,7 @@ export const CHANGELOG = [
       "Europe (G) is the real Europe now: the true coasts, and each piece of land given to the crown that held it in 1683 — Denmark with Norway and Holstein, Sweden round the Baltic from Finland to Pomerania, the Spanish Netherlands, Royal Hungary and the Ottoman rest, Podolia lost to the Turk, the Cossacks on the Dnieper. The Dutch Republic and Morocco join the crowns.",
       "And it is drawn as a map of the time was drawn: engraved in sepia on old paper, the coasts water-lined, each crown coloured by hand along its borders, hills in profile, rivers, the great towns, the names in Latin — GALLIA, SUECIA, MOSCOVIA, OCEANUS GERMANICUS — a compass rose with its rhumb lines, a ship, a sea serpent, a cartouche, a scale of German miles, and the degrees round the frame counted from Ferro.",
       "Cities on the map: a hundred of them under their names of 1683 — Wien, Kiøbenhavn, Constantinopolis, Danzig, Chyhyryn — each a dot, the crowns' seats ringed in the colour of whoever holds them. Click a crown to see its cities.",
-      "Wars between the crowns take a province at a time, and the borders visibly move; a city in a province taken changes hands, and word comes of it — \"The Austrian Empire takes München and Augsburg from Bavaria!\" A saved game's old conquests, drawn on the old map, are cleared.",
+      "Wars between the crowns take a province at a time, and the borders visibly move; a city in a province taken changes hands, and word comes of it — “The Austrian Empire takes München and Augsburg from Bavaria!” A saved game's old conquests, drawn on the old map, are cleared.",
       "The borders of 1683 put right: Stettin Swedish, Silesia the Habsburgs', Pomerania and Ducal Prussia Brandenburg's, Leipzig and Dresden Saxony's.",
     ],
   },
