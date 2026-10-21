@@ -266,7 +266,7 @@ function sibHints() {
       return say1(food ? `You look half-starved. Eat something — press the number of the ${food.icon === "cookedmeat" ? "roast meat" : food.icon === "dish" ? food.base.toLowerCase() : food.icon === "bread" ? "bread" : "berries"}.` : "When did you last eat? We need bread — or meat, if you can bring some down.", 4);
     }
     if (pl.hasBow && pl.bow && (pl.arrows || 0) === 0 && !once.has("arrows")) { once.add("arrows"); return say1("You're out of arrows. Pull them out where they landed — F — or buy more when a trader comes.", 4.5); }
-    if (G.town && G.body && !raid && !G.body.tools.pick && G.chapter >= 12 && !once.has("pick")) { once.add("pick"); return say1("You could make yourself a pickaxe at the chopping block — two logs. There's stone in the grey rocks round the clearing.", 5); }
+    if (G.town && G.body && !raid && !G.body.tools.pick && G.chapter >= 12 && G.chapter <= 14 && !once.has("pick")) { once.add("pick"); return say1("You could make yourself a pickaxe at the chopping block — two logs. There's stone in the grey rocks round the clearing.", 5); }
     // the settlement's needs, every few minutes, when they've changed
     if (G.chapter === 14 && G.town && advT > 180) {
       const adv = G.town.advice();
@@ -2868,7 +2868,7 @@ async function chDanes(w) {
   //  embrasures — not a field redoubt — and the Danish tents across the field)
   const b = { ...H, campaign: true, fort: null,
     map: { ...H.map, things: [["town", -1, 3, 1, 1686, 0], ...H.map.things.filter(t => t[0] === "tents")] },
-    sides: [{ ...H.sides[0], name: `The city's militia, and ${S.name}'s company`, cos: [{ uni: "hamburg", muster: mus, guns: 0, call: { musketeer: "Militiaman" } }, ...H.sides[0].cos] }, H.sides[1]],
+    sides: [{ ...H.sides[0], name: `The city's militia, and the company from ${S.name}`, cos: [{ uni: "hamburg", muster: mus, guns: 0, call: { musketeer: "Militiaman" } }, ...H.sides[0].cos] }, H.sides[1]],
     after: ["The works held. Days later the Duke of Celle's regiments came up the Elbe road, and King Christian struck his camp and went home. Hamburg stayed free.",
       "The Danes drove you off the works by the Elbe, but the city held behind its walls until the Duke of Celle's regiments came up the road. King Christian struck his camp and went home. Hamburg stayed free."],
     onEnd: (won, killed, lost) => writeSave({ chapter: 16, unlocked: further((loadSave() || {}).unlocked || 1, 16), part3: { ...P3, hamburg: won ? "held" : "driven", killed, lost } }) };

@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.46", date: "21 October 2026", title: "The Emperor’s war",
+    items: [
+      "The Emperor’s Commission: the campaign it opens asks you to take the towns of the Emperor’s war in Hungary (Buda, Belgrade, Pressburg and Weissenburg). It no longer asks for the ordinary Austrian goal, which included Berlin, held by the Emperor’s own ally.",
+      "The Danes before Hamburg: your side is named “the city’s militia, and the company from Forester’s Clearing”, not “Forester’s Clearing’s company”. The opening caption says “two companies, one of them yours to command”.",
+      "Part Three: your brother or sister no longer suggests making a pickaxe as the war chapters begin.",
+    ],
+  },
+  {
     v: "1.99.45", date: "21 October 2026", title: "No halt at the start",
     items: [
       "The frontier chapters no longer halt for over half a second just after they begin. The grass round you is worked out a few milliseconds a frame, nearest first, and the map's hill shading is drawn in the background. Before, both were done at once.",

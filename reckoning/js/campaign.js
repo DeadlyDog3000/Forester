@@ -2595,6 +2595,10 @@ export function openStoryCampaign(o = {}) {
     if (!resume()) {
       begin("austria", STORY_SLOT);
       C.story = 1; C.year = 1686; C.goal = null;
+      // (the commission's own aim: the towns of the Emperor's war in Hungary — not the nearest great towns whoever holds
+      //  them, which asked the Emperor's general to take Berlin from his own ally)
+      { const g = grid(), want = ["Buda", "Belgrad", "Pressburg", "Weissenburg"].filter(n => { const ct = CITIES.find(c => c[0] === n); return ct && cityOwner(g, ct) !== C.me; });
+        if (want.length) C.goal = { towns: want, n: Math.min(WIN_CITIES, citiesOfNow(g, C.me).length + 10), by: C.year + GOAL_YEARS }; }
       const g0 = newMan("hre", "general");
       C.gen = { ...g0, name: o.name || "The Forester", short: o.short || "Forester", you: true, st: [3, 4, 1], served: 0, d: "You: out of Hamburg by the Marsh Gate, a forester in the old woods, and on the works at the Elbe when the Danes came. The Emperor's commission in your coat." };
       C.log = C.log.filter(l => !/^You take the crown/.test(l.sub || ""));
