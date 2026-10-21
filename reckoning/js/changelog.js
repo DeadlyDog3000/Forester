@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.51", date: "21 October 2026", title: "Lighter campaign",
+    items: [
+      "Campaign 3D map: an army marching off the map, or redrawn, no longer leaves its soldiers’ bones behind on the graphics card. A long campaign no longer grows heavier year by year.",
+    ],
+  },
+  {
     v: "1.99.50", date: "21 October 2026", title: "Lighter on the graphics card",
     items: [
       "Long sessions no longer pile up on the graphics card. Starting a chapter used to leave your old body’s bones and shapes behind; putting away an axe, musket or bow left the tool’s shapes; and the townsfolk left theirs behind each time a chapter ended. Now they’re let go of. Over a long evening of play the game no longer grows heavier and slower.",

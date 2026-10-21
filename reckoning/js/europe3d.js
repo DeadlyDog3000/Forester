@@ -1634,7 +1634,10 @@ export class EuropeView3D {
     if (R.line) { this.armyGroup.remove(R.line); R.line.geometry.dispose(); R.line.material.dispose(); R.line = null; }
     this.armyGroup.remove(R.co); if (R.sp) { this.armyGroup.remove(R.sp); R.sp.material.map && R.sp.material.map.dispose(); R.sp.material.dispose(); }
     for (const m of R.men) m.mixer.stopAllAction();
-    R.co.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const mt of ms) if (o.userData.own || (mt.userData && mt.userData.own)) { mt.map && o.userData.own && mt.map.dispose(); mt.dispose(); } if (/^merged_/.test(o.name) || o.userData.own) { o.geometry && o.geometry.dispose(); if (o.skeleton) o.skeleton.dispose(); } });
+    R.co.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const mt of ms) if (o.userData.own || (mt.userData && mt.userData.own)) { mt.map && o.userData.own && mt.map.dispose(); mt.dispose(); } if (/^merged_/.test(o.name) || o.userData.own) o.geometry && o.geometry.dispose();
+      // (every man's bones let go of, his own or the model's: each had its texture on the card, and a company marched off the
+      //  map left them all behind)
+      if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) o.skeleton.dispose(); });
   }
   makeCompany(A) {
     const co = new THREE.Group(); co.userData.army = true; const R = { co, men: [], to: [0, 0], face: 0, n: null, sp: null, glide: null, walking: null, inner: new THREE.Group(), nudge: 0 };
