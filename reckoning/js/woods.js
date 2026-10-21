@@ -576,10 +576,19 @@ export class Woods extends WorldBase {
     k.globalCompositeOperation = "source-over";
     c.save(); c.setTransform(1, 0, 0, 1, 0, 0); c.drawImage(o, 0, 0); c.restore();
   }
+  // (what the sheets below cover: the map and a margin round it, and all the forest besides — cut at the map's margin,
+  //  the woods ended on the map in ruled lines where the real ones only thin out)
+  sheetBounds(m = 60) {
+    const mb = this.mapBounds, b = { x0: mb.x0 - m, x1: mb.x1 + m, z0: mb.z0 - m, z1: mb.z1 + m };
+    if (!this._treeExt) { const e = this._treeExt = [Infinity, -Infinity, Infinity, -Infinity]; for (const t of this.mapTrees) { e[0] = Math.min(e[0], t.x); e[1] = Math.max(e[1], t.x); e[2] = Math.min(e[2], t.z); e[3] = Math.max(e[3], t.z); } }
+    const e = this._treeExt, p = m - 50;
+    b.x0 = Math.floor(Math.min(b.x0, e[0] - p)); b.x1 = Math.ceil(Math.max(b.x1, e[1] + p)); b.z0 = Math.floor(Math.min(b.z0, e[2] - p)); b.z1 = Math.ceil(Math.max(b.z1, e[3] + p));
+    return b;
+  }
   // the sheet: MAP_K pixels to the metre, over the map and a margin round it; drawn again only when told to
   mapLayer() {
-    if (this._mapLayer && !this._mapDirty) return this._mapLayer;
-    const mb = this.mapBounds, b = { x0: mb.x0 - 60, x1: mb.x1 + 60, z0: mb.z0 - 60, z1: mb.z1 + 60 }, K = MAP_K;
+    const b = this.sheetBounds(), K = MAP_K;
+    if (this._mapLayer && !this._mapDirty && this._mapLayer.key === `${b.x0},${b.x1},${b.z0},${b.z1}`) return this._mapLayer;
     const cv = (this._mapLayer && this._mapLayer.cv) || document.createElement("canvas");
     cv.width = Math.round((b.x1 - b.x0) * K); cv.height = Math.round((b.z1 - b.z0) * K);
     const c = cv.getContext("2d"), X = x => (x - b.x0) * K, Z = z => (z - b.z0) * K;
@@ -594,17 +603,24 @@ export class Woods extends WorldBase {
     const rw = 1.9 * K;
     for (const br of this.branches) road(c, br.pts, X, Z, rw * 0.6);
     road(c, this.road, X, Z, rw);
-    this._mapLayer = { cv, b }; this._mapDirty = false;
+    this._mapLayer = { cv, b, key: `${b.x0},${b.x1},${b.z0},${b.z1}` }; this._mapDirty = false;
     return this._mapLayer;
   }
   // the relief, on a sheet of its own (three pixels to the metre), drawn again only if the country grows
   mapRelief() {
-    const mb = this.mapBounds, b = { x0: mb.x0 - 60, x1: mb.x1 + 60, z0: mb.z0 - 60, z1: mb.z1 + 60 }, key = `${b.x0},${b.x1},${b.z0},${b.z1}`;
+    const b = this.sheetBounds(110), key = `${b.x0},${b.x1},${b.z0},${b.z1}`;
     if (this._relief && this._relief.key === key) return this._relief;
     const K = 3, cv = document.createElement("canvas");
     cv.width = Math.round((b.x1 - b.x0) * K); cv.height = Math.round((b.z1 - b.z0) * K);
     const c = cv.getContext("2d");
     relief(c, (x, z) => this.groundAt(x, z), b, x => (x - b.x0) * K, z => (z - b.z0) * K, { step: 2, every: 1.5, shade: 0.9 });
+    // (and its edges faded out over the last fifty metres, so the hills don't stop at a ruled line)
+    c.globalCompositeOperation = "destination-in";
+    const F = 50 * K, W = cv.width, H = cv.height, fade = (x0, y0, x1, y1) => { const g = c.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "#000"); return g; };
+    const m = document.createElement("canvas"); m.width = W; m.height = H; const mc = m.getContext("2d");
+    mc.fillStyle = "#000"; mc.fillRect(0, 0, W, H); mc.globalCompositeOperation = "destination-in";
+    for (const [x0, y0, x1, y1] of [[0, 0, F, 0], [W, 0, W - F, 0], [0, 0, 0, F], [0, H, 0, H - F]]) { mc.fillStyle = fade(x0, y0, x1, y1); mc.fillRect(0, 0, W, H); }
+    c.drawImage(m, 0, 0); c.globalCompositeOperation = "source-over";
     return this._relief = { cv, b, key };
   }
   mapTreeGrid() {

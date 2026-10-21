@@ -19,7 +19,11 @@ function paperPattern(c) {
     for (let i = 0; i < 2600; i++) { p.fillStyle = `rgba(${rnd() < 0.5 ? "90,60,30" : "255,245,220"},${0.04 + rnd() * 0.06})`; p.fillRect(rnd() * 256, rnd() * 256, 1 + rnd() * 2, 1 + rnd() * 2); }
     p.strokeStyle = "rgba(110,80,40,0.06)"; p.lineWidth = 0.6;
     for (let i = 0; i < 90; i++) { const x = rnd() * 256, y = rnd() * 256, a = rnd() * 6.3, l = 6 + rnd() * 18; p.beginPath(); p.moveTo(x, y); p.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); p.stroke(); }
-    for (let i = 0; i < 6; i++) { const g = p.createRadialGradient(rnd() * 256, rnd() * 256, 0, rnd() * 256, rnd() * 256, 30 + rnd() * 50); g.addColorStop(0, "rgba(140,100,50,0.07)"); g.addColorStop(1, "rgba(140,100,50,0)"); p.fillStyle = g; p.fillRect(0, 0, 256, 256); }
+    // (the stains round, each about one middle: begun and ended about two different points, each was a cone with a hard
+    //  edge, the same few repeating in rows across the sheet)
+    for (let i = 0; i < 6; i++) { const x = rnd() * 256, y = rnd() * 256, g = p.createRadialGradient(x, y, 0, x, y, 30 + rnd() * 50); g.addColorStop(0, "rgba(140,100,50,0.07)"); g.addColorStop(1, "rgba(140,100,50,0)"); p.fillStyle = g;
+      // (and carried round the tile's edges, as the tiles meet: no seam across one)
+      for (const ox of [-256, 0, 256]) for (const oy of [-256, 0, 256]) { p.save(); p.translate(ox, oy); p.fillRect(-ox, -oy, 256, 256); p.restore(); } }
     paper = cv;
   }
   return c.createPattern(paper, "repeat");

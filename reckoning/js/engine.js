@@ -2474,10 +2474,12 @@ function drawFog(c, X, Z, S) {
     m.globalCompositeOperation = "copy";
     const dx = X(wf.b.x0) * k, dy = Z(wf.b.z0) * k, dw = (wf.b.x1 - wf.b.x0) * S * k, dh = (wf.b.z1 - wf.b.z0) * S * k;
     m.drawImage(wf.cv, dx, dy, dw, dh);
-    // (beyond the sheet, all unseen)
+    // (beyond the sheet, all unseen — and its own last few metres too, which the softening thinned: a pale seam ran
+    //  down the map there)
     m.globalCompositeOperation = "source-over"; m.fillStyle = "#000";
-    if (dx > 0) m.fillRect(0, 0, dx, mh); if (dy > 0) m.fillRect(0, 0, mw, dy);
-    if (dx + dw < mw) m.fillRect(dx + dw, 0, mw, mh); if (dy + dh < mh) m.fillRect(0, dy + dh, mw, mh);
+    const e = 10 * S * k, ex = dx + e, ey = dy + e, ex1 = dx + dw - e, ey1 = dy + dh - e;
+    if (ex > 0) m.fillRect(0, 0, ex, mh); if (ey > 0) m.fillRect(0, 0, mw, ey);
+    if (ex1 < mw) m.fillRect(ex1, 0, mw, mh); if (ey1 < mh) m.fillRect(0, ey1, mw, mh);
   } else {
   // the mask: opaque where unseen
   const m = maskCv.getContext("2d");

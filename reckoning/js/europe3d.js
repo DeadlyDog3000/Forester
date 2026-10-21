@@ -102,6 +102,17 @@ function townLand(lon, lat) {
   }
   return m;
 }
+// (and a town the map's coast left out on the water joined to the shore by a neck of land: Ancona on its headland,
+//  St Mary's City on its river's bank) [lon, lat, lon, lat, half-width in degrees]
+const NECKS = [[13.52, 43.62, 13.46, 43.608, 0.016], [-76.43, 38.19, -76.487, 38.222, 0.014]];
+function neckLand(lon, lat) {
+  let m = 0;
+  for (const [x0, y0, x1, y1, w] of NECKS) {
+    if (lon < Math.min(x0, x1) - w * 3 || lon > Math.max(x0, x1) + w * 3 || lat < Math.min(y0, y1) - w * 3 || lat > Math.max(y0, y1) + w * 3) continue;
+    const d = segDist(lon * K, lat, x0 * K, y0, x1 * K, y1) + (fbm(lon * 70, lat * 70, 19, 2) - 0.5) * w * 0.8; m = Math.max(m, 0.95 * (1 - smoothstep01((d - w) / (w * 0.9))));
+  }
+  return m;
+}
 const smoothstep01 = t => t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t);
 // (the waters too fine for the map's grid: the Bosporus, the Dardanelles, the Sound, Messina's strait, the Zuiderzee, the lakes — cut through the land as
 //  channels, so Constantinople stands on its strait and not on an isthmus) [lon, lat, lon, lat, half-width in degrees]
@@ -117,6 +128,16 @@ const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23,
   // (the Tagus's narrows below Lisbon, the town on their north bank, opening into the broad Mar da Palha behind — the
   //  grid has the bay, but shut off from the sea, with the river running out through the town's square)
   [-9.26, 38.688, -9.07, 38.694, 0.013], [-9.07, 38.694, -9.0, 38.75, 0.03], [-9.0, 38.75, -8.98, 38.84, 0.055],
+  // (Venice's lagoon round the town: between it and the mainland, and between it and the Lido — the grid had the town
+  //  on a neck of land joining the two)
+  [12.21, 45.405, 12.29, 45.468, 0.013], [12.29, 45.468, 12.4, 45.492, 0.013], [12.37, 45.395, 12.385, 45.47, 0.009],
+  // (ports the grid set back from their water: the Thermaic Gulf up to Thessalonica, the Gulf of Smyrna in to its town,
+  //  Dublin Bay to the Liffey's quays, Oran's bay, Bergen's fjord)
+  [22.8, 40.5, 22.88, 40.58, 0.035], [22.88, 40.58, 22.925, 40.612, 0.012],
+  [26.92, 38.45, 27.06, 38.43, 0.03], [27.06, 38.43, 27.105, 38.422, 0.012],
+  [-6.12, 53.345, -6.2, 53.347, 0.025], [-6.2, 53.347, -6.225, 53.348, 0.01],
+  [-0.615, 35.775, -0.625, 35.735, 0.015],
+  [5.19, 60.39, 5.27, 60.392, 0.012], [5.27, 60.392, 5.295, 60.393, 0.007],
   // (the Strait of Messina, Sicily from Calabria)
   [15.63, 38.32, 15.63, 38.17, 0.02], [15.63, 38.17, 15.6, 37.92, 0.025],
   // (and the Zuiderzee, with the IJ running in from it to Amsterdam)
@@ -165,7 +186,7 @@ export function heightAt(g, lon, lat) {
   //  stairs: only where it's coast at all)
   //  (not on the far ground: finer than its corners are apart, it only made the coast jagged from on high)
   if (!FOOT && l0 > 0.001 && l0 < 0.999) land += (fbm(lon * 8.3, lat * 8.3, 43, 2) - 0.5) * 2.4 * l0 * (1 - l0);
-  if (land < 0.95) { const tl = townLand(lon, lat) * (1 - Math.min(1, cut)); if (tl > land) land = tl; }
+  if (land < 0.95) { const tl = Math.max(townLand(lon, lat), neckLand(lon, lat)) * (1 - Math.min(1, cut)); if (tl > land) land = tl; }
   if (land < 0.62 && l0 < 0.999 && !cut && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.72 + (w - 0.78) * 0.5); }
   // (the far ground going through the water's level at the coast without a step, so between two of its corners the
   //  coast falls where it should and not always hard by the one on land)

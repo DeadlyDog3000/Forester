@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.39", date: "21 October 2026", title: "Ports on their water",
+    items: [
+      "Campaign 3D map: Venice stands on its island in the lagoon, with water between it and the mainland and between it and the Lido. It used to stand on a neck of land joining the two.",
+      "Campaign 3D map: ports the map had set back from the sea now stand on their water: Thessalonica at the head of its gulf, Smyrna at the end of its gulf, Dublin on its bay, Oran on its bay and Bergen on its fjord. Ancona stands on its headland, and St Mary's City on its river bank, instead of on blobs of land off the coast.",
+      "The map of the frontier (J): the forest is drawn as far as it really runs and thins out at its edges, instead of stopping in straight lines. The hill shading fades out at its edges instead of stopping, and the parchment no longer repeats the same stains in rows across the sheet.",
+    ],
+  },
+  {
     v: "1.99.38", date: "21 October 2026", title: "Shores and woods",
     items: [
       "Campaign 3D map: close in, coasts and lake shores run smoothly instead of in little stairsteps. The ground now goes down through the waterline in one slope, where it used to jump.",
