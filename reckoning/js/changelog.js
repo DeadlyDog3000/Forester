@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.50", date: "21 October 2026", title: "Lighter on the graphics card",
+    items: [
+      "Long sessions no longer pile up on the graphics card. Starting a chapter used to leave your old body’s bones and shapes behind; putting away an axe, musket or bow left the tool’s shapes; and the townsfolk left theirs behind each time a chapter ended. Now they’re let go of. Over a long evening of play the game no longer grows heavier and slower.",
+    ],
+  },
+  {
     v: "1.99.49", date: "21 October 2026", title: "More rivers",
     items: [
       "Campaign maps: the Meuse runs past Maastricht, Liège and Namur, the Moselle past Trier and Metz, the Inn from the Alps down to Passau, the Warta past Posen, and the Prut along Moldavia’s edge.",

@@ -252,6 +252,9 @@ const randn = () => { let u = 0, v = 0; while (u === 0) u = Math.random(); while
 const loadPace = p => (p.crouched ? 0.75 : 1) * (p.speed > 4.2 ? 0.4 : p.speed > 0.6 ? 0.6 : 1);
 const FOLEY_SPLASH = (p, vol) => { const F = window.__foley; if (F && F.splash) F.splash({ x: p.x, y: p.y + 1.2, z: p.z }, vol); };
 camera.add(vm);
+// (what's in your hands put away: off the view, and its shapes let go of — each tool is made afresh when it's taken up
+//  again, and every axe, musket and bow put away had been staying on the graphics card)
+const vmDrop = o => { if (!o) return; vm.remove(o); o.traverse(m => { if (m.geometry && !m.geometry._shared) m.geometry.dispose(); }); };
 
 export class Player {
   constructor() {
@@ -266,7 +269,9 @@ export class Player {
     this.carryN = 0; this.lean = 0;
   }
   setModel(opts) {
-    if (this.model) G.scene.remove(this.model.root);
+    // (the body you had let go of, as an actor's is — its bones' textures on the graphics card and the shapes merged for
+    //  it: a new one was made for every chapter begun, and the old ones stayed, seventeen textures at a time)
+    if (this.model) { G.scene.remove(this.model.root); this.model.root.traverse(o => { if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) o.skeleton.dispose(); if (o.geometry && !o.geometry._shared) o.geometry.dispose(); }); }
     this.model = makePerson(opts);
     G.scene.add(this.model.root);
     // (your hands and sleeves, first person, as the body you've been given: its skin, its coat, its shirt at the cuff)
@@ -347,8 +352,8 @@ export class Player {
       if (this.model && THRUST.has(this.blade) && pikeHold(this.model, this.axeBody, this.blade)) this.axeBody.rotation.x = 0;
       else if (this.model && this.model.held) this.model.held.add(this.axeBody);
     } else if (!on && this.axe) {
-      vm.remove(this.axe); this.axe = null;
-      for (const a of this.arms || []) vm.remove(a.arm);
+      vmDrop(this.axe); this.axe = null;
+      for (const a of this.arms || []) vmDrop(a.arm);
       this.arms = null; this.hands = null;
       if (this.axeBody && this.model && this.model.aimH && this.model.aimH.obj === this.axeBody) this.model.aimHold(null);
       if (this.axeBody && this.model && this.model.held) this.model.held.remove(this.axeBody); this.axeBody = null;
@@ -399,8 +404,8 @@ export class Player {
       if (this.bayonet && !pis) { addBayonet(m); addBayonet(this.gunBody); }
     } else if (!on && this.gun) {
       (this.gunSaved ??= {})[this.gunIs || "musket"] = { l: this.gunLoaded, r: this.gunReload };
-      vm.remove(this.gun); this.gun = null;
-      for (const a of this.arms || []) { vm.remove(a.arm); if (a.fore) vm.remove(a.fore); }
+      vmDrop(this.gun); this.gun = null;
+      for (const a of this.arms || []) { vmDrop(a.arm); if (a.fore) vmDrop(a.fore); }
       this.arms = null; this.hands = null; this.loadKit = null;
       if (this.gunBody && this.model && this.model.aimHold) this.model.aimHold(null); this.gunBody = null;
     }
@@ -568,8 +573,8 @@ export class Player {
       this.draw = 0; this.reload = 0;
       this.bowPose(0);
     } else if (!on && this.bow) {
-      vm.remove(this.bow); this.bow = null;
-      for (const a of this.arms || []) vm.remove(a.arm);
+      vmDrop(this.bow); this.bow = null;
+      for (const a of this.arms || []) vmDrop(a.arm);
       this.arms = null; this.hands = null; this.draw = 0;
     }
   }
@@ -680,8 +685,8 @@ export class Player {
       this.xaim = 0; this.xspan = (G.body && G.body.tools.bolts > 0) ? 1 : 0; this.xkick = 0;
       this.xposeIt();
     } else if (!on && this.xbow) {
-      vm.remove(this.xbow); this.xbow = null;
-      for (const a of this.arms || []) vm.remove(a.arm);
+      vmDrop(this.xbow); this.xbow = null;
+      for (const a of this.arms || []) vmDrop(a.arm);
       this.arms = null; this.hands = null;
       if (this.xbowBody && this.model && this.model.aimHold) this.model.aimHold(null); this.xbowBody = null;
     }
@@ -783,7 +788,7 @@ export class Player {
     const wk = G.working && G.time < G.working.until && G.working.kind ? G.working : null;
     const kind = wk ? wk.kind : null;
     if (kind !== this.workKind) {
-      if (this.workRig) { vm.remove(this.workRig); this.workRig = null; }
+      if (this.workRig) { vmDrop(this.workRig); this.workRig = null; }
       if (this.workBody && this.model && this.model.held) this.model.held.remove(this.workBody); this.workBody = null;
       this.workKind = kind; this.workT = 0; this.workBeat = 0;
       // the axe or the bow goes aside while your hands are busy
@@ -2208,7 +2213,7 @@ export class Actor {
     if (this.horse) G.scene.remove(this.horse.root); if (this.bolt) G.scene.remove(this.bolt.h.root);
     // (the bones' texture each skinned body keeps on the graphics card, and a battle man's body made one: let go of with
     //  the body — made again if it's ever put back — or every battle's men would be left there after it)
-    for (const r of [this.root, this.horse && this.horse.root]) if (r) r.traverse(o => { if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) o.skeleton.dispose(); if (/^merged_/.test(o.name)) o.geometry.dispose(); });
+    for (const r of [this.root, this.horse && this.horse.root]) if (r) r.traverse(o => { if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) o.skeleton.dispose(); if (o.geometry && !o.geometry._shared) o.geometry.dispose(); });
     if (G.world) { const a = G.world.actors; const i = a.indexOf(this); if (i >= 0) a.splice(i, 1); }
     if (this.resolve) { const r = this.resolve; this.resolve = null; r(); }
   }
