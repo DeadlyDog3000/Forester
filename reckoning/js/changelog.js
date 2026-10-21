@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.38", date: "21 October 2026", title: "Shores and woods",
+    items: [
+      "Campaign 3D map: close in, coasts and lake shores run smoothly instead of in little stairsteps. The ground now goes down through the waterline in one slope, where it used to jump.",
+      "Campaign 3D map: where one kind of woodland meets another (beech and pine round Lake Geneva, say), the edge wanders as a real wood's does instead of running in straight lines and right angles. Each tree is the kind that grows where it stands.",
+      "Campaign 3D map: no pines stand out on the snowfields of the Alps.",
+      "Campaign 3D map: Lisbon stands on the narrows of the Tagus, which open into the broad bay behind the town as the real estuary does. The bay used to be a lake, with the river running out to sea through the town's square.",
+    ],
+  },
+  {
     v: "1.99.37", date: "20 October 2026", title: "Water and shore",
     items: [
       "The story's water (the Elbe at Hamburg, the pond, a frontier's sea): the wind's ripples are irregular, as real ones are, and drift down the wind, instead of running in ruled lines. The waves' slopes are worked out across the whole surface, so every crest is crisp. The sky is reflected more the lower you look, and the sun's reflection is a glitter of sparks rather than one soft blob. On a sea with waves, the crests are sharp and the troughs broad, and light shows green through their tops.",

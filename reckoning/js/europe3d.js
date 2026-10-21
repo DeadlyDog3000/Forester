@@ -114,6 +114,9 @@ const STRAITS = [[28.98, 40.99, 29.06, 41.1, 0.009], [29.06, 41.1, 29.13, 41.23,
   [-73.8, 40.83, -72.9, 41.07, 0.05], [-72.9, 41.07, -72.0, 41.18, 0.06],
   // (and the great lakes the grid hasn't, as the map draws them)
   ...LAKES,
+  // (the Tagus's narrows below Lisbon, the town on their north bank, opening into the broad Mar da Palha behind — the
+  //  grid has the bay, but shut off from the sea, with the river running out through the town's square)
+  [-9.26, 38.688, -9.07, 38.694, 0.013], [-9.07, 38.694, -9.0, 38.75, 0.03], [-9.0, 38.75, -8.98, 38.84, 0.055],
   // (the Strait of Messina, Sicily from Calabria)
   [15.63, 38.32, 15.63, 38.17, 0.02], [15.63, 38.17, 15.6, 37.92, 0.025],
   // (and the Zuiderzee, with the IJ running in from it to Amsterdam)
@@ -166,10 +169,11 @@ export function heightAt(g, lon, lat) {
   if (land < 0.62 && l0 < 0.999 && !cut && nearRiver(lon, lat, 0.3)) { let w = 0; for (const [ox, oy] of RING2) w += landG(g, gx + ox, gy + oy); w /= 8; if (w > 0.78) land = Math.max(land, 0.72 + (w - 0.78) * 0.5); }
   // (the far ground going through the water's level at the coast without a step, so between two of its corners the
   //  coast falls where it should and not always hard by the one on land)
-  if (land < 0.5) return FOOT ? (land - 0.5) * 0.36 : -0.18 + land * 0.3;
+  //  (the close ground too: a step there, the fine mesh's triangles drew every shore as a staircase)
+  if (land < 0.5) return (land - 0.5) * 0.36;
   // (the land comes down to the water gently: everything is eased toward nought at the shore)
   const shore = Math.min(1, (land - 0.5) / 0.3), ease = shore * shore * (3 - 2 * shore);
-  let h = (FOOT ? 0.02 * Math.min(1, (land - 0.5) / 0.08) : 0.02) + ease * (0.04 + fbm(lon * 1.3, lat * 1.3, 3) * 0.28);
+  let h = 0.02 * Math.min(1, (land - 0.5) / 0.08) + ease * (0.04 + fbm(lon * 1.3, lat * 1.3, 3) * 0.28);
   // (the mountains rise from a coast more gently than the lowland does — a hillside behind a port, not a wall over it)
   //  (reckoned over the land round about, not just here: so the slope follows the lie of the coast, not the map grid's
   //  steps along it)
@@ -815,23 +819,31 @@ export class EuropeView3D {
   }
   plant(gx, gz) {
     const r = rng(gx * 7919 + gz * 104729 + 17), per = {}, o = new THREE.Object3D();
-    const [lon0, lat0] = toLL(gx + 0.5, gz + 0.5), h0 = heightAt(this.g, lon0, lat0);
-    if (h0 < 0.02) return [];
-    const flora = FLORA[biomeAt(lon0, lat0, h0)] || [];
-    for (const [kind, max] of flora) {
+    // (what grows reckoned tree by tree, from the ground each stands on — not the whole square from its middle, which
+    //  drew the edge between a beech wood and a pine one as the square's own ruled sides. As many tried as the square's
+    //  thickest-grown corner wants; each kind taken in its share of them)
+    let N = 0, wet = 0;
+    for (const [u, w] of [[0.5, 0.5], [0, 0], [1, 0], [0, 1], [1, 1]]) {
+      const [lon, lat] = toLL(gx + u, gz + w), h = heightAt(this.g, lon, lat); if (h < 0.02) { wet++; continue; }
+      N = Math.max(N, (FLORA[biomeAt(lon, lat, h)] || []).reduce((a, f) => a + f[1], 0));
+    }
+    if (wet === 5 || !N) return [];
+    for (let i = 0; i < N; i++) {
       // woods in clumps: the density follows the noise
-      const list = per[kind] = [];
-      for (let i = 0; i < max; i++) {
-        const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z);
-        const h = heightAt(this.g, lon, lat), bm = biomeAt(lon, lat, h), wood = woodAt(x, z, h, openOf(bm, lon), dryOf(bm)) - tilledAt(lon, lat) * WOOD_CUT;
-        if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52) || r() > 0.85) continue;
-        if (h < 0.03 || biomeAt(lon, lat, h) === "snow" || this.riverAt(x, z, 0.065) || this.roadAt(x, z, 0.03)) continue;
-        // (no wood growing in a town, nor in the fields close round it)
-        if (this.cleared(x, z)) continue;
-        const s = 0.7 + r() * 0.7;
-        o.position.set(x, h * EXAG, z); o.rotation.set(0, r() * 6.28, 0); o.scale.set(s, s * (0.85 + r() * 0.3), s); o.updateMatrix();
-        list.push(o.matrix.clone());
-      }
+      const x = gx + r(), z = gz + r(), [lon, lat] = toLL(x, z), pick = r() * N;
+      const h = heightAt(this.g, lon, lat); if (h < 0.03) continue;
+      const bm = biomeAt(lon, lat, h); let kind = null, acc = 0;
+      for (const [k, max] of FLORA[bm] || []) { acc += max; if (pick < acc) { kind = k; break; } }
+      if (!kind || r() > 0.85) continue;
+      const wood = woodAt(x, z, h, openOf(bm, lon), dryOf(bm)) - tilledAt(lon, lat) * WOOD_CUT;
+      if (wood < (kind === "bush" || kind === "palm" ? 0.45 : 0.52)) continue;
+      // (and none on the snow as it's drawn — by the snowline where it stands, not the biome's wandering one)
+      if (bm === "snow" || h > snowAt(lon, lat) - 0.26 || this.riverAt(x, z, 0.065) || this.roadAt(x, z, 0.03)) continue;
+      // (no wood growing in a town, nor in the fields close round it)
+      if (this.cleared(x, z)) continue;
+      const s = 0.7 + r() * 0.7;
+      o.position.set(x, h * EXAG, z); o.rotation.set(0, r() * 6.28, 0); o.scale.set(s, s * (0.85 + r() * 0.3), s); o.updateMatrix();
+      (per[kind] ||= []).push(o.matrix.clone());
     }
     const out = [];
     for (const [kind, ms] of Object.entries(per)) {
