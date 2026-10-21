@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.35", date: "20 October 2026", title: "Room to grow",
+    items: [
+      "The map (J): the bar for marking out new ground for a growing settlement has the game's own red button rather than a wide green one, sits on one line, and stays clear of the map's key.",
+    ],
+  },
+  {
     v: "1.99.34", date: "20 October 2026", title: "Battles at sea, in the game's own hand",
     items: [
       "Battles at sea (the campaign's and the historical ones): the opening orders, the ship and fleet panels and the result are drawn as the land battles' and the campaign's are, with the dark green of the field, the gold edge and serif headings, and the red button to Clear for action, instead of a slate-blue page and a green button of their own.",

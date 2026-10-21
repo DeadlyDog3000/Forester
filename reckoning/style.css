@@ -559,8 +559,8 @@ body.talking #hint { bottom: 298px; }
 .cr-row img, .mc-slot img { filter: drop-shadow(0 1px 1px rgba(60, 40, 20, 0.45)) !important; }
 .gov-win input, .gov-win select { background: #f6ecd0 !important; color: #2b1d10 !important; border: 1px solid #6b5234 !important; font-family: var(--serif); }
 /* the front of the game: plates of paper on the painted scene */
-.screen .btn, .nv-box .btn { font-family: var(--serif); font-variant: small-caps; letter-spacing: 0.08em; text-transform: none; font-size: 18px; color: #2b1d10; background: linear-gradient(180deg, rgba(246, 236, 208, 0.94), rgba(227, 208, 162, 0.94)); border: 1px solid #3b2612; box-shadow: inset 0 0 0 2px rgba(246, 236, 208, 0.9), inset 0 0 0 3px rgba(59, 38, 18, 0.35), 0 2px 8px rgba(0, 0, 0, 0.45); border-radius: 1px; }
-.screen .btn.primary, .nv-box .btn.primary { color: #f6ecd0; background: linear-gradient(180deg, #a8392a, #7a2216); box-shadow: inset 0 0 0 2px #c4574a, 0 2px 8px rgba(0, 0, 0, 0.45); }
+.screen .btn, .nv-box .btn, .bm-grow .btn { font-family: var(--serif); font-variant: small-caps; letter-spacing: 0.08em; text-transform: none; font-size: 18px; color: #2b1d10; background: linear-gradient(180deg, rgba(246, 236, 208, 0.94), rgba(227, 208, 162, 0.94)); border: 1px solid #3b2612; box-shadow: inset 0 0 0 2px rgba(246, 236, 208, 0.9), inset 0 0 0 3px rgba(59, 38, 18, 0.35), 0 2px 8px rgba(0, 0, 0, 0.45); border-radius: 1px; }
+.screen .btn.primary, .nv-box .btn.primary, .bm-grow .btn.primary { color: #f6ecd0; background: linear-gradient(180deg, #a8392a, #7a2216); box-shadow: inset 0 0 0 2px #c4574a, 0 2px 8px rgba(0, 0, 0, 0.45); }
 .screen .btn:hover, .nv-box .btn:hover { filter: brightness(1.06); }
 .screen .btn.ghost, .screen .btn.ghost-sm { background: rgba(246, 236, 208, 0.18); color: #f6ecd0; border-color: rgba(246, 236, 208, 0.4); box-shadow: none; }
 .screen h2 { font-family: var(--serif); font-variant: small-caps; letter-spacing: 0.06em; }
@@ -598,7 +598,7 @@ body.talking #hint { bottom: 298px; }
 
 /* marking out new ground on the map */
 .bm-grow { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: #efe3c4; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); font: 15px var(--serif, Georgia); max-width: calc(100vw - 32px); flex-wrap: wrap; justify-content: center; z-index: 6; }
-.bm-grow .btn { padding: 5px 12px; font-size: 14px; }
+.bm-grow .btn { padding: 5px 14px; font-size: 15px; min-width: 0; margin: 0; }
 .bm-grow .bad { color: #8a2a1a; }
 #bigmap.drawing { cursor: crosshair; }
 

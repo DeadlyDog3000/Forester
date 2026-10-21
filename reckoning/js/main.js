@@ -2029,7 +2029,9 @@ function renderBigMap() {
   //  in a narrow window, set by the window's corners, they hung half over its edge)
   { const gx = (innerWidth - cssW) / 2, gy = (innerHeight - cssH) / 2, key = document.querySelector("#bigmap .bigmap-key"), cl = document.querySelector("#bigmap .bm-close");
     if (key) { const out = gx >= key.offsetWidth + 28; key.style.left = (out ? 16 : gx + 14) + "px"; key.style.bottom = (out ? 16 : gy + 14) + "px"; }
-    if (cl) { const out = gx >= 90; cl.style.right = (out ? 22 : gx + 24) + "px"; cl.style.top = (out ? 44 : gy + 128) + "px"; cl.classList.toggle("in", !out); } }
+    if (cl) { const out = gx >= 90; cl.style.right = (out ? 22 : gx + 24) + "px"; cl.style.top = (out ? 44 : gy + 128) + "px"; cl.classList.toggle("in", !out); }
+    // (and the bar for marking out new ground kept clear of the key, beside it rather than over it)
+    const gb = $("bmGrow"); if (gb && key) { gb.style.left = ""; gb.style.transform = ""; const kr = key.getBoundingClientRect(), br = gb.getBoundingClientRect(); if (!gb.classList.contains("hidden") && kr.width && br.left < kr.right + 12 && br.top < kr.bottom) { gb.style.left = (kr.right + 12) + "px"; gb.style.transform = "none"; } } }
   const c = cv.getContext("2d");
   c.setTransform(1, 0, 0, 1, 0, 0);
   const W = cv.width / dpr, H = cv.height / dpr;
