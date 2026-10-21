@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.30", date: "20 October 2026", title: "The guide's keys",
+    items: [
+      "The guide (H): its keys are printed light on the page, \"Press G for your government\", rather than as dark blots you could hardly read; so too on the plans, the government, skills and inventory pages.",
+      "The map (J): the key and \"J close\" sit beside the sheet where there's room, or else neatly in its corners inside the frame, rather than hanging half over its edge in a narrower window.",
+    ],
+  },
+  {
     v: "1.99.29", date: "20 October 2026", title: "Nothing written over anything",
     items: [
       "The story and free play: a hint is set above the strip of keys while both are shown. In a narrower window the keys run to two rows, and the hint was written across them.",

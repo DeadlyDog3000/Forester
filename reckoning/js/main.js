@@ -2025,6 +2025,11 @@ function renderBigMap() {
   const dpr = Math.min(2, devicePixelRatio || 1);
   const cssW = Math.min(innerWidth - 40, (innerHeight - 40) * 1.45), cssH = Math.min(innerHeight - 40, cssW / 1.45);
   if (cv.width !== Math.round(cssW * dpr)) { cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.width = cssW + "px"; cv.style.height = cssH + "px"; }
+  // (the key and "J close" beside the sheet where there's room for them, or else in its corners, inside the frame:
+  //  in a narrow window, set by the window's corners, they hung half over its edge)
+  { const gx = (innerWidth - cssW) / 2, gy = (innerHeight - cssH) / 2, key = document.querySelector("#bigmap .bigmap-key"), cl = document.querySelector("#bigmap .bm-close");
+    if (key) { const out = gx >= key.offsetWidth + 28; key.style.left = (out ? 16 : gx + 14) + "px"; key.style.bottom = (out ? 16 : gy + 14) + "px"; }
+    if (cl) { const out = gx >= 90; cl.style.right = (out ? 22 : gx + 24) + "px"; cl.style.top = (out ? 44 : gy + 128) + "px"; cl.classList.toggle("in", !out); } }
   const c = cv.getContext("2d");
   c.setTransform(1, 0, 0, 1, 0, 0);
   const W = cv.width / dpr, H = cv.height / dpr;

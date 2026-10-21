@@ -83,6 +83,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 #bigmap { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 8, 5, 0.72); z-index: 5; cursor: default; }
 #bigmapCanvas { box-shadow: 0 16px 60px rgba(0, 0, 0, 0.8), 0 0 0 6px #2a1d12, 0 0 0 7px rgba(200, 160, 90, 0.4); border-radius: 2px; }
 .bm-close { position: absolute; right: 22px; top: 44px; font: 12px var(--sans); color: var(--ink-dim); }
+.bm-close.in { color: #5a4430; }
+.bm-close.in kbd { background: #f6ecd0; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 1px 0 #6b5234; }
 /* the inventory: a grid of slots, as block games lay one out, in the woods' own colours */
 /* a lesson: the game stops under a wash of grey, and a card shows what to do */
 #lesson { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: rgba(60, 60, 60, 0.55); backdrop-filter: grayscale(0.85) blur(1.5px); -webkit-backdrop-filter: grayscale(0.85) blur(1.5px); pointer-events: auto; cursor: default; }
@@ -526,7 +528,7 @@ body.talking #hint { bottom: 298px; }
 .mc-win::after, .ls-card::after { right: 9px; transform: scaleX(-1); }
 .mc-label, .ls-title { font: 28px/1.1 var(--serif) !important; font-variant: small-caps; letter-spacing: 0.04em !important; color: var(--gold) !important; border-bottom: 1px solid rgba(59, 38, 18, 0.45); padding-bottom: 6px; margin: 0 22px 10px !important; }
 .mc-label .mc-hint, .mc-hint { font: italic 13px var(--serif) !important; color: var(--ink-dim) !important; font-variant: normal; }
-.mc-hint kbd, .ls-card kbd { background: #f6ecd0; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 1px 0 #6b5234; font-family: var(--serif); }
+.mc-hint kbd, .ls-card kbd, #guideBook kbd, #gov kbd, #buildmenu kbd, #skills kbd, #inventory kbd { background: #f6ecd0; color: #3b2612; border: 1px solid #6b5234; box-shadow: 0 1px 0 #6b5234; font-family: var(--serif); }
 .mc-sec { font: 15px var(--serif) !important; font-variant: small-caps; letter-spacing: 0.08em; color: var(--gold) !important; text-transform: none !important; }
 .mc-slot { background: rgba(110, 78, 40, 0.13) !important; border: 1px solid rgba(59, 38, 18, 0.35) !important; box-shadow: inset 0 1px 3px rgba(80, 50, 20, 0.35) !important; border-radius: 1px !important; }
 .mc-slot[data-i]:hover, #chestBody .mc-slot:hover { outline: 2px solid var(--gold) !important; background: rgba(154, 43, 28, 0.1) !important; }
