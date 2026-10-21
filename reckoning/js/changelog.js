@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.45", date: "21 October 2026", title: "No halt at the start",
+    items: [
+      "The frontier chapters no longer halt for over half a second just after they begin. The grass round you is worked out a few milliseconds a frame, nearest first, and the map's hill shading is drawn in the background. Before, both were done at once.",
+      "Arriving somewhere new in the forest, after a fast travel say, no longer stops the game while the grass is laid. It grows in from your feet over the next moment.",
+    ],
+  },
+  {
     v: "1.99.44", date: "21 October 2026", title: "Straight into the land",
     items: [
       "Campaign: the 3D map is made ready while you read the opening paper, so the first time you zoom in, the land comes up at once. Before, the zoom stopped dead for a second while all of Europe’s ground was raised.",

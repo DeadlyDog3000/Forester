@@ -80,6 +80,15 @@ export class Grass {
     this.t += dt;
     // laid again when you've walked a few metres, and now and then anyway (a house may have gone up)
     if (Math.hypot(p.x - this.cx, p.z - this.cz) > 3 || this.t > 6 || Math.abs(snow - this.snowAt) > 0.1) this.rebuild(p.x, p.z, snow);
+    //  (while some of what's round you is still to be worked out — see rebuild — a few milliseconds more of it each frame,
+    //  and laid again every so often as it comes, and once it's all done)
+    else if (this.pending) {
+      const ci = Math.round(this.cx / STEP), cj = Math.round(this.cz / STEP), until = performance.now() + 5, cache = this.cache;
+      let left = false;
+      for (const [di, dj] of Grass.OFFS) { const i = ci + di, j = cj + dj; if (cache.get(i * 100003 + j) !== undefined) continue; if (performance.now() > until) { left = true; break; } this.cell(i, j); }
+      this.warmN = (this.warmN | 0) + 1;
+      if (!left || this.warmN % 10 === 0) { const t = this.t; this.rebuild(this.cx, this.cz, this.snowAt); this.t = t; }
+    }
   }
   // what never changes about a spot of ground: whether grass grows there at all, where in the cell, how tall, its colour
   // (worked out once, the first time you come near, and kept)
@@ -147,11 +156,21 @@ export class Grass {
     const c = new THREE.Color(), d = new THREE.Object3D(), dry = new THREE.Color(0xb0a160);
     let n = 0;
     const i0 = Math.floor((cx - R) / STEP), i1 = Math.ceil((cx + R) / STEP), j0 = Math.floor((cz - R) / STEP), j1 = Math.ceil((cz + R) / STEP);
+    // (nearest first, and no more of the ground new to it worked out than a few milliseconds' worth a frame: arriving
+    //  somewhere fresh — a chapter's start — it was all of eighteen thousand spots at once, a third of a second's halt.
+    //  The rest grows in over the next frames, out from your feet)
+    const OFFS = Grass.OFFS ||= (() => { const n2 = Math.ceil(R / STEP) + 1, L = []; for (let a = -n2; a <= n2; a++) for (let b = -n2; b <= n2; b++) if (Math.hypot(a, b) * STEP <= R + STEP * 1.5) L.push([a, b, Math.hypot(a, b)]); return L.sort((p, q) => p[2] - q[2]); })();
+    const ci = Math.round(cx / STEP), cj = Math.round(cz / STEP), cache = this.cache || (this.cache = new Map()), until = performance.now() + 5;
+    this.pending = false;
     // (the year in the sward: fresh and bright in spring, going over in late summer, straw-coloured through autumn)
     const yd = town ? ((town.day % 8) + 8) % 8 : 2, autumn = [0, 0, 0.06, 0.2, 0.42, 0.6, 0.65, 0.65][yd], fresh = yd < 2 ? 0.14 : 0;
     const spring = new THREE.Color(0x86c04e);
-    for (let i = i0; i <= i1 && n < MAX; i++) for (let j = j0; j <= j1 && n < MAX; j++) {
-      const q = this.cell(i, j); if (!q) continue;
+    for (const [di, dj] of OFFS) {
+      if (n >= MAX) break;
+      const i = ci + di, j = cj + dj;
+      let q = cache.get(i * 100003 + j);
+      if (q === undefined) { if (performance.now() > until) { this.pending = true; continue; } q = this.cell(i, j); }
+      if (!q) continue;
       const x = q.x, z = q.z, dd = Math.hypot(x - cx, z - cz); if (dd > R) continue;
       if (paved && Math.hypot(x - FIRE.x, z - FIRE.z) < paved) continue;
       let hit = false;
@@ -179,7 +198,7 @@ export class Grass {
     if (season === "spring" || season === "summer") {
       const COLS = season === "spring" ? [[0.98, 0.98, 0.94], [0.95, 0.85, 0.2], [0.6, 0.5, 0.85]] : [[0.98, 0.98, 0.94], [0.95, 0.75, 0.15], [0.75, 0.25, 0.55], [0.35, 0.45, 0.85]];
       for (let i = i0; i <= i1 && nf < 1500; i++) for (let j = j0; j <= j1 && nf < 1500; j++) {
-        const q = this.cell(i, j); if (!q || !q.open) continue;
+        const q = cache.get(i * 100003 + j); if (!q || !q.open) continue;
         if (hash(i, j, 11) > 0.13) continue;
         const x = q.x + 0.12, z = q.z - 0.1, dd = Math.hypot(x - cx, z - cz); if (dd > R - 2) continue;
         if (paved && Math.hypot(x - FIRE.x, z - FIRE.z) < paved) continue;

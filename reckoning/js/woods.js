@@ -506,7 +506,7 @@ export class Woods extends WorldBase {
     }
     const vis = (x, z) => { const px = X(x), pz = Z(z); return px > -pad && px < W + pad && pz > -pad && pz < H + pad; };
     // the lie of the land under everything: hills shaded, and contours
-    { const R = this.mapRelief(); c.drawImage(R.cv, X(R.b.x0), Z(R.b.z0), (R.b.x1 - R.b.x0) * S, (R.b.z1 - R.b.z0) * S); }
+    { const R = this.mapRelief(); if (R) c.drawImage(R.cv, X(R.b.x0), Z(R.b.z0), (R.b.x1 - R.b.x0) * S, (R.b.z1 - R.b.z0) * S); }
     const ts = Math.max(2.2, Math.min(4.2, S * 1.6));
     // the wash, the forest, the clearing and the road never change: drawn once onto a sheet the size of the country,
     // and only the piece in view copied out (looked at closer than the sheet holds, the trees in view are drawn as before)
@@ -610,18 +610,35 @@ export class Woods extends WorldBase {
   mapRelief() {
     const b = this.sheetBounds(110), key = `${b.x0},${b.x1},${b.z0},${b.z1}`;
     if (this._relief && this._relief.key === key) return this._relief;
-    const K = 3, cv = document.createElement("canvas");
-    cv.width = Math.round((b.x1 - b.x0) * K); cv.height = Math.round((b.z1 - b.z0) * K);
-    const c = cv.getContext("2d");
-    relief(c, (x, z) => this.groundAt(x, z), b, x => (x - b.x0) * K, z => (z - b.z0) * K, { step: 2, every: 1.5, shade: 0.9 });
-    // (and its edges faded out over the last fifty metres, so the hills don't stop at a ruled line)
-    c.globalCompositeOperation = "destination-in";
-    const F = 50 * K, W = cv.width, H = cv.height, fade = (x0, y0, x1, y1) => { const g = c.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "#000"); return g; };
-    const m = document.createElement("canvas"); m.width = W; m.height = H; const mc = m.getContext("2d");
-    mc.fillStyle = "#000"; mc.fillRect(0, 0, W, H); mc.globalCompositeOperation = "destination-in";
-    for (const [x0, y0, x1, y1] of [[0, 0, F, 0], [W, 0, W - F, 0], [0, 0, 0, F], [0, H, 0, H - F]]) { mc.fillStyle = fade(x0, y0, x1, y1); mc.fillRect(0, 0, W, H); }
-    c.drawImage(m, 0, 0); c.globalCompositeOperation = "source-over";
-    return this._relief = { cv, b, key };
+    // (worked out a few milliseconds at a time between frames, not all at once — the ground's height, asked for at
+    //  seventy thousand points, held the game still for a third of a second as a chapter began; the map goes without
+    //  its shading the moment or two till it's ready)
+    if (!this._reliefJob || this._reliefJob.key !== key) {
+      const step = 2, nx = Math.ceil((b.x1 - b.x0) / step) + 1, nz = Math.ceil((b.z1 - b.z0) / step) + 1, H = new Float32Array(nx * nz), job = this._reliefJob = { key };
+      let j = 0;
+      const run = () => {
+        if (this._reliefJob !== job) return;
+        const t0 = performance.now();
+        while (j < nz && performance.now() - t0 < 6) { for (let i = 0; i < nx; i++) H[j * nx + i] = this.groundAt(b.x0 + i * step, b.z0 + j * step); j++; }
+        if (j < nz) { setTimeout(run, 16); return; }
+        this._reliefJob = null;
+        const K = 3, cv = document.createElement("canvas");
+        cv.width = Math.round((b.x1 - b.x0) * K); cv.height = Math.round((b.z1 - b.z0) * K);
+        const c = cv.getContext("2d");
+        const at = (x, z) => H[Math.min(nz - 1, Math.max(0, Math.round((z - b.z0) / step))) * nx + Math.min(nx - 1, Math.max(0, Math.round((x - b.x0) / step)))];
+        relief(c, at, b, x => (x - b.x0) * K, z => (z - b.z0) * K, { step, every: 1.5, shade: 0.9 });
+        // (and its edges faded out over the last fifty metres, so the hills don't stop at a ruled line)
+        c.globalCompositeOperation = "destination-in";
+        const F = 50 * K, W = cv.width, Hh = cv.height, fade = (x0, y0, x1, y1) => { const g = c.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "#000"); return g; };
+        const m = document.createElement("canvas"); m.width = W; m.height = Hh; const mc = m.getContext("2d");
+        mc.fillStyle = "#000"; mc.fillRect(0, 0, W, Hh); mc.globalCompositeOperation = "destination-in";
+        for (const [x0, y0, x1, y1] of [[0, 0, F, 0], [W, 0, W - F, 0], [0, 0, 0, F], [0, Hh, 0, Hh - F]]) { mc.fillStyle = fade(x0, y0, x1, y1); mc.fillRect(0, 0, W, Hh); }
+        c.drawImage(m, 0, 0); c.globalCompositeOperation = "source-over";
+        this._relief = { cv, b, key };
+      };
+      run();
+    }
+    return this._relief || null;
   }
   mapTreeGrid() {
     if (this._treeGrid && !this._gridDirty) return this._treeGrid;
