@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.36", date: "20 October 2026", title: "A real sea",
+    items: [
+      "Battles at sea: the sea is made again. Eight waves run down the wind and fan out either side of it, long swells and short chop together, each with the sharp crest and broad trough of a real sea's waves rather than a smooth rolling hill. The ships ride the same waves.",
+      "Battles at sea: the wind's little waves ripple over the big ones close by. The sky is reflected more the lower you look across the water, and the sun makes a hard glint near you and a broad glitter toward the horizon. Light shows green through the thin tops of the waves, and the sea is the grey-green of northern water.",
+      "Battles at sea: the steepest crests break into white water in lacy patches, and every ship under way throws up a bow wave and leaves a wake: a churned lane astern and the two arms of her waves spreading behind her, more of it the faster she goes.",
+      "Battles at sea: each ship's pennant is a long streamer flown from the top of her mast, rather than a board hanging in the air beside it.",
+      "Online: the window for choosing where in the world you begin has the game's own buttons.",
+    ],
+  },
+  {
     v: "1.99.35", date: "20 October 2026", title: "Room to grow",
     items: [
       "The map (J): the bar for marking out new ground for a growing settlement has the game's own red button rather than a wide green one, sits on one line, and stays clear of the map's key.",

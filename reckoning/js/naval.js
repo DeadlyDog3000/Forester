@@ -28,38 +28,132 @@ export const SHIP_KINDS = ["sloop", "frigate", "line"];
 
 const G0 = 9.8, BALL_V = 165;
 const wrap = a => Math.atan2(Math.sin(a), Math.cos(a));
-// the sea's swell: a few long waves running down the wind (the same sum in the shader and here, for the ships)
-const WAVES = [[1, 0.2, 62, 0.55], [0.7, 0.7, 37, 0.32], [0.95, -0.3, 23, 0.18], [0.3, 0.95, 14, 0.08]];
-let waveRot = 0;
+// the sea's swell: waves running down the wind, fanned a little either side of it, long and short together — each
+// one's water moving in a circle as it passes (Gerstner's waves: the crests sharp and the troughs broad, as the sea's
+// are, not the round hills of a plain sine). The same sum in the shader and here, for the ships to ride.
+//   [angle off the wind, length (m), steepness]
+const WAVES = [[0.0, 96, 0.075], [0.35, 61, 0.085], [-0.42, 43, 0.09], [0.75, 31, 0.08], [-0.2, 21, 0.085], [0.55, 14.5, 0.07], [-0.8, 9.5, 0.065], [0.15, 6.2, 0.055]];
+const WAVE_K = 0.62, CHOP = 0.78;   // (the swell's height overall, and how far the crests are drawn sharp)
+let waveRot = 0, WV = null;
+function waveSet() {
+  return WAVES.map(([da, l, st]) => { const a = waveRot + da, k = 6.2832 / l, amp = st / k * WAVE_K; return { dx: Math.sin(a), dz: Math.cos(a), k, w: Math.sqrt(G0 * k), amp, q: CHOP / (k * amp * WAVES.length) }; });
+}
+// (the water's height over a point of the sea: the surface there was carried in from a little way off, so the point
+//  it came from is found first, a few steps back along the waves' push)
 function waveH(x, z, t) {
-  let h = 0; const c = Math.cos(waveRot), s = Math.sin(waveRot);
-  for (const [ax, az, l, a] of WAVES) { const dx = ax * c - az * s, dz = ax * s + az * c, k = 6.2832 / l, w = Math.sqrt(G0 * k); h += a * Math.sin(k * (dx * x + dz * z) - w * t); }
+  const W = WV || (WV = waveSet());
+  let px = x, pz = z;
+  for (let it = 0; it < 3; it++) {
+    let ox = 0, oz = 0;
+    for (const v of W) { const c = Math.cos(v.k * (v.dx * px + v.dz * pz) - v.w * t) * v.q * v.amp; ox += v.dx * c; oz += v.dz * c; }
+    px = x - ox; pz = z - oz;
+  }
+  let h = 0; for (const v of W) h += v.amp * Math.sin(v.k * (v.dx * px + v.dz * pz) - v.w * t);
   return h;
 }
 
-const SEA_V = `
-uniform float uT; uniform vec4 uW[4]; varying vec3 vP; varying vec3 vN; varying float vH;
+const WAVE_GLSL = `
+uniform vec4 uW[8]; uniform vec2 uQ[8];   // (each wave: its way (x, z), its number k, its height; and its speed, its sharpness)
+`;
+const SEA_V = WAVE_GLSL + `
+uniform float uT; varying vec3 vP; varying vec2 vX; varying float vH; varying float vJ;
 void main() {
-  vec4 wp = modelMatrix * vec4(position, 1.0); float h = 0.0; vec2 d = vec2(0.0);
-  for (int i = 0; i < 4; i++) { vec2 dir = uW[i].xy; float k = 6.2832 / uW[i].z, w = sqrt(9.8 * k), ph = k * dot(dir, wp.xz) - w * uT; h += uW[i].w * sin(ph); d += uW[i].w * k * cos(ph) * dir; }
-  wp.y += h; vH = h; vP = wp.xyz; vN = normalize(vec3(-d.x, 1.0, -d.y));
+  vec4 wp = modelMatrix * vec4(position, 1.0); vec2 x0 = wp.xz; vec3 off = vec3(0.0); float J = 0.0;
+  // (a wave shorter than the mesh can carry, here, is left to the shading: drawn, it would only flicker)
+  float cell = 0.9 + length(position.xz) * 0.0135;
+  for (int i = 0; i < 8; i++) {
+    float k = uW[i].z, a = uW[i].w * smoothstep(3.0, 5.5, 6.2832 / k / cell), ph = k * dot(uW[i].xy, x0) - uQ[i].x * uT;
+    float c = cos(ph), s = sin(ph), qa = uQ[i].y * a;
+    off.xz += uW[i].xy * qa * c; off.y += a * s; J += uQ[i].y * k * a * s;
+  }
+  wp.xyz += off; vH = off.y; vX = x0; vP = wp.xyz; vJ = J;
   gl_Position = projectionMatrix * viewMatrix * wp;
 }`;
-const SEA_F = `
-uniform vec3 uSun; uniform vec3 uSky; uniform vec3 uHor; uniform vec3 uDeep; uniform vec3 uFogC; uniform float uFogN; uniform float uFogF;
-varying vec3 vP; varying vec3 vN; varying float vH;
+const SEA_F = WAVE_GLSL + `
+uniform float uT; uniform vec3 uSun; uniform vec3 uSky; uniform vec3 uHor; uniform vec3 uDeep; uniform vec3 uFogC; uniform float uFogN; uniform float uFogF;
+uniform vec4 uS[24]; uniform vec4 uS2[24];   // (each ship: where, which way; her half-length, half-beam, way on her)
+varying vec3 vP; varying vec2 vX; varying float vH; varying float vJ;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y); }
+// (the little waves the wind raises on the big ones: noise's slope, drifting down the wind)
+vec2 ripple(vec2 p, vec2 wind, float t) {
+  vec2 q = p + wind * t; float e = 0.12;
+  float n = vnoise(q), nx = vnoise(q + vec2(e, 0.0)), nz = vnoise(q + vec2(0.0, e));
+  return vec2(nx - n, nz - n) / e;
+}
 void main() {
-  vec3 V = normalize(cameraPosition - vP), N = normalize(vN);
-  float fr = pow(1.0 - max(dot(N, V), 0.0), 4.0);
-  vec3 R = reflect(-V, N), sky = mix(uHor, uSky, clamp(R.y * 1.6, 0.0, 1.0));
-  vec3 col = mix(uDeep, sky, 0.08 + 0.6 * fr);
-  float sp = pow(max(dot(R, normalize(uSun)), 0.0), 220.0); col += vec3(1.0, 0.95, 0.85) * sp * 1.6;
-  col = mix(col, vec3(0.8, 0.85, 0.88), smoothstep(0.7, 1.05, vH) * 0.18);
-  float dist = length(cameraPosition - vP), f = smoothstep(uFogN, uFogF, dist);
+  float dist = length(cameraPosition - vP);
+  // the surface's slope, here, from every wave — the short ones fading out with distance, where they'd only sparkle
+  vec2 d = vec2(0.0); float crest = 0.0;
+  for (int i = 0; i < 8; i++) {
+    float k = uW[i].z, l = 6.2832 / k, fade = 1.0 - smoothstep(l * 14.0, l * 40.0, dist);
+    float a = uW[i].w * fade, ph = k * dot(uW[i].xy, vX) - uQ[i].x * uT;
+    d += uW[i].xy * (k * a * cos(ph)); crest += uQ[i].y * k * a * sin(ph);
+  }
+  vec3 N = normalize(vec3(-d.x, max(0.2, 1.0 - crest), -d.y));
+  // and the wind's ripples on them, two sizes, gone in the distance
+  vec2 wind = uW[0].xy;
+  float rf = 1.0 - smoothstep(30.0, 260.0, dist), rf2 = 1.0 - smoothstep(12.0, 90.0, dist);
+  vec2 r1 = ripple(vX * 0.42 + vec2(-wind.y, wind.x) * 0.0, wind * 0.9, uT * 0.55) * 0.16 * rf;
+  vec2 r2 = ripple(vX * 1.7, wind * 1.6, uT * 0.9) * 0.07 * rf2;
+  N = normalize(N + vec3(r1.x + r2.x, 0.0, r1.y + r2.y));
+  vec3 V = normalize(cameraPosition - vP), L = normalize(uSun);
+  // the sky in it: a reflection, more of it the lower you look across the water (Schlick's reckoning of Fresnel's)
+  float cosT = max(dot(N, V), 0.0), fr = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
+  vec3 R = reflect(-V, N); R.y = abs(R.y);
+  vec3 sky = mix(uHor, uSky, pow(clamp(R.y, 0.0, 1.0), 0.6));
+  // the water itself: dark in the troughs, a little lighter and greener up the waves' faces, lit through at their crests
+  //  (a northern sea: grey-green, not the blue of the south)
+  vec3 body = mix(uDeep, vec3(0.06, 0.11, 0.12), 0.45) * (0.8 + 0.4 * clamp(vH * 0.35 + 0.5, 0.0, 1.0));
+  float sss = pow(clamp(dot(V, -normalize(L + N * 0.55)), 0.0, 1.0), 3.0) * clamp(vH * 0.45 + 0.3, 0.0, 1.0);
+  body += vec3(0.03, 0.12, 0.09) * sss + vec3(0.012, 0.03, 0.028) * max(dot(N, L), 0.0);
+  vec3 col = mix(body, sky, fr);
+  // the sun on it: a hard glint close by, spread into a broad glitter toward the horizon
+  vec3 H = normalize(L + V); float nh = max(dot(N, H), 0.0);
+  float rough = mix(900.0, 120.0, smoothstep(40.0, 900.0, dist));
+  col += vec3(1.0, 0.93, 0.8) * (pow(nh, rough) * 3.2 + pow(nh, rough * 0.08) * 0.08) * fr * 4.0;
+  // white water: the steepest crests breaking, in patches, the foam streaked down the wind
+  vec2 fp = vX * 0.11 + wind * uT * 0.35;
+  float patchy = vnoise(fp) * 0.6 + vnoise(fp * 3.1 + 7.0) * 0.4;
+  // (lace, not paint: the foam broken up finely, thin at its edges, and sliding off the back of the wave)
+  float lace = vnoise(vX * 1.4 + wind * uT * 0.6) * 0.55 + vnoise(vX * 4.3 - wind * uT * 0.3) * 0.45;
+  float foam = smoothstep(0.6, 0.86, crest + patchy * 0.4) * smoothstep(0.1, 0.8, vH);
+  foam *= smoothstep(0.3, 0.72, lace + foam * 0.25) * (1.0 - smoothstep(150.0, 700.0, dist) * 0.5);
+  float streak = smoothstep(0.62, 0.9, vnoise(vec2(dot(vX, wind) * 0.05, dot(vX, vec2(-wind.y, wind.x)) * 0.9) + uT * 0.05)) * 0.18 * rf;
+  // the ships' own white water: the bow wave thrown up about her stem and along her sides, and her wake behind — a
+  //  churned lane straight astern, and the two arms of the waves she makes spreading out from it (Kelvin's angle,
+  //  about a fifth of a right angle each side), fading as they go
+  float wk = 0.0;
+  for (int i = 0; i < 24; i++) {
+    vec4 a = uS[i], b = uS2[i]; if (b.z <= 0.01) continue;
+    vec2 q = vX - a.xy; float u = dot(q, a.zw), v = dot(q, vec2(-a.w, a.z)), sp = b.z;
+    if (abs(u) > 260.0 || abs(v) > 120.0) continue;
+    float e = length(vec2(u / (b.x * 1.04), v / (b.y * 1.1)));
+    float hullF = (1.0 - smoothstep(1.0, 1.0 + 0.5 * sp, e)) * smoothstep(0.92, 1.0, e) * (0.45 + 0.55 * smoothstep(-0.2, 0.9, u / b.x));
+    float back = max(0.0, -u - b.x * 0.7), life = 1.0 - smoothstep(0.0, 28.0 + 70.0 * sp, back);
+    float lane = (1.0 - smoothstep(b.y * 0.35, b.y * 1.1 + back * 0.04, abs(v))) * life * life * step(0.0, back);
+    float arm = abs(abs(v) - (b.y * 0.8 + back * 0.35)), armL = 1.0 - smoothstep(0.0, 16.0 + 36.0 * sp, back);
+    float arms = (1.0 - smoothstep(0.0, 0.7 + back * 0.025, arm)) * armL * armL * step(0.0, back);
+    wk = max(wk, (hullF * 0.75 + lane * 0.4 + arms * 0.28) * min(sp, 1.0));
+  }
+  float wlace = smoothstep(0.35, 0.8, lace + wk * 0.3);
+  foam = max(foam, wk * wlace);
+  col = mix(col, vec3(0.84, 0.88, 0.88), clamp(foam * 0.7 + streak * smoothstep(0.2, 0.6, crest), 0.0, 0.8));
+  float f = smoothstep(uFogN, uFogF, dist);
   gl_FragColor = vec4(mix(col, uFogC, f), 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
 }`;
+
+// the sea's mesh: fine about the middle, where the eye is and the short waves show, coarser out to the horizon
+function seaGeo(half, n) {
+  const g = new THREE.PlaneGeometry(2, 2, n, n).rotateX(-Math.PI / 2), p = g.attributes.position, A = 0.12;
+  const m = u => Math.sign(u) * half * (A * Math.abs(u) + (1 - A) * Math.abs(u) ** 3);
+  for (let i = 0; i < p.count; i++) p.setXYZ(i, m(p.getX(i)), 0, m(p.getZ(i)));
+  g.computeBoundingSphere(); return g;
+}
+const SEA_SNAP = 2100 * 0.12 * 2 / 400;   // (the finest square's width: the mesh moves with the eye a square at a time)
 
 // a soft round puff, for smoke and spray
 let PUFF = null;
@@ -84,7 +178,13 @@ class Ship {
     else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; inner.add(hull); const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 20), new THREE.MeshStandardMaterial({ color: 0x4a3a2a })); mast.position.y = 11; inner.add(mast); const sail = new THREE.Mesh(new THREE.PlaneGeometry(10, 12), new THREE.MeshStandardMaterial({ color: 0xeee6d0, side: THREE.DoubleSide })); sail.position.set(0, 11, 0.5); inner.add(sail); }
     inner.scale.setScalar(S.scale); this.inner = inner;
     // (her pennant in her colours, high on the mainmast, so friend and foe are told apart across the water)
-    const pen = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.1), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: true })); pen.position.set(0, 24.5 * S.scale, 2.5 * S.scale); pen.rotation.y = Math.PI / 2; pen.geometry.translate(2.5, 0, 0); g.add(pen); this.pen = pen;
+    //  (a long streamer, tapering to a point, flown from the very top of the mast her flag is on — not a board in the air
+    //  beside it)
+    const sh = new THREE.Shape(); sh.moveTo(0, 0.42); sh.lineTo(8.5, 0.07); sh.lineTo(8.5, -0.07); sh.lineTo(0, -0.42); sh.closePath();
+    const pen = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: true }));
+    let top = [0, 24.5 * S.scale, 2.5 * S.scale];
+    if (m) { inner.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(m.scene), fb = this.flag ? new THREE.Box3().setFromObject(this.flag) : null, c = fb ? fb.getCenter(new THREE.Vector3()) : bb.getCenter(new THREE.Vector3()); top = [c.x, bb.max.y - 0.25, c.z]; }
+    pen.position.set(top[0], top[1], top[2]); pen.rotation.y = Math.PI / 2; g.add(pen); this.pen = pen;
     B.scene.add(g);
   }
   get alive() { return !this.sunk && !this.struck && this.hull > 0; }
@@ -197,7 +297,7 @@ export function navalBattle(opts) {
 class Battle {
   constructor(o) {
     this.o = o; this.t = 0; this.timers = []; this.balls = []; this.puffs = []; this.speedK = 1; this.over = false; this.started = false;
-    const wa = Math.random() * Math.PI * 2; this.windTo = [Math.sin(wa), Math.cos(wa)]; waveRot = wa;
+    const wa = Math.random() * Math.PI * 2; this.windTo = [Math.sin(wa), Math.cos(wa)]; waveRot = wa; WV = null;
     const el = this.el = document.createElement("div"); el.id = "naval"; el.className = "naval";
     const R = this.renderer = new THREE.WebGLRenderer({ antialias: true }); R.setPixelRatio(Math.min(2, devicePixelRatio || 1)); R.setSize(innerWidth, innerHeight); R.outputColorSpace = THREE.SRGBColorSpace; R.toneMapping = THREE.ACESFilmicToneMapping; R.toneMappingExposure = 1.05;
     el.appendChild(R.domElement);
@@ -208,8 +308,9 @@ class Battle {
     sc.add(dome); this.dome = dome;
     sc.add(new THREE.HemisphereLight(0xcfdcea, 0x31424a, 1.1));
     const sun = new THREE.DirectionalLight(0xfff1dc, 2.1); const sd = new THREE.Vector3(this.windTo[0] * 0.5 + 0.3, 0.75, this.windTo[1] * 0.5 - 0.2).normalize(); sun.position.copy(sd.clone().multiplyScalar(500)); sc.add(sun);
-    const W = WAVES.map(([ax, az, l, a]) => { const c = Math.cos(waveRot), s = Math.sin(waveRot); return new THREE.Vector4(ax * c - az * s, ax * s + az * c, l, a); });
-    this.sea = new THREE.Mesh(new THREE.PlaneGeometry(4200, 4200, 280, 280).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({ vertexShader: SEA_V, fragmentShader: SEA_F, uniforms: { uT: { value: 0 }, uW: { value: W }, uSun: { value: sd }, uSky: { value: sky }, uHor: { value: hor }, uDeep: { value: new THREE.Color(0x0e3442) }, uFogC: { value: hor }, uFogN: { value: 500 }, uFogF: { value: 2200 } } }));
+    WV = waveSet();
+    const W = WV.map(v => new THREE.Vector4(v.dx, v.dz, v.k, v.amp)), Q = WV.map(v => new THREE.Vector2(v.w, v.q));
+    this.sea = new THREE.Mesh(seaGeo(2100, 400), new THREE.ShaderMaterial({ vertexShader: SEA_V, fragmentShader: SEA_F, uniforms: { uT: { value: 0 }, uW: { value: W }, uQ: { value: Q }, uS: { value: Array.from({ length: 24 }, () => new THREE.Vector4()) }, uS2: { value: Array.from({ length: 24 }, () => new THREE.Vector4()) }, uSun: { value: sd }, uSky: { value: sky }, uHor: { value: hor }, uDeep: { value: new THREE.Color(0x0e3442) }, uFogC: { value: hor }, uFogN: { value: 500 }, uFogF: { value: 2200 } } }));
     sc.add(this.sea);
     this.cam = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.5, 6000); this.orbit = { a: Math.PI, e: 0.32, d: 95 };
     // the two fleets: in line ahead, a long way apart, coming on
@@ -331,8 +432,11 @@ class Battle {
     const c = f && !f.sunk ? f : this.ships.find(s => !s.sunk) || this.ships[0], o = this.orbit, a = (c.yaw || 0) + o.a;
     this.cam.position.set(c.x + Math.sin(a) * Math.cos(o.e) * o.d, Math.max(4, Math.sin(o.e) * o.d + 6), c.z + Math.cos(a) * Math.cos(o.e) * o.d);
     this.cam.lookAt(c.x, 8, c.z);
-    const cell = 4200 / 280; this.sea.position.set(Math.round(c.x / cell) * cell, 0, Math.round(c.z / cell) * cell); this.dome.position.set(c.x, 0, c.z);
+    const cell = SEA_SNAP; this.sea.position.set(Math.round(c.x / cell) * cell, 0, Math.round(c.z / cell) * cell); this.dome.position.set(c.x, 0, c.z);
     this.sea.material.uniforms.uT.value = this.t;
+    // (each ship's bow wave and wake, to the sea: the faster she goes the more white water)
+    { const U = this.sea.material.uniforms, A = U.uS.value, B2 = U.uS2.value;
+      for (let i = 0; i < 24; i++) { const s = this.ships[i]; if (!s || s.sunk) { B2[i].set(0, 0, 0, 0); continue; } A[i].set(s.x, s.z, Math.sin(s.yaw), Math.cos(s.yaw)); B2[i].set(s.L * 0.5, s.beam * 0.5, clamp(Math.abs(s.spd) / 7, 0, 1.2), 0); } }
     this.unclutter(dt);
     this.renderer.render(this.scene, this.cam);
     this.drawHud();
