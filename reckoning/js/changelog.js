@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.48", date: "21 October 2026", title: "The rivers of the Hungarian war",
+    items: [
+      "Campaign maps: the Danube runs past Belgrade, and the Sava comes in to meet it under the town’s walls. The Tisza crosses the Hungarian plain past Szeged and Szolnok, and the Drava comes down from Carinthia. Before, the Danube passed a day’s march north of Belgrade, and none of the three were drawn.",
+    ],
+  },
+  {
     v: "1.99.47", date: "21 October 2026", title: "In the Emperor’s service",
     items: [
       "The Emperor’s Commission: missions come from the Emperor, not “the Crown”, and the war news you start with is dated 1686, the year you arrive, not 1683.",
