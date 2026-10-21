@@ -84,6 +84,11 @@ vec2 ripple(vec2 p, vec2 wind, float t) {
 }
 void main() {
   float dist = length(cameraPosition - vP);
+  // (past the fog's far edge the sea is only the fog: none of the rest worked out for it)
+  if (dist >= uFogF) { gl_FragColor = vec4(uFogC, 1.0);
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+    return; }
   // the surface's slope, here, from every wave — the short ones fading out with distance, where they'd only sparkle
   vec2 d = vec2(0.0); float crest = 0.0;
   for (int i = 0; i < 8; i++) {
@@ -95,8 +100,8 @@ void main() {
   // and the wind's ripples on them, two sizes, gone in the distance
   vec2 wind = uW[0].xy;
   float rf = 1.0 - smoothstep(30.0, 260.0, dist), rf2 = 1.0 - smoothstep(12.0, 90.0, dist);
-  vec2 r1 = ripple(vX * 0.42 + vec2(-wind.y, wind.x) * 0.0, wind * 0.9, uT * 0.55) * 0.16 * rf;
-  vec2 r2 = ripple(vX * 1.7, wind * 1.6, uT * 0.9) * 0.07 * rf2;
+  vec2 r1 = rf > 0.0 ? ripple(vX * 0.42, wind * 0.9, uT * 0.55) * 0.16 * rf : vec2(0.0);
+  vec2 r2 = rf2 > 0.0 ? ripple(vX * 1.7, wind * 1.6, uT * 0.9) * 0.07 * rf2 : vec2(0.0);
   N = normalize(N + vec3(r1.x + r2.x, 0.0, r1.y + r2.y));
   vec3 V = normalize(cameraPosition - vP), L = normalize(uSun);
   // the sky in it: a reflection, more of it the lower you look across the water (Schlick's reckoning of Fresnel's)

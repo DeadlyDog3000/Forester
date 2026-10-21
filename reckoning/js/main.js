@@ -2328,17 +2328,38 @@ if (/[?&]raid\b/.test(location.search)) loadModels().finally(() => {
 // ---- the key to the map: beside the minimap (K), and always in the corner of the big map ----
 import { drawLegend, LEGEND } from "./map.js";
 import "./dev.js";
-function legendCanvas() {
-  const cv = document.createElement("canvas"), d = Math.min(2, devicePixelRatio || 1), w = 228, h = 28 + LEGEND.length * 17;
+function legendCanvas(rows) {
+  const cv = document.createElement("canvas"), d = Math.min(2, devicePixelRatio || 1), w = 228, h = 28 + rows.length * 17;
   cv.width = w * d; cv.height = h * d; cv.style.width = w + "px"; cv.style.height = h + "px";
-  const c = cv.getContext("2d"); c.scale(d, d); drawLegend(c, 0, 0);
+  const c = cv.getContext("2d"); c.scale(d, d); drawLegend(c, 0, 0, rows);
   return cv;
+}
+// what this map has, for its key
+function legendRows() {
+  const w = G.world; if (!w) return LEGEND;
+  const A = w.actors || [], rocks = [...(w.rocks || []), ...((w.cave && w.cave.rocks) || [])];
+  const has = {
+    you: 1, goal: 1, build: 1,
+    waypoint: G.waypoint && G.waypoint.w === w,
+    sib: A.some(a => a.isSibling), watch: A.some(a => a.name === "Watchman"), folk: A.some(a => !a.isSibling && a.name !== "Watchman"),
+    trees: (w.mapTrees && w.mapTrees.length) || (w.forest && w.forest.length), roads: w.road || w.roads || w.branches,
+    land: G.town && G.town.w === w, cave: w.cave && w.cave.found, pond: typeof w.brookAt === "function",
+  };
+  for (const k of ["stone", "copper", "tin", "iron"]) has[k] = rocks.some(r => !r.gone && r.kind === k);
+  return LEGEND.filter(r => has[r[2]]);
+}
+let legendKey = null;
+function refreshLegend() {
+  const rows = legendRows(), key = rows.map(r => r[2]).join();
+  if (key === legendKey) return;
+  legendKey = key;
+  for (const el of [$("mmLegend"), document.querySelector("#bigmap .bigmap-key")]) if (el) el.replaceChildren(legendCanvas(rows));
 }
 // (drawn when the fonts are in, so the words are in the map's own hand)
 (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => {
-  $("mmLegend").appendChild(legendCanvas());
-  const big = document.createElement("div"); big.className = "bigmap-key"; big.appendChild(legendCanvas());
+  const big = document.createElement("div"); big.className = "bigmap-key";
   $("bigmap").appendChild(big);
+  refreshLegend();
 });
 let legendOn = false;
 addEventListener("keydown", e => {
@@ -2346,4 +2367,4 @@ addEventListener("keydown", e => {
   if (e.code !== "KeyK" || e.repeat || G.mode !== "play" || (overlay && overlay !== "bigmap")) return;
   legendOn = !legendOn; $("mmLegend").classList.toggle("hidden", !legendOn);
 });
-setInterval(() => { const on = G.mode === "play" && !!G.hasMap; $("mmKeyTab").classList.toggle("hidden", !on || legendOn); if (!on) $("mmLegend").classList.add("hidden"); else $("mmLegend").classList.toggle("hidden", !legendOn); }, 400);
+setInterval(() => { if (legendKey !== null) refreshLegend(); const on = G.mode === "play" && !!G.hasMap; $("mmKeyTab").classList.toggle("hidden", !on || legendOn); if (!on) $("mmLegend").classList.add("hidden"); else $("mmLegend").classList.toggle("hidden", !legendOn); }, 400);

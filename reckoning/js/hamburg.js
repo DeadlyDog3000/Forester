@@ -108,6 +108,8 @@ function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
     const cz = alongX ? (z0 + z1) / 2 : z0 + s + w / 2;
     const ry = alongX ? 0 : Math.PI / 2;
     const bw = w - 0.06;
+    // (and noted for the map, which draws the houses one by one as a town plan does)
+    if (row.plots) row.plots.push([cx, cz, alongX ? bw : D, alongX ? D : bw]);
     // body
     b.add(BOXG, wall, cx, h / 2, cz, 0, ry, 0, bw, h, D, 0.04);
     // the gable, as a triangular wall the depth of the house
@@ -237,6 +239,7 @@ export class Hamburg extends WorldBase {
 
     // ---- blocks of houses ----
     const heights = []; CHIMS = this.chimneys = [];
+    row.plots = this.plots = [];
     for (const bl of BLOCKS) {
       const [x0, z0, x1, z1] = bl;
       const alongX = (x1 - x0) >= (z1 - z0);
@@ -637,6 +640,14 @@ export class Hamburg extends WorldBase {
     c.fillStyle = "rgba(170,150,110,0.35)"; c.fillRect(0, 0, W, H);
     const wz = Z(-46); if (wz > 0) water(c, 0, 0, W, Math.min(H, wz));
     const gz = Z(70.4); if (gz < H) { c.fillStyle = "rgba(120,140,80,0.35)"; c.fillRect(0, Math.max(0, gz), W, H); }
+  }
+  // (over the blocks: each house's own plot ruled in, as on a town plan of the day, so a block reads as a row of houses
+  //  and not one red slab — when the map is close enough for them to show)
+  mapOver(c, X, Z, S) {
+    if (!this.plots || S < 0.9) return;
+    c.save(); c.strokeStyle = "rgba(59,42,26,0.5)"; c.lineWidth = Math.min(1, 0.35 + S * 0.12);
+    for (const [x, z, w, d] of this.plots) c.strokeRect(X(x - w / 2), Z(z - d / 2), w * S, d * S);
+    c.restore();
   }
   mapLabels(c, X, Z, S, set) {
     // the river is known to everyone; the rest only once you have been there

@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.40", date: "21 October 2026", title: "A key for each map",
+    items: [
+      "Maps (J and K): the key lists only what that map shows. Hamburg's no longer lists ore, a cave or the pond, the frontier's lists the cave once you've found it, and a waypoint you've set gets its own line.",
+      "The map of Hamburg (J): each house is ruled in on its block, as on a town plan of the day, instead of each block being one red slab.",
+      "Campaign 3D map: borders that cross the map at a slant run straight, instead of in rounded stairsteps.",
+      "Campaign maps: rivers the map lacked are drawn: the Scheldt down to Antwerp, the Douro to Porto, the Ouse and the Humber below York, the Severn past Bristol, the Clyde through Glasgow, the Göta from Lake Vänern to Göteborg, and the Neva from Lake Ladoga to the sea.",
+      "Campaign maps: Lake Garda is broad in the south and narrows to the north, Lake Constance has its two western arms, and Lake Balaton bends as the real one does. They were plain ovals.",
+    ],
+  },
+  {
     v: "1.99.39", date: "21 October 2026", title: "Ports on their water",
     items: [
       "Campaign 3D map: Venice stands on its island in the lagoon, with water between it and the mainland and between it and the Lido. It used to stand on a neck of land joining the two.",

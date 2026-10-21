@@ -949,6 +949,10 @@ export class EuropeView3D {
     for (const L of lines) {
       let P = L.map(k => [(k % W) * CELL, Math.floor(k / W) * CELL]);
       const closed = L.length > 3 && L[0] === L[L.length - 1];
+      // (first each step's middle taken for its corner: a border running across the grid at a slant comes out a straight
+      //  slant, not a staircase with its corners rounded off — while a town's one cell standing out still stands out)
+      { const M = []; for (let i = 0; i < P.length - 1; i++) M.push([(P[i][0] + P[i + 1][0]) / 2, (P[i][1] + P[i + 1][1]) / 2]);
+        P = closed ? [...M, M[0]] : [P[0], ...M, P[P.length - 1]]; }
       for (let it = 0; it < 3; it++) {
         const Q = closed ? [] : [P[0]];
         for (let i = 0; i < P.length - 1; i++) { const [x0, z0] = P[i], [x1, z1] = P[i + 1]; Q.push([x0 * 0.75 + x1 * 0.25, z0 * 0.75 + z1 * 0.25], [x0 * 0.25 + x1 * 0.75, z0 * 0.25 + z1 * 0.75]); }
