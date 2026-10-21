@@ -245,11 +245,21 @@ export const UI = {
     k.innerHTML = parts.map(([keys, what]) => `<span class="kp">${[].concat(keys).map(x => `<kbd>${shownAs(x) || x}</kbd>`).join("")}<span>${what}</span></span>`).join("");
     k.classList.remove("hidden"); k.style.opacity = 1;
     clearTimeout(this._keysT); clearTimeout(this._keysHide);
-    this._keysT = setTimeout(() => { k.style.opacity = 0; this._keysHide = setTimeout(() => k.classList.add("hidden"), 500); }, secs * 1000 / SPD);
+    this._keysT = setTimeout(() => { k.style.opacity = 0; this._keysHide = setTimeout(() => { k.classList.add("hidden"); this.stackHint(); }, 500); }, secs * 1000 / SPD);
+    this.stackHint();
+  },
+  // (the hint set above the strip of keys while both are up: in a narrow window the keys run to two rows, and the hint
+  //  was written across them)
+  stackHint() {
+    const h = $("hint"), k = $("keys"); if (!h || !k) return;
+    h.style.bottom = "";
+    if (k.classList.contains("hidden") || h.classList.contains("hidden")) return;
+    const kb = parseFloat(getComputedStyle(k).bottom) || 0, top = kb + k.offsetHeight + 8, hb = parseFloat(getComputedStyle(h).bottom) || 0;
+    if (kb < hb + h.offsetHeight && top > hb) h.style.bottom = top + "px";
   },
   hint(text, secs = 5) {
     const h = $("hint");
-    h.textContent = text; h.classList.remove("hidden"); h.style.opacity = 1;
+    h.textContent = text; h.classList.remove("hidden"); h.style.opacity = 1; this.stackHint();
     clearTimeout(this._hintT); clearTimeout(this._hintHide);
     this._hintT = setTimeout(() => { h.style.opacity = 0; this._hintHide = setTimeout(() => h.classList.add("hidden"), 500); }, secs * 1000 / SPD);
   },

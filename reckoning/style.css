@@ -178,7 +178,7 @@ kbd { display: inline-block; min-width: 26px; padding: 3px 7px; border: 1px soli
 #stamina.low .st-fill { background: #e0503a; }
 /* health: above the breath, and built differently — a slanted blade of a bar, cut into ten, with a heart; a pale trail shows what the last blow took */
 /* health and hunger: under the map, one below the other and stepped in, down the right of the screen */
-#vitals { position: absolute; right: 22px; top: 214px; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; pointer-events: none; }
+#vitals { position: absolute; right: 22px; top: 228px; display: flex; flex-direction: column; align-items: flex-end; gap: 7px; pointer-events: none; }
 #vitals.nomap { top: 22px; }
 #vitals #hunger { margin-right: 26px; }
 #health, #hunger { display: flex; align-items: center; gap: 7px; }
@@ -954,7 +954,7 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 #mpWar .bar { height: 7px; background: rgba(255, 255, 255, 0.12); border-radius: 4px; overflow: hidden; margin-top: 6px; }
 #mpWar .bar div { height: 100%; background: linear-gradient(90deg, #c0392b, #f0a090); transition: width 0.6s; }
 #mpWar .ws { font-size: 12px; opacity: 0.8; margin-top: 3px; }
-#mpTicker { position: absolute; right: 24px; top: 250px; width: 300px; padding: 8px 12px; background: rgba(236, 222, 186, 0.92); border: 1px solid #3b2612; color: #2b1d10; font: italic 14px/1.35 var(--serif); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
+#mpTicker { position: absolute; right: 24px; top: 312px; width: 300px; padding: 8px 12px; background: rgba(236, 222, 186, 0.92); border: 1px solid #3b2612; color: #2b1d10; font: italic 14px/1.35 var(--serif); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4); }
 #mpTicker b { font: 600 10px var(--sans); letter-spacing: 0.2em; text-transform: uppercase; color: #8a2a1a; display: block; font-style: normal; margin-bottom: 2px; }
 #mpNews { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 8; background: rgba(5, 16, 10, 0.35); }
 #mpNews.hidden { display: none; }

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.29", date: "20 October 2026", title: "Nothing written over anything",
+    items: [
+      "The story and free play: a hint is set above the strip of keys while both are shown. In a narrower window the keys run to two rows, and the hint was written across them.",
+      "Health, food and warmth sit clear of the map's \"K · key\" tab, which covered the end of the health bar; online, the news ticker sits below them rather than over them.",
+    ],
+  },
+  {
     v: "1.99.28", date: "20 October 2026", title: "Back the way you came",
     items: [
       "Title: with no saves yet, Begin the story then Back now returns to the title. Before, it went to an empty Saves page with nothing on it but its Back button.",
