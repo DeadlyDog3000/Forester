@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.43", date: "21 October 2026", title: "The northern lakes",
+    items: [
+      "Campaign maps: Lake Ladoga is broad in the south as the real one is, and Lake Onega has its long bays to the north. Both were plain ovals.",
+    ],
+  },
+  {
     v: "1.99.42", date: "21 October 2026", title: "Small things",
     items: [
       "Campaign: a place whose name ends in s takes an s of its own (“Algiers’s markets”, “Tunis’s”), while a people’s name keeps just the apostrophe (“the Cossacks’ army”).",
