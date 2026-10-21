@@ -804,6 +804,16 @@ function goalHtml() {
 // (won, or the time run out: told once, in a page of its own over the map)
 function goalScreen() {
   const G = C && C.goal; if (!G || !G.show || $("cmpGoal") || $("cmpGazette")) return; const kind = G.show; G.show = null; persist();
+  // (the crown lost: a page of its own too, not only a line at the side)
+  if (kind === "lost") {
+    const el = document.createElement("div"); el.id = "cmpGoal"; el.className = "cmp-must"; $("campaign").appendChild(el);
+    el.innerHTML = `<div class="cmp-mbox cmp-goalbox lost"><h2>Your crown is lost</h2><p class="sub">${esc(NATIONS[C.me].name)}, ${C.year}</p>
+      <p>The last of your towns has fallen, and none was taken back. ${esc(The(C.me))} ${v3(C.me, "is")} a name in the histories now, ${C.year - 1683} year${C.year - 1684 ? "s" : ""} after you took up its crown.</p>
+      <nav class="menu">${mp ? "" : `<button class="btn primary" data-gl="new">Another campaign</button>`}<button class="btn" data-gl="on">Look at the map</button></nav></div>`;
+    sfx("parchment", 0.5);
+    el.onclick = e => { const b = e.target.closest("[data-gl]"); if (!b) return; el.remove(); if (b.dataset.gl === "new" && !mp) drawPick(); };
+    return;
+  }
   const st = goalState(), el = document.createElement("div"); el.id = "cmpGoal"; el.className = "cmp-must"; $("campaign").appendChild(el);
   el.innerHTML = `<div class="cmp-mbox cmp-goalbox ${kind}"><h2>${kind === "won" ? "Victory" : "The years run out"}</h2><p class="sub">${esc(NATIONS[C.me].name)}, ${C.year}</p>
     <p>${kind === "won" ? `The crown's ambition is won, ${G.by - C.year} years before its time: every town it asked for is yours, and ${st.n} in all. Your name is in every gazette in the world.` : `${G.by} is come. Of the towns the crown asked for you hold ${st.held.filter(([, h]) => h).length} of ${G.towns.length}, and ${st.n} of the ${G.n} in all.`}</p>
@@ -2242,7 +2252,7 @@ function checkEnd() {
   //  the crown lost only if it can't, or its army's gone too)
   if (!n && !C.over) {
     if (C.exile == null && allArmies() >= 4) { C.exile = C.year; say("Your last town has fallen", "Your army is still in the field. Take back a town within three years, or the crown is lost."); }
-    else if (C.exile == null || allArmies() < 1 || C.year - C.exile >= 3) { C.over = "lost"; C.exile = null; say("Your crown is lost", "The last of your towns has fallen."); }
+    else if (C.exile == null || allArmies() < 1 || C.year - C.exile >= 3) { C.over = "lost"; C.exile = null; say("Your crown is lost", "The last of your towns has fallen."); if (C.goal) C.goal.show = "lost"; }
   }
   if (n && C.exile != null) { C.exile = null; say("A crown again", "A town of your own once more: the crown is saved."); }
   goalCheck();

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.32", date: "20 October 2026", title: "A crown lost",
+    items: [
+      "Campaign: losing your last town for good now has a page of its own, as victory and the years running out do: your crown is lost, how many years you held it, and Another campaign or Look at the map. Before, it was only a line at the side of the map.",
+    ],
+  },
+  {
     v: "1.99.31", date: "20 October 2026", title: "A soft front",
     items: [
       "Campaign map: when land changes hands and the new colour spreads out across it, the edge of the spreading colour is a soft line rather than a march of square steps across the parchment.",
