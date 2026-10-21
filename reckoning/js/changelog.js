@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.44", date: "21 October 2026", title: "Straight into the land",
+    items: [
+      "Campaign: the 3D map is made ready while you read the opening paper, so the first time you zoom in, the land comes up at once. Before, the zoom stopped dead for a second while all of Europe’s ground was raised.",
+    ],
+  },
+  {
     v: "1.99.43", date: "21 October 2026", title: "The northern lakes",
     items: [
       "Campaign maps: Lake Ladoga is broad in the south as the real one is, and Lake Onega has its long bays to the north. Both were plain ovals.",

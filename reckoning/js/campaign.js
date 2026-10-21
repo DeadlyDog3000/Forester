@@ -2274,7 +2274,7 @@ let selFoe = null, selFleet = null, selFoeFleet = null;
 let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCity = null, note = "", news = [];
 // (close in, the land itself: hills, woods, the towns' roofs — the government's map, as in the story)
 let ZOOM_3D = 4.2 * 2.5; const DIST_2D = 110;
-let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3d = () => {};
+let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3d = () => {}, prep3d = () => {}, prepT = 0;
 // (drawn only while the campaign's map is in front of you)
 const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; heard3d(false); return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); heard3d(true); raf3d = requestAnimationFrame(loop3d); };
 // (the land seen close, heard: the wind over it as you come down to it, and the surf where the sea is in view — a few
@@ -2454,8 +2454,9 @@ export function initCampaign(c, battle, withPlayer) {
   };
   // ---- into the land, and back out to the map ----
   const wrap = cv.parentElement;
-  enter3d = () => {
-    W0();
+  // (the land itself made once, the first time it's wanted — or a little after the campaign opens, while the paper is
+  //  read: raising all of Europe's ground takes a second, and done on the way in it stopped the zoom dead)
+  const make3d = () => {
     if (!eu3d) {
       eu3d = new EuropeView3D(wrap);
       eu3d.el.addEventListener("wheel", e => { e.preventDefault(); eu3d.dist = Math.max(2.2, eu3d.dist * Math.exp(e.deltaY * 0.0015)); if (eu3d.dist > DIST_2D) leave3d(); }, { passive: false });
@@ -2521,6 +2522,14 @@ export function initCampaign(c, battle, withPlayer) {
         note = ""; drawMap(); if (selCity || sel) sfx("parchment", 0.28);
       });
     }
+  };
+  prep3d = () => {
+    if (eu3d || on3d || !C || C.mp || !$("cmpMap").offsetParent) return;
+    make3d(); eu3d.el.style.display = "none"; eu3d.me = C.me; eu3d.setMap(E(), 2, null, C.walls, C.pop);
+  };
+  enter3d = () => {
+    W0();
+    make3d();
     // (the middle of the window's view, as a place)
     const S = cv.width / MG_W, [mx, my] = toMap(mid()), [lon, lat] = llOf(mx / S, my / S);
     eu3d.look(lon, lat, DIST_2D - 12);
@@ -3153,6 +3162,7 @@ function newsTip() { if (firstCard()) return; try { if (localStorage.getItem(TIP
 function drawMap(fit = false) {
   $("cmpPick").classList.add("hidden"); $("cmpPlay").classList.remove("hidden");
   if (C) newsTip();
+  if (C && !eu3d && !prepT) prepT = setTimeout(() => { prepT = 0; prep3d(); }, 2500);
   const cv = $("cmpMap"); W0();
   // (the whole window covered: the map as wide as it, or as tall, whichever covers it — its edges, the sea, past them)
   const cw = Math.max(innerWidth, innerHeight / MAP_ASPECT);
