@@ -189,7 +189,7 @@ class Ship {
     const pen = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, fog: true }));
     let top = [0, 24.5 * S.scale, 2.5 * S.scale];
     if (m) { inner.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(m.scene), fb = this.flag ? new THREE.Box3().setFromObject(this.flag) : null, c = fb ? fb.getCenter(new THREE.Vector3()) : bb.getCenter(new THREE.Vector3()); top = [c.x, bb.max.y - 0.25, c.z]; }
-    pen.position.set(top[0], top[1], top[2]); pen.rotation.y = Math.PI / 2; g.add(pen); this.pen = pen;
+    pen.position.set(top[0], top[1], top[2]); this.topY = top[1]; pen.rotation.y = Math.PI / 2; g.add(pen); this.pen = pen;
     B.scene.add(g);
   }
   get alive() { return !this.sunk && !this.struck && this.hull > 0; }
@@ -209,11 +209,11 @@ class Ship {
     const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
     const sc = quiet ? [0.26, 0.0325] : [0.36, 0.045];
     if (this.tagS) this.tagS.scale.set(sc[0], sc[1], 1);
-    if (!this.tagS) { this.tagS = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false, fog: false })); this.tagS.scale.set(sc[0], sc[1], 1); this.tagS.renderOrder = 9; this.B.scene.add(this.tagS); }
+    if (!this.tagS) { this.tagS = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true, sizeAttenuation: false, fog: false })); this.tagS.scale.set(sc[0], sc[1], 1); this.tagS.center.set(0.5, 0); this.tagS.renderOrder = 9; this.B.scene.add(this.tagS); }
     else { this.tagS.material.map.dispose(); this.tagS.material.map = t; this.tagS.material.needsUpdate = true; }
   }
   update(dt, t) {
-    if (this.tagS) { this.tagS.position.set(this.x, (this.sunk ? 6 : 34) * this.S.scale, this.z); if (this.sunk) { this.wreckT = (this.wreckT || 0) + dt; this.tagS.material.opacity = clamp(1 - (this.wreckT - 20) / 5, 0, 1); } }
+    if (this.tagS) { this.tagS.position.set(this.x, this.sunk ? 6 * this.S.scale : (this.topY || 24.5 * this.S.scale) + 2 * this.S.scale, this.z); if (this.sunk) { this.wreckT = (this.wreckT || 0) + dt; this.tagS.material.opacity = clamp(1 - (this.wreckT - 20) / 5, 0, 1); } }
     if (this.sunk) return;
     if (this.hull <= 0) { this.sink += dt * 0.32; if (this.sink > 9) { this.sunk = true; this.root.visible = false; this.tag(`${this.team ? "Enemy" : "Your"} ${this.S.one.toLowerCase()} · sunk`, "#e07a5f"); } else this.tag(`${this.team ? "Enemy" : "Your"} ${this.S.one.toLowerCase()} · sinking`, "#e07a5f"); }
     const S = this.S, go = this.hull > 0 && !this.struck;
@@ -338,7 +338,8 @@ class Battle {
       const w = s.tagS.scale.x * px * (s.tagW || 0.5) + 0.01, h = s.tagS.scale.y * py * 0.8;
       let lift = 0; for (let i = 0; i < 5 && placed.some(q => Math.abs(q.x - v.x) < (q.w + w) / 2 && Math.abs(q.y - (v.y + lift * h)) < (q.h + h) / 2); i++) lift++;
       placed.push({ x: v.x, y: v.y + lift * h, w, h });
-      const c = s.tagS.center, to = 0.5 - lift * 0.8 / 1; c.y += (to - c.y) * Math.min(1, dt * 8);
+      // (its foot just over her masthead, however near she is: not a fixed height that hung far over a ship close by)
+      const c = s.tagS.center, to = -lift * 0.8; c.y += (to - c.y) * Math.min(1, dt * 8);
     }
   }
   camDist(x, z) { return Math.hypot(this.cam.position.x - x, this.cam.position.z - z); }

@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.41", date: "21 October 2026", title: "Words and labels",
+    items: [
+      "Campaign: a general killed in a battle is no longer also given that battle's mark on him, such as turning cautious after a second defeat he didn't live through, or growing in command.",
+      "Campaign: a year at a loss says so (\"A loss of 290 thalers a year\"), in the news and at the top of the screen, instead of \"−290 thalers profit a year\".",
+      "Campaign: when a town is attacked, the card says the garrison is \"behind its walls\" in the same breath, instead of tacking it on after a dot.",
+      "Campaign: the Cossacks are spoken of as \"they\" (\"Their armies thin\").",
+      "Battles at sea: each ship's name sits just above her masthead, rather than hanging high in the air over a ship close by.",
+    ],
+  },
+  {
     v: "1.99.40", date: "21 October 2026", title: "A key for each map",
     items: [
       "Maps (J and K): the key lists only what that map shows. Hamburg's no longer lists ore, a cave or the pond, the frontier's lists the cave once you've found it, and a waypoint you've set gets its own line.",
