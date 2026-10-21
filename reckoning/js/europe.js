@@ -354,6 +354,13 @@ export const RIVERS = [
   // (the Tisza across the Hungarian plain, past Szeged and Szolnok; the Drava down from Carinthia past Osijek)
   [[20.27, 45.2], [20.15, 45.75], [20.15, 46.25], [20.05, 46.7], [20.2, 47.18], [20.8, 47.6], [21.4, 48.12], [22.4, 48.15], [23.2, 48.0]],
   [[18.92, 45.55], [18.7, 45.56], [17.6, 45.95], [16.9, 46.3], [16.2, 46.4], [15.6, 46.55], [14.3, 46.62], [13.0, 46.75]],
+  // (the Meuse past Maastricht, Liège and Namur; the Moselle past Trier and Metz; the Inn from the Alps to Passau; the
+  //  Warta past Posen to the Oder; the Prut between Moldavia and the steppe)
+  [[4.1, 51.85], [5.2, 51.75], [6.17, 51.37], [5.69, 50.85], [5.57, 50.63], [4.87, 50.47], [4.94, 49.7], [5.38, 49.16], [5.6, 48.1]],
+  [[7.6, 50.36], [7.1, 50.0], [6.64, 49.75], [6.18, 49.12], [6.15, 48.7], [6.6, 48.0]],
+  [[13.47, 48.57], [12.6, 48.25], [12.1, 48.0], [11.4, 47.27], [10.2, 46.6]],
+  [[14.65, 52.58], [15.6, 52.7], [16.93, 52.4], [18.0, 52.1], [19.2, 51.0]],
+  [[28.2, 45.47], [28.1, 46.3], [27.9, 47.1], [26.9, 48.2], [25.9, 48.35], [25.0, 48.4]],
 ];
 // the great lakes the grid is too coarse for: Ladoga and Onega, Peipus and Ilmen by Novgorod, Vänern and Vättern; Geneva,
 // Constance and Garda under the Alps, Balaton and the Neusiedler See on the plain — each a run of strokes, [lon, lat, lon,

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.49", date: "21 October 2026", title: "More rivers",
+    items: [
+      "Campaign maps: the Meuse runs past Maastricht, Liège and Namur, the Moselle past Trier and Metz, the Inn from the Alps down to Passau, the Warta past Posen, and the Prut along Moldavia’s edge.",
+    ],
+  },
+  {
     v: "1.99.48", date: "21 October 2026", title: "The rivers of the Hungarian war",
     items: [
       "Campaign maps: the Danube runs past Belgrade, and the Sava comes in to meet it under the town’s walls. The Tisza crosses the Hungarian plain past Szeged and Szolnok, and the Drava comes down from Carinthia. Before, the Danube passed a day’s march north of Belgrade, and none of the three were drawn.",
