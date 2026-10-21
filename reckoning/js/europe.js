@@ -405,6 +405,7 @@ function landPath(c, S) {
 
 // the finished sheet, without the things that change by the second (the pointer, the lit crown)
 let sheet = null, sheetKey = "", prevSheet = null;
+const SPR = {};   // (the spreading front's own small sheets, kept from frame to frame)
 // ---- a crown's outline: its squares' edges joined into loops, each run through the middles of its edges (so a stair of
 // squares becomes a slope) and rounded off; with runs, the stretches of it that are a border with another crown ----
 function trace(g, id, borders = false) {
@@ -902,14 +903,33 @@ export function drawEurope(cv, E, { hover = null, selected = null, homePop = 2, 
   if (spread) {
     // (rows of the squares not reached yet, run together, as the clip for the old sheet; and the squares just reached
     //  washed in their new holder's colour — the front of it, moving out across the land)
-    const rows = new Map(), front = [];
-    for (const [x, y, st] of spread.cells) { if (st > spread.p) { let r = rows.get(y); if (!r) rows.set(y, r = []); r.push(x); } else if (st > spread.p - 4) front.push([x, y, 1 - (spread.p - st) / 4]); }
-    c.save(); c.beginPath();
-    for (const [y, xs] of rows) { xs.sort((a, b) => a - b); let a = xs[0], b = a; for (let i = 1; i <= xs.length; i++) { if (i < xs.length && xs[i] === b + 1) { b = xs[i]; continue; } c.rect(a * S - 0.3, y * S - 0.3, (b - a + 1) * S + 0.6, S + 0.6); if (i < xs.length) a = b = xs[i]; } }
-    c.clip(); c.drawImage(prevSheet, 0, 0, W, H); c.restore();
-    c.save(); c.globalCompositeOperation = "multiply";
-    for (const [x, y, a] of front) { const id = g[y] && g[y][x], col = NATIONS[id] && NATIONS[id].color; if (!col) continue; c.globalAlpha = a * 0.55; c.fillStyle = col; c.fillRect(x * S - 0.2, y * S - 0.2, S + 0.4, S + 0.4); }
-    c.restore(); c.globalAlpha = 1;
+    //  (both laid on a sheet a square to a pixel, softened, and drawn up to size: square by square, the front's edge
+    //  went across the map in the grid's stairs)
+    let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+    for (const [x, y] of spread.cells) { if (x < bx0) bx0 = x; if (x > bx1) bx1 = x; if (y < by0) by0 = y; if (y > by1) by1 = y; }
+    if (bx0 <= bx1) {
+      bx0 -= 3; by0 -= 3; const bw = bx1 - bx0 + 7, bh = by1 - by0 + 7;
+      const mk = (cv0, w, h) => { const q = cv0 || document.createElement("canvas"); if (q.width !== w || q.height !== h) { q.width = w; q.height = h; } const x = q.getContext("2d"); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = "source-over"; x.globalAlpha = 1; x.filter = "none"; x.clearRect(0, 0, w, h); return q; };
+      const m = SPR.m = mk(SPR.m, bw, bh), f = SPR.f = mk(SPR.f, bw, bh), mc = m.getContext("2d"), fc = f.getContext("2d");
+      mc.fillStyle = "#fff";
+      for (const [x, y, st] of spread.cells) {
+        if (st > spread.p) mc.fillRect(x - bx0, y - by0, 1, 1);
+        else if (st > spread.p - 4) { const id = g[y] && g[y][x], col = NATIONS[id] && NATIONS[id].color; if (!col) continue; fc.globalAlpha = (1 - (spread.p - st) / 4) * 0.55; fc.fillStyle = col; fc.fillRect(x - bx0, y - by0, 1, 1); }
+      }
+      // (softened by a blur of about a square, then drawn up to the map's size smoothly)
+      const soft = (src, key) => { const q = SPR[key] = mk(SPR[key], bw, bh), x = q.getContext("2d"); x.filter = "blur(0.8px)"; x.drawImage(src, 0, 0); x.filter = "none"; return q; };
+      const ms = soft(m, "ms"), fs = soft(f, "fs");
+      // the old sheet over the squares not reached yet, its edge soft
+      const k = prevSheet.width / W, tw = Math.max(1, Math.round(bw * S * 2)), th = Math.max(1, Math.round(bh * S * 2));
+      const t = SPR.t = mk(SPR.t, tw, th), tc = t.getContext("2d");
+      tc.drawImage(prevSheet, bx0 * S * k, by0 * S * k, bw * S * k, bh * S * k, 0, 0, tw, th);
+      tc.globalCompositeOperation = "destination-in"; tc.imageSmoothingEnabled = true; tc.imageSmoothingQuality = "high"; tc.drawImage(ms, 0, 0, tw, th);
+      c.drawImage(t, bx0 * S, by0 * S, bw * S, bh * S);
+      // and the front, washed in the new holder's colour
+      c.save(); c.globalCompositeOperation = "multiply"; c.imageSmoothingEnabled = true; c.imageSmoothingQuality = "high";
+      c.drawImage(fs, bx0 * S, by0 * S, bw * S, bh * S);
+      c.restore(); c.globalAlpha = 1;
+    }
   }
   // the lit crowns: a warm wash over them
   // (one shape for the whole crown, filled once — row by row it overlapped itself in stripes — and laid on as an

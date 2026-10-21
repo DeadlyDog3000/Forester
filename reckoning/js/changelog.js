@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.31", date: "20 October 2026", title: "A soft front",
+    items: [
+      "Campaign map: when land changes hands and the new colour spreads out across it, the edge of the spreading colour is a soft line rather than a march of square steps across the parchment.",
+    ],
+  },
+  {
     v: "1.99.30", date: "20 October 2026", title: "The guide's keys",
     items: [
       "The guide (H): its keys are printed light on the page, \"Press G for your government\", rather than as dark blots you could hardly read; so too on the plans, the government, skills and inventory pages.",
