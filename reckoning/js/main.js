@@ -284,7 +284,7 @@ G.storyCampaign = () => {
   resetForMode();
   G.endFreecam && G.endFreecam(); G.mode = "title"; setFreeLook(false); document.exitPointerLock && document.exitPointerLock();
   UI.show("hud", false); UI.fadeNow(0); try { AUDIO.music(null); } catch (e) {} $("menus").classList.add("backdrop");
-  openStoryCampaign({ home: () => play(14) });
+  openStoryCampaign({ home: () => play(14), she: G.who === "sister" });
 };
 function play(chapter, opts) {
   AUDIO.init();

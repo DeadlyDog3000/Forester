@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.47", date: "21 October 2026", title: "In the Emperor’s service",
+    items: [
+      "The Emperor’s Commission: missions come from the Emperor, not “the Crown”, and the war news you start with is dated 1686, the year you arrive, not 1683.",
+      "The Emperor’s Commission: played as the sister, what the news says of your general says “she” and “her”.",
+      "Campaign: a mission for more regiments says how many “you have”, not “it has”.",
+    ],
+  },
+  {
     v: "1.99.46", date: "21 October 2026", title: "The Emperor’s war",
     items: [
       "The Emperor’s Commission: the campaign it opens asks you to take the towns of the Emperor’s war in Hungary (Buda, Belgrade, Pressburg and Weissenburg). It no longer asks for the ordinary Austrian goal, which included Berlin, held by the Emperor’s own ally.",

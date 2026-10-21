@@ -632,7 +632,9 @@ const TRAITS = {
 };
 const hasT = (gen, t) => !!(gen && gen.tr && gen.tr.includes(t));
 const trSum = (gen, k) => ((gen && gen.tr) || []).reduce((t, x) => t + ((TRAITS[x] || {})[k] || 0), 0);
-function giveT(gen, t) { if (!gen || hasT(gen, t)) return; (gen.tr ||= []).push(t); say(`${gen.name}: ${TRAITS[t].n.toLowerCase()}`, TRAITS[t].d); }
+function giveT(gen, t) { if (!gen || hasT(gen, t)) return; (gen.tr ||= []).push(t); say(`${gen.name}: ${TRAITS[t].n.toLowerCase()}`, herIf(gen, TRAITS[t].d)); }
+// (the story's own general may be the sister: what's said of her, said as of her)
+const herIf = (gen, t) => gen && gen.she ? t.replace(/\bHe\b/g, "She").replace(/\bhe\b/g, "she").replace(/\bhimself\b/g, "herself").replace(/\b(his|him)\b/g, "her").replace(/\bHis\b/g, "Her") : t;
 // (a battle's mark on him: bold for a win against the odds, an engineer for walls stormed twice, cautious after two defeats)
 function genMark(o, won) {
   const G = C.gen; if (!G) return;
@@ -648,7 +650,7 @@ function genYear(G) {
 }
 function genWin() {
   const G = C.gen; if (!G) return; G.wins = (G.wins | 0) + 1; if (G.wins >= 6) giveT(G, "hero");
-  if (G.wins % 3 === 0 && G.st[0] < 5) { G.st[0]++; say(`${G.name} grows in command`, `${G.wins} victories behind him: his command is now ${G.st[0]} of 5.`); }
+  if (G.wins % 3 === 0 && G.st[0] < 5) { G.st[0]++; say(`${G.name} grows in command`, herIf(G, `${G.wins} victories behind him: his command is now ${G.st[0]} of 5.`)); }
 }
 // (the army's experience: its regiments' battles behind them, up to three chevrons each — a veteran army a tenth steadier)
 const vetK = () => { const L = C.units || []; return L.length ? L.reduce((t, u) => t + (u.xp || 0), 0) / L.length * 0.033 : 0; };
@@ -727,7 +729,7 @@ function realmWorld(g, ids) {
 }
 // ---- and for each player: the levies in, the learning done, the years told on their men ----
 // (who sets the missions: the Crown and its court; for a nation of the woods, its council)
-const crownW = cap => NATIONS[C.me] && NATIONS[C.me].nw ? (cap ? "The council" : "the council") : (cap ? "The Crown" : "the Crown");
+const crownW = cap => C && C.story ? (cap ? "The Emperor" : "the Emperor") : NATIONS[C.me] && NATIONS[C.me].nw ? (cap ? "The council" : "the council") : (cap ? "The Crown" : "the Crown");
 const courtW = cap => NATIONS[C.me] && NATIONS[C.me].nw ? (cap ? "The council" : "the council") : (cap ? "The court" : "the court");
 // ---- the Crown's missions, as in Empire: Total War: now and then the court sets you a task — a town to take, a building
 //  to raise, an army or a fleet to have, a battle to win, a treaty to sign — with a year to have it done by and a reward
@@ -741,7 +743,7 @@ function missionOffer(g) {
   // (a building raised in a town of yours)
   if (!has("build") && mine.length) { const ops = mine.flatMap(ct => buildable(ct).filter(o => !o.tech).map(o => [ct, o])); if (ops.length) { const [ct, o] = pick(ops); L.push({ k: "build", t: ct[0], ch: o.chain, lv: o.lv, by: yr + 3, gold: Math.round(o.cost * 0.6) + 80, title: `${o.L.n} at ${ct[0]}`, d: `Build the ${o.L.n.toLowerCase()} at ${ct[0]} by ${yr + 3}. ${crownW(1)} will repay much of the cost.` }); } }
   // (an army of so many regiments, all told)
-  if (!has("army")) { const n = allField().length + 6 + Math.floor(R() * 5); L.push({ k: "army", n, by: yr + 3, gold: 250 + n * 6, title: `An army of ${n} regiments`, d: `${crownW(1)} wants ${n} regiments in the field (it has ${allField().length}). Have them by ${yr + 3}.` }); }
+  if (!has("army")) { const n = allField().length + 6 + Math.floor(R() * 5); L.push({ k: "army", n, by: yr + 3, gold: 250 + n * 6, title: `An army of ${n} regiments`, d: `${crownW(1)} wants ${n} regiments in the field (you have ${allField().length}). Have them by ${yr + 3}.` }); }
   // (a battle won against a crown at war with you)
   if (!has("beat")) { const ws = Object.keys(C.E.war).filter(id => C.E.war[id] && !isHuman(id) && alive(g, id) && (C.foes[id] | 0) >= 5); if (ws.length) { const id = pick(ws); L.push({ k: "beat", foe: id, from: yr, by: yr + 3, gold: 400, title: `Beat ${poss(the(id))} army`, d: `Defeat ${poss(the(id))} army in battle, in the field or at a town, by ${yr + 3}.` }); } }
   // (a trade pact with a crown that thinks well enough of you)
@@ -2602,11 +2604,14 @@ export function openStoryCampaign(o = {}) {
       const g0 = newMan("hre", "general");
       C.gen = { ...g0, name: o.name || "The Forester", short: o.short || "Forester", you: true, st: [3, 4, 1], served: 0, d: "You: out of Hamburg by the Marsh Gate, a forester in the old woods, and on the works at the Elbe when the Danes came. The Emperor's commission in your coat." };
       C.log = C.log.filter(l => !/^You take the crown/.test(l.sub || ""));
+      // (and what was said as the crown was taken — the wars, the leagues — said in the commission's year, not 1683's)
+      for (const l of C.log) if (l.t === "1683") l.t = "1686";
       say("The Emperor's commission", "You command the Emperor's army in the Hungarian war. Buda has been the Sultan's since 1541: take it, and hold what the Emperor holds. The Home button at the top takes you back to your settlement whenever you like; the campaign is kept as it stands.");
       save();
     }
     C.story = 1;
   }
+  if (C.gen && C.gen.you) C.gen.she = !!o.she;
   storyHomeBtn();
   ctx.screen("campaign"); abandoned(); drawMap(true); warmMaps();
 }
