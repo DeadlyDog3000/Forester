@@ -22,8 +22,12 @@ export const ACH = [
   ["ch2", "Papers and Torches", "Get through the first night in Hamburg.", "The story", () => chapterAt(3)],
   ["ch4", "Out of the City", "Leave Hamburg behind.", "The story", () => chapterAt(5)],
   ["ch7", "The First Winter", "See the first winter out in the woods.", "The story", () => chapterAt(8)],
-  ["ch11", "Forester", "Reach the end of the story.", "The story", () => chapterAt(12)],
+  ["ch11", "Forester", "Finish chapter XI, Forester.", "The story", () => chapterAt(12)],
   ["free", "The Settlement Is Yours", "Begin free play.", "The story", () => G.chapter === 14 && !!town()],
+  // (Part Three: the wars)
+  ["danes", "On the Works", "Stand on Hamburg's walls against the King of Denmark.", "The story", () => !!part3().hamburg],
+  ["held", "Hamburg Stays Free", "Hold the works by the Elbe until the Duke of Celle comes.", "The story", () => part3().hamburg === "held"],
+  ["commission", "The Emperor's Commission", "Take command of an army of the Emperor's.", "The story", () => !!part3().commission],
   // the colony
   ["cabin", "A Roof", "Raise a cabin.", "The colony", () => built("cabin")],
   ["pop10", "A Hamlet", "Have ten people living in your settlement.", "The colony", () => (S() && S().people.length + 2 >= 10)],
@@ -63,7 +67,11 @@ export const ACH = [
   ["world", "Into the Wide World", "Set foot in the wide world.", "With others", "mp-world"],
 ].map(([id, name, desc, group, how, hidden]) => ({ id, name, desc, group, test: typeof how === "function" ? how : null, event: typeof how === "string" ? how : null, hidden: !!hidden }));
 
-function chapterAt(n) { try { const s = JSON.parse(localStorage.getItem("reckoning.save.v1") || "null"); if (s && (s.unlocked || 0) >= n) return true; } catch (e) {} return (G.chapter || 0) >= n; }
+// (the story's save, read once for a round of the tests rather than once for each of them)
+let svAt = 0, sv = null;
+const story = () => { const t = Date.now(); if (t - svAt > 1500) { svAt = t; try { sv = JSON.parse(localStorage.getItem("reckoning.save.v1") || "null"); } catch (e) { sv = null; } } return sv; };
+function part3() { const s = story(); return (s && s.part3) || {}; }
+function chapterAt(n) { const s = story(); if (s && (s.unlocked || 0) >= n) return true; return (G.chapter || 0) >= n; }
 function load(k) { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 let got = load(KEY), counts = load(COUNT);
