@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.74", date: "22 October 2026", title: "After the paper",
+    items: [
+      "Achievements: “A Crown of Your Own” is given when you lay aside the first gazette and take up the crown, not on top of the gazette while you’re reading it.",
+    ],
+  },
+  {
     v: "1.99.73", date: "22 October 2026", title: "Room at the top",
     items: [
       "Campaign: in a narrow window the bar at the top no longer runs the crowns you’re at war with in under the Learning button. Below about a thousand pixels across it leaves off the count of your people, which the side panel gives town by town.",

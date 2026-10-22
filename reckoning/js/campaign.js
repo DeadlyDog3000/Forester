@@ -268,7 +268,7 @@ function begin(me, into = slot, opt = {}) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map(); warmMaps();
   // (the difficulty chosen: the other crowns' armies at the start made larger or smaller by it)
   //  — against the army you'd have in each one's place: Fair the same, a crown of the woods' warriors as many as yours)
-  if (opt.diff != null) { C.diff = opt.diff; ach("cmp-begin"); const k = dif().army; for (const id of Object.keys(C.foes)) if (id !== me) C.foes[id] = Math.max(4, Math.round((NATIONS[id].strength * 10 + 6 + Math.floor(R() * 5)) * k)); }
+  if (opt.diff != null) { C.diff = opt.diff; const k = dif().army; for (const id of Object.keys(C.foes)) if (id !== me) C.foes[id] = Math.max(4, Math.round((NATIONS[id].strength * 10 + 6 + Math.floor(R() * 5)) * k)); }
   // (England, the sea power: its fleet already in being in 1683, six ships lying off its capital)
   if (me === "england") { const g = grid(), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ct && harbourOf(ct); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
   // (the colonies over the Atlantic: companies of their own in each town, as they had — the army at home can't come to
@@ -406,7 +406,7 @@ function statePaper() {
     <div class="gz-cols">${P.join("")}</div>
     <div class="gz-foot"><button class="btn primary" data-gz="1">Take up the crown</button></div>
   </div>`;
-  const close = () => { el.classList.add("out"); setTimeout(() => { el.remove(); goalScreen(); }, 260); removeEventListener("keydown", key, true); };
+  const close = () => { el.classList.add("out"); setTimeout(() => { el.remove(); goalScreen(); ach("cmp-begin"); }, 260); removeEventListener("keydown", key, true); };
   const key = e => { if (e.code === "Escape" || e.code === "Enter" || e.code === "Space") { e.preventDefault(); e.stopPropagation(); close(); } };
   el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-gz]")) close(); });
   addEventListener("keydown", key, true);
