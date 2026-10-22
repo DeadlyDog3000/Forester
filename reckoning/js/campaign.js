@@ -63,16 +63,16 @@ const MPKEY = "reckoning.campaign.mp.v1";
 const DIFFS = [
 //  (army: the other crowns' at the start, against what you'd have in their place; cap and grow: how many their lands
 //   keep, and how fast they find the men, against 1683's war footing — Fair an even match, Hard 1683 as it was)
-  { n: "Easy", d: "The other crowns keep smaller armies than yours would be in their place, and their generals and men are slower.", army: 0.8, cap: 0.55, grow: 0.5, gen: 0.9, skill: -0.15, navy: 0.6 },
-  { n: "Fair", d: "An even match: each crown begins with the army you would have in its place, and keeps what its lands can pay for.", army: 1, cap: 0.7, grow: 0.65, gen: 1, skill: 0, navy: 0.8 },
-  { n: "Hard", d: "The crowns as they stood in 1683, on a war footing: half again your army, and quick to make it up.", army: 1.5, cap: 1, grow: 1, gen: 1.06, skill: 0.08, navy: 1 },
-  { n: "Very hard", d: "Their armies near twice what yours would be, their generals sharper, their men steadier.", army: 1.9, cap: 1.3, grow: 1.3, gen: 1.15, skill: 0.18, navy: 1.25 },
-  { n: "Ruthless", d: "Armies of more than twice your size, the best generals of the age, and men who give no ground.", army: 2.4, cap: 1.65, grow: 1.6, gen: 1.28, skill: 0.3, navy: 1.5 },
+  { n: "Easy", d: "The other crowns keep smaller armies than yours would be in their place, and their generals and men are slower.", army: 0.8, cap: 0.55, grow: 0.5, gen: 0.9, skill: -0.15, navy: 0.6, war: 0.6 },
+  { n: "Fair", d: "An even match: each crown begins with the army you would have in its place, and keeps what its lands can pay for.", army: 1, cap: 0.7, grow: 0.65, gen: 1, skill: 0, navy: 0.8, war: 0.85 },
+  { n: "Hard", d: "The crowns as they stood in 1683, on a war footing: half again your army, and quick to make it up.", army: 1.5, cap: 1, grow: 1, gen: 1.06, skill: 0.08, navy: 1, war: 1 },
+  { n: "Very hard", d: "Their armies near twice what yours would be, their generals sharper, their men steadier.", army: 1.9, cap: 1.3, grow: 1.3, gen: 1.15, skill: 0.18, navy: 1.25, war: 1.3 },
+  { n: "Ruthless", d: "Armies of more than twice your size, the best generals of the age, and men who give no ground.", army: 2.4, cap: 1.65, grow: 1.6, gen: 1.28, skill: 0.3, navy: 1.5, war: 1.6 },
 ], DIFFKEY = "reckoning.campaign.diff";
 let pickDiff = (() => { try { const v = +localStorage.getItem(DIFFKEY); return v >= 0 && v < DIFFS.length && localStorage.getItem(DIFFKEY) != null ? v : 1; } catch (e) { return 1; } })();
 // (the campaign's: one begun before there was a choice goes on as it began, 1683's war footing — a campaign of two
 //  players too — and so does the story's)
-const D1683 = { n: "Hard", army: 1, cap: 1, grow: 1, gen: 1, skill: 0, navy: 1 };
+const D1683 = { n: "Hard", army: 1, cap: 1, grow: 1, gen: 1, skill: 0, navy: 1, war: 1 };
 const dif = () => C && C.diff != null ? DIFFS[C.diff] || D1683 : D1683;
 // (a new campaign's other crowns given the armies its difficulty asks — against the army you'd have in each one's place:
 //  Fair the same — every crown but the players')
@@ -2125,7 +2125,8 @@ function endSeason(part = {}) {
     const p = 0.015 + Math.max(0, -C.E.rel[id]) / 500 + (big > 12 ? 0.03 : 0) + (big > 25 ? 0.05 : 0) + Math.min(0.04, Object.values(C.took || {}).reduce((t, n) => t + n, 0) * 0.004), able = C.foes[id] > allArmies() * 0.6 ? 1 : 0.3;
     // (fewer piling on when you've already enemies enough — a crown waits to see how those wars go)
     const already = Object.keys(C.E.war).filter(k => C.E.war[k]).length;
-    if (R() < p * able * Math.pow(0.45, already)) declare(id, id);
+    //  (and the readier to try it the harder the campaign)
+    if (R() < p * able * Math.pow(0.45, already) * dif().war) declare(id, id);
   }
   // who'll make peace: worn out, or beaten
   for (const id of ids) if (atWar(id) && (C.warT[id] || 0) >= 3 && R() < 0.12 + (C.foes[id] < allArmies() * 0.5 ? 0.2 : 0) + (C.took[id] || 0) * 0.04)
@@ -3506,7 +3507,7 @@ function drawSide() {
       <li><b>Victory.</b> Your crown's ambition is in the Victory card: certain towns to take and hold, and so many towns in all, within sixty years. Lose your last town and you have three years to take one back with the army you still have, or the crown is lost.</li>
       <li><b>Generals.</b> They earn traits in the field and the camp: Bold, Cautious, Siege engineer, Hero of the nation, Beloved of the men, and the vices of drink and the lash. Each counts in battle. Hover one on the general's card to see what it does.</li>
       <li><b>The other crowns.</b> They come to you with trade agreements and alliances, and a strong neighbour may demand tribute: pay, or risk war. Beat a smaller crown and you can demand it submit as your protectorate: it pays you tribute every year and fights in your wars. The great powers card ranks the crowns by their towns and people.</li>
-      <li><b>How hard.</b> Chosen with your crown, from Easy to Ruthless: the harder, the larger the other crowns’ armies at the start and as they make them up each year, and the fleets they build, the better their generals in the reckoning of a battle, and the steadier their men in a battle you fight yourself, and their gun crews in one at sea. Fair is an even match, each crown beginning with the army you would have in its place; Hard is the crowns as they stood in 1683, on a war footing.${C ? ` This campaign is ${dif().n}.` : ""}</li>
+      <li><b>How hard.</b> Chosen with your crown, from Easy to Ruthless: the harder, the larger the other crowns’ armies at the start and as they make them up each year, and the fleets they build, the readier they are to make war on you, the better their generals in the reckoning of a battle, and the steadier their men in a battle you fight yourself, and their gun crews in one at sea. Fair is an even match, each crown beginning with the army you would have in its place; Hard is the crowns as they stood in 1683, on a war footing.${C ? ` This campaign is ${dif().n}.` : ""}</li>
       <li><b>The wars of others.</b> The other crowns fight their own wars on the same map. Their armies march to their fronts and home again at the peace; the year's battlefields are marked with crossed swords in a dark ink, and a siege with its lines and tents round the town. Point at any of them to see whose it is and who fought whom. The gazette reports the battles that matter to you.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Trade.</b> Every town has its good (furs, fish, tobacco, sugar, silver, timber, iron, grain, wool, cloth, wine or silk), and each brings thalers. Trade pacts pay more for goods you don't have yourself. An enemy fleet lying off one of your ports blockades it: none of its trade gets out until you drive the fleet off.</li>

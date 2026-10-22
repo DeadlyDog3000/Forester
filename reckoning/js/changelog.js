@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.78", date: "22 October 2026", title: "Bolder neighbours",
+    items: [
+      "Campaign: how readily a neighbour makes war on you follows the difficulty too: slower to try you on Easy and Fair, as in 1683 on Hard, and readier on Very hard and Ruthless.",
+    ],
+  },
+  {
     v: "1.99.77", date: "22 October 2026", title: "Any colour",
     items: [
       "Character builder: the button for any colour you like sits a little apart from the ready colours, in a ring of every colour, so it no longer passes for one more swatch out of its order.",
