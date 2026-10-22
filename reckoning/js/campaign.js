@@ -70,10 +70,13 @@ const DIFFS = [
   { n: "Ruthless", d: "Armies of more than twice your size, the best generals of the age, and men who give no ground.", army: 2.4, cap: 1.65, grow: 1.6, gen: 1.28, skill: 0.3, navy: 1.5 },
 ], DIFFKEY = "reckoning.campaign.diff";
 let pickDiff = (() => { try { const v = +localStorage.getItem(DIFFKEY); return v >= 0 && v < DIFFS.length && localStorage.getItem(DIFFKEY) != null ? v : 1; } catch (e) { return 1; } })();
-// (the campaign's: one begun before there was a choice goes on as it began, 1683's war footing; so does a campaign of
-//  two players, and the story's)
+// (the campaign's: one begun before there was a choice goes on as it began, 1683's war footing — a campaign of two
+//  players too — and so does the story's)
 const D1683 = { n: "Hard", army: 1, cap: 1, grow: 1, gen: 1, skill: 0, navy: 1 };
-const dif = () => C && !C.mp && C.diff != null ? DIFFS[C.diff] : D1683;
+const dif = () => C && C.diff != null ? DIFFS[C.diff] || D1683 : D1683;
+// (a new campaign's other crowns given the armies its difficulty asks — against the army you'd have in each one's place:
+//  Fair the same — every crown but the players')
+const diffFoes = (d, players) => { C.diff = d; const k = dif().army; for (const id of Object.keys(C.foes)) if (!players.includes(id)) C.foes[id] = Math.max(4, Math.round((NATIONS[id].strength * 10 + 6 + Math.floor(R() * 5)) * k)); };
 // (another crown's general reckoned at what the difficulty makes him; a player's at his own)
 const foeCmd = id => cmdMul(genOf(id)) * (isHuman(id) ? 1 : dif().gen);
 // (an achievement of the campaign: a crown of your own only, not one shared with a friend)
@@ -267,8 +270,7 @@ function fresh(me) {
 function begin(me, into = slot, opt = {}) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map(); warmMaps();
   // (the difficulty chosen: the other crowns' armies at the start made larger or smaller by it)
-  //  — against the army you'd have in each one's place: Fair the same, a crown of the woods' warriors as many as yours)
-  if (opt.diff != null) { C.diff = opt.diff; const k = dif().army; for (const id of Object.keys(C.foes)) if (id !== me) C.foes[id] = Math.max(4, Math.round((NATIONS[id].strength * 10 + 6 + Math.floor(R() * 5)) * k)); }
+  if (opt.diff != null) diffFoes(opt.diff, [me]);
   // (England, the sea power: its fleet already in being in 1683, six ships lying off its capital)
   if (me === "england") { const g = grid(), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ct && harbourOf(ct); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
   // (the colonies over the Atlantic: companies of their own in each town, as they had — the army at home can't come to
@@ -1034,7 +1036,7 @@ function fight(o) {
     map: { snow: s === 3, things },
   };
   if (!C.mp || (mp && mp.host)) { C.pending = { ...o, ct: o.ct[0], ar: C.ar | 0 }; persist(); }
-  if (!C.mp) b.skillAdd = dif().skill;
+  b.skillAdd = dif().skill;
   b.onEnd = (won, killed, lost, fled) => doAct({ k: "result", won: !!won, killed: killed | 0, lost: lost | 0, myMen, theirMen, fled: !!fled });
   startBattle(b);
 }
@@ -2663,6 +2665,12 @@ function leaveMp() {
   const m = mp; mp = null; C = null; sel = null; selCity = null; note = ""; news = [];
   try { m.net.send({ t: "dleave" }); m.net.close(); } catch (e) {}
 }
+// (the difficulty: chosen before the crown, and kept for the next campaign begun — in a campaign of two, by the host)
+function diffRow() { return `<div class="cmp-diff" role="radiogroup" aria-label="How hard"><span class="cmp-diff-h">How hard</span><div class="cmp-diff-row">${DIFFS.map((D, i) => `<button class="cmp-dbtn${i === pickDiff ? " on" : ""}" data-diff="${i}" role="radio" aria-checked="${i === pickDiff}"><i>${"●".repeat(i + 1)}</i>${esc(D.n)}</button>`).join("")}</div><small id="cmpDiffD">${esc(DIFFS[pickDiff].d)}</small></div>`; }
+function wireDiff() {
+  for (const b of $("cmpPick").querySelectorAll("[data-diff]")) b.onclick = () => { pickDiff = +b.dataset.diff; try { localStorage.setItem(DIFFKEY, String(pickDiff)); } catch (e) {}
+    for (const x of $("cmpPick").querySelectorAll("[data-diff]")) { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); } $("cmpDiffD").textContent = DIFFS[pickDiff].d; sfx("quill", 0.3); };
+}
 function drawPick() {
   $("cmpPick").classList.remove("hidden"); $("cmpPlay").classList.add("hidden");
   W0(); const g = buildGrid({ conq: [] });
@@ -2674,22 +2682,22 @@ function drawPick() {
     const them = esc(mp.foe.name || "Your friend"), saved = mp.host && savedMp();
     $("cmpPick").innerHTML = `<div class="cmp-ph"><h2>A campaign with ${them}</h2><p class="sub">${mp.gone ? esc(note) : `Each of you chooses a crown. The years turn when you're both ready; march on each other, or make common cause.${mp.mine ? ` <b>You've chosen ${esc(NATIONS[mp.mine].name)}.</b>` : ""} ${mp.theirs ? `${them} has chosen ${esc(NATIONS[mp.theirs].name)}.` : `${them} is choosing…`}`}</p></div>
       ${saved ? `<div class="pv-acts"><button class="btn primary" data-mpresume="1">Take up your campaign with ${esc(saved.partnerName || them)} (${esc(NATIONS[saved.C.mp.humans[0]].name)} and ${esc(NATIONS[saved.C.mp.humans[1]].name)}, ${saved.C.year})</button></div>` : ""}
+      ${mp.host ? diffRow() : `<div class="cmp-diff"><small>How hard the campaign is, ${them} chooses.</small></div>`}
       <div class="cmp-crowns">${list.map(x => `<button class="cmp-crown${mp.mine === x.id ? " on" : ""}${mp.theirs === x.id ? " taken" : ""}" data-crown="${x.id}"${mp.theirs === x.id ? " disabled" : ""}><i style="background:${NATIONS[x.id].color}"></i><b>${esc(NATIONS[x.id].name)}</b><small>${mp.theirs === x.id ? `${them}'s` : `${word(x.s)} · ${x.n} town${x.n > 1 ? "s" : ""} · ${"★".repeat(x.s)}`}</small></button>`).join("")}</div>
       <div class="pv-acts"><button class="btn ghost" id="cmpPickBack">Leave</button></div>`;
     $("cmpPickBack").onclick = () => { leaveMp(); ctx.screen("pvp"); };
+    if (mp.host) wireDiff();
     return;
   }
   const have = campaigns();
   $("cmpPick").innerHTML = `${have.length ? `<div class="cmp-ph"><h2>Your campaigns</h2></div><div class="cmp-saves">${have.map(({ i, c }) => `<div class="cmp-save${C && i === slot ? " on" : ""}"><button class="cmp-crown" data-slot="${i}"><i style="background:${NATIONS[c.me].color}"></i><b>${esc(NATIONS[c.me].name)}</b><small>${c.year} · ${c.towns != null ? `${c.towns} town${c.towns === 1 ? "" : "s"} · ` : ""}${c.over === "lost" ? "lost" : c.won ? "Europe won" : `${c.gold} thalers`}${` · ${(DIFFS[c.diff] || D1683).n}`}</small></button><button class="cmp-drop" data-drop="${i}" title="Give up this campaign">×</button></div>`).join("")}</div>` : ""}
     <div class="cmp-ph"><h2>${have.length ? "Or begin a new one" : "Choose your crown"}</h2><p class="sub">Europe and the New World in 1683. Raise armies, make friends and enemies, take towns and hold them. The great powers have the most to lose; the small states the most to win.${have.length >= SLOTS ? ` <b>You have ${SLOTS} campaigns: a new one takes the place of the one longest left alone.</b>` : ""}</p></div>
-    <div class="cmp-diff" role="radiogroup" aria-label="How hard"><span class="cmp-diff-h">How hard</span><div class="cmp-diff-row">${DIFFS.map((D, i) => `<button class="cmp-dbtn${i === pickDiff ? " on" : ""}" data-diff="${i}" role="radio" aria-checked="${i === pickDiff}"><i>${"●".repeat(i + 1)}</i>${esc(D.n)}</button>`).join("")}</div><small id="cmpDiffD">${esc(DIFFS[pickDiff].d)}</small></div>
+    ${diffRow()}
     <div class="cmp-pickwrap"><div class="cmp-crowns">${list.map(x => `<button class="cmp-crown" data-crown="${x.id}"><i style="background:${NATIONS[x.id].color}"></i><b>${esc(NATIONS[x.id].name)}</b><small>${word(x.s)} · ${x.n} town${x.n > 1 ? "s" : ""} · ${"★".repeat(x.s)}</small></button>`).join("")}</div>
     <aside class="cmp-prev" id="cmpPrev"><canvas id="cmpPrevMap"></canvas><div id="cmpPrevText"></div></aside></div>
     <div class="pv-acts"><button class="btn ghost" id="cmpPickBack">${C ? "Back to your campaign" : "Back"}</button></div>`;
   $("cmpPickBack").onclick = () => { if (C) drawMap(true); else ctx.screen(cmpHome); };
-  // (the difficulty: chosen before the crown, and kept for the next campaign begun)
-  for (const b of $("cmpPick").querySelectorAll("[data-diff]")) b.onclick = () => { pickDiff = +b.dataset.diff; try { localStorage.setItem(DIFFKEY, String(pickDiff)); } catch (e) {}
-    for (const x of $("cmpPick").querySelectorAll("[data-diff]")) { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); } $("cmpDiffD").textContent = DIFFS[pickDiff].d; sfx("quill", 0.3); };
+  wireDiff();
   // (a crown pointed at: its lands on the map, and how it stands in 1683 — the first of them, till you point at another)
   const grid0 = $("cmpPick").querySelector(".cmp-crowns");
   const show = id => { if (id && id !== pickShown) pickPreview(id, g, list.find(x => x.id === id), word); };
@@ -3230,7 +3238,7 @@ function drawMap(fit = false) {
 }
 function drawTop() {
   const g = grid(), n = citiesOfNow(g, C.me).length, net = income(g) - upkeep(), wars = Object.keys(C.E.war).filter(id => C.E.war[id]);
-  $("cmpTop").innerHTML = `<span class="cmp-crownname"${C.mp ? "" : ` title="${esc(`${dif().n}${dif().d ? `: ${dif().d}` : ""}`)}"`}><i style="background:${NATIONS[C.me].color}"></i>${esc(NATIONS[C.me].name)}</span>
+  $("cmpTop").innerHTML = `<span class="cmp-crownname" title="${esc(`${dif().n}${dif().d ? `: ${dif().d}` : ""}`)}"><i style="background:${NATIONS[C.me].color}"></i>${esc(NATIONS[C.me].name)}</span>
     <span><small>Year</small><b>${C.year}</b></span><span title="${esc(`${net >= 0 ? `Profit a year: +${net} thalers.` : `A loss of ${-net} thalers a year.`} In: ${income(g)} from your towns at ${TAX[C.tax ?? 1].n.toLowerCase()} taxes, and trade. Out: ${upkeep()} on the upkeep of ${(C.units || []).length} regiments${shipUp() ? " and the fleet" : ""}. What you spend on raising, building and the rest comes out as you spend it.`)}"><small>Treasury</small><b>${C.gold}</b> <em class="${net >= 0 ? "up" : "down"}">${net >= 0 ? `+${net} profit a year` : `−${-net} a year, a loss`}</em></span>
     <span><small>${(C.armies || []).length ? `Armies · ${armyIds().length}` : "Army"}</small><b>${allField().length}</b> regiments${(C.units || []).some(u => u.at) ? ` <em title="Regiments in your towns' garrisons">+${C.units.filter(u => u.at).length}</em>` : ""}</span><span class="cmp-folk"><small>People</small><b>${fmtN(Math.round(citiesOfNow(g, C.me).reduce((t, ct) => t + popOf(ct), 0) / 100) * 100)}</b></span><span><small>Towns</small><b>${n}</b> of ${(goalOf() || {}).n || WIN_CITIES}</span><span class="cmp-wars" title="${esc(wars.length ? wars.map(id => NATIONS[id].name).join(", ") : "")}"><small>At war with</small><b>${wars.length ? wars.slice(0, 2).map(id => esc(NATIONS[id].name)).join(", ") + (wars.length > 2 ? ` +${wars.length - 2} more` : "") : "nobody"}</b></span>${C.mp ? (() => { const o = humans().find(h => h !== C.me), ready = C.mp.ready[o]; return `<span class="cmp-mate"><small>${esc(nameOf(o))}</small><b><i style="background:${NATIONS[o].color}"></i>${esc(NATIONS[o].name)}</b><em class="${ready ? "up" : ""}">${mp && mp.gone ? "has left" : ready ? "ready to end the year" : "playing their year"}</em></span>`; })() : ""}`;
   const open = C.events.filter(e => !e.done).length, mine = C.mp && C.mp.ready[C.me], other = C.mp && humans().find(h => h !== C.me);
@@ -3498,7 +3506,7 @@ function drawSide() {
       <li><b>Victory.</b> Your crown's ambition is in the Victory card: certain towns to take and hold, and so many towns in all, within sixty years. Lose your last town and you have three years to take one back with the army you still have, or the crown is lost.</li>
       <li><b>Generals.</b> They earn traits in the field and the camp: Bold, Cautious, Siege engineer, Hero of the nation, Beloved of the men, and the vices of drink and the lash. Each counts in battle. Hover one on the general's card to see what it does.</li>
       <li><b>The other crowns.</b> They come to you with trade agreements and alliances, and a strong neighbour may demand tribute: pay, or risk war. Beat a smaller crown and you can demand it submit as your protectorate: it pays you tribute every year and fights in your wars. The great powers card ranks the crowns by their towns and people.</li>
-      <li><b>How hard.</b> Chosen with your crown, from Easy to Ruthless: the harder, the larger the other crowns’ armies at the start and as they make them up each year, and the fleets they build, the better their generals in the reckoning of a battle, and the steadier their men in a battle you fight yourself, and their gun crews in one at sea. Fair is an even match, each crown beginning with the army you would have in its place; Hard is the crowns as they stood in 1683, on a war footing.${C && !C.mp ? ` This campaign is ${dif().n}.` : ""}</li>
+      <li><b>How hard.</b> Chosen with your crown, from Easy to Ruthless: the harder, the larger the other crowns’ armies at the start and as they make them up each year, and the fleets they build, the better their generals in the reckoning of a battle, and the steadier their men in a battle you fight yourself, and their gun crews in one at sea. Fair is an even match, each crown beginning with the army you would have in its place; Hard is the crowns as they stood in 1683, on a war footing.${C ? ` This campaign is ${dif().n}.` : ""}</li>
       <li><b>The wars of others.</b> The other crowns fight their own wars on the same map. Their armies march to their fronts and home again at the peace; the year's battlefields are marked with crossed swords in a dark ink, and a siege with its lines and tents round the town. Point at any of them to see whose it is and who fought whom. The gazette reports the battles that matter to you.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Trade.</b> Every town has its good (furs, fish, tobacco, sugar, silver, timber, iron, grain, wool, cloth, wine or silk), and each brings thalers. Trade pacts pay more for goods you don't have yourself. An enemy fleet lying off one of your ports blockades it: none of its trade gets out until you drive the fleet off.</li>
@@ -4088,6 +4096,7 @@ function maybeBegin() {
   const h = mp.mine, g = mp.theirs, me = ctx.identity ? ctx.identity() : { name: "You" };
   C = fresh(h); own = new Map();
   C.mp = { humans: [h, g], names: { [h]: me.name || "You", [g]: mp.foe.name || "Your friend" }, ready: {} };
+  diffFoes(pickDiff, [h, g]);
   say(`${The(h)} — ${C.year}`, `You take the crown, beside ${C.mp.names[g]} at the head of ${the(g)}.`);
   const f = fresh(g);
   C.H = { [g]: { gold: f.gold, army: f.army, moved: false, did: {}, ally: {}, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [{ t: `${C.year}`, title: `${The(g)} — ${C.year}`, sub: `You take the crown, beside ${C.mp.names[h]} at the head of ${the(h)}.` }], over: null, won: false, pending: null, rel: f.E.rel, war: {}, pact: {} } };
