@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.60", date: "21 October 2026", title: "Stop the presses",
+    items: [
+      "Campaign: the year your crown’s ambition is won, or your crown is lost, or your last town falls, that’s the gazette’s headline, not a footnote under “At home”.",
+      "Campaign: the people at the top of the screen are counted to the nearest hundred, as they are everywhere else.",
+    ],
+  },
+  {
+    v: "1.99.59", date: "21 October 2026", title: "No frostbite in a battle",
+    items: [
+      "Battles: the season shows on the heat gauge, but the gauge stays empty for the length of a battle, so a winter fight on the campaign never costs you health to the cold.",
+    ],
+  },
+  {
     v: "1.99.58", date: "21 October 2026", title: "August is summer",
     items: [
       "Battles with a date (the Danes before Hamburg in August, say) have that season’s weather. The heat gauge shows the sun on a summer’s day, instead of a snowflake.",
