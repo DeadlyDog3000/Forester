@@ -194,6 +194,9 @@ class Ship {
     pen.position.set(top[0], top[1], top[2]); this.topY = top[1]; pen.rotation.y = Math.PI / 2; g.add(pen); this.pen = pen;
     B.scene.add(g);
   }
+  // (the drill of her gun crews: the campaign's difficulty, for the enemy's — quicker to load and truer laid the harder it
+  //  is, slower and wilder on Easy; yours as they are)
+  drill() { return this.team && this.B.o.foeSkill ? clamp(this.B.o.foeSkill, -0.2, 0.35) : 0; }
   get alive() { return !this.sunk && !this.struck && this.hull > 0; }
   get frac() { return this.hull / this.maxHull; }
   // how she sails with the wind where it is: fastest with it on her beam, well before it, poorly close-hauled, not at all into it
@@ -223,7 +226,7 @@ class Ship {
     this.spd += (target - this.spd) * Math.min(1, dt * 0.35);
     if (go) this.yaw = wrap(this.yaw + this.rudder * S.turn * clamp(this.spd / 3, 0.25, 1) * dt);
     this.x += Math.sin(this.yaw) * this.spd * dt; this.z += Math.cos(this.yaw) * this.spd * dt;
-    for (let i = 0; i < 2; i++) this.reload[i] = Math.max(0, this.reload[i] - dt * (0.45 + 0.55 * clamp(this.crew / S.crew * 1.4, 0, 1)));
+    for (let i = 0; i < 2; i++) this.reload[i] = Math.max(0, this.reload[i] - dt * (0.45 + 0.55 * clamp(this.crew / S.crew * 1.4, 0, 1)) * (1 + this.drill() * 0.8));
     // riding the swell: lifted and dropped, pitched and rolled with it; heeled by the wind in her sails; rocked by her own guns
     const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), L = this.L * 0.4, W = this.beam * 0.5;
     const h = waveH(this.x, this.z, t), hb = waveH(this.x + fx * L, this.z + fz * L, t), hs = waveH(this.x - fx * L, this.z - fz * L, t), hl = waveH(this.x + fz * W, this.z - fx * W, t), hr = waveH(this.x - fz * W, this.z + fx * W, t);
@@ -261,7 +264,7 @@ class Ship {
     for (let j = 0; j < n; j++) {
       const along = (j / (n - 1) - 0.5) * this.L * 0.62, delay = j * 0.06 + Math.random() * 0.05;
       const px = this.x + fx * along + nx * this.beam * 0.52, pz = this.z + fz * along + nz * this.beam * 0.52;
-      const spread = (Math.random() - 0.5) * 0.06, e = el + (Math.random() - 0.4) * 0.035, ca = a + spread;
+      const aimK = 1 - this.drill() * 1.6, spread = (Math.random() - 0.5) * 0.06 * aimK, e = el + (Math.random() - 0.4) * 0.035 * aimK, ca = a + spread;
       this.B.later(delay, () => {
         this.B.ball({ x: px, y: deckY, z: pz, vx: Math.sin(ca) * Math.cos(e) * BALL_V, vy: Math.sin(e) * BALL_V, vz: Math.cos(ca) * Math.cos(e) * BALL_V, dmg: per, team: this.team, from: this });
         this.B.flash(px, deckY, pz, nx, nz);

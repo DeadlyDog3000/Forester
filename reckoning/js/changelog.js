@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.72", date: "22 October 2026", title: "Gun drill",
+    items: [
+      "Campaign: in a battle at sea you fight yourself, the enemy’s gun crews are as good as the campaign is hard: on Very hard and Ruthless they load quicker and lay their guns truer, on Easy they are slower and wilder. Yours are as they always were.",
+    ],
+  },
+  {
     v: "1.99.71", date: "22 October 2026", title: "Their fleets too",
     items: [
       "Campaign: the difficulty reaches the sea. The other crowns build their fleets up to fewer ships on Easy and Fair, as many as in 1683 on Hard, and more on Very hard and Ruthless, up to half again.",
