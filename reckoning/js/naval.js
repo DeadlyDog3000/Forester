@@ -14,7 +14,7 @@
 // renderer, scene and sea, and its own clock.
 
 import { THREE, clamp } from "./core.js";
-import { modelCopy } from "./models.js";
+import { modelCopy, shipSails } from "./models.js";
 import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
 
@@ -182,6 +182,8 @@ class Ship {
     if (m) { m.scene.position.z = -2.4; inner.add(m.scene); m.scene.traverse(o => { if (o.isMesh && o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(color); this.flag = o; } }); }
     else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; inner.add(hull); const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 20), new THREE.MeshStandardMaterial({ color: 0x4a3a2a })); mast.position.y = 11; inner.add(mast); const sail = new THREE.Mesh(new THREE.PlaneGeometry(10, 12), new THREE.MeshStandardMaterial({ color: 0xeee6d0, side: THREE.DoubleSide })); sail.position.set(0, 11, 0.5); inner.add(sail); }
     inner.scale.setScalar(S.scale); this.inner = inner;
+    // (her sails set, each let fall from its yard: see RIG)
+    this.sails = m ? shipSails(m.scene) : [];
     // (her pennant in her colours, high on the mainmast, so friend and foe are told apart across the water)
     //  (a long streamer, tapering to a point, flown from the very top of the mast her flag is on — not a board in the air
     //  beside it)
@@ -230,6 +232,17 @@ class Ship {
     this.root.position.set(this.x, h - 0.15 - this.sink * (this.sink > 4 ? 1.6 : 0.5), this.z);
     this.root.rotation.set(Math.atan2(hs - hb, 2 * L) * 0.6 + (this.hull <= 0 ? this.sink * 0.05 : 0), this.yaw, Math.atan2(hl - hr, 2 * W) * 0.7 + this.heelK + this.recoil + (this.hull <= 0 ? this.sink * 0.06 : 0), "YXZ");
     if (this.pen) this.pen.rotation.y = Math.atan2(-this.B.windTo[1], this.B.windTo[0]) - this.yaw + Math.sin(t * 3 + this.x) * 0.15;
+    // (her sails: let fall or taken in as she makes or shortens sail — the courses first in, the topsails last — and filled
+    //  the more the better the wind serves her, with a breath of flutter in them)
+    if (this.sails.length) {
+      const set = go ? this.trim : 0, fill = 0.35 + 0.65 * this.pointK();
+      for (const sl of this.sails) {
+        const want = set >= 0.75 || (set > 0 && !sl.course) ? 1 : 0;
+        sl.k += (want - sl.k) * Math.min(1, dt * 0.9); if (Math.abs(want - sl.k) < 0.004) sl.k = want;
+        sl.m.visible = sl.k > 0.02;
+        if (sl.m.visible) sl.m.scale.set(1, sl.drop * sl.k, (0.55 + 0.5 * fill * this.rig) * sl.k * (1 + Math.sin(t * 2.3 + sl.ph) * 0.06));
+      }
+    }
     // (struck: her colours down and a white flag in their place, her sails let fly, and the word over her)
     if (this.struck && !this.whiteFlag) { this.whiteFlag = true; if (this.flag) this.flag.material.color.set(0xf4f1e6); if (this.pen) this.pen.material.color.set(0xf4f1e6); this.trim = 0; }
     // (every ship still fighting: whose she is and what, small, in her side's colour — the flagship marked as yours)

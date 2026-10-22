@@ -563,6 +563,34 @@ async function fetchModel(k, url) {
   }
   catch (e) { console.warn("Reckoning: could not load model", k, url, e); }
 }
+// ---- a ship's canvas ----
+// (the model's sails lie furled on their yards, as a ship's do at anchor: at sea each yard's sail is let fall from it,
+//  full of the wind — [mast's z, the yard's height, half the sail's breadth at its head and at its foot, its drop, a course?]
+//  in the model's own measures; the courses, the lowest, are the first taken in when she shortens sail)
+const RIG = [[5.6, 8.9, 2.76, 3.0, 4.3, 1], [5.6, 15.36, 1.8, 2.6, 6.0, 0], [-0.6, 10.1, 2.76, 3.0, 5.4, 1], [-0.6, 17.7, 1.8, 2.6, 7.2, 0], [-6.4, 7.35, 2.76, 2.9, 2.0, 1], [-6.4, 12.1, 1.8, 2.6, 4.3, 0]];
+// (one sail of unit drop and unit belly, its breadth its own: drawn to its drop and filled by scaling)
+function sailGeo(h0, h1, col) {
+  const g = new THREE.PlaneGeometry(1, 1, 8, 8), P = g.attributes.position;
+  for (let i = 0; i < P.count; i++) {
+    const u = P.getX(i) + 0.5, v = 0.5 - P.getY(i), x = (2 * u - 1) * (h0 + (h1 - h0) * v);
+    P.setXYZ(i, x, -v, Math.sin(Math.PI * Math.pow(v, 0.85)) * (1 - 0.45 * (2 * u - 1) ** 2));
+  }
+  if (col) g.setAttribute("color", new THREE.Float32BufferAttribute(new Array(P.count).fill(col).flat(), 3));
+  g.computeVertexNormals(); return g;
+}
+
+// a ship's sails set (the ship model's lie furled on their yards, as at anchor): one let fall from each yard, hidden
+// and furled till its owner gives it k (0 furled, 1 set) and scales it — or all set at once with full
+export function shipSails(scene, full = false) {
+  let furl = null; scene.traverse(o => { if (o.isMesh && o.material && /sail/.test(o.material.name || "")) furl = o; });
+  if (!furl) return [];
+  const C = furl.geometry.attributes.color, col = C ? [0.97, 0.95, 0.9].map((w, j) => { let t = 0; for (let i = 0; i < C.count; i++) t += [C.getX(i), C.getY(i), C.getZ(i)][j]; return t / C.count * w; }) : null;   // (the furled canvas's own colour, weathered a shade)
+  return RIG.map(([z, y, h0, h1, drop, course]) => {
+    const sl = new THREE.Mesh(sailGeo(h0, h1, col), furl.material); sl.position.set(0, y - 0.15, z + 0.3); sl.castShadow = true; sl.receiveShadow = true;
+    if (full) sl.scale.set(1, drop, 0.9); else { sl.scale.set(1, 0.001, 0.001); sl.visible = false; }
+    scene.add(sl); return { m: sl, drop, course: !!course, k: full ? 1 : 0, ph: Math.random() * 6 };
+  });
+}
 // a model that is only fetched when first wanted (the town's buildings, in every style):
 // resolves once it is there; until then modelCopy(key) is null
 export function ensureModel(key) {

@@ -18,7 +18,7 @@
 import { THREE, rng } from "./core.js";
 import { NATIONS, CITIES, RIVERS, LAKES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv, SEAS } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
-import { ensureModel, modelCopy, mergeRig, makeMusket } from "./models.js";
+import { ensureModel, modelCopy, mergeRig, makeMusket, shipSails } from "./models.js";
 
 const K = Math.cos(49 * Math.PI / 180);
 export const U = 10;                                       // units per degree of latitude
@@ -1467,7 +1467,7 @@ export class EuropeView3D {
         for (let h = 0; h < hulls; h++) {
           const hg = new THREE.Group(); hg.position.set(SLOTS[h][0], 0, SLOTS[h][1]);
           const m = modelCopy("ship");
-          if (m) { m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(f.color); } } }); hg.add(m.scene); }
+          if (m) { m.scene.position.z = -2.4; m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; if (o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(f.color); } } }); hg.add(m.scene); shipSails(m.scene, true).forEach(sl => { sl.m.castShadow = false; }); }   // (at sea, under all plain sail)
           else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; hg.add(hull); }
           // (her wake: a pale vee of foam spreading behind her, seen only while she's under way)
           const wk = new THREE.Mesh(wakeGeo(), new THREE.MeshBasicMaterial({ map: wakeTex(), transparent: true, opacity: 0, depthWrite: false })); wk.userData.wake = true; wk.renderOrder = 2;

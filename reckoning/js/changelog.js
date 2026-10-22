@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.69", date: "22 October 2026", title: "Canvas",
+    items: [
+      "Battles at sea: the ships fight with their sails set, not furled on the yards as they lay at anchor. Each yard’s sail is let fall from it and fills with the wind, the fuller the better the wind serves her. Shorten to battle sail and the courses, the lowest sails, are taken in while the topsails stay set; strike, or take in all sail, and they are furled again.",
+      "Campaign map: a fleet at sea goes under all plain sail. Ships lying in harbour keep theirs furled.",
+    ],
+  },
+  {
     v: "1.99.68", date: "22 October 2026", title: "Owned to",
     items: [
       "Achievements: a campaign begun before the campaign had achievements earns what it has already done when you next open it: a town taken, a crown ended, a campaign won, forty towns held.",
