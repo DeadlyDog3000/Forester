@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.79", date: "22 October 2026", title: "Said up front",
+    items: [
+      "Demo: Free Play and the Frontier are marked “In the full game” on their cards, and choosing one says so at once, with what it is. Free Play no longer let you draw up your settler and then told you “That’s the end of Part One” before you’d played a minute of it.",
+      "Demo: the Frontier, listed among the full game’s Worlds & colonies, is now kept for the full game like the rest of them.",
+    ],
+  },
+  {
     v: "1.99.78", date: "22 October 2026", title: "Bolder neighbours",
     items: [
       "Campaign: how readily a neighbour makes war on you follows the difficulty too: slower to try you on Easy and Fair, as in 1683 on Hard, and readier on Very hard and Ruthless.",

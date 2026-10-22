@@ -199,6 +199,8 @@ const screens = ["title", "modeSel", "choose", "chapters", "settings", "controls
 let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
+  // (the demo's choice of game: what's the full game's said on its card before it's chosen)
+  if (id === "modeSel") { $("modeFreeNote").textContent = full() ? "" : "In the full game."; if (HOST) $("modeFrontierNote").textContent = full() ? "" : "In the full game."; }
   $("menus").classList.toggle("hidden", !id);
   // (a menu over the game: the game's passing hints kept out from under it, where they showed through its buttons)
   document.body.classList.toggle("menu-open", !!id);
@@ -336,7 +338,7 @@ let mpSlotWas = null;
 function mpDone() { if (mpSlotWas != null) { useSlot(mpSlotWas); mpSlotWas = null; } }
 $("btnMulti").onclick = () => { if (!gate("worlds")) return; back = "title"; openLobby(); };
 // ---- the full game: the page that offers it, from the title or wherever the demo stops ----
-const BUY_WHY = { story: "That's the end of Part One, and of the demo. The rest of the story is in the full game — and your save carries straight on.", online: "Battles, duels and the campaign are in the full game. The demo is Part One of the story.", worlds: "The Worlds & colonies are in the full game.", campaign: "The campaign is in the full game: Europe in 1683, and a crown of your own to rule, alone or with a friend. The demo is Part One of the story.", title: "Everything the demo has, and the rest." };
+const BUY_WHY = { frontier: "The Frontier is in the full game: an island, a continent or the whole Earth, wild, yours to cross and claim. The demo is Part One of the story.", free: "Free play is in the full game: a clearing of your own from the first day, with no story to it, grown into a nation as long as you like. The demo is Part One of the story.", story: "That's the end of Part One, and of the demo. The rest of the story is in the full game — and your save carries straight on.", online: "Battles, duels and the campaign are in the full game. The demo is Part One of the story.", worlds: "The Worlds & colonies are in the full game.", campaign: "The campaign is in the full game: Europe in 1683, and a crown of your own to rule, alone or with a friend. The demo is Part One of the story.", title: "Everything the demo has, and the rest." };
 G.openBuy = what => {
   if (G.mode === "play" || G.mode === "pause") { toTitle(); }
   $("buyKick").textContent = what === "story" ? "The demo ends here" : "The full game";
@@ -511,7 +513,9 @@ let modeFrom = "slots";
 $("modeBack").onclick = () => { back = "title"; if (modeFrom === "title") screen("title"); else { buildSlots(); screen("slots"); } };
 for (const b of document.querySelectorAll("[data-mode]")) b.onclick = () => {
   newMode = b.dataset.mode;
-  if (newMode === "frontier") { openSoloFrontier(); return; }
+  // (free play and the Frontier are the full game's: said so before a settler is drawn up, not after)
+  if (newMode === "free" && !gate("free")) return;
+  if (newMode === "frontier") { if (gate("frontier")) openSoloFrontier(); return; }
   back = "modeSel"; screen("choose");
 };
 { const fn = $("modeFrontierNote"), fb = document.querySelector('[data-mode="frontier"]'); if (!HOST) { fn.textContent = "Needs the desktop app, to keep the world on this computer."; fb.disabled = true; } }
