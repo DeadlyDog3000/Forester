@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.66", date: "22 October 2026", title: "Which match",
+    items: [
+      "Campaign: a campaign’s difficulty is told when you rest the pointer on your crown’s name at the top of the map, and in the campaign’s help, so you needn’t go back to the list of saves to recall it.",
+    ],
+  },
+  {
     v: "1.99.65", date: "22 October 2026", title: "A fair match",
     items: [
       "Campaign: Fair is now an even match. Each of the other crowns begins with the army you would have in its place (France as your enemy has about the 56 regiments you’d have as France), and makes it up more slowly, to no more than its lands can keep. Before, Fair began them at 1683’s war footing, half again as large.",
