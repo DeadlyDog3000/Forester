@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.52", date: "21 October 2026", title: "Its own type",
+    items: [
+      "The game’s typefaces (Cinzel, IM Fell English and Open Sans) are kept with the game itself, rather than fetched from the web each time it starts. Every copy now shows its proper lettering without an internet connection.",
+    ],
+  },
+  {
     v: "1.99.51", date: "21 October 2026", title: "Lighter campaign",
     items: [
       "Campaign 3D map: an army marching off the map, or redrawn, no longer leaves its soldiers’ bones behind on the graphics card. A long campaign no longer grows heavier year by year.",
