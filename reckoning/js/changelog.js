@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.68", date: "22 October 2026", title: "Owned to",
+    items: [
+      "Achievements: a campaign begun before the campaign had achievements earns what it has already done when you next open it: a town taken, a crown ended, a campaign won, forty towns held.",
+      "Credits: set on a dark card like the other screens, so the small print of the licences can be read against the clearing behind it.",
+    ],
+  },
+  {
     v: "1.99.67", date: "22 October 2026", title: "Feats of the crown",
     items: [
       "Achievements: eight for the campaign, in a book of their own: begin one, take a town, win a battle you fight yourself, win at sea, take another crown’s last town, win a campaign, win one on Very hard or Ruthless, and hold forty towns. They’re for a crown of your own, not one shared with a friend.",

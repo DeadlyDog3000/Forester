@@ -644,7 +644,7 @@ body.dark-fantasy #view::after { content: ""; position: fixed; inset: 0; pointer
 .dishcard .dc-foot { margin-top: 10px; font: italic 13px var(--sans); color: #b8a07a; }
 
 /* the credits */
-.credits { text-align: center; font-family: var(--serif); margin: 10px auto 26px; max-width: 520px; }
+.credits { text-align: center; font-family: var(--serif); margin: 10px auto 26px; max-width: 560px; padding: 26px 30px 24px; background: rgba(9, 22, 15, 0.86); border: 1px solid rgba(140, 192, 132, 0.18); border-radius: 8px; backdrop-filter: blur(3px); }
 .credits .cr-game { font-size: 34px; color: #f3e7c6; }
 .credits .cr-by { font: italic 16px var(--sans); color: var(--ink-dim); margin-bottom: 26px; }
 .credits .cr-role { font: 600 12px var(--sans); letter-spacing: 3px; text-transform: uppercase; color: var(--gold); margin-top: 18px; }
@@ -827,7 +827,7 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 #loading .ld-text { margin-top: 28px; font: italic 18px var(--serif); color: #eadfc4; animation: ldPulse 1.8s ease-in-out infinite; }
 @keyframes ldPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 1; } }
 .screen .btn.armed { background: linear-gradient(180deg, #c0503a, #8a2e22); color: #f6ecd0; }
-.credits .cr-libs { margin-top: 26px; font: 12px/1.6 var(--sans); color: rgba(234, 223, 196, 0.6); text-shadow: 0 1px 2px #000; }
+.credits .cr-libs { margin-top: 26px; font: 12px/1.6 var(--sans); color: rgba(234, 223, 196, 0.72); text-shadow: 0 1px 2px #000; }
 .credits .cr-libs b { font-weight: 600; color: rgba(234, 223, 196, 0.8); }
 @media (max-height: 700px) {
   .logo-top { font-size: clamp(34px, 7vh, 60px); }

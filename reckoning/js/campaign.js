@@ -297,6 +297,8 @@ function resume() {
     }
     orphans(C.me); persist();
   }
+  // (what was done before there were achievements for it, owned to on opening the campaign)
+  ach("cmp-begin"); if (C.goal && C.goal.won) { ach("cmp-ambition"); if ((C.diff | 0) >= 3) ach("cmp-ambition-hard"); } if (C.won) ach("cmp-world"); if (C.took && Object.keys(C.took).length) ach("cmp-town"); if (C.gone && Object.values(C.gone).includes(C.me)) ach("cmp-end");
   return true;
 }
 function persist() { if (C && C.me) for (const h of C.mp ? humans() : [C.me]) as(h, reconcile); C.own = [...own]; save(); }
