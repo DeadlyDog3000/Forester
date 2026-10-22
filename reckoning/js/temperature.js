@@ -113,6 +113,8 @@ export function tickTemperature(G, dt) {
   // (by a fire, the cold goes out of you even when the air round it is still cold)
   if (fire > 4 && g < 0) g = Math.min(0, g + dt / 25);
   if (inCave && g > 0) g = Math.max(0, g - dt / 30);
+  // (a battle's season shows on the gauge, but a battle is over before the weather could tell on you: it stays empty)
+  if (G.arena) g = 0;
   B.temp = Math.max(-1, Math.min(1, g)); B.dirty = true;
   return { air, felt, g: B.temp, fire: fire > 4, inCave, indoors, wear };
 }
