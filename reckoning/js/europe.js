@@ -92,7 +92,7 @@ export const PEOPLES = {
 // each crown's wash — the colours a map-seller's colourist kept in his box
 export const NATIONS = {
   scotland: { name: "Scotland", color: "#c77f8e", strength: 1 },
-  england: { name: "Kingdom of England", color: "#d98a78", strength: 3 },
+  england: { name: "Kingdom of England", color: "#d98a78", strength: 4 },
   ireland: { name: "Ireland", color: "#9fbf7a", strength: 1 },
   france: { name: "Kingdom of France", color: "#7f9ccc", strength: 5 },
   castile: { name: "Castile", color: "#e0b35a", strength: 4 },
@@ -304,8 +304,8 @@ const NAMES = [
   ["NEW ENGLAND", -71.6, 42.75, -1], ["NEW YORK", -74.3, 41.3, -1, -60], ["VIRGINIA", -77.6, 37.4, -1], ["CAROLINA", -79.6, 34.4, -1], ["PENSILVANIA", -75.9, 40.0, -1],
   ["NOUVELLE\nFRANCE", -71.0, 48.6, 1], ["ACADIE", -65.6, 45.6, -1], ["FLORIDA", -82.2, 29.4, -1], ["NUEVA ESPAÑA", -98.3, 23.6, 0], ["CUBA", -79.3, 22.0, -1],
   ["TERRE NEUVE", -56.2, 49.2, -1], ["RUPERT'S LAND", -88.5, 54.6, -1],
-  ["Haudenosaunee", -76.4, 42.55, -1], ["Wabanaki", -69.6, 45.9, -1], ["Cherokee", -84.1, 35.2, -1], ["Muscogee", -84.9, 32.3, -1], ["Choctaw", -89.6, 32.1, -1],
-  ["Shawnee", -83.4, 38.9, -1], ["Illinois", -89.6, 40.2, -1], ["Anishinaabe", -85.5, 44.2, -1], ["Dakota", -95.4, 45.6, -1], ["Cree", -84.5, 50.5, -1], ["Pawnee", -98.2, 40.6, -1], ["Osage", -94.2, 37.6, -1], ["Caddo", -94.4, 32.4, -1],
+  ["Haudenosaunee", -76.5, 42.1, -1], ["Wabanaki", -69.6, 45.9, -1], ["Cherokee", -84.1, 34.85, -1], ["Muscogee", -85.0, 31.75, -1], ["Choctaw", -89.6, 32.1, -1],
+  ["Shawnee", -83.2, 38.7, -1], ["Illinois", -89.6, 40.2, -1], ["Anishinaabe", -85.5, 44.2, -1], ["Dakota", -95.4, 45.6, -1], ["Cree", -84.5, 50.5, -1], ["Pawnee", -98.2, 40.6, -1], ["Osage", -94.1, 37.35, -1], ["Caddo", -94.4, 32.4, -1],
 ];
 export const SEAS = [["OCEANUS\nATLANTICUS", -8.9, 48.9], ["OCEANUS\nGERMANICUS", 3, 55.4], ["MARE BALTICUM", 18.4, 56.5], ["MARE MEDITERRANEUM", 5.2, 38.8], ["MARE ADRIATICUM", 15.4, 43.1, 36], ["PONTUS EUXINUS", 34.4, 43.4], ["MARE\nAEGAEUM", 25, 38.4], ["SINUS\nBOTHNICUS", 20.6, 62.6],
   ["OCEANUS\nATLANTICUS", -40, 44], ["MARE DEL NORT", -62, 33], ["SINUS\nMEXICANUS", -90.5, 25.6], ["MARE\nCHRISTIANUM", -82, 59.5], ["MARE\nGLACIALE", -55, 63.4]];

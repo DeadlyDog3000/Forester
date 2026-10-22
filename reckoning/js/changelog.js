@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.64", date: "22 October 2026", title: "How hard",
+    items: [
+      "Campaign: choose how hard a new campaign is, from Easy to Ruthless, above the crowns. The harder it is, the larger the other crowns’ armies at the start and as they make them up each year, the better their generals in the reckoning of a battle, and the steadier their men in a battle you fight yourself. Fair is the crowns as they stood in 1683, and every campaign begun before now is Fair. Your choice is kept for the next campaign, and shown beside each saved one.",
+      "Campaign: the Kingdom of England is a strong crown of four stars, not three, with the larger treasury and army that brings.",
+      "Campaign map: the Cherokee, the Muscogee, the Shawnee, the Osage and the Haudenosaunee have their names below their villages, not across them, and a nation of the woods’ own village is named beside its warriors: Chota and Onondaga went unnamed under them.",
+    ],
+  },
+  {
     v: "1.99.63", date: "21 October 2026", title: "Asked twice",
     items: [
       "Campaign: giving a campaign up is asked on the button itself, which turns to “Give up?” and needs a second click, as deleting a save does. There’s no longer a plain system box.",

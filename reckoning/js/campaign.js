@@ -58,6 +58,20 @@ let C = null, ctx = null, startBattle = null;
 let cmpHome = "pvp";
 const MPKEY = "reckoning.campaign.mp.v1";
 // (three campaigns kept side by side: a new one doesn't cost you the one you have)
+// (how hard a campaign is, chosen when it's begun: the other crowns' armies at the start and as they make them up each
+//  year, the skill of their generals in the reckoning of a battle, and of their men in a battle you fight yourself)
+const DIFFS = [
+  { n: "Easy", d: "The other crowns keep smaller armies, and their generals and men are slower.", army: 0.75, gen: 0.88, skill: -0.15 },
+  { n: "Fair", d: "The crowns as they stood in 1683.", army: 1, gen: 1, skill: 0 },
+  { n: "Hard", d: "Their armies a third larger, their generals sharper, their men steadier.", army: 1.3, gen: 1.1, skill: 0.1 },
+  { n: "Very hard", d: "Their armies half again as large, and led and fought well.", army: 1.6, gen: 1.2, skill: 0.2 },
+  { n: "Ruthless", d: "Twice the armies, the best generals of the age, and men who give no ground.", army: 2, gen: 1.32, skill: 0.32 },
+], DIFFKEY = "reckoning.campaign.diff";
+let pickDiff = (() => { try { const v = +localStorage.getItem(DIFFKEY); return v >= 0 && v < DIFFS.length && localStorage.getItem(DIFFKEY) != null ? v : 1; } catch (e) { return 1; } })();
+// (the campaign's: a campaign begun before there was a choice is Fair; a campaign of two players, and the story's, too)
+const dif = () => DIFFS[C && !C.mp && C.diff != null ? C.diff : 1];
+// (another crown's general reckoned at what the difficulty makes him; a player's at his own)
+const foeCmd = id => cmdMul(genOf(id)) * (isHuman(id) ? 1 : dif().gen);
 const SLOTS = 3, SLOTKEY = "reckoning.campaign.slot", slotKey = i => i ? `${KEY}.${i + 1}` : KEY;
 let slot = (() => { try { return Math.min(SLOTS - 1, Math.max(0, +localStorage.getItem(SLOTKEY) || 0)); } catch (e) { return 0; } })();
 const campaigns = () => { const out = []; for (let i = 0; i < SLOTS; i++) { const c = load(i); if (c && c.me && NATIONS[c.me]) out.push({ i, c }); } return out.sort((a, b) => (b.c.at || 0) - (a.c.at || 0)); };
@@ -244,8 +258,10 @@ function fresh(me) {
     foes: army, ally, truce: {}, warT: {}, took: {}, lost: {}, events: [], log: [], pending: null, over: null, won: false, own: [],
     walls: Object.fromEntries(FORTS_1683.filter(n => CITIES.some(c => c[0] === n)).map(n => [n, 1])), forts2: 1 };
 }
-function begin(me, into = slot) {
+function begin(me, into = slot, opt = {}) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map(); warmMaps();
+  // (the difficulty chosen: the other crowns' armies at the start made larger or smaller by it)
+  if (opt.diff != null) { C.diff = opt.diff; const k = dif().army; for (const id of Object.keys(C.foes)) if (id !== me) C.foes[id] = Math.max(4, Math.round(C.foes[id] * k)); }
   // (England, the sea power: its fleet already in being in 1683, six ships lying off its capital)
   if (me === "england") { const g = grid(), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ct && harbourOf(ct); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
   // (the colonies over the Atlantic: companies of their own in each town, as they had — the army at home can't come to
@@ -964,7 +980,7 @@ function strikeBack(foe) {
   selCity = t; sel = foe; note = `${poss(The(foe))} army is beaten back and weakened. Strike back while it's down: ${t[0]} is within your reach.`;
 }
 function auto(o) {
-  const mine = cmdMul(C.gen) * (1 + trSum(C.gen, o.attack ? "att" : "def")) * moraleK(), theirs = cmdMul(genOf(o.foe)) * (1 + trSum(genOf(o.foe), o.attack ? "def" : "att")), p = odds(o.att * (o.attack ? mine : theirs), o.def * (o.attack ? theirs : mine), o.walls && !o.breach ? ((o.attack ? hasT(C.gen, "engineer") : hasT(genOf(o.foe), "engineer")) ? 1.15 : true) : false), attWins = R() < p, won = o.attack ? attWins : !attWins;
+  const mine = cmdMul(C.gen) * (1 + trSum(C.gen, o.attack ? "att" : "def")) * moraleK(), theirs = foeCmd(o.foe) * (1 + trSum(genOf(o.foe), o.attack ? "def" : "att")), p = odds(o.att * (o.attack ? mine : theirs), o.def * (o.attack ? theirs : mine), o.walls && !o.breach ? ((o.attack ? hasT(C.gen, "engineer") : hasT(genOf(o.foe), "engineer")) ? 1.15 : true) : false), attWins = R() < p, won = o.attack ? attWins : !attWins;
   settle(o, won, won ? 0.08 + R() * 0.1 : 0.25 + R() * 0.2, won ? 0.3 + R() * 0.2 : 0.08 + R() * 0.1);
   return won;
 }
@@ -1008,6 +1024,7 @@ function fight(o) {
     map: { snow: s === 3, things },
   };
   if (!C.mp || (mp && mp.host)) { C.pending = { ...o, ct: o.ct[0], ar: C.ar | 0 }; persist(); }
+  if (!C.mp) b.skillAdd = dif().skill;
   b.onEnd = (won, killed, lost, fled) => doAct({ k: "result", won: !!won, killed: killed | 0, lost: lost | 0, myMen, theirMen, fled: !!fled });
   startBattle(b);
 }
@@ -1435,7 +1452,7 @@ function musterFor(o) {
     onCancel: o.attack && !o.convoy ? () => doAct({ k: "calloff" }) : null,
     onAuto: C.mp ? null : () => {
       // (the generals fight it instead — as if you'd left it to them from the first)
-      C.pending = null; if (o.field) { const w = R() < odds((o.attack ? o.att : o.def) * cmdMul(C.gen) * moraleK() * (1 + vetK()), (o.attack ? o.def : o.att) * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12); persist(); note = C.log.find(l => /field/.test(l.title)).title + "."; sfx("guns", 0.5); drawMap(); return; } if (o.convoy) { convoyEnd(o, R() < odds(o.def * cmdMul(C.gen) * moraleK(), o.att, false), 0.15, 0.2); persist(); drawMap(); return; } const won = auto(o); persist();
+      C.pending = null; if (o.field) { const w = R() < odds((o.attack ? o.att : o.def) * cmdMul(C.gen) * moraleK() * (1 + vetK()), (o.attack ? o.def : o.att) * foeCmd(o.foe), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12); persist(); note = C.log.find(l => /field/.test(l.title)).title + "."; sfx("guns", 0.5); drawMap(); return; } if (o.convoy) { convoyEnd(o, R() < odds(o.def * cmdMul(C.gen) * moraleK(), o.att, false), 0.15, 0.2); persist(); drawMap(); return; } const won = auto(o); persist();
       note = won ? (o.attack ? `${o.ct[0]} is yours.` : `${o.ct[0]} holds.`) : (o.attack ? `The attack on ${o.ct[0]} failed.` : `${o.ct[0]} has fallen.`);
       sfx("guns", 0.5); if (won) sfx("bell", 0.4, 1600); drawMap();
     },
@@ -1566,7 +1583,7 @@ function siegeYear(g) {
   const fa = foeArmy(S.foe);
   if (fa >= 8 && R() < 0.4) {
     // (your army behind its lines of circumvallation: entrenched, and the better for it)
-    const p = odds(fa * 0.8 * cmdMul(genOf(S.foe)), C.army * 1.3 * cmdMul(C.gen) * moraleK(), false);
+    const p = odds(fa * 0.8 * foeCmd(S.foe), C.army * 1.3 * cmdMul(C.gen) * moraleK(), false);
     if (R() < p) { const l = Math.round(C.army * 0.25); C.army -= l; setFoeArmy(S.foe, Math.round(fa * 0.85)); moraleMove(-12); C.siege = null; say(`The siege of ${S.ct} is broken`, `${The(S.foe)} ${v3(S.foe, "marches")} to its relief and drives your army from its lines. ${l} regiments lost.`); return; }
     setFoeArmy(S.foe, Math.round(fa * 0.7)); moraleMove(6); say(`A relief army beaten off at ${S.ct}`, `${The(S.foe)} tried to lift the siege, and failed.`);
   }
@@ -2065,13 +2082,14 @@ function endSeason(part = {}) {
   // (the other crowns: their armies made up again; their tempers going back to where their faith puts them)
   for (const id of ids) {
     // (as many regiments as its people can keep: a crown that loses its great cities loses the men to fill its ranks)
-    const folk = citiesOfNow(g, id).reduce((t, ct) => t + popOf(ct), 0), cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + Math.round(folk / 5000) + 6 : NATIONS[id].strength * 17 + Math.round(folk / 9000) + 8;
+    const folk = citiesOfNow(g, id).reduce((t, ct) => t + popOf(ct), 0), cap = NATIONS[id].nw ? NATIONS[id].strength * 11 + Math.round(folk / 5000) + 6 : NATIONS[id].strength * 17 + Math.round(folk / 9000) + 8, dk = isHuman(id) ? 1 : dif().army;
     // (a crown beaten in the field these two years past finds the men slower: half as fast)
     const beat = C.foeBeat && C.foeBeat[id] != null && C.year - C.foeBeat[id] < 2 ? 0.5 : 1;
     // (a crown at war with you, its towns falling: the whole country called to arms, the men found faster)
     const rally = atWar(id) ? 1 + 0.15 * Math.min(4, C.took && C.took[id] || 0) : 1;
     // (more men than its towns can keep — its great cities lost: a fifth of the excess melts away each year)
-    if (world) C.foes[id] = (C.foes[id] || 0) > cap ? Math.max(cap, Math.round(C.foes[id] - (C.foes[id] - cap) * 0.2 - 1)) : Math.min(cap, (C.foes[id] || 0) + Math.max(1, Math.round((NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0)) * beat * rally)));
+    // (the difficulty: the men it can keep, and how fast it finds them, larger or smaller)
+    if (world) { const cp = Math.round(cap * dk); C.foes[id] = (C.foes[id] || 0) > cp ? Math.max(cp, Math.round(C.foes[id] - (C.foes[id] - cp) * 0.2 - 1)) : Math.min(cp, (C.foes[id] || 0) + Math.max(1, Math.round((NATIONS[id].strength * 1.6 + (C.E.plague[id] ? -2 : 0)) * beat * rally * dk))); }
     if (!mine) continue;
     const home = (NATION_FAITH[id] === NATION_FAITH[C.me] ? 18 : 0) + (C.E.pact[id] ? 15 : 0) + (C.ally[id] ? 25 : 0) - (atWar(id) ? 40 : 0);
     C.E.rel[id] += Math.sign(home - C.E.rel[id]) * Math.min(2, Math.abs(home - C.E.rel[id]));
@@ -2344,7 +2362,7 @@ export function initCampaign(c, battle, withPlayer) {
     // (into an empty place; all three taken, the one longest left alone makes way — asked first)
     const have = campaigns(); let into = [...Array(SLOTS).keys()].find(i => !have.some(h => h.i === i));
     if (into === undefined) { const old = have[have.length - 1]; if (!confirm(`You have ${SLOTS} campaigns. Begin a new one in place of ${NATIONS[old.c.me].name}, ${old.c.year}? That one will be lost.`)) return; into = old.i; }
-    begin(b.dataset.crown, into); sel = null; selCity = null; drawMap(true); sfx("bell", 0.45); sfx("drum", 0.4, 900); statePaper(); });
+    begin(b.dataset.crown, into, { diff: pickDiff }); sel = null; selCity = null; drawMap(true); sfx("bell", 0.45); sfx("drum", 0.4, 900); statePaper(); });
   $("cmpPick").addEventListener("click", e => {
     const go = e.target.closest("[data-slot]"), drop = e.target.closest("[data-drop]");
     if (go) { slot = +go.dataset.slot; try { localStorage.setItem(SLOTKEY, String(slot)); } catch (er) {} if (resume()) { sel = null; selCity = null; note = ""; news = []; drawMap(true); sfx("parchment", 0.45); } return; }
@@ -2651,12 +2669,16 @@ function drawPick() {
     return;
   }
   const have = campaigns();
-  $("cmpPick").innerHTML = `${have.length ? `<div class="cmp-ph"><h2>Your campaigns</h2></div><div class="cmp-saves">${have.map(({ i, c }) => `<div class="cmp-save${C && i === slot ? " on" : ""}"><button class="cmp-crown" data-slot="${i}"><i style="background:${NATIONS[c.me].color}"></i><b>${esc(NATIONS[c.me].name)}</b><small>${c.year} · ${c.towns != null ? `${c.towns} town${c.towns === 1 ? "" : "s"} · ` : ""}${c.over === "lost" ? "lost" : c.won ? "Europe won" : `${c.gold} thalers`}</small></button><button class="cmp-drop" data-drop="${i}" title="Give up this campaign">×</button></div>`).join("")}</div>` : ""}
+  $("cmpPick").innerHTML = `${have.length ? `<div class="cmp-ph"><h2>Your campaigns</h2></div><div class="cmp-saves">${have.map(({ i, c }) => `<div class="cmp-save${C && i === slot ? " on" : ""}"><button class="cmp-crown" data-slot="${i}"><i style="background:${NATIONS[c.me].color}"></i><b>${esc(NATIONS[c.me].name)}</b><small>${c.year} · ${c.towns != null ? `${c.towns} town${c.towns === 1 ? "" : "s"} · ` : ""}${c.over === "lost" ? "lost" : c.won ? "Europe won" : `${c.gold} thalers`}${c.diff != null && c.diff !== 1 ? ` · ${DIFFS[c.diff].n}` : ""}</small></button><button class="cmp-drop" data-drop="${i}" title="Give up this campaign">×</button></div>`).join("")}</div>` : ""}
     <div class="cmp-ph"><h2>${have.length ? "Or begin a new one" : "Choose your crown"}</h2><p class="sub">Europe and the New World in 1683. Raise armies, make friends and enemies, take towns and hold them. The great powers have the most to lose; the small states the most to win.${have.length >= SLOTS ? ` <b>You have ${SLOTS} campaigns: a new one takes the place of the one longest left alone.</b>` : ""}</p></div>
+    <div class="cmp-diff" role="radiogroup" aria-label="How hard"><span class="cmp-diff-h">How hard</span><div class="cmp-diff-row">${DIFFS.map((D, i) => `<button class="cmp-dbtn${i === pickDiff ? " on" : ""}" data-diff="${i}" role="radio" aria-checked="${i === pickDiff}"><i>${"●".repeat(i + 1)}</i>${esc(D.n)}</button>`).join("")}</div><small id="cmpDiffD">${esc(DIFFS[pickDiff].d)}</small></div>
     <div class="cmp-pickwrap"><div class="cmp-crowns">${list.map(x => `<button class="cmp-crown" data-crown="${x.id}"><i style="background:${NATIONS[x.id].color}"></i><b>${esc(NATIONS[x.id].name)}</b><small>${word(x.s)} · ${x.n} town${x.n > 1 ? "s" : ""} · ${"★".repeat(x.s)}</small></button>`).join("")}</div>
     <aside class="cmp-prev" id="cmpPrev"><canvas id="cmpPrevMap"></canvas><div id="cmpPrevText"></div></aside></div>
     <div class="pv-acts"><button class="btn ghost" id="cmpPickBack">${C ? "Back to your campaign" : "Back"}</button></div>`;
   $("cmpPickBack").onclick = () => { if (C) drawMap(true); else ctx.screen(cmpHome); };
+  // (the difficulty: chosen before the crown, and kept for the next campaign begun)
+  for (const b of $("cmpPick").querySelectorAll("[data-diff]")) b.onclick = () => { pickDiff = +b.dataset.diff; try { localStorage.setItem(DIFFKEY, String(pickDiff)); } catch (e) {}
+    for (const x of $("cmpPick").querySelectorAll("[data-diff]")) { x.classList.toggle("on", x === b); x.setAttribute("aria-checked", String(x === b)); } $("cmpDiffD").textContent = DIFFS[pickDiff].d; sfx("quill", 0.3); };
   // (a crown pointed at: its lands on the map, and how it stands in 1683 — the first of them, till you point at another)
   const grid0 = $("cmpPick").querySelector(".cmp-crowns");
   const show = id => { if (id && id !== pickShown) pickPreview(id, g, list.find(x => x.id === id), word); };
@@ -2847,9 +2869,13 @@ function paint() {
   let sp = null;
   if (spread) { const t = (performance.now() - spread.t0) / spread.dur; if (t >= 1) spread = null; else { const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; sp = { cells: spread.cells, p: e * (spread.max + 4) - 1 }; if (!spreadRaf) spreadRaf = requestAnimationFrame(spreadTick); } }
   // (where the armies and fleets will stand on the view, so the towns' names are written clear of them)
-  const avoid = (() => { const S0 = cv.width / MG_W, k0 = cv.width / 1300, out = [], box = p => { if (!p || !isFinite(p.x)) return; const x = (p.x * S0 - view.ox) * view.z, y = (p.y * S0 - view.oy) * view.z; out.push([x - 32 * k0, y - 26 * k0, x + 30 * k0, y + 16 * k0]); };
+  const avoid = (() => { const S0 = cv.width / MG_W, k0 = cv.width / 1300, out = [], box = p => { if (!p || !isFinite(p.x)) return; const x = (p.x * S0 - view.ox) * view.z, y = (p.y * S0 - view.oy) * view.z; const u0 = armyU(k0), y1 = y + townNudge(p, u0); out.push([x - 12 * u0, y1 - 8 * u0, x + 12 * u0, y1 + 14 * u0]); };
+    // (the box drawn round the army's own mark, where it stands below its town, not round the town: the player's own
+    //  village — Chota, with the Cherokee's warriors at it — went unnamed under a box twice the mark's size)
     box(armyPos()); for (const a of C.armies || []) box(a.pos); for (const f of C.fleets || []) box(f.pos);
     for (const f of Object.keys(C.E.war || {})) if (C.E.war[f] && !isHuman(f)) box(foeArmyPos(f));
+    // (and the token beside a town of yours, of the regiments raised or holding there: Chota's name was written under it)
+    for (const ct of CITIES) if (raising(ct[0]).length || garUnits(ct[0]).length) { const [gx, gy] = gridOf(ct[1], ct[2]), x = (gx * S0 - view.ox) * view.z, y = (gy * S0 - view.oy) * view.z; out.push([x - 18 * k0, y - 15 * k0, x - 4 * k0, y - 1 * k0]); }
     return out; })();
   const g = drawEurope(cv, E(), { avoid, spread: sp, pop: C.pop || null, hover: hov || C.me, selected: sel, city: selCity, hoverCity: hovCity, view, home: false, me: C.me, walled: C.walls || null, zf: ZF(), sharp: () => { if (shown() && !on3d) paint(); } });
   // over the map: your towns ringed in your colour; the towns of your enemies within your army's reach marked with
@@ -3420,12 +3446,12 @@ function drawSide() {
     const f = crownOf(selFoe), c = coloOf(selFoe), can = canField(selFoe), o = can ? fieldOf(selFoe) : null;
     h += `<div class="cmp-card"><div class="cmp-h"><i style="background:${NATIONS[f].color}"></i><b>${esc(poss(The(f)))} colonial army</b><small>${knowsArmy(f) ? `${c.n | 0} regiments` : "size unknown"}${c.go ? ` · marching on ${esc(c.go)}` : " · holding its colonies"}</small></div>
       <p class="cmp-fine">Its colonists and soldiers in the New World: the army at home can't come over to them, nor this one go home.${knowsArmy(f) ? "" : ` How many it has, a politician of ${esc(the(f))}'s in your pay would tell you (${SPY_COST} thalers).`}</p>
-      <p>${can ? `Within your reach. Fall on it in the open field: ${armyStr()} against ${knowsArmy(f) ? `some ${o.def} of theirs. Your odds: ${Math.round(odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def, false) * 100)}%.` : "an army of a size you don't know."}` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : overSea(armyPos(), c.pos) ? "It's over the water from your army." : "It's beyond a year's march of your army."}</p>
+      <p>${can ? `Within your reach. Fall on it in the open field: ${armyStr()} against ${knowsArmy(f) ? `some ${o.def} of theirs. Your odds: ${Math.round(odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * foeCmd(f), false) * 100)}%.` : "an army of a size you don't know."}` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : overSea(armyPos(), c.pos) ? "It's over the water from your army." : "It's beyond a year's march of your army."}</p>
       ${can ? `<div class="cmp-acts"><button class="btn primary" data-fieldf="fight">Attack · you lead</button><button class="btn" data-fieldf="auto">Attack · generals lead</button></div>` : ""}</div>`;
   } else if (selFoe && !selCity && C.E.war[selFoe] && NATIONS[selFoe]) {
     const f = selFoe, fp = foeArmyPos(f), tg = C.foeGo && C.foeGo[f], can = canField(f), o = can ? fieldOf(f) : null;
     h += `<div class="cmp-card"><div class="cmp-h"><i style="background:${NATIONS[f].color}"></i><b>${esc(poss(The(f)))} army</b><small>${knowsArmy(f) ? `${C.foes[f] | 0} regiments` : `size unknown`}${tg ? ` · marching on ${esc(tg)}` : ""}</small></div>${knowsArmy(f) ? "" : `<p class="cmp-fine">How many regiments it has, nobody at your court can say. A politician of ${esc(the(f))}'s in your pay would tell you: choose their crown and corrupt one (${SPY_COST} thalers).</p>`}
-      <p>${can ? `Within your reach. Fall on it in the open field, before it reaches your towns: ${(C.armies || []).length ? `your ${esc(armyName(C.ar | 0).toLowerCase())}'s` : "your army's"} ${armyStr()} ${knowsArmy(f) ? `against some ${o.def} of theirs. Your odds: ${Math.round(odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(f)), false) * 100)}%.` : "against an army of a size you don't know, at odds you can't reckon."}` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : fp && overSea(armyPos(), fp) ? "It's on the other side of the Atlantic." : "It's beyond a year's march of your army."}</p>
+      <p>${can ? `Within your reach. Fall on it in the open field, before it reaches your towns: ${(C.armies || []).length ? `your ${esc(armyName(C.ar | 0).toLowerCase())}'s` : "your army's"} ${armyStr()} ${knowsArmy(f) ? `against some ${o.def} of theirs. Your odds: ${Math.round(odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * foeCmd(f), false) * 100)}%.` : "against an army of a size you don't know, at odds you can't reckon."}` : C.moved ? "Your army has already marched this year." : C.siege ? "Your army is tied to its siege." : fp && overSea(armyPos(), fp) ? "It's on the other side of the Atlantic." : "It's beyond a year's march of your army."}</p>
       ${can ? `<div class="cmp-acts"><button class="btn primary" data-fieldf="fight">Attack · you lead</button><button class="btn" data-fieldf="auto">Attack · generals lead</button></div>` : ""}</div>`;
   }
   const id = selCity ? cityOwner(g, selCity) : sel;
@@ -3461,6 +3487,7 @@ function drawSide() {
       <li><b>Victory.</b> Your crown's ambition is in the Victory card: certain towns to take and hold, and so many towns in all, within sixty years. Lose your last town and you have three years to take one back with the army you still have, or the crown is lost.</li>
       <li><b>Generals.</b> They earn traits in the field and the camp: Bold, Cautious, Siege engineer, Hero of the nation, Beloved of the men, and the vices of drink and the lash. Each counts in battle. Hover one on the general's card to see what it does.</li>
       <li><b>The other crowns.</b> They come to you with trade agreements and alliances, and a strong neighbour may demand tribute: pay, or risk war. Beat a smaller crown and you can demand it submit as your protectorate: it pays you tribute every year and fights in your wars. The great powers card ranks the crowns by their towns and people.</li>
+      <li><b>How hard.</b> Chosen with your crown, from Easy to Ruthless: the harder, the larger the other crowns’ armies at the start and as they make them up each year, the better their generals in the reckoning of a battle, and the steadier their men in a battle you fight yourself. Fair is the crowns as they stood in 1683.</li>
       <li><b>The wars of others.</b> The other crowns fight their own wars on the same map. Their armies march to their fronts and home again at the peace; the year's battlefields are marked with crossed swords in a dark ink, and a siege with its lines and tents round the town. Point at any of them to see whose it is and who fought whom. The gazette reports the battles that matter to you.</li>
       <li><b>Regiments are raised in towns.</b> Choose a town to recruit: musketeers anywhere, grenadiers where there's a drill yard, horse in a city or where the farms breed horses. Each regiment costs thalers and the town's men, and joins the army at the year's end, or holds its town as a garrison if the army is far off. A town raises one a year, a city two, a great city three.</li>
       <li><b>Trade.</b> Every town has its good (furs, fish, tobacco, sugar, silver, timber, iron, grain, wool, cloth, wine or silk), and each brings thalers. Trade pacts pay more for goods you don't have yourself. An enemy fleet lying off one of your ports blockades it: none of its trade gets out until you drive the fleet off.</li>
@@ -3630,7 +3657,7 @@ function apply(actor, a) {
       if (!canField(a.foe)) return { note: "Your army can't reach that army this year." };
       const o = fieldOf(a.foe);
       if (a.how === "fight") { C.moved = true; C.pending = { ...o, ct: o.ct[0], ar: C.ar | 0 }; persist(); return { sfx: [["drum", 0.55]], fight: { ...o, ct: o.ct[0] } }; }
-      const w = R() < odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12); persist();
+      const w = R() < odds(o.att * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.def * foeCmd(o.foe), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12); persist();
       return { note: C.log.find(l => /field/.test(l.title)).title + ".", sfx: [["drum", 0.55], ["guns", 0.6, 900], ...(w ? [["bell", 0.45, 2300]] : [])] };
     }
     if (a.k === "usearmy") { if (!armyIds().includes(a.id | 0)) return null; useArmy(a.id | 0); persist(); return {}; }
@@ -3784,7 +3811,7 @@ function apply(actor, a) {
         const ct = city(ev.ct), o = { attack: false, field: true, foe: ev.foe, ct, att: ev.att, def: C.army, walls: false };
         if (!ct || C.army < 1) return done({});
         if (a.how === "fight") { C.pending = { ...o, ct: ct[0], ar: C.ar | 0 }; return done({ sfx: [["drum", 0.55]], fight: { ...o, ct: ct[0] } }); }
-        const w = R() < odds(o.def * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.att * cmdMul(genOf(o.foe)), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12);
+        const w = R() < odds(o.def * cmdMul(C.gen) * moraleK() * (1 + vetK()), o.att * foeCmd(o.foe), false); fieldEnd(o, w, w ? 0.12 : 0.3, w ? 0.45 : 0.12);
         return done({ note: C.log.find(l => /field/.test(l.title)).title + ".", sfx: [["guns", 0.6], ...(w ? [["bell", 0.45, 1800]] : [])] });
       }
       if (ev.kind === "attack") {

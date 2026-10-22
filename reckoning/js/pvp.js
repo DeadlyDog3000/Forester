@@ -146,7 +146,7 @@ export function initPvp(c) {
   // (and from the title, beside the story: the campaign's a game for one as much as for two)
   $("btnCampaign").onclick = () => gate("campaign") && openCampaign(true, "title");
   // (a campaign's battle fought by hand: its field and its armies, as the campaign gives them)
-  initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); }, fieldWithPlayer);
+  initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0), skillAdd: b.skillAdd || 0 }); }, fieldWithPlayer);
   $("pvpCancel").onclick = () => cancelSearch();
   $("pvpBotNow").onclick = () => botNow();
   $("pvpAgain").onclick = () => again();
@@ -758,7 +758,8 @@ function startDuel(o) {
   }
   ctx.begin();
   const A = o.bot ? o.army || army() : null, multi = A && (A.allies > 0 || A.enemies > 1 || A.battle);
-  const foe = o.bot ? { ...botFoe(), bot: true, skill: skillOf(botRecord().rating) } : { ...o.foe, bot: false };
+  // (a campaign's difficulty: their men the better or the worse for it)
+  const foe = o.bot ? { ...botFoe(), bot: true, skill: clamp(skillOf(botRecord().rating) + (o.skillAdd || 0), 0.06, 0.98) } : { ...o.foe, bot: false };
   new Arena({ me, lo: { ...lo }, foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
 }
 
