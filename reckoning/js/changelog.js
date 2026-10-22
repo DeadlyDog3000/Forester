@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.53", date: "21 October 2026", title: "In reach",
+    items: [
+      "Campaign: on a box taller than the window, such as Learning, the buttons stay at its foot while the rest scrolls under them. Close was half off the bottom of a small screen.",
+      "Campaign: How the campaign works reads as a list, its points ranged left, rather than each paragraph centred.",
+    ],
+  },
+  {
     v: "1.99.52", date: "21 October 2026", title: "Its own type",
     items: [
       "The game’s typefaces (Cinzel, IM Fell English and Open Sans) are kept with the game itself, rather than fetched from the web each time it starts. Every copy now shows its proper lettering without an internet connection.",

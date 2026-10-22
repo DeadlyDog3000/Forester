@@ -1765,6 +1765,9 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-foegen small { font: 11px var(--sans); color: var(--ink-dim); }
 /* learning: the tree */
 .cmp-techbox { width: min(1100px, 100%); }
+/* (a box taller than the window: its buttons kept in sight at the foot of it, over what scrolls under them — the
+   Learning sheet's Close was half off the bottom of a small screen) */
+.cmp-mbox > .pv-acts:last-child { position: sticky; bottom: -18px; margin: 10px -20px -18px; padding: 12px 20px 14px; background: linear-gradient(180deg, rgba(14, 22, 16, 0), rgb(14, 22, 16) 40%); z-index: 1; }
 .cmp-tree { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .cmp-br { display: flex; flex-direction: column; gap: 6px; }
 .cmp-brh { font: 600 15px var(--serif); color: var(--ink); text-align: center; padding-bottom: 4px; border-bottom: 1px solid var(--edge); }
@@ -2100,7 +2103,7 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 /* simpler: the ? button, the help page, the loyalty reasons folded */
 .cmp-qb { min-width: 0; width: 34px; padding-left: 0; padding-right: 0; font-weight: 700; }
 .cmp-howbox { width: min(720px, 100%); }
-.cmp-howbox .cmp-howto { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; }
+.cmp-howbox .cmp-howto { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.45; text-align: left; }
 .cmp-loyal details > summary { cursor: pointer; list-style: none; }
 .cmp-loyal details > summary::-webkit-details-marker { display: none; }
 .cmp-loyal details > summary::after { content: " ▾"; opacity: 0.5; font-size: 10px; }
