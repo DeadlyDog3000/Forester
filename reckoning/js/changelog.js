@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.62", date: "21 October 2026", title: "Off his feet",
+    items: [
+      "Your look: the buttons that turn the figure sit at the sides, halfway up, rather than on top of his shoes.",
+    ],
+  },
+  {
     v: "1.99.61", date: "21 October 2026", title: "A clear pause",
     items: [
       "With the game paused, or any menu open over it, the game’s passing hints are kept out from under the menu, where they showed through its buttons.",
