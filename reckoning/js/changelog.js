@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.71", date: "22 October 2026", title: "Their fleets too",
+    items: [
+      "Campaign: the difficulty reaches the sea. The other crowns build their fleets up to fewer ships on Easy and Fair, as many as in 1683 on Hard, and more on Very hard and Ruthless, up to half again.",
+    ],
+  },
+  {
     v: "1.99.70", date: "22 October 2026", title: "On the bill",
     items: [
       "The full game’s page names the campaign on a line of its own, from Easy to Ruthless, alone or with a friend, rather than as an afterthought to the battles.",
