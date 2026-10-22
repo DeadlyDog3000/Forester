@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.56", date: "21 October 2026", title: "The whole guide",
+    items: [
+      "The guide (H) keeps every card you’ve been shown. What the woods give, The pond and fishing, The cold and The heat were shown once and then never listed in the book.",
+    ],
+  },
+  {
     v: "1.99.55", date: "21 October 2026", title: "Honours of war",
     items: [
       "Achievements: Part Three has three of its own. On the Works is for standing on Hamburg’s walls against the Danes, Hamburg Stays Free for holding the works until the Duke of Celle comes, and The Emperor’s Commission for taking command of the Emperor’s army. If you’ve already played Part Three, they’re given the next time you play.",
