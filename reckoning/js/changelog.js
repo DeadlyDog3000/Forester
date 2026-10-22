@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.76", date: "22 October 2026", title: "Shot to rags",
+    items: [
+      "Battles at sea: as a ship’s rigging is shot away her sails come down one by one, each when its own gear is cut, till only the main topsail is left to her. You can see from across the water which of the enemy is crippled aloft.",
+      "Battles at sea: a ship going down goes with her canvas as it was, rather than furling it neatly as she sinks.",
+    ],
+  },
+  {
     v: "1.99.75", date: "22 October 2026", title: "Two at the table",
     items: [
       "Campaign with a friend: the host chooses how hard it is, from Easy to Ruthless, above the crowns, and the other crowns’ armies, fleets, generals and men follow it for you both. Your friend is told it’s the host’s to choose. A campaign of two begun before now goes on at 1683’s war footing, as it began.",

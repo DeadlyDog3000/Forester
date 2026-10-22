@@ -237,11 +237,13 @@ class Ship {
     if (this.pen) this.pen.rotation.y = Math.atan2(-this.B.windTo[1], this.B.windTo[0]) - this.yaw + Math.sin(t * 3 + this.x) * 0.15;
     // (her sails: let fall or taken in as she makes or shortens sail — the courses first in, the topsails last — and filled
     //  the more the better the wind serves her, with a breath of flutter in them)
-    if (this.sails.length) {
+    //  (and a ship going down goes with her canvas as it was: no one is aloft to take it in)
+    if (this.sails.length && this.hull > 0) {
       const set = go ? this.trim : 0, fill = 0.35 + 0.65 * this.pointK();
       for (const sl of this.sails) {
-        const want = set >= 0.75 || (set > 0 && !sl.course) ? 1 : 0;
-        sl.k += (want - sl.k) * Math.min(1, dt * 0.9); if (Math.abs(want - sl.k) < 0.004) sl.k = want;
+        // (a sail whose rigging's shot away comes down at once, and stays down)
+        const lost = this.rig < sl.cut, want = !lost && (set >= 0.75 || (set > 0 && !sl.course)) ? 1 : 0;
+        sl.k += (want - sl.k) * Math.min(1, dt * (lost ? 3 : 0.9)); if (Math.abs(want - sl.k) < 0.004) sl.k = want;
         sl.m.visible = sl.k > 0.02;
         if (sl.m.visible) sl.m.scale.set(1, sl.drop * sl.k, (0.55 + 0.5 * fill * this.rig) * sl.k * (1 + Math.sin(t * 2.3 + sl.ph) * 0.06));
       }

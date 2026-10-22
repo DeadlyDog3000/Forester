@@ -585,10 +585,11 @@ export function shipSails(scene, full = false) {
   let furl = null; scene.traverse(o => { if (o.isMesh && o.material && /sail/.test(o.material.name || "")) furl = o; });
   if (!furl) return [];
   const C = furl.geometry.attributes.color, col = C ? [0.97, 0.95, 0.9].map((w, j) => { let t = 0; for (let i = 0; i < C.count; i++) t += [C.getX(i), C.getY(i), C.getZ(i)][j]; return t / C.count * w; }) : null;   // (the furled canvas's own colour, weathered a shade)
-  return RIG.map(([z, y, h0, h1, drop, course]) => {
+  // (cut: how far her rigging must be shot away before this sail is lost — each its own, the main topsail never)
+  return RIG.map(([z, y, h0, h1, drop, course], i) => {
     const sl = new THREE.Mesh(sailGeo(h0, h1, col), furl.material); sl.position.set(0, y - 0.15, z + 0.3); sl.castShadow = true; sl.receiveShadow = true;
     if (full) sl.scale.set(1, drop, 0.9); else { sl.scale.set(1, 0.001, 0.001); sl.visible = false; }
-    scene.add(sl); return { m: sl, drop, course: !!course, k: full ? 1 : 0, ph: Math.random() * 6 };
+    scene.add(sl); return { m: sl, drop, course: !!course, k: full ? 1 : 0, ph: Math.random() * 6, cut: i === 3 ? 0 : 0.2 + Math.random() * 0.55 };
   });
 }
 // a model that is only fetched when first wanted (the town's buildings, in every style):
