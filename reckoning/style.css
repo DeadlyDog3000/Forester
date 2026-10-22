@@ -1009,8 +1009,9 @@ body.mp-colony #mpTop, body.mp-colony #mpStock, body.mp-colony #mpKeys { display
 .ach-bar { width: min(360px, 80%); height: 6px; margin: 8px auto 0; background: rgba(255, 255, 255, 0.12); border-radius: 3px; overflow: hidden; }
 .ach-bar div { height: 100%; background: linear-gradient(90deg, #b8913a, #f0d080); }
 .ach-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin: 6px 0 14px; }
-.ach { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; padding: 10px 12px; background: rgba(9, 24, 16, 0.6); border: 1px solid rgba(140, 192, 132, 0.18); border-radius: 6px; opacity: 0.62; }
-.ach.on { opacity: 1; border-color: rgba(220, 180, 90, 0.6); background: linear-gradient(135deg, rgba(60, 46, 16, 0.75), rgba(9, 24, 16, 0.7)); }
+.ach { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: center; padding: 10px 12px; background: rgba(9, 22, 15, 0.9); border: 1px solid rgba(140, 192, 132, 0.18); border-radius: 6px; backdrop-filter: blur(3px); }
+.ach:not(.on) > * { opacity: 0.66; }
+.ach.on { opacity: 1; border-color: rgba(220, 180, 90, 0.6); background: linear-gradient(135deg, rgba(60, 46, 16, 0.92), rgba(9, 22, 15, 0.9)); }
 .ach-i { font-size: 24px; text-align: center; color: var(--ink-dim); }
 .ach.on .ach-i { color: #f0d080; text-shadow: 0 0 10px rgba(240, 208, 128, 0.6); }
 .ach-n { font: 600 14px var(--sans); color: var(--ink); }

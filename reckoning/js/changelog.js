@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.67", date: "22 October 2026", title: "Feats of the crown",
+    items: [
+      "Achievements: eight for the campaign, in a book of their own: begin one, take a town, win a battle you fight yourself, win at sea, take another crown’s last town, win a campaign, win one on Very hard or Ruthless, and hold forty towns. They’re for a crown of your own, not one shared with a friend.",
+      "Achievements: the cards stand out from the picture behind them, the ones not yet earned dimmed in their writing rather than see-through.",
+    ],
+  },
+  {
     v: "1.99.66", date: "22 October 2026", title: "Which match",
     items: [
       "Campaign: a campaign’s difficulty is told when you rest the pointer on your crown’s name at the top of the map, and in the campaign’s help, so you needn’t go back to the list of saves to recall it.",

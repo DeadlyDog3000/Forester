@@ -76,6 +76,8 @@ const D1683 = { n: "Hard", army: 1, cap: 1, grow: 1, gen: 1, skill: 0 };
 const dif = () => C && !C.mp && C.diff != null ? DIFFS[C.diff] : D1683;
 // (another crown's general reckoned at what the difficulty makes him; a player's at his own)
 const foeCmd = id => cmdMul(genOf(id)) * (isHuman(id) ? 1 : dif().gen);
+// (an achievement of the campaign: a crown of your own only, not one shared with a friend)
+const ach = n => { if (C && !C.mp && G.achEvent) G.achEvent(n); };
 const SLOTS = 3, SLOTKEY = "reckoning.campaign.slot", slotKey = i => i ? `${KEY}.${i + 1}` : KEY;
 let slot = (() => { try { return Math.min(SLOTS - 1, Math.max(0, +localStorage.getItem(SLOTKEY) || 0)); } catch (e) { return 0; } })();
 const campaigns = () => { const out = []; for (let i = 0; i < SLOTS; i++) { const c = load(i); if (c && c.me && NATIONS[c.me]) out.push({ i, c }); } return out.sort((a, b) => (b.c.at || 0) - (a.c.at || 0)); };
@@ -266,7 +268,7 @@ function begin(me, into = slot, opt = {}) {
   slot = into; spreadOf = ""; C = fresh(me); ensureRealm(); own = new Map(); warmMaps();
   // (the difficulty chosen: the other crowns' armies at the start made larger or smaller by it)
   //  — against the army you'd have in each one's place: Fair the same, a crown of the woods' warriors as many as yours)
-  if (opt.diff != null) { C.diff = opt.diff; const k = dif().army; for (const id of Object.keys(C.foes)) if (id !== me) C.foes[id] = Math.max(4, Math.round((NATIONS[id].strength * 10 + 6 + Math.floor(R() * 5)) * k)); }
+  if (opt.diff != null) { C.diff = opt.diff; ach("cmp-begin"); const k = dif().army; for (const id of Object.keys(C.foes)) if (id !== me) C.foes[id] = Math.max(4, Math.round((NATIONS[id].strength * 10 + 6 + Math.floor(R() * 5)) * k)); }
   // (England, the sea power: its fleet already in being in 1683, six ships lying off its capital)
   if (me === "england") { const g = grid(), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ct && harbourOf(ct); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
   // (the colonies over the Atlantic: companies of their own in each town, as they had — the army at home can't come to
@@ -421,6 +423,7 @@ const pjit = (c, r, ox = 0, oy = 0) => (pnoise(c / 9 + ox * 0.37, r / 9 + oy * 0
 function seize(ct, to) {
   const g = grid(), from = cityOwner(g, ct); if (!from || from === to) return 0;
   C.lastBy = { ...(C.lastBy || {}), [from]: to };
+  if (to === C.me) ach("cmp-town");
   // (whose it was, and whose its people first were: for its loyalty to the new crown)
   { const H = (C.held ||= {}), was = H[ct[0]]; H[ct[0]] = { from, by: to, y: C.year, orig: was && was.orig ? was.orig : from }; if (H[ct[0]].orig === to) delete H[ct[0]]; }
   // (a town taken: some of its people killed in the sack, or fled)
@@ -818,7 +821,7 @@ function goalState() {
 }
 function goalCheck() {
   const st = goalState(); if (!st || C.over) return; const G = st.G;
-  if (st.done && !G.won) { G.won = C.year; G.show = "won"; say("Victory: the crown's ambition is won", `${G.towns.join(", ")} and ${st.n} towns in all are yours, ${G.by - C.year} years before the time. Play on, if you like.`); }
+  if (st.done && !G.won) { G.won = C.year; G.show = "won"; ach("cmp-ambition"); if ((C.diff | 0) >= 3) ach("cmp-ambition-hard"); say("Victory: the crown's ambition is won", `${G.towns.join(", ")} and ${st.n} towns in all are yours, ${G.by - C.year} years before the time. Play on, if you like.`); }
   else if (!G.won && !G.out && C.year >= G.by) { G.out = C.year; G.show = "out"; say("The years run out", `${G.by} is come, and the crown's ambition not won: ${st.held.filter(([, h]) => h).length} of the ${G.towns.length} towns it asked for, ${st.n} of ${G.n} in all. Play on, if you like.`); }
 }
 function goalHtml() {
@@ -1358,7 +1361,7 @@ function seaEnd(fid, foe, res) {
   if (!f.ships.length) C.fleets = C.fleets.filter(x => x !== f);
   if (!F.ships.length) delete C.foeFleets[foe];
   else if (res.won) { const h = citiesOfNow(grid(), foe).map(ct => harbourOf(ct, true)).find(Boolean); if (h) { const p = seaPath(grid(), F.pos, h); if (p) { const st = sailAlong(p, 60); F.pos = { x: st.at.x, y: st.at.y }; } } }
-  moraleMove(res.won ? 6 : -6);
+  moraleMove(res.won ? 6 : -6); if (res.won && !res.left) ach("cmp-sea");
   invasionAfter(foe, !!res.won && !res.left);
 }
 // ---- an invasion over the narrow seas: an enemy army taking ship for a town of yours across the Channel, the North Sea or
@@ -2288,8 +2291,8 @@ function checkEnd() {
   }
   if (n && C.exile != null) { C.exile = null; say("A crown again", "A town of your own once more: the crown is saved."); }
   goalCheck();
-  if (n >= WIN_CITIES && !C.won) { C.won = true; say("Yours is the first crown of the world", `${n} towns under your crown. Play on, if you like.`); }
-  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !alive(g, id)) { C.E.war[id] = false; const by = C.gone && C.gone[id]; say(`${The(id)} ${v3(id, "is")} no more`, by === C.me ? "Its last town has fallen to you, and every acre of its land is yours." : by ? `${The(by)} ${v3(by, "has")} taken the last of it.` : "Its last town is yours or another's."); }
+  if (n >= WIN_CITIES && !C.won) { C.won = true; ach("cmp-world"); say("Yours is the first crown of the world", `${n} towns under your crown. Play on, if you like.`); }
+  for (const id of Object.keys(C.E.war)) if (C.E.war[id] && !alive(g, id)) { C.E.war[id] = false; const by = C.gone && C.gone[id]; if (by === C.me) ach("cmp-end"); say(`${The(id)} ${v3(id, "is")} no more`, by === C.me ? "Its last town has fallen to you, and every acre of its land is yours." : by ? `${The(by)} ${v3(by, "has")} taken the last of it.` : "Its last town is yours or another's."); }
 }
 
 // ---------------------------------------------------------------------------
@@ -3845,6 +3848,7 @@ function apply(actor, a) {
       if (P.convoy) { const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.6 + 0.03; convoyEnd({ ...P, ct }, !a.left && a.won, k, 0); persist(); return { sfx: a.won ? [["bell", 0.4, 1200]] : [] }; }
       if (a.left) { settle({ ...P, ct }, false, 0.3, 0.05); leftNote(/^(Beaten before|.* has fallen$)/); persist(); return {}; }
       const k = Math.min(0.9, (a.lost || 0) / Math.max(1, a.myMen || 20)) * 0.8 + 0.05, t = routLoss(a);
+      if (a.won && !a.fled) ach("cmp-field");
       settle({ ...P, ct }, a.won, k, t); if (a.fled) leftNote(/^(Beaten before|.* has fallen$)/);
       // (a player's town taken from their garrison: told to them)
       if (isHuman(P.foe) && P.attack) as(P.foe, () => say(a.won ? `${P.ct} has fallen` : `${P.ct} holds`, a.won ? `${nameOf(actor)} ${v3(actor, "takes")} it from its garrison.` : `${poss(nameOf(actor))} attack is thrown back by the garrison.`));

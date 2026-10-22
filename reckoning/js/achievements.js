@@ -45,6 +45,15 @@ export const ACH = [
   ["raid", "They Shall Not Pass", "Drive off a raid on your settlement.", "The colony", "raid-repelled"],
   ["revolt", "Order Restored", "Put down a rising in your own streets.", "The colony", "revolt-loyal"],
   ["revoltLost", "The People Have Spoken", "Lose your settlement to a rising.", "The colony", "revolt-rebels", true],
+  // the campaign
+  ["cmpBegin", "A Crown of Your Own", "Begin a campaign.", "The campaign", "cmp-begin"],
+  ["cmpTown", "The Keys of the Town", "Take a town from another crown.", "The campaign", "cmp-town"],
+  ["cmpField", "By Your Own Hand", "Win a battle of the campaign that you fight yourself.", "The campaign", "cmp-field"],
+  ["cmpSea", "Broadside", "Win a battle at sea.", "The campaign", "cmp-sea"],
+  ["cmpEnd", "No More", "Take the last town of another crown.", "The campaign", "cmp-end"],
+  ["cmpAmbition", "The Crown's Ambition", "Win a campaign: every town its Victory asks for, before the years run out.", "The campaign", "cmp-ambition"],
+  ["cmpHard", "Against the Odds", "Win a campaign on Very hard or Ruthless.", "The campaign", "cmp-ambition-hard"],
+  ["cmpWorld", "First Crown of the World", "Hold forty towns under your crown.", "The campaign", "cmp-world"],
   // you
   ["trees100", "Woodsman", "Fell a hundred trees with your own axe.", "You", () => count("trees") >= 100],
   ["trees1000", "The Forest Fears You", "Fell a thousand trees with your own axe.", "You", () => count("trees") >= 1000],
