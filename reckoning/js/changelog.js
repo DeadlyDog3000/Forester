@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.73", date: "22 October 2026", title: "Room at the top",
+    items: [
+      "Campaign: in a narrow window the bar at the top no longer runs the crowns you’re at war with in under the Learning button. Below about a thousand pixels across it leaves off the count of your people, which the side panel gives town by town.",
+    ],
+  },
+  {
     v: "1.99.72", date: "22 October 2026", title: "Gun drill",
     items: [
       "Campaign: in a battle at sea you fight yourself, the enemy’s gun crews are as good as the campaign is hard: on Very hard and Ruthless they load quicker and lay their guns truer, on Easy they are slower and wilder. Yours are as they always were.",

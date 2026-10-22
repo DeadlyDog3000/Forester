@@ -2164,3 +2164,7 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
   #campaign .cmp-top > .cmp-wars { min-width: 96px; }
   #campaign .cmp-top > .cmp-wars b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
+/* (narrower still, the least wanted figure left off — the people, told town by town in the side panel — to keep the wars clear of the buttons) */
+@media (max-width: 1040px) {
+  #campaign .cmp-top > .cmp-folk { display: none; }
+}
