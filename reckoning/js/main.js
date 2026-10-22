@@ -341,7 +341,7 @@ G.openBuy = what => {
   if (G.mode === "play" || G.mode === "pause") { toTitle(); }
   $("buyKick").textContent = what === "story" ? "The demo ends here" : "The full game";
   $("buyWhy").textContent = BUY_WHY[what] || BUY_WHY.title;
-  $("buyList").innerHTML = [`The whole story — all ${CHAPTERS.length} chapters, Hamburg to a city of your own`, "Battles & duels, against the bots or other players, ranked, and the campaign", "Worlds & colonies — the Wide World, a co-op colony, nations, Frontier", "Every update to come"].map(x => `<li>${x}</li>`).join("");
+  $("buyList").innerHTML = [`The whole story — all ${CHAPTERS.length} chapters, Hamburg to a city of your own`, "The campaign — Europe in 1683 and a crown of your own, from Easy to Ruthless, alone or with a friend", "Battles & duels, against the bots or other players, ranked", "Worlds & colonies — the Wide World, a co-op colony, nations, Frontier", "Every update to come"].map(x => `<li>${x}</li>`).join("");
   $("buyPrice").textContent = SHOP.price; $("buyMsg").textContent = ""; $("buyMsg").className = "buy-msg";
   screen("buy");
 };

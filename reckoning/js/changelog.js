@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.70", date: "22 October 2026", title: "On the bill",
+    items: [
+      "The full game’s page names the campaign on a line of its own, from Easy to Ruthless, alone or with a friend, rather than as an afterthought to the battles.",
+      "Battles at sea: the line of keys along the foot of the screen keeps clear of its edges, and wraps in a small window rather than running off it.",
+    ],
+  },
+  {
     v: "1.99.69", date: "22 October 2026", title: "Canvas",
     items: [
       "Battles at sea: the ships fight with their sails set, not furled on the yards as they lay at anchor. Each yard’s sail is let fall from it and fills with the wind, the fuller the better the wind serves her. Shorten to battle sail and the courses, the lowest sails, are taken in while the topsails stay set; strike, or take in all sail, and they are furled again.",
