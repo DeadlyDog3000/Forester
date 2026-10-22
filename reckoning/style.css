@@ -1606,6 +1606,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-save.on .cmp-crown { border-color: var(--gold, #c9a45a); box-shadow: 0 0 0 1px var(--gold, #c9a45a) inset; }
 .cmp-drop { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 24px; height: 24px; border: 0; border-radius: 3px; background: transparent; color: var(--ink-dim); font: 18px/1 var(--sans); cursor: pointer; }
 .cmp-drop:hover { background: rgba(160, 40, 26, 0.35); color: var(--ink); }
+.cmp-drop.armed { width: auto; padding: 0 9px; background: rgba(160, 40, 26, 0.85); color: #f4ead2; font: 600 12px/24px var(--sans); }
 .cmp-play { width: min(1700px, calc(100vw - 24px)); height: calc(100vh - 40px); margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
 .cmp-bar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--edge); border-radius: 4px; }
 .cmp-top { display: flex; flex-wrap: wrap; gap: 6px 20px; align-items: center; color: var(--ink); }

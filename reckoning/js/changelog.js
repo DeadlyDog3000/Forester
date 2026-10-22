@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.63", date: "21 October 2026", title: "Asked twice",
+    items: [
+      "Campaign: giving a campaign up is asked on the button itself, which turns to “Give up?” and needs a second click, as deleting a save does. There’s no longer a plain system box.",
+    ],
+  },
+  {
     v: "1.99.62", date: "21 October 2026", title: "Off his feet",
     items: [
       "Your look: the buttons that turn the figure sit at the sides, halfway up, rather than on top of his shoes.",

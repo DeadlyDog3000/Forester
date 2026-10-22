@@ -2348,7 +2348,9 @@ export function initCampaign(c, battle, withPlayer) {
   $("cmpPick").addEventListener("click", e => {
     const go = e.target.closest("[data-slot]"), drop = e.target.closest("[data-drop]");
     if (go) { slot = +go.dataset.slot; try { localStorage.setItem(SLOTKEY, String(slot)); } catch (er) {} if (resume()) { sel = null; selCity = null; note = ""; news = []; drawMap(true); sfx("parchment", 0.45); } return; }
-    if (drop) { const i = +drop.dataset.drop, c = load(i); if (!c || !confirm(`Give up your campaign as ${NATIONS[c.me].name} (${c.year})? It can't be brought back.`)) return; try { localStorage.removeItem(slotKey(i)); } catch (er) {} if (i === slot) C = null; sfx("quill", 0.35); drawPick(); }
+    // (giving one up asked twice, as a save is deleted — the button itself asks, "Give up?", and a second click does it)
+    if (drop && !drop.classList.contains("armed")) { drop.classList.add("armed"); drop.textContent = "Give up?"; drop.title = "Click again to give this campaign up. It can't be brought back."; setTimeout(() => { if (drop.isConnected) { drop.classList.remove("armed"); drop.textContent = "×"; drop.title = "Give up this campaign"; } }, 4000); return; }
+    if (drop) { const i = +drop.dataset.drop, c = load(i); if (!c) return; try { localStorage.removeItem(slotKey(i)); } catch (er) {} if (i === slot) C = null; sfx("quill", 0.35); drawPick(); }
   });
   $("cmpEnd").onclick = () => {
     if (C && C.mp) { if (!mp || mp.gone) return; doAct({ k: "end" }); sfx("quill", 0.35); return; }
