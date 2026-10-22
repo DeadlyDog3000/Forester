@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.65", date: "22 October 2026", title: "A fair match",
+    items: [
+      "Campaign: Fair is now an even match. Each of the other crowns begins with the army you would have in its place (France as your enemy has about the 56 regiments you’d have as France), and makes it up more slowly, to no more than its lands can keep. Before, Fair began them at 1683’s war footing, half again as large.",
+      "Campaign: 1683’s war footing is now Hard, with sharper generals and steadier men; Very hard and Ruthless go further, with armies near twice and more than twice your size. Easy has smaller armies still, and slower to grow.",
+      "Campaign: a campaign begun before the choice of difficulty goes on as it began. Each saved campaign shows its difficulty.",
+    ],
+  },
+  {
     v: "1.99.64", date: "22 October 2026", title: "How hard",
     items: [
       "Campaign: choose how hard a new campaign is, from Easy to Ruthless, above the crowns. The harder it is, the larger the other crowns’ armies at the start and as they make them up each year, the better their generals in the reckoning of a battle, and the steadier their men in a battle you fight yourself. Fair is the crowns as they stood in 1683, and every campaign begun before now is Fair. Your choice is kept for the next campaign, and shown beside each saved one.",
