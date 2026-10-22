@@ -47,10 +47,19 @@ function fires(G, dt) {
 }
 
 // the air, where you are (°C, near enough)
+const MONTH_SEASON = { jan: "winter", feb: "winter", mar: "spring", apr: "spring", may: "spring", jun: "summer", jul: "summer", aug: "summer", sep: "autumn", oct: "autumn", nov: "autumn", dec: "winter" };
+function battleSeason(G) {
+  const t = G.arena && G.arena.place && G.arena.place.text; if (!t) return null;
+  const w = /\b(spring|summer|autumn|winter)\b/i.exec(t); if (w) return w[1].toLowerCase();
+  const m = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/i.exec(t); return m ? MONTH_SEASON[m[1].toLowerCase()] : null;
+}
 export function airTemp(G) {
   const w = G.world, p = G.player.pos;
   let t, dry = 0;
-  if (w && w.land && w.land.climate) {
+  // (a battle with a date: its season, whatever the field's own country would say)
+  const bs = !G.town && battleSeason(G);
+  if (bs) t = { spring: 11, summer: 19, autumn: 9, winter: -6 }[bs];
+  else if (w && w.land && w.land.climate) {
     const c = w.land.climate(p.x, p.z); t = -18 + 52 * Math.pow(Math.max(0, c.t), 0.85);
     // (a desert bakes by day and freezes by night; the rain forest is close, but never so hot)
     dry = Math.max(0, 0.35 - c.m) / 0.35; if (c.m > 0.7) t -= 4;

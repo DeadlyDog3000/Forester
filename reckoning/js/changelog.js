@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.58", date: "21 October 2026", title: "August is summer",
+    items: [
+      "Battles with a date (the Danes before Hamburg in August, say) have that season’s weather. The heat gauge shows the sun on a summer’s day, instead of a snowflake.",
+    ],
+  },
+  {
     v: "1.99.57", date: "21 October 2026", title: "The keys of battle",
     items: [
       "Controls: a section for battle. 1 to 9 give the orders from the book at the left, L, O, P, I, U and K send the next order to one arm alone, and F fixes your bayonet or takes a gun at its embrasure.",
