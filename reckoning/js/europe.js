@@ -294,12 +294,12 @@ export function europeDay(S, day) {
 const INK = "#3a2a1a", INK_SOFT = "rgba(58,42,26,", PAPER = "#efe4c6", FELL = '"IM Fell English", "Cormorant Garamond", Georgia, serif';
 // the crowns' names, as the engraver lettered them (large for the great, small for the rest), placed by longitude and latitude
 const NAMES = [
-  ["SCOTLAND", -4.2, 57.1, 1], ["ENGLAND", -1.4, 52.5, 2], ["IRELAND", -8.5, 52.8, 1], ["FRANCE", 2.2, 46.9, 3], ["CASTILE", -3.9, 39.9, 2], ["ARAGON", -0.4, 41.5, 0], ["PORTUGAL", -8.1, 39.6, -1, -90],
-  ["HOLY ROMAN\nEMPIRE", 8.4, 49.9, 1], ["BRANDENBURG", 13.4, 52.7, -1], ["SAXONY", 13.5, 51.1, -1], ["BAVARIA", 11.6, 48.9, -1], ["AUSTRIA", 14.6, 47.6, 0], ["MILAN", 9.4, 45.5, -1],
-  ["SAVOY", 6.9, 44.9, -1], ["VENICE", 12.1, 46.1, -1], ["TUSCANY", 11.1, 43.4, -1], ["PAPAL\nSTATES", 13, 42.7, -1], ["NAPLES", 15.9, 40.9, -1], ["SICILY", 14.1, 37.5, -1],
-  ["SWEDEN", 15.4, 60.8, 2], ["FINLAND", 26.5, 62.6, 0], ["DENMARK", 9.2, 56.1, 0], ["NORWAY", 8.4, 61.6, 1], ["POLAND", 19.6, 52, 2], ["LITHUANIA", 25.4, 54.6, 1], ["RUSSIA", 36.5, 57, 3],
+  ["SCOTLAND", -4.2, 57.1, 1], ["ENGLAND", -1.9, 52.6, 2], ["IRELAND", -8.5, 52.8, 1], ["FRANCE", 2.2, 46.9, 3], ["CASTILE", -4.3, 39.2, 2], ["ARAGON", -0.45, 40.95, 0], ["PORTUGAL", -8.1, 39.6, -1, -90],
+  ["HOLY ROMAN\nEMPIRE", 8.4, 49.9, 1], ["BRANDENBURG", 13.4, 52.7, -1], ["SAXONY", 13.5, 51.1, -1], ["BAVARIA", 11.6, 48.9, -1], ["AUSTRIA", 13.3, 47.45, 0], ["MILAN", 10.05, 44.95, -1],
+  ["SAVOY", 6.95, 44.45, -1], ["VENICE", 12.1, 46.1, -1], ["TUSCANY", 11.1, 43.4, -1], ["PAPAL\nSTATES", 13, 42.7, -1], ["NAPLES", 15.9, 40.9, -1], ["SICILY", 14.1, 37.5, -1],
+  ["SWEDEN", 15.4, 60.8, 2], ["FINLAND", 26.5, 62.6, 0], ["DENMARK", 9.2, 56.1, 0], ["NORWAY", 8.4, 61.6, 1], ["POLAND", 20.9, 50.9, 2], ["LITHUANIA", 25.4, 54.6, 1], ["RUSSIA", 36.5, 57, 3],
   ["COSSACKS", 32.8, 49.8, 0], ["CRIMEAN\nKHANATE", 34.6, 46.3, -1], ["HUNGARY", 19.4, 48.7, -1], ["TRANSYLVANIA", 24, 46.6, -1], ["MOLDAVIA", 27.6, 47.4, -1], ["WALLACHIA", 25, 44.4, -1],
-  ["OTTOMAN\nEMPIRE", 22.4, 42.2, 2], ["ANATOLIA", 33.5, 39, 1], ["ALGIERS", 2.4, 34.4, 1], ["TUNIS", 9.6, 34.1, -1], ["TRIPOLI", 15.5, 32.6, -1], ["HOLLAND", 5.4, 52.9, -1], ["MOROCCO", -6.2, 33.4, 1],
+  ["OTTOMAN\nEMPIRE", 23.0, 41.7, 2], ["ANATOLIA", 33.5, 39, 1], ["ALGIERS", 2.4, 34.4, 1], ["TUNIS", 9.6, 34.1, -1], ["TRIPOLI", 15.5, 32.6, -1], ["HOLLAND", 5.4, 52.9, -1], ["MOROCCO", -6.2, 33.4, 1],
   // the New World: the crowns' colonies, and the peoples whose country it is
   ["NEW ENGLAND", -71.6, 42.75, -1], ["NEW YORK", -74.3, 41.3, -1, -60], ["VIRGINIA", -77.6, 37.4, -1], ["CAROLINA", -79.6, 34.4, -1], ["PENSILVANIA", -75.9, 40.0, -1],
   ["NOUVELLE\nFRANCE", -71.0, 48.6, 1], ["ACADIE", -65.6, 45.6, -1], ["FLORIDA", -82.2, 29.4, -1], ["NUEVA ESPAÑA", -98.3, 23.6, 0], ["CUBA", -79.3, 22.0, -1],

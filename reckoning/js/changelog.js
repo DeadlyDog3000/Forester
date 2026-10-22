@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.54", date: "21 October 2026", title: "Names in the clear",
+    items: [
+      "Campaign map: the crowns’ names no longer sit on their own towns. POLAND is clear of Warsaw, ENGLAND of Norwich, the OTTOMAN EMPIRE of Sofia and Ragusa, CASTILE of Madrid, ARAGON of Zaragoza, AUSTRIA of Vienna and Graz, MILAN of Turin, and SAVOY of Turin’s walls.",
+    ],
+  },
+  {
     v: "1.99.53", date: "21 October 2026", title: "In reach",
     items: [
       "Campaign: on a box taller than the window, such as Learning, the buttons stay at its foot while the rest scrolls under them. Close was half off the bottom of a small screen.",
