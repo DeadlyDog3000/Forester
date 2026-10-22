@@ -151,6 +151,7 @@ kbd { display: inline-block; min-width: 26px; padding: 3px 7px; border: 1px soli
 #keys { position: absolute; left: 50%; bottom: 152px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; padding: 8px 16px; background: rgba(0, 0, 0, 0.5); border-radius: 4px; font: 14px var(--sans); color: var(--ink); transition: opacity 0.5s; max-width: 86vw; }
 #keys .kp { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 #keys .kp span { margin-left: 4px; color: var(--ink-dim); }
+body.menu-open #hint { visibility: hidden; }
 #hint { position: absolute; left: 50%; bottom: 200px; transform: translateX(-50%); padding: 8px 16px; background: rgba(0, 0, 0, 0.55); border-radius: 4px; font: 15px var(--sans); color: var(--ink-dim); transition: opacity 0.5s; text-align: center; max-width: 80vw; }
 
 #bark { position: absolute; left: 50%; bottom: 92px; z-index: 4; transform: translateX(-50%); width: min(820px, 90vw); text-align: center; font: 20px/1.4 var(--serif); text-shadow: 0 1px 4px #000, 0 0 12px #000; transition: opacity 0.4s; }

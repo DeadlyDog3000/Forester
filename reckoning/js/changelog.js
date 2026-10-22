@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.61", date: "21 October 2026", title: "A clear pause",
+    items: [
+      "With the game paused, or any menu open over it, the game’s passing hints are kept out from under the menu, where they showed through its buttons.",
+    ],
+  },
+  {
     v: "1.99.60", date: "21 October 2026", title: "Stop the presses",
     items: [
       "Campaign: the year your crown’s ambition is won, or your crown is lost, or your last town falls, that’s the gazette’s headline, not a footnote under “At home”.",

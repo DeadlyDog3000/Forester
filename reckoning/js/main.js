@@ -200,6 +200,8 @@ let back = "title";
 function screen(id) {
   for (const s of screens) UI.show(s, s === id);
   $("menus").classList.toggle("hidden", !id);
+  // (a menu over the game: the game's passing hints kept out from under it, where they showed through its buttons)
+  document.body.classList.toggle("menu-open", !!id);
   // (the campaign's map: the court's music, the Canon and the minuets; back to the menus, the title's again)
   // (and out of it into the game itself — the story's settlement, by its Home button — the court's music stops: the
   //  settlement has its own, or the quiet of the woods)
