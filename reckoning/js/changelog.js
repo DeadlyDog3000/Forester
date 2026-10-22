@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.77", date: "22 October 2026", title: "Any colour",
+    items: [
+      "Character builder: the button for any colour you like sits a little apart from the ready colours, in a ring of every colour, so it no longer passes for one more swatch out of its order.",
+    ],
+  },
+  {
     v: "1.99.76", date: "22 October 2026", title: "Shot to rags",
     items: [
       "Battles at sea: as a ship’s rigging is shot away her sails come down one by one, each when its own gear is cut, till only the main topsail is left to her. You can see from across the water which of the enemy is crippled aloft.",
