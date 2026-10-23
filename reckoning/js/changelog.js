@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.88", date: "23 October 2026", title: "The year turns",
+    items: [
+      "Campaign: in the news at the side, each year’s own line reads “The year turns”, with its profit or loss, under the date, rather than giving the date twice over.",
+    ],
+  },
+  {
     v: "1.99.87", date: "23 October 2026", title: "Your officers",
     items: [
       "Campaign: when a town is attacked and your army is there to defend it, the choice not to fight it yourself is “Leave it to your officers”. It said “Leave it to the garrison” even with the whole army standing by.",
