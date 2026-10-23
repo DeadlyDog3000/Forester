@@ -33,6 +33,9 @@ import importlib
 import common
 importlib.reload(common)
 from common import rgb, fresh_scene, MODELS
+import basebody
+importlib.reload(basebody)
+from basebody import base_hands
 
 import bmesh
 import bpy
@@ -429,6 +432,21 @@ def build_person(key):
     bpy.ops.object.join()
     body.select_set(False)
     me = body.data
+    # (real hands: the base body's own, with fingers, set at the wrists in place of the mitten the skin made — part of the
+    #  arm, after it, as the rig's weighting looks for)
+    BHN = base_hands(J, f)
+    if BHN:
+        hvs, hfs = BHN
+        bmh = bmesh.new(); bmh.from_mesh(me)
+        wz = J["wrist.L"][2] - 0.012
+        bmesh.ops.delete(bmh, geom=[v for v in bmh.verts if v.index >= n_trunk and v.co.z < wz], context="VERTS")
+        nv = [bmh.verts.new(q) for q in hvs]
+        for fc in hfs:
+            try: bmh.faces.new([nv[i] for i in fc])
+            except ValueError: pass
+        for fc in bmh.faces:
+            if any(v in nv for v in fc.verts): fc.smooth = True
+        bmh.to_mesh(me); bmh.free()
     # (a square toe, as shoes were cut in the 1680s: the front of the foot made flat-topped and square-ended)
     if not native and not wild and not o.get("east"):
         for v in me.vertices:
@@ -459,7 +477,7 @@ def build_person(key):
         c = fc.calc_center_median()
         x, y, z = c
         ax = abs(x)
-        arm = ax > sh - 0.02 and z > 0.78 and z < 1.5
+        arm = (fc.verts[0].index >= n_trunk and z < 1.5) if BHN else (ax > sh - 0.02 and z > 0.78 and z < 1.5)
         col = WHITE
         if native:
             # bare from the waist up; the breechcloth at the loins, the leggings below it, moccasins

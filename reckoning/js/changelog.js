@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.97", date: "23 October 2026", title: "Hands, and all sorts",
+    items: [
+      "People: real hands, with fingers, a thumb and knuckles, taken from the same sculpted human body as the heads (Blender Studio’s), in place of the mittens they had. They hang from the wrist, hold a musket, and come out of the cuff as hands do.",
+      "People: no crowd is all one size. The townsfolk, the watch, soldiers on both sides and the men of the woods each have their own height, most of them about the middle with now and then a short man or a tall one, and their own build, slight, middling, stocky or heavy. The people of the story, and you, are as they were made.",
+    ],
+  },
+  {
     v: "1.99.96", date: "23 October 2026", title: "Square toes",
     items: [
       "People: shoes as they were made in the 1680s: square at the toe, a high tongue over the instep with its buckle lying on it, and the heel stacked under the foot, not hung behind it.",

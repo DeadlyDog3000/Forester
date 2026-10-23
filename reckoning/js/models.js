@@ -255,6 +255,7 @@ export function pikeHold(P, obj, kind) {
   P.aimWant = false;
   return true;
 }
+const CROWD_MODELS = new Set(["townsman", "townswoman", "musketeer", "janissary", "strelets", "haiduk", "watchman", "watchman_tricorn", "watchwoman", "watchwoman_tricorn", "raider", "warrior", "warrior_braids"]);
 export function makePerson(o = {}) {
   const r = rng(o.seed ?? Math.floor(Math.random() * 1e9));
   const skin = o.skin ?? r.pick(SKIN), hair = o.hair ?? r.pick(HAIR);
@@ -263,6 +264,13 @@ export function makePerson(o = {}) {
   const skirt = !!o.skirt;
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
+  // (no two of a crowd the same size: the townsfolk, the soldiers, the watch, the men of the woods each their own height —
+  //  most of them near the middle, now and then a short one or a tall — and their own build, slight to heavy. Named
+  //  people, and you, are as they were made)
+  if (o.scale == null && o.build == null && CROWD_MODELS.has(o.model)) {
+    const v = rng((o.seed ?? Math.floor(Math.random() * 1e9)) * 7 + 13), g = () => (v() + v() + v() - 1.5) / 1.5;   // (≈ −1…1, most near 0)
+    o = { ...o, scale: Math.max(0.9, Math.min(1.1, 1 + g() * 0.06)), build: [0.9, 0.96, 1, 1, 1.04, 1.1, 1.16][Math.floor(v() * 7)] };
+  }
   const s = o.scale ?? 1;
   body.scale.setScalar(s);
   // (broader or slighter about the shoulders and middle, the height as it was)

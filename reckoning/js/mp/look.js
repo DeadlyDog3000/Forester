@@ -59,8 +59,8 @@ export function randomLook(seed = Math.floor(Math.random() * 1e9)) {
   let s = seed | 0 || 1; const r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
   const body = pick(BODIES.filter(b => b.common), r).id;   // (a settler dresses as working folk do: no watchmen's sashes or rovers' furs)
   return { body, skin: pick(SWATCH.skin, r), hair: pick(SWATCH.hair, r), coat: pick(SWATCH.coat, r), legs: pick(SWATCH.legs, r), vest: pick(SWATCH.vest, r),
-    apron: pick(SWATCH.apron.slice(1), r), hatColor: pick(SWATCH.hat.slice(1), r), hat: r() < 0.75 ? "hat" : "none", height: 0.96 + r() * 0.08,
-    build: 0.94 + r() * 0.12, head: 0.97 + r() * 0.06, eyes: pick(SWATCH.eyes, r), linen: pick(SWATCH.linen, r), stockings: pick(SWATCH.stockings, r), seed };
+    apron: pick(SWATCH.apron.slice(1), r), hatColor: pick(SWATCH.hat.slice(1), r), hat: r() < 0.75 ? "hat" : "none", height: Math.max(0.9, Math.min(1.1, 1 + (r() + r() + r() - 1.5) / 1.5 * 0.06)),
+    build: [0.9, 0.96, 1, 1, 1.04, 1.1, 1.16][Math.floor(r() * 7)], head: 0.97 + r() * 0.06, eyes: pick(SWATCH.eyes, r), linen: pick(SWATCH.linen, r), stockings: pick(SWATCH.stockings, r), seed };
 }
 export const isF = l => (BODIES.find(b => b.id === (l && l.body)) || BODIES[0]).f;
 const KEY = "reckoning.mp.look.v1";
