@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.100", date: "23 October 2026", title: "By its edge",
+    items: [
+      "Hands: a writ or a paper is held by its top edge in the fist and hangs from it, as the magistrate and the Amtmann hold theirs, rather than with the hand through the middle of the sheet.",
+    ],
+  },
+  {
     v: "1.99.99", date: "23 October 2026", title: "Hands that hold",
     items: [
       "Hands: everyone’s are their right size now (the sculpted hand was life-size on slighter forearms, and looked too big) and joined to the arm, the wrist up inside the sleeve, with no gap and no stray flap of the old hand by the cuff.",

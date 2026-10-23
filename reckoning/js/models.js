@@ -1381,8 +1381,9 @@ const G_TOOLS = () => _toolsOf();
 
 export function makeScroll() {
   const g = new THREE.Group();
-  const p = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.005), mat(0xe8dcc0)); g.add(p);
-  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 10), mat(0x9a1b1b)); seal.rotation.x = Math.PI / 2; seal.position.set(0, -0.13, 0.008); g.add(seal);
+  // (held by its top edge, in the fist — the sheet hanging from the hand, not the hand through the middle of it)
+  const p = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.005), mat(0xe8dcc0)); p.position.y = -0.17; g.add(p);
+  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 10), mat(0x9a1b1b)); seal.rotation.x = Math.PI / 2; seal.position.set(0, -0.3, 0.008); g.add(seal);
   return g;
 }
 // (held as a guard holds it: grounded and upright at his side, its point to the sky — kept so whatever the hand that
