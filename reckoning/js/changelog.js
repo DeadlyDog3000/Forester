@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.82", date: "23 October 2026", title: "Found your feet",
+    items: [
+      "Campaign: the getting-started list at the side puts itself away once a campaign is five years old, done or not, rather than staying on through the decades.",
+    ],
+  },
+  {
     v: "1.99.81", date: "22 October 2026", title: "A clean pause",
     items: [
       "Pause: the line of talk on the screen, the key prompts and the name of what you look at are put away while a menu is open, and come back when you resume. The note that your progress is kept no longer sat over someone’s words.",

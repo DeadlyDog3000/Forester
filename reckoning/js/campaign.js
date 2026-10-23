@@ -3211,7 +3211,8 @@ const FIRST = [
   ["year", "End the year", "The red button. The world moves on, and its news comes to you."],
 ];
 function firstCard() {
-  if (!C || C.mp || C.over || first.off || FIRST.every(([k]) => first[k])) return "";
+  // (and put away of itself once the campaign's five years old: whoever's got so far has found their way, done or not)
+  if (!C || C.mp || C.over || first.off || FIRST.every(([k]) => first[k]) || C.year - 1683 >= 5) return "";
   const n = FIRST.filter(([k]) => first[k]).length;
   return `<div class="cmp-card cmp-first"><div class="cmp-first-h"><b>${C.year > 1683 ? "Getting started" : "Your first year"}</b><small>${n} of ${FIRST.length}</small></div><ol>${FIRST.map(([k, t, d]) => `<li class="${first[k] ? "done" : ""}"><b>${t}</b><small>${d}</small></li>`).join("")}</ol><button class="tm-lnk" data-firstoff="1">Put this away</button></div>`;
 }
