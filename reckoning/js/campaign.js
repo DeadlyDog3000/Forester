@@ -408,7 +408,7 @@ function statePaper() {
     <div class="gz-cols">${P.join("")}</div>
     <div class="gz-foot"><button class="btn primary" data-gz="1">Take up the crown</button></div>
   </div>`;
-  const close = () => { el.classList.add("out"); setTimeout(() => { el.remove(); goalScreen(); ach("cmp-begin"); }, 260); removeEventListener("keydown", key, true); };
+  const close = () => { el.classList.add("out"); setTimeout(() => { el.remove(); goalScreen(); ach("cmp-begin"); if (C) drawMap(); }, 260); removeEventListener("keydown", key, true); };
   const key = e => { if (e.code === "Escape" || e.code === "Enter" || e.code === "Space") { e.preventDefault(); e.stopPropagation(); close(); } };
   el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-gz]")) close(); });
   addEventListener("keydown", key, true);
@@ -2974,6 +2974,7 @@ function paint() {
     if (marchAnims.some(A => A.key === key && now - A.t0 < A.dur)) return;
     const face = go ? (() => { const [gx, gy] = scr(go); return Math.atan2(gy - y, gx - x) + Math.PI / 2; })() : 0;
     armyMark(c, x, y, face, id, n, mine, mine && act && armySel, u);
+    if (key === C.me + "#" + (C.ar | 0)) myArmyAt = [x, y, u];
   };
   // (the other crowns at war with you, and their marches on your towns; the other player's; then yours, on top)
   // (the straits that join the great lakes, too narrow for the map's coast to show: drawn in, so a lake's ships aren't
@@ -2997,7 +2998,10 @@ function paint() {
   if (C.mp) for (const h of humans()) if (h !== C.me) { const sl = sliceOf(h); if (sl && sl.pos) army({ x: sl.pos.x + (foeOff[h] || 0), y: sl.pos.y }, h, sl.army | 0, false, null); }
   for (const a of C.armies || []) if (a.pos && a.emb == null) army({ x: a.pos.x + (armyOff[a.id] || 0), y: a.pos.y }, C.me, C.units.filter(u => !u.at && (u.ar | 0) === a.id).length, true, a.go || null, false, C.me + "#" + a.id);
   // (an army aboard ship isn't seen marching: when it lands it's simply there, not walked over the water)
+  myArmyAt = null;
+  { const cap = citiesOfNow(grid(), C.me).sort((a, b) => b[3] - a[3])[0]; myTownAt = cap ? [...scr(cellXY(cap)), armyU(k)] : null; }
   if (C.emb == null) army(armyPos(), C.me, field().length || C.army, true, C.go || null, true, C.me + "#" + (C.ar | 0)); else delete lastArmyAt[C.me + "#" + (C.ar | 0)];
+  coachRing(cv);
   for (const a of C.armies || []) if (a.emb != null) delete lastArmyAt[C.me + "#" + a.id];
   marchStart(cv);
   // ---- the fleets: a ship under sail, engraved, in her crown's colour, how many ships under her, and where she's bound ----
@@ -3222,11 +3226,33 @@ const FIRST = [
   ["learn", "Set your scholars to work", "Learning, at the top."],
   ["year", "End the year", "The red button. The world moves on, and its news comes to you."],
 ];
+// (the first year shown, not only listed: the step you're on marked, and what to use for it lit — your army on the map,
+//  your towns, Learning, the year's end — till it's done; gone with the list)
+let myArmyAt = null, myTownAt = null;
+function coachStep() {
+  if (!C || C.mp || C.over || first.off || C.year - 1683 >= 5 || $("cmpGazette")) return null;
+  const s = FIRST.find(([k]) => !first[k]); return s ? s[0] : null;
+}
+function coachRing(cv) {
+  const wrap = cv && cv.parentElement; if (!wrap) return;
+  let el = $("cmpCoach"); const k = coachStep(), at = k === "army" || k === "march" ? myArmyAt : k === "recruit" ? myTownAt : null, on = !!at && !on3d;
+  if (!on) { if (el) el.hidden = true; return; }
+  if (!el) { el = document.createElement("div"); el.id = "cmpCoach"; el.className = "cmp-coach"; el.innerHTML = "<i></i><span></span>"; wrap.appendChild(el); }
+  const cr = cv.getBoundingClientRect(), wr = wrap.getBoundingClientRect(), kx = cr.width / cv.width || 1, ky = cr.height / cv.height || 1, [x, y, u] = at;
+  el.hidden = false; el.style.left = `${cr.left - wr.left + x * kx}px`; el.style.top = `${cr.top - wr.top + y * ky}px`; el.style.setProperty("--r", `${Math.round(22 * u * Math.min(kx, ky))}px`);
+  el.querySelector("span").textContent = k === "army" ? "Your army: click it" : k === "march" ? "Now right-click a town to march on" : "Your chief town: click it to raise regiments";
+}
+function coachMarks() {
+  coachRing($("cmpMap"));
+  const k = coachStep();
+  for (const [id, step] of [["cmpTechB", "learn"], ["cmpEnd", "year"]]) { const b = $(id); if (b) b.classList.toggle("coach", k === step); }
+  const rt = document.querySelector('#cmpSide [data-fold="recruit"]'); if (rt) rt.classList.toggle("coach", k === "recruit");
+}
 function firstCard() {
   // (and put away of itself once the campaign's five years old: whoever's got so far has found their way, done or not)
   if (!C || C.mp || C.over || first.off || FIRST.every(([k]) => first[k]) || C.year - 1683 >= 5) return "";
   const n = FIRST.filter(([k]) => first[k]).length;
-  return `<div class="cmp-card cmp-first"><div class="cmp-first-h"><b>${C.year > 1683 ? "Getting started" : "Your first year"}</b><small>${n} of ${FIRST.length}</small></div><ol>${FIRST.map(([k, t, d]) => `<li class="${first[k] ? "done" : ""}"><b>${t}</b><small>${d}</small></li>`).join("")}</ol><button class="tm-lnk" data-firstoff="1">Put this away</button></div>`;
+  return `<div class="cmp-card cmp-first"><div class="cmp-first-h"><b>${C.year > 1683 ? "Getting started" : "Your first year"}</b><small>${n} of ${FIRST.length}</small></div><ol>${FIRST.map(([k, t, d]) => `<li class="${first[k] ? "done" : k === coachStep() ? "now" : ""}"><b>${t}</b><small>${d}</small></li>`).join("")}</ol><button class="tm-lnk" data-firstoff="1">Put this away</button></div>`;
 }
 function newsTip() { if (firstCard()) return; try { if (localStorage.getItem(TIPKEY)) return; localStorage.setItem(TIPKEY, "1"); } catch (e) { return; } if (!note) note = "How the campaign works: every town has its people, and regiments are raised in your towns, a kind at a time: choose a town to recruit, or use Your towns. Leave regiments to hold a town, form new armies from garrisons, and click an enemy army to fight it in the field. The ? at the top explains the rest."; }
 function drawMap(fit = false) {
@@ -3248,7 +3274,7 @@ function drawMap(fit = false) {
     if (!mine.length) mine.push([ap.x, ap.y]);
     if (mine.length) { const S = cv.width / MG_W, cx = mine.reduce((t, p) => t + p[0], 0) / mine.length * S, cy = mine.reduce((t, p) => t + p[1], 0) / mine.length * S; view.z = 2.2 * ZF(); view.ox = clamp(cx - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(cy - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); }
   }
-  paint(); drawTop(); drawSide();
+  paint(); drawTop(); drawSide(); coachMarks();
 }
 function drawTop() {
   const g = grid(), n = citiesOfNow(g, C.me).length, net = income(g) - upkeep(), wars = Object.keys(C.E.war).filter(id => C.E.war[id]);
@@ -3631,7 +3657,7 @@ function __selectTown(n) {
   if (on3d && eu3d) eu3d.look(ct[1], ct[2]);
   drawMap();
 }
-window.__cmp = { get eu3d() { return eu3d; }, enter3d: () => enter3d(), fight: o => fight(o), get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, statePaper: () => statePaper(), mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, garrison, defOf: (ct, foe) => defOf(grid(), ct, foe), draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
+window.__cmp = { get eu3d() { return eu3d; }, firstDid: k => { firstDid(k); drawMap(); }, enter3d: () => enter3d(), fight: o => fight(o), get armySel() { return armySel; }, set armySel(v) { armySel = !!v; }, begin: me => { begin(me); drawMap(true); }, statePaper: () => statePaper(), mpt: { meetEnd: (w, k, l) => meetEnd(w, k, l), apply: (w, a) => apply(w, a), endAll: () => endAll(), as: (c, fn) => as(c, fn), sliceOf: id => sliceOf(id), fleets3d: () => fleets3d() }, nav: { harbourOf, seaPath: (a, b) => seaPath(grid(), a, b), sailAlong, cellXY, launchShips: () => launchShips(grid()), foeNavies: () => { const ids = Object.keys(NATIONS).filter(id => id !== C.me && alive(grid(), id)); foeNavies(grid(), ids); navyHunt(grid(), ids); } }, get C() { return C; }, doAct: a => doAct(a), get view() { return { ...view, on3d, dist: eu3d && eu3d.dist }; }, dist: distFrom, endSeason, diplo, march, auto, settle, grid, citiesOfNow, garrison, defOf: (ct, foe) => defOf(grid(), ct, foe), draw: () => drawMap(), select: (name) => { selCity = CITIES.find(c => c[0] === name) || null; sel = selCity ? cityOwner(grid(), selCity) : null; drawMap(); } };
 
 // ---------------------------------------------------------------------------
 //  what you do on the campaign's map, as an act: done here, playing alone — or, a campaign of two, done on the

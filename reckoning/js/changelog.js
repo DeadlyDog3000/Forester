@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.91", date: "23 October 2026", title: "Shown the way",
+    items: [
+      "Campaign: your first year is shown, not only listed. The step you’re on is marked in the list at the side, and what to use for it is lit: a ring round your army on the map (“click it”, then “right-click a town to march on”), a ring round your chief town to raise regiments, then the Learning button, then End the year. Each goes out as it’s done, and the whole guide with the list, put away or done.",
+    ],
+  },
+  {
     v: "1.99.90", date: "23 October 2026", title: "Unknown",
     items: [
       "Diplomacy: a crown whose army you can’t see reads “army unknown”, not “army ?”; rest the pointer on it for how to learn it. On the map its men still carry a question mark.",
