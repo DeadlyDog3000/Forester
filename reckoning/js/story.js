@@ -600,7 +600,7 @@ async function ch2(w) {
     if (i >= 2) { const t = g.hold(makeTorch(false)); g.person.setPose("torch"); const L = w.pool[3 + (i - 2)]; L.intensity = 7; L.distance = 16; L.color.set(0xff8a3a); t.userData.flameObj.add(L); t.userData.flameObj.userData.flame.light = L; t.userData.flameObj.userData.flame.base = 7; w.flames.push(t.userData.flameObj); }
     else g.hold(makeHalberd());
   });
-  const scroll = mag.hold(makeScroll()); scroll.position.set(0, 0, 0); scroll.rotation.set(-1.3, 0, 0);
+  const scroll = mag.hold(makeScroll(true));
 
   const knockLoop = (() => { let t = 1.4; return onFrame(dt => { t -= dt; if (t <= 0) { t = 4.5; AUDIO.knock(3, 1); } }); })();
   await wait(0.3);
@@ -714,7 +714,7 @@ async function ch3(w, opts) {
   let father, mag;
   if (!opts.chase) {
     father = spawn(FATHER, 1.2, 43.2, 0); father.yOff = 1.92; father.person.setPose("bound");
-    mag = spawn(MAGISTRATE, -1.6, 44.6, 0); mag.yOff = 1.92; const sc = mag.hold(makeScroll()); sc.position.set(0, 0, 0); sc.rotation.set(-1.3, 0, 0);
+    mag = spawn(MAGISTRATE, -1.6, 44.6, 0); mag.yOff = 1.92; const sc = mag.hold(makeScroll(true));
     const hood = spawn({ name: "", coat: 0x1a1414, legs: 0x1a1414, hat: "cap", hatColor: 0x121010, seed: 71 }, 1.8, 46.5, 0); hood.yOff = 1.92;
     const g1 = spawn(GUARD(72), -2.4, 42.6, 0); g1.yOff = 1.92; g1.hold(makeHalberd());
     const g2 = spawn(GUARD(73), 2.6, 42.3, 0); g2.yOff = 1.92; g2.hold(makeHalberd());

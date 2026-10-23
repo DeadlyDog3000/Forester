@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.102", date: "23 October 2026", title: "By the side",
+    items: [
+      "Hands: a paper is held by its side, open-handed, the fingers toward the paper. Read, as the magistrate reads his writ, it is held up facing the reader by its side edge, the fingers behind it and the thumb in front; carried, it hangs down along the fingers, which lie on it. No fist round a sheet of paper.",
+    ],
+  },
+  {
     v: "1.99.101", date: "23 October 2026", title: "Open and closed",
     items: [
       "Hands: each hand is open when it’s empty and closed when it holds something. At rest the fingers ease toward the palm and the thumb lies in beside the first finger, as a hand hangs. Given a torch, a musket, a lantern or a paper, that hand closes round it, and opens again when it lets go. In the great battles the men’s hands are closed on their muskets.",

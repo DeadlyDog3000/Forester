@@ -739,7 +739,8 @@ function useModel(P, key, colors = {}) {
   P.update = function (dt, speed = 0) {
     base(dt, speed);
     // (a hand closes when there's something in it, and opens again when there isn't)
-    if (this.setGrip && !this.gripFixed) { const r = this.held.children.length > 0, l = this.heldL.children.length > 0; if (r !== this._gripR || l !== this._gripL) this.setGrip(l, r); }
+    //  (a paper is held open-handed, by its side, between the thumb and the fingers: no fist for that)
+    if (this.setGrip && !this.gripFixed) { const fist = h => h.children.some(c => !c.userData.pinch), r = fist(this.held), l = fist(this.heldL); if (r !== this._gripR || l !== this._gripL) this.setGrip(l, r); }
     // (let go — a ragdoll, ragdoll.js — the clips leave it alone)
     if (this.rag) return;
     // the model does its own moving, so the code-built body stands straight
@@ -1391,11 +1392,19 @@ let _toolsOf = () => null;
 export const setToolSource = f => { _toolsOf = f; };
 const G_TOOLS = () => _toolsOf();
 
-export function makeScroll() {
+export function makeScroll(read = false) {
   const g = new THREE.Group();
-  // (held by its top edge, in the fist — the sheet hanging from the hand, not the hand through the middle of it)
-  const p = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.36, 0.005), mat(0xe8dcc0)); p.position.y = -0.17; g.add(p);
-  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 10), mat(0x9a1b1b)); seal.rotation.x = Math.PI / 2; seal.position.set(0, -0.3, 0.008); g.add(seal);
+  // (held as a paper is: by its side, between the thumb and the fingers — the hand open, see setGrip — the fingers lying
+  //  along it, the sheet running on past them. In the hand's frame its edge runs the way the fist's hole would, and the
+  //  sheet out the way the fingers point)
+  //  — read: held up by its side edge facing the one reading it, the fingers behind it and the thumb before; carried:
+  //  hanging by its side edge along the fingers, which lie on it
+  const p = new THREE.Mesh(read ? new THREE.BoxGeometry(0.28, 0.36, 0.004) : new THREE.BoxGeometry(0.004, 0.36, 0.28), mat(0xe8dcc0));
+  p.position.set(read ? 0.12 : 0.006, -0.06, read ? 0.06 : 0.11); g.add(p);
+  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.01, 10), mat(0x9a1b1b));
+  if (read) { seal.rotation.x = Math.PI / 2; seal.position.set(0.12, -0.19, 0.055); } else { seal.rotation.z = Math.PI / 2; seal.position.set(0.012, -0.19, 0.17); }
+  g.add(seal);
+  g.userData.pinch = true;
   return g;
 }
 // (held as a guard holds it: grounded and upright at his side, its point to the sky — kept so whatever the hand that
