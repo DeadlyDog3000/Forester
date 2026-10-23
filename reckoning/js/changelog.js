@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.94", date: "23 October 2026", title: "Cut to fit",
+    items: [
+      "People: the waistcoat is cut to the body and lies on it, buttoned close down the middle, its skirts a little out at the hips. It was a board stood off the breast like a pack worn backwards.",
+      "People: the cravat is tied once under the chin, its two ends falling over the waistcoat, as worn in the 1680s, in place of a white knob at the throat.",
+      "People: a coat’s fronts are banded down each edge and lie on the breast, in the regiment’s facing colour for a soldier, with the buttons along them.",
+      "People: the watch’s sash is worn over the shoulder and lies on the coat, knotted at the hip with its ends hanging. It was a board slanted across the chest.",
+      "People: a woman’s kerchief lies over her shoulders and breast instead of standing out like a cape, and her bodice’s lacing lies on it. Sleeves are a little slimmer for everyone.",
+    ],
+  },
+  {
     v: "1.99.93", date: "23 October 2026", title: "With thanks",
     items: [
       "Credits: the heads the people are made from are credited to Blender Studio’s Human Base Meshes.",

@@ -374,7 +374,7 @@ def build_person(key):
         "pelvis": ((0.17 if f else 0.155) + wide, 0.115 + wide * 0.6), "spine": ((0.14 if f else 0.15) + wide * 0.8, 0.1 + wide * 0.6), "chest": ((0.155 if f else 0.18) + wide * 0.5, 0.115 if f else 0.11),
         "yoke": ((0.15 if f else 0.175) + wide * 0.4, 0.1),
         "neck": (0.045 if f else 0.052, 0.05 if f else 0.057), "head": (0.05 if f else 0.058, 0.054 if f else 0.062),
-        "shoulder": (0.066 if f else 0.07, 0.066 if f else 0.068), "elbow": (0.042 if f else 0.048, 0.044 if f else 0.048), "wrist": (0.03 if f else 0.034, 0.027 if f else 0.03), "hand": (0.036 if f else 0.04, 0.017),
+        "shoulder": (0.061 if f else 0.065, 0.061 if f else 0.064), "elbow": (0.039 if f else 0.044, 0.041 if f else 0.045), "wrist": (0.03 if f else 0.034, 0.027 if f else 0.03), "hand": (0.036 if f else 0.04, 0.017),
         "hip": (0.088 if f else 0.085, 0.09), "knee": (0.052 if f else 0.056, 0.056 if f else 0.058), "ankle": (0.036 if f else 0.04, 0.04 if f else 0.042), "toe": (0.042 if f else 0.045, 0.028 if f else 0.03),
     }
     RAD = {n: R[n.split(".")[0]] for n in J}
@@ -930,9 +930,15 @@ def build_person(key):
         elif east:
             pass                                     # (no cravat in the East: the kaftan closes at the throat)
         else:
-            P.sphere("linen", WHITE, (0, -0.086, 1.44), (0.034, 0.016, 0.028), segs=12, rings=8)
+            # the cravat of the 1680s: a long neckcloth wound round and tied once under the chin, its two ends falling
+            # over the breast, broadening a little to their lace — laid on the waistcoat, not stood off it
+            P.sphere("linen", WHITE, hug((0, -0.3, 1.452), 0.014), (0.026, 0.013, 0.018), segs=10, rings=7)
             for sd in (-1, 1):
-                P.box("linen", WHITE, (sd * 0.012, -0.096, 1.385), (0.034, 0.008, 0.085), (0.12, 0, sd * 0.12))
+                rows = []
+                for i in range(6):
+                    t = i / 5; z = 1.44 - 0.13 * t; xc = sd * (0.004 + 0.006 * t); w = 0.02 + 0.012 * t
+                    rows.append([hug((xc + w * k, -0.3, z), 0.016 + 0.003 * sd) for k in (-1, 0, 1)])
+                sheet(P, "linen", rows, thick=0.003, col=lambda i, j: (0.88, 0.87, 0.85, 1) if i >= 4 else WHITE)
         # the coat's collar, standing at the back of the neck
         rows = skirt_rows(1.5, 1.44, 3, 1.1, 2 * PI - 1.1, 18, lambda t: (0.072 + 0.02 * t, 0.07 + 0.02 * t), lambda t, a: 0.0, 0.006)
         sheet(P, "coat", rows, thick=0.006)
@@ -955,9 +961,15 @@ def build_person(key):
                 P.sphere("metal", WHITE, p + Vector((math.cos(a) * 0.045 * k, math.sin(a) * 0.045 * k - 0.006, -0.012)), (0.008, 0.005, 0.008), segs=8, rings=5)
         # a waistcoat showing at the front, buttoned
         if o.get("vest") and not east:
-            P.box("vest", WHITE, (0, -0.104, 1.18), (0.15, 0.03, 0.42))
-            for i in range(7):
-                P.sphere("metal", WHITE, (0, -0.121, 1.36 - i * 0.048), (0.008, 0.005, 0.008), segs=8, rings=5)
+            # (cut to the body and lying on it, its skirts a little out from the hips at the foot — it was a board
+            #  stood off the breast; buttoned close down the middle)
+            rows = []
+            for i in range(9):
+                t = i / 8; z = 1.41 - 0.5 * t; w = 0.07 + 0.012 * t
+                rows.append([hug((w * k / 4, -0.3, z), 0.01 + 0.012 * smooth((t - 0.75) / 0.25)) for k in range(-4, 5)])
+            sheet(P, "vest", rows, thick=0.005, col=lambda i, j: (0.85, 0.85, 0.85, 1) if i >= 8 else WHITE)
+            for i in range(9):
+                P.sphere("metal", WHITE, hug((0, -0.3, 1.38 - i * 0.045), 0.016), (0.0065, 0.004, 0.0065), segs=8, rings=5)
         # (an eastern coat frogged across the breast instead: cords in the facing colour, a toggle at each end)
         if east:
             for i in range(6):
@@ -968,9 +980,11 @@ def build_person(key):
                     P.sphere("metal", WHITE, hug((sd * (0.068 - i * 0.003), -0.3, z), 0.016), (0.009, 0.007, 0.009), segs=8, rings=5)
         # coat facings and buttons
         for sd in ((-1, 1) if not east else ()):
-            P.box("coat", WHITE, (sd * 0.1, -0.108, 1.15), (0.05, 0.02, 0.5), (0, sd * -0.25, 0))
+            # (the coat's fronts: a band down each edge, lying on the breast, the buttons and their holes along it)
+            rows = [[hug((sd * (0.072 + 0.04 * k / 2), -0.3, 1.42 - 0.47 * i / 7), 0.014) for k in range(3)] for i in range(8)]
+            sheet(P, "cuff" if soldier else "coat", rows, thick=0.004, col=lambda i, j: (0.9, 0.9, 0.9, 1))
             for i in range(6):
-                P.sphere("metal", WHITE, (sd * 0.076, -0.119, 1.36 - i * 0.06), (0.0095, 0.006, 0.0095), segs=8, rings=5)
+                P.sphere("metal", WHITE, hug((sd * 0.082, -0.3, 1.38 - i * 0.065), 0.019), (0.0085, 0.005, 0.0085), segs=8, rings=5)
         # deep turned-back cuffs, buttoned
         for sd in (-1, 1):
             x0 = sd * (sh + 0.04)
@@ -986,8 +1000,17 @@ def build_person(key):
             for dx, ln in ((0.05, 0.2), (0.09, 0.16)):
                 P.box("sash", WHITE, k0 + Vector((dx - 0.07, -0.012, -ln / 2 - 0.02)), (0.045, 0.008, ln), (0.04, 0, 0.06))
         elif o.get("sash"):
-            P.cyl("sash", WHITE, (0, 0, 1.12), (0, 0, 1.18), 0.162, 0.166, segs=20)
-            P.box("sash", WHITE, (0.0, -0.02, 1.2), (0.06, 0.24, 0.62), (0.2, 0.62, 0))
+            # the watch's sash: worn over the right shoulder to the left hip, lying on the coat, and knotted there with
+            # its ends hanging (it was a board slanted across the breast)
+            hip_, sho_ = Vector((0.15, 0, 1.0)), Vector((-0.12, 0, 1.5))
+            u = sho_ - hip_; half = u.length / 2; u.normalize(); c = (sho_ + hip_) / 2
+            yv = Vector((0, 1, 0)); nrm = u.cross(yv).normalized()
+            mid = [hug(c + u * half * math.cos(j / 48 * 2 * PI) + yv * 0.2 * math.sin(j / 48 * 2 * PI), 0.02) for j in range(48)]
+            sheet(P, "sash", [[p + nrm * w for p in mid] for w in (0.03, -0.03)], thick=0.005, closed=True)
+            k0 = hug(hip_ + Vector((0, -0.2, -0.02)), 0.03)
+            P.sphere("sash", WHITE, k0, (0.03, 0.02, 0.026), segs=10, rings=6)
+            for dx, ln in ((-0.012, 0.16), (0.018, 0.13)):
+                P.box("sash", WHITE, k0 + Vector((dx, -0.006, -ln / 2 - 0.015)), (0.034, 0.006, ln), (0.05, 0, 0.08))
         if soldier and east in ("janissary", "haiduk"):
             # (no bandolier: a powder horn on a cord at the right hip, and a pouch beside it)
             fl = hug((-0.17, -0.06, 0.9), 0.04)
@@ -1060,13 +1083,14 @@ def build_person(key):
             row = []
             for j in range(41):
                 a = j / 40 * 2 * PI
-                rx_, ry_ = 0.07 + 0.11 * t, 0.068 + 0.06 * t
-                z = 1.475 - 0.06 * t - (0.16 * gauss(math.atan2(math.sin(a), math.cos(a)), 0.5) + 0.08 * gauss(abs(math.atan2(math.sin(a), math.cos(a))) - PI, 0.6)) * t ** 1.5
-                row.append(clear(Vector((math.sin(a) * rx_, -math.cos(a) * ry_ + hy * 0.5, z)), 0.009))
+                rx_, ry_ = 0.07 + 0.075 * t, 0.068 + 0.05 * t
+                z = 1.475 - 0.05 * t - (0.13 * gauss(math.atan2(math.sin(a), math.cos(a)), 0.5) + 0.08 * gauss(abs(math.atan2(math.sin(a), math.cos(a))) - PI, 0.6)) * t ** 1.5
+                q = Vector((math.sin(a) * rx_, -math.cos(a) * ry_ + hy * 0.5, z))
+                row.append(hug(q, 0.01) if t > 0.3 else clear(q, 0.009))   # (laid over the shoulders and breast, not a cape stood out from them)
             rows.append(row)
         sheet(P, "linen", rows, thick=0.005, closed=True, col=lambda i, j: (0.93, 0.92, 0.9, 1))
         for i in range(6):
-            P.box("linen", WHITE, (0, -0.122, 1.33 - i * 0.04), (0.05, 0.004, 0.005), (0, 0, 0.5 * (-1) ** i))   # lacing
+            P.box("linen", WHITE, hug((0, -0.3, 1.31 - i * 0.04), 0.006), (0.042, 0.003, 0.004), (0, 0, 0.5 * (-1) ** i))   # lacing, on the bodice
         # the skirt: gathered at the waist, full to the ankle, in deep folds, a darker band at the hem
         ph = [rnd.random() * 6 for _ in range(3)]
         rad = lambda t: (0.17 + wide + 0.23 * (1 - (1 - t) ** 1.7), 0.135 + wide * 0.8 + 0.2 * (1 - (1 - t) ** 1.7))
@@ -1085,7 +1109,11 @@ def build_person(key):
         if o.get("sash"):
             # the watch's sash on a woman: a belt at the waist, and the band over the shoulder across the bodice
             P.cyl("sash", WHITE, (0, 0, 0.965), (0, 0, 1.02), 0.178 + wide, 0.172 + wide, segs=24)
-            P.box("sash", WHITE, (0.0, -0.012, 1.2), (0.055, 0.29, 0.55), (0.16, 0.6, 0))
+            hip_, sho_ = Vector((0.14, 0, 1.0)), Vector((-0.11, 0, 1.48))
+            u = sho_ - hip_; half = u.length / 2; u.normalize(); c = (sho_ + hip_) / 2
+            yv = Vector((0, 1, 0)); nrm = u.cross(yv).normalized()
+            mid = [hug(c + u * half * math.cos(j / 48 * 2 * PI) + yv * 0.2 * math.sin(j / 48 * 2 * PI), 0.024) for j in range(48)]
+            sheet(P, "sash", [[p + nrm * w for p in mid] for w in (0.027, -0.027)], thick=0.005, closed=True)
         for sd in (-1, 1):
             x0 = sd * (sh + 0.035)
             P.cyl("linen", WHITE, (x0, 0.01, 1.075), (x0, 0.012, 1.115), 0.05, 0.054, segs=14)
