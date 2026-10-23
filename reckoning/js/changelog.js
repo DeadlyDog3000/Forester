@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.103", date: "23 October 2026", title: "Needles and leaves",
+    items: [
+      "Trees: the woods now match the people. Spruces and pines are built of drooping boughs, each one a spray of needles with a ragged edge and the sky showing through it, round a dark heart; oaks, birches and the other broadleaves are clumps of real leaf sprays instead of smooth green balls. Every kind keeps its own colour, sway and place, so a forest reads the same on the map and much more like a forest up close.",
+      "The app: an update that was shut down in its first second (the app quitting or restarting just then) was taken for a broken one and put aside, so the game went back to the version it was installed with. Now only a real crash counts, and this update is fetched afresh.",
+    ],
+  },
+  {
     v: "1.99.102", date: "23 October 2026", title: "By the side",
     items: [
       "Hands: a paper is held by its side, open-handed, the fingers toward the paper. Read, as the magistrate reads his writ, it is held up facing the reader by its side edge, the fingers behind it and the thumb in front; carried, it hangs down along the fingers, which lie on it. No fist round a sheet of paper.",
