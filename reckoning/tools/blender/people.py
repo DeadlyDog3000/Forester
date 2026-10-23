@@ -680,6 +680,7 @@ def build_person(key):
         # the hairline painted on, finer than the hair's own shell can draw it
         phi = math.atan2(X, -Y)
         mh = smooth((Z - piecewise(HL, abs(phi)) + 0.02) / 0.11)
+        if BH: mh *= 1 - smooth((abs(X) - 0.74) / 0.08) * smooth((0.3 - Z) / 0.1) * smooth((Z + 0.5) / 0.1)   # (not the ears)
         c = mix(c, tint(hair, (0.62, 0.62, 0.62)), mh)
         if native:
             # paint: a band of vermilion across the eyes and the brow, black from the cheekbone to the jaw on one side
@@ -786,11 +787,19 @@ def build_person(key):
             if groove: e -= groove(X, Y, Z, phi) * m_
             n = Vector((X, Y, Z))
             p = sculpt(X, Y, Z) if Y < 0 else Vector((X * RX, Y * RY * (1 + 0.07 * Y * smooth((Z + 0.4) / 0.8)), Z * RZ))
-            if BH and Z > -0.45:
-                # (on the base head: the hair laid over its own surface, found coming in towards the centre — but only
-                #  on the skull: lower, a ray finds the neck far below, and the hair hung down to it in a curtain)
-                hit = htree.ray_cast(hc + n * 0.4, -n, 0.5)
-                if hit[0] is not None and (hit[0] - hc).length < p.length * 1.35: p = hit[0] - hc
+            if BH:
+                # (on the base head: the hair laid over its own surface — on the skull found coming in towards its
+                #  centre; lower, at the nape and the jaw, coming in level at its own height, so it lies on the neck
+                #  and jaw instead of standing round them in a ring where the old head was)
+                if Z > -0.2:
+                    hit = htree.ray_cast(hc + n * 0.4, -n, 0.5)
+                    if hit[0] is not None and (hit[0] - hc).length < p.length * 1.35: p = hit[0] - hc
+                else:
+                    hz_ = hc.z + p.z; flat = Vector((n.x, n.y, 0))
+                    if flat.length > 1e-6:
+                        flat.normalize()
+                        hit = htree.ray_cast(Vector((hc.x, hc.y, hz_)) + flat * 0.3, -flat, 0.35)
+                        if hit[0] is not None: p = hit[0] - hc
             v.co = hc + p + n * e
             uv[v] = (r_, m_, Z)
         paint_verts(b, lambda v: col(*uv[v]))
@@ -829,7 +838,7 @@ def build_person(key):
             merge(b, "hair")
         if o.get("longHair") and not f:
             rows = []
-            cols = 20
+            cols = 32
             for i in range(7):
                 t = i / 6
                 row = []
@@ -837,10 +846,12 @@ def build_person(key):
                     a = (1.7 if wild else 1.25) + (2 * PI - (3.4 if wild else 2.5)) * j / cols
                     rr = 1.02 + 0.25 * t
                     zz = hc.z - 0.02 - t * (0.2 if not wild else 0.24) - (rnd.random() * 0.03 * t if wild else 0)
-                    x_ = math.sin(a) * RX * rr * (1 + 0.6 * t)
+                    x_ = math.sin(a) * RX * rr * (1 + 0.35 * t)
                     y_ = -math.cos(a) * RY * rr + 0.012 * t
                     p = clear(Vector((x_, hc.y + y_, zz)), 0.012) if zz < 1.52 else Vector((x_, hc.y + y_, zz))
-                    p += Vector((math.sin(a), -math.cos(a), 0)) * 0.004 * abs(math.sin(j * 1.7 + i))
+                    # (in rolled ringlets, falling in ridges, as a full wig of the day or a wild man's locks — not one smooth
+                    #  sheet)
+                    p += Vector((math.sin(a), -math.cos(a), 0)) * ((0.003 + 0.011 * t) * abs(math.sin(j * PI / 2)) + 0.003 * abs(math.sin(j * 1.7 + i)))
                     row.append(p)
                 rows.append(row)
             sheet(P, "hair", rows, thick=0.012, col=lambda i, j: tint(hcol_, (0.78 + 0.2 * ((j % 2)), 0.78 + 0.2 * ((j % 2)), 0.78 + 0.2 * ((j % 2)))))
@@ -851,6 +862,7 @@ def build_person(key):
         #  clean-shaven man, one with only a moustache, or both)
         def bmask(X, Y, Z, phi):
             under = smooth((-0.4 - Z) / 0.13) * smooth((1.45 - abs(phi)) / 0.2)
+            if BH: under *= smooth((Z + 0.86) / 0.07)   # (on the base head: the beard to just under the jaw, not down the throat)
             hole = gauss(X, 0.24) * gauss(Z + 0.5, 0.075)
             return max(0.0, min(1.0, under * (1 - hole)))
         def tmask(X, Y, Z, phi):

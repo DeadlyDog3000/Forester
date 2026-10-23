@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.95", date: "23 October 2026", title: "Hair and beard",
+    items: [
+      "People: hair lies on the head and the nape, and beards on the jaw, instead of standing round the neck in a ring, and the ears are no longer painted dark inside.",
+      "People: a beard grows to just under the jaw, not down the throat to the collar.",
+      "People: the magistrate’s full wig and the forest men’s long hair fall in rolled ringlets, not one smooth sheet.",
+    ],
+  },
+  {
     v: "1.99.94", date: "23 October 2026", title: "Cut to fit",
     items: [
       "People: the waistcoat is cut to the body and lies on it, buttoned close down the middle, its skirts a little out at the hips. It was a board stood off the breast like a pack worn backwards.",
