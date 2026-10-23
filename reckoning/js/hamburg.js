@@ -8,7 +8,7 @@
 // the houses along them are generated, from a fixed seed, so it is the same
 // city every time.
 
-import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture, SNOW, camera } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture, SNOW, camera, addDetail } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
@@ -90,6 +90,10 @@ export const SPOTS = {
 };
 
 let CHIMS = null;
+// the houses' stuff: each its own grain (the same as the building models' materials of the same name)
+const HOUSE_M = {};
+const HOUSE_MAT = k => HOUSE_M[k] ??= addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: k === "tiles" ? 0.8 : 0.95 }),
+  { scale: k === "brick" ? 1 : k === "tiles" ? 1 : 1.2, amount: k === "plaster" ? 0.3 : 0.42, grain: 0.6, surface: k });
 function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
   // one row of gable houses along the longer side of the lot
   const alongX = (x1 - x0) >= (z1 - z0);
@@ -110,17 +114,18 @@ function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
     const bw = w - 0.06;
     // (and noted for the map, which draws the houses one by one as a town plan does)
     if (row.plots) row.plots.push([cx, cz, alongX ? bw : D, alongX ? D : bw]);
-    // body
-    b.add(BOXG, wall, cx, h / 2, cz, 0, ry, 0, bw, h, D, 0.04);
+    // body (its walls and its roof each in their own stuff, when the street has them apart: plaster, brick, tiles)
+    const wb = b.sub ? (brick ? b.sub.brick : b.sub.plaster) : b, rb = b.sub ? b.sub.tiles : b;
+    wb.add(BOXG, wall, cx, h / 2, cz, 0, ry, 0, bw, h, D, 0.04);
     // the gable, as a triangular wall the depth of the house
-    b.add(gableGeo(bw, roofH, D), wall, cx, h, cz, 0, ry, 0, 1, 1, 1, 0.04);
+    wb.add(gableGeo(bw, roofH, D), wall, cx, h, cz, 0, ry, 0, 1, 1, 1, 0.04);
     // two roof slopes
     const slope = Math.hypot(bw / 2, roofH), ang = Math.atan2(roofH, bw / 2);
     for (const sd of [-1, 1]) {
       const ox = sd * bw / 4, oy = h + roofH / 2;
       const px = alongX ? cx + ox : cx, pz = alongX ? cz : cz + ox;
-      if (alongX) b.add(BOXG, roof, px, oy + 0.08, pz, 0, 0, -sd * ang, slope + 0.35, 0.16, D + 0.5, 0.06);
-      else b.add(BOXG, roof, px, oy + 0.08, pz, sd * ang, 0, 0, D + 0.5, 0.16, slope + 0.35, 0.06);
+      if (alongX) rb.add(BOXG, roof, px, oy + 0.08, pz, 0, 0, -sd * ang, slope + 0.35, 0.16, D + 0.5, 0.06);
+      else rb.add(BOXG, roof, px, oy + 0.08, pz, sd * ang, 0, 0, D + 0.5, 0.16, slope + 0.35, 0.06);
     }
     // a chimney stack on most of them, up through one slope near the ridge (its smoke is the town's evening)
     // (from the house's own place, not the street's random run, so the rest of the street is as it always was)
@@ -157,6 +162,21 @@ function row(b, r, x0, z0, x1, z1, facades, win, lit, cols) {
           put(lx, y + 0.66, 0.92, 0.08, TIMBER, b, 0.1); put(lx - 0.44, y, 0.07, 1.3, TIMBER, b, 0.1); put(lx + 0.44, y, 0.07, 1.3, TIMBER, b, 0.1);
           put(lx, y, 0.05, 1.25, TIMBER, b, 0.1); put(lx, y + 0.12, 0.8, 0.05, TIMBER, b, 0.1);
           put(lx, y - 0.25, 0.8, 0.015, 0x2a2622, b, 0.09); put(lx, y + 0.42, 0.8, 0.015, 0x2a2622, b, 0.09);
+          // (a timber house's frame shows between its windows: a post, and the braces either side of it — the crossed
+          //  St Andrew's braces under the sills, a raking brace from post to beam above — as Hamburg's half-timbering is)
+          if (!brick && i < nw - 1) {
+            const px = lx + bw / nw / 2, gap = bw / nw - 1.0;
+            if (gap > 0.35) {
+              put(px, fl * 3 + 1.6, 0.16, 3, TIMBER, b, 0.1);
+              const bl = Math.hypot(gap / 2, 0.8), ba = Math.atan2(0.8, gap / 2);
+              for (const sd of [-1, 1]) {
+                const qx = px + sd * gap / 4, qy = y - 1.1;
+                const X = alongX ? cx + qx : cx + fo, Z = alongX ? cz + fo : cz + qx;
+                b.add(BOXG, TIMBER, X, qy, Z, 0, ry, ba, bl, 0.12, 0.1);
+                b.add(BOXG, TIMBER, X, qy, Z, 0, ry, -ba, bl, 0.12, 0.1);
+              }
+            }
+          }
         }
         if (!brick && fl > 0) put(0, fl * 3 + 0.2, bw, 0.18, TIMBER);
       }
@@ -183,6 +203,8 @@ export class Hamburg extends WorldBase {
     const root = this.root;
     const r = rng(1683);
     const b = new Builder(), win = new Builder(), lit = new Builder(), props = new Builder();
+    // (the houses' walls and roofs apart, each with the grain of what it is: lime plaster, brick in its courses, tiles)
+    b.sub = { plaster: new Builder(), brick: new Builder(), tiles: new Builder() };
 
     // ---- ground ----
     // cobbles, real ones: a photographed street, about three and a half metres to a tile
@@ -347,6 +369,8 @@ export class Hamburg extends WorldBase {
     }
 
     for (const bb of [b, props]) { const m = bb.build(); root.add(m); }
+    for (const [k, sb] of Object.entries(b.sub)) if (!sb.empty) root.add(sb.build(HOUSE_MAT(k)));
+    b.sub = null;
     const wm = win.build(MAT.pane, { shadow: false }); root.add(wm);
     const lm = lit.build(MAT.lit, { shadow: false }); root.add(lm);
 

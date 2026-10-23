@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.107", date: "23 October 2026", title: "Plaster, brick and tile",
+    items: [
+      "Hamburg: every house's walls and roof are made of what they are now, not one flat colour. The plastered houses show their lime plaster, a little uneven; the brick ones their courses of red brick, mortar between; the roofs their tiles.",
+      "The timber-framed houses show their frames as Hamburg's half-timbering does: a post between each pair of windows and the crossed braces under the sills, dark oak against the plaster.",
+    ],
+  },
+  {
     v: "1.99.106", date: "23 October 2026", title: "Real animals",
     items: [
       "The deer and the hares in the woods are real animals now: sculpted, furred in painted coats with the light catching every hair, and moving as the animals they were made from moved. A stag with a full head of antlers, or a hind; they graze with their heads down, look up and about with their ears turning, walk on, and bolt in a proper gallop; a hare sits up on its haunches and runs in long bounds. Shot, they go down as an animal does.",
