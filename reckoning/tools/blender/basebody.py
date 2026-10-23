@@ -139,14 +139,14 @@ def base_body(J, female, wide=0.0):
 _HAND = {}
 
 
-def _rest_hand():
+def _rest_hand(mode="grip"):
     """The bundle's realistic right hand, relaxed: in its own frame the fingers down (−z), the palm toward +y, the thumb
     out at +x; the wrist at the origin; the forearm cut away and the cut closed; the fingers curled a little toward the
     palm, more at their tips, as a hand hangs at rest."""
-    if "v" in _HAND:
-        return _HAND["v"]
+    if mode in _HAND:
+        return _HAND[mode]
     if not os.path.exists(BLEND):
-        _HAND["v"] = None
+        _HAND[mode] = None
         return None
     with bpy.data.libraries.load(BLEND) as (src, dst):
         dst.objects = [n for n in src.objects if n == "Hand  - Realistic"]
@@ -166,6 +166,21 @@ def _rest_hand():
     yc = yf + Rr
     for v in bm.verts:
         x, y, z = v.co.x - cx, v.co.y, v.co.z
+        if mode == "rest":
+            # (at rest: the fingers easing toward the palm, a little more at each joint, the little finger most; the
+            #  thumb drawn in alongside the first finger — a hand hanging loose, as it does)
+            if x > 0.05 and z > 0.2:
+                piv = Vector((0.045, 0.03, 0.31)); p = Vector((x, y, z)) - piv
+                k = max(0.0, min(1.0, (0.31 - z) / 0.06)); k = k * k * (3 - 2 * k)
+                p = Matrix.Rotation(-0.35 * k, 3, "Z") @ p
+                v.co = piv + p
+            elif z < zk:
+                s_ = zk - z; th = (s_ / 0.11) ** 1.15 * (0.55 + 0.25 * max(0.0, min(1.0, -x / 0.06)))
+                piv = Vector((x, 0.03, zk))
+                v.co = piv + Matrix.Rotation(-th, 3, "X") @ (Vector((x, y, z)) - piv)
+            else:
+                v.co = Vector((x, y, z))
+            continue
         if x > 0.05 and z > 0.2:
             piv = Vector((0.045, 0.03, 0.31)); p = Vector((x, y, z)) - piv
             k = max(0.0, min(1.0, (0.31 - z) / 0.06)); k = k * k * (3 - 2 * k)
@@ -183,23 +198,23 @@ def _rest_hand():
     bm.verts.index_update()
     fs = [tuple(v.index for v in f.verts) for f in bm.faces]
     bm.free()
-    _HAND["v"] = (vs, fs, Vector((0, yc, zk)) - wrist)
-    return _HAND["v"]
+    _HAND[mode] = (vs, fs, Vector((0, yc, zk)) - wrist)
+    return _HAND[mode]
 
 
-def base_hands(J, female):
+def base_hands(J, female, mode="grip"):
     """Both hands at this person's wrists, hanging at rest, the palm toward the thigh and the thumb forward: (verts, faces)."""
-    H = _rest_hand()
+    H = _rest_hand(mode)
     if not H:
         return None
     hv, hf, grip = H
     k = 0.8 if female else 0.86                # (sized to these people's slighter forearms: life-size, the hands were too big)
-    out_v, out_f, grips = [], [], {}
+    out_v, out_f, grips, sides = [], [], {}, {}
     for sd in (1, -1):                       # (+x is the left hand, as the joints have it; the bundle's hand is a right)
         w = Vector((sd * abs(J["wrist.L"][0]), J["wrist.L"][1], J["wrist.L"][2] + 0.035))   # (the wrist up inside the forearm's end: no gap)
         # (the right hand turned so its palm faces in, +x, and its thumb forward, −y; the left is its mirror)
         R = Matrix.Rotation(-math.pi / 2, 3, "Z")
-        base = len(out_v)
+        base = len(out_v); fi0 = len(out_f)
         for q in hv:
             p = R @ (q * k)
             if sd > 0:
@@ -211,4 +226,5 @@ def base_hands(J, female):
         if sd > 0:
             g = Vector((-g.x, g.y, g.z))
         grips[sd] = w + g
-    return out_v, out_f, grips
+        sides[sd] = (base, len(out_v), fi0, len(out_f))
+    return out_v, out_f, grips, sides

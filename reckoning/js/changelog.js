@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.101", date: "23 October 2026", title: "Open and closed",
+    items: [
+      "Hands: each hand is open when it’s empty and closed when it holds something. At rest the fingers ease toward the palm and the thumb lies in beside the first finger, as a hand hangs. Given a torch, a musket, a lantern or a paper, that hand closes round it, and opens again when it lets go. In the great battles the men’s hands are closed on their muskets.",
+      "Windows: the download is now an installer, Forester-Reckoning-windows-setup.exe, which puts the game on the Start menu and the desktop and can be uninstalled from Windows’ settings; your saves stay.",
+    ],
+  },
+  {
     v: "1.99.100", date: "23 October 2026", title: "By its edge",
     items: [
       "Hands: a writ or a paper is held by its top edge in the fist and hangs from it, as the magistrate and the Amtmann hold theirs, rather than with the hand through the middle of the sheet.",

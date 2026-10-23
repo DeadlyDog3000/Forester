@@ -318,6 +318,9 @@ def build_person(key):
     def mat(name, color, rough=0.92, metal=0.0):
         M[name] = make_material(f"{key}_{name}", color, rough, metal)
     mat("skin", WHITE, 0.6)
+    # (each hand twice, as parts of their own: at rest, and closed to hold — the game shows the one the hand needs; the
+    #  names end in skin, so they're tinted as the skin is)
+    for hn in ("handrestL_skin", "handrestR_skin", "handgripL_skin", "handgripR_skin"): mat(hn, WHITE, 0.6)
     mat("hair", WHITE, 0.8)
     if o.get("beard"): mat("beard", WHITE, 0.8); mat("tash", WHITE, 0.8)
     mat("eyes", WHITE, 0.12); mat("iris", WHITE, 0.1)
@@ -435,17 +438,12 @@ def build_person(key):
     # (real hands: the base body's own, with fingers, set at the wrists in place of the mitten the skin made — part of the
     #  arm, after it, as the rig's weighting looks for)
     BHN = base_hands(J, f)
+    BHR = base_hands(J, f, "rest") if BHN else None
     if BHN:
-        hvs, hfs, hgrips = BHN
+        hgrips = BHN[2]
         bmh = bmesh.new(); bmh.from_mesh(me)
         wz = J["wrist.L"][2] + 0.03           # (the old hand and the root of its thumb away entirely: it stood out by the cuff)
         bmesh.ops.delete(bmh, geom=[v for v in bmh.verts if v.index >= n_trunk and v.co.z < wz], context="VERTS")
-        nv = [bmh.verts.new(q) for q in hvs]
-        for fc in hfs:
-            try: bmh.faces.new([nv[i] for i in fc])
-            except ValueError: pass
-        for fc in bmh.faces:
-            if any(v in nv for v in fc.verts): fc.smooth = True
         bmh.to_mesh(me); bmh.free()
     # (a square toe, as shoes were cut in the 1680s: the front of the foot made flat-topped and square-ended)
     if not native and not wild and not o.get("east"):
@@ -543,6 +541,18 @@ def build_person(key):
         return Vector(p) if loc is None else loc + n * off
 
     P = Parts(key)
+    if BHN:
+        for kind, H_ in (("grip", BHN), ("rest", BHR)):
+            hv_, hf_, _, sides_ = H_
+            for sd_, nm in ((1, "L"), (-1, "R")):
+                v0, v1, f0, f1 = sides_[sd_]
+                b = P.bm(f"hand{kind}{nm}_skin"); lay = b.loops.layers.float_color["Col"]
+                nv = [b.verts.new(q) for q in hv_[v0:v1]]
+                for fc in hf_[f0:f1]:
+                    try:
+                        F_ = b.faces.new([nv[i - v0] for i in fc]); F_.smooth = True
+                        for l in F_.loops: l[lay] = skin      # (painted the skin's own colour, as the body's skin is)
+                    except ValueError: pass
     hz = 1.56 - nk                                       # the base of the skull
     hy = stoop * 0.8
     hc = Vector((0, hy - 0.005, hz + 0.105))             # centre of the head
@@ -1339,6 +1349,13 @@ def build_person(key):
 
     extra = P.build(sc, M)
     bake_ao(sc, [body] + extra)
+    # (the hands, both kinds, the skin's own colour again after the shading: baked lying one inside the other, each had
+    #  shaded the other in blotches)
+    for ob in extra:
+        if "_hand" in ob.name and ob.data.color_attributes:
+            ca = ob.data.color_attributes.active_color or ob.data.color_attributes[0]
+            sk_ = (skin[0] * 0.8, skin[1] * 0.78, skin[2] * 0.76, 1)   # (as the face's own paint averages, shade and all)
+            for d in ca.data: d.color = sk_
 
     # ---- the rig ----
     arm = bpy.data.armatures.new(f"{key}_rig")

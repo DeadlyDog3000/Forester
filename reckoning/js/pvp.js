@@ -2569,7 +2569,7 @@ class Fighter {
     this.wind = 0; this.dir = "right"; this.guardDir = "right"; this.heldK = null;
     if (info.horse) this.remount();
     // (a man of a company: his pieces made one, for the crowd's sake — see models.js)
-    if (arena.multi && info.bot) { const P = this.a.person; try { P.unmerge = mergeRig(P.root); } catch (e) { P.unmerge = null; } }
+    if (arena.multi && info.bot) { const P = this.a.person; if (P.setGrip) { P.setGrip(true, true); P.gripFixed = true; } try { P.unmerge = mergeRig(P.root); } catch (e) { P.unmerge = null; } }
   }
   // (a trooper: in the saddle — again, if he was thrown in a round before)
   remount() { if (this.a.horse) { this.a.yOff = 0.68; this.a.person.sitting = 1; return; } { const k = Math.abs(Math.sin((this.info.idx || 0) * 12.99 + (this.info.team || 0) * 7.7)); this.a.mountHorse(makeHorse(COATS[Math.floor(k * COATS.length) % COATS.length], (this.info.idx || 0) + 1)); this.a.radius = 0.6; } }

@@ -628,6 +628,16 @@ function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
   P.root.traverse(o => { if (o.isMesh) o.visible = false; });
   P.body.add(m.scene); P.modelScene = m.scene;
+  // (each hand twice in the model — at rest, and closed to hold: shown as the hand needs, see P.update — found by name
+  //  before the colours below rename their materials)
+  { const H = { L: { rest: [], grip: [] }, R: { rest: [], grip: [] } }; let any = false;
+    m.scene.traverse(o => { if (!o.isMesh) return; const t = /hand(rest|grip)([LR])_skin/i.exec(`${o.name} ${o.parent ? o.parent.name : ""} ${o.material && o.material.name || ""}`); if (t) { H[t[2].toUpperCase()][t[1].toLowerCase()].push(o); any = true; } });
+    if (any) {
+      P.handParts = H;
+      // (grip: each hand closed or at rest; a battle's men are set closed before their pieces are merged into one)
+      P.setGrip = (l, r) => { for (const [s, on] of [["L", l], ["R", r]]) { for (const o of H[s].grip) o.visible = !!on; for (const o of H[s].rest) o.visible = !on; } P._gripL = !!l; P._gripR = !!r; };
+      P.setGrip(false, false);
+    } }
   // this person's own colours on the parts that vary: one model, a varied crowd
   const own = {};
   m.scene.traverse(o => {
@@ -728,6 +738,8 @@ function useModel(P, key, colors = {}) {
   const base = P.update.bind(P);
   P.update = function (dt, speed = 0) {
     base(dt, speed);
+    // (a hand closes when there's something in it, and opens again when there isn't)
+    if (this.setGrip && !this.gripFixed) { const r = this.held.children.length > 0, l = this.heldL.children.length > 0; if (r !== this._gripR || l !== this._gripL) this.setGrip(l, r); }
     // (let go — a ragdoll, ragdoll.js — the clips leave it alone)
     if (this.rag) return;
     // the model does its own moving, so the code-built body stands straight
