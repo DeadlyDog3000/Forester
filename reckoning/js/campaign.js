@@ -759,8 +759,10 @@ function realmWorld(g, ids) {
 // (who sets the missions: the Crown and its court; for a nation of the woods, its council)
 //  — and for a republic, its own assembly: the States General, the Senate, the Diet
 const REPUBLIC_W = { dutch: "States General", venice: "Senate", genoa: "Senate", swiss: "Diet" };
-const crownW = cap => { const w = C && C.story ? "the Emperor" : NATIONS[C.me] && NATIONS[C.me].nw ? "the council" : govOf_().type === "republic" ? `the ${REPUBLIC_W[C.me] || "Assembly"}` : "the Crown"; return cap ? w[0].toUpperCase() + w.slice(1) : w; };
-const courtW = cap => { const w = NATIONS[C.me] && NATIONS[C.me].nw ? "the council" : !C.story && govOf_().type === "republic" ? "the chamber" : "the court"; return cap ? w[0].toUpperCase() + w.slice(1) : w; };
+//  (and the Sultan's government is the Porte, its council the Divan; the Pope's, the Holy See and the Curia)
+const CROWN_W = { ottoman: ["the Porte", "the Divan"], papal: ["the Holy See", "the Curia"] };
+const crownW = cap => { const w = C && C.story ? "the Emperor" : NATIONS[C.me] && NATIONS[C.me].nw ? "the council" : govOf_().type === "republic" ? `the ${REPUBLIC_W[C.me] || "Assembly"}` : CROWN_W[C.me] ? CROWN_W[C.me][0] : "the Crown"; return cap ? w[0].toUpperCase() + w.slice(1) : w; };
+const courtW = cap => { const w = NATIONS[C.me] && NATIONS[C.me].nw ? "the council" : C.story ? "the court" : govOf_().type === "republic" ? "the chamber" : CROWN_W[C.me] ? CROWN_W[C.me][1] : "the court"; return cap ? w[0].toUpperCase() + w.slice(1) : w; };
 // ---- the Crown's missions, as in Empire: Total War: now and then the court sets you a task — a town to take, a building
 //  to raise, an army or a fleet to have, a battle to win, a treaty to sign — with a year to have it done by and a reward
 //  when it is. Two at a time at most; one that runs out of time is simply dropped, with the court's displeasure ----
@@ -779,7 +781,7 @@ function missionOffer(g) {
   // (a trade pact with a crown that thinks well enough of you)
   if (!has("pact")) { const ps = Object.keys(C.E.rel).filter(id => NATIONS[id] && id !== C.me && !atWar(id) && !C.E.pact[id] && !isHuman(id) && alive(g, id) && C.E.rel[id] >= 5); if (ps.length) { const id = pick(ps); L.push({ k: "pact", foe: id, by: yr + 3, gold: 250, title: `A trade pact with ${the(id)}`, d: `The merchants want ${poss(the(id))} markets. Sign a trade pact with ${the(id)} by ${yr + 3}.` }); } }
   // (a fleet, for a crown with a port)
-  if (!has("navy") && mine.some(ct => harbourOf(ct))) { const have = (C.fleets || []).reduce((t, f) => t + f.ships.length, 0), n = have + 3; L.push({ k: "navy", n, by: yr + 4, gold: 350, title: `A navy of ${n} ships`, d: `The Admiralty wants ${n} ships at sea (you have ${have}). Build them by ${yr + 4}.` }); }
+  if (!has("navy") && mine.some(ct => harbourOf(ct))) { const have = (C.fleets || []).reduce((t, f) => t + f.ships.length, 0), n = have + 3; L.push({ k: "navy", n, by: yr + 4, gold: 350, title: `A navy of ${n} ships`, d: `${C.me === "ottoman" ? "The Kapudan Pasha" : "The Admiralty"} wants ${n} ships at sea (you have ${have}). Build them by ${yr + 4}.` }); }
   return L.length ? pick(L) : null;
 }
 // (done yet?)
@@ -2077,14 +2079,16 @@ function vassalsYear(g) {
   for (const id of Object.keys(C.vassal)) { if (!alive(g, id)) { delete C.vassal[id]; continue; } tot += Math.round(citiesOfNow(g, id).reduce((t, ct) => t + worth(ct), 0) / 3); }
   if (tot) { C.gold += tot; say(`Tribute from your protectorates: ${tot} thalers`); }
 }
+// (its or their: a crown is "it", a people of the woods — the Cherokee — "they")
+const itsW = (id, cap) => v3(id, "is") === "are" ? (cap ? "Their" : "their") : (cap ? "Its" : "its");
 function declare(id, by) {
   C.E.war[id] = true; C.warT[id] = 0; C.E.pact[id] = false; C.ally[id] = false; if (C.vassal) delete C.vassal[id]; if (C.E.access) delete C.E.access[id]; if (C.E.grant) delete C.E.grant[id];
   C.E.rel[id] = Math.min(C.E.rel[id], -40);
   // (your allies: into it with you, against them)
   for (const a of Object.keys(C.ally)) if (C.ally[a] && a !== id && !isHuman(a) && ((C.E.rel[a] >= 30 && sameSide(a, id)) || isVassal(a)) && !C.E.wars.some(w => (w.a === a && w.b === id) || (w.a === id && w.b === a))) { C.E.wars.push({ a, b: id, battles: 0, withYou: true }); say(`${The(a)} ${v3(a, "joins")} your war`, `Your ally marches on ${the(id)}.`); }
-  if (by !== C.me) say(`${The(id)} ${v3(id, "declares")} war on you!`, knowsArmy(id) ? `Their army: some ${C.foes[id]} regiments.` : "How strong their army is, you don't know.", "war");
+  if (by !== C.me) say(`${The(id)} ${v3(id, "declares")} war on you!`, knowsArmy(id) ? `${itsW(id, 1)} army: some ${C.foes[id]} regiments.` : `How strong ${itsW(id)} army is, you don't know.`, "war");
   // (and your own declaration, as the gazettes printed it: the herald at their court, and the drums in your streets)
-  else say(`War declared on ${the(id)}`, `Your herald reads the declaration at ${poss(the(id))} court. ${knowsArmy(id) ? `Their army stands at some ${C.foes[id]} regiments.` : "How strong their army is, no one can say."}`, "war");
+  else say(`War declared on ${the(id)}`, `Your herald reads the declaration at ${poss(the(id))} court. ${knowsArmy(id) ? `${itsW(id, 1)} army stands at some ${C.foes[id]} regiments.` : `How strong ${itsW(id)} army is, no one can say.`}`, "war");
 }
 function makePeace(id) { C.E.war[id] = false; C.truce[id] = 6; C.E.rel[id] = Math.max(C.E.rel[id] + 15, -20); C.E.wars = C.E.wars.filter(w => !(w.withYou && (w.a === id || w.b === id))); say(`Peace with ${the(id)}`, "A treaty is signed. Neither side may make war for six seasons."); }
 

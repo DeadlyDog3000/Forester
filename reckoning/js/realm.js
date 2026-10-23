@@ -153,6 +153,9 @@ const NAMES = {
   fr: [["Henri", "Louis", "Armand", "Charles", "Jacques", "Nicolas", "François", "Claude", "Philippe", "Antoine"], ["de Villars", "de Boufflers", "de Tallard", "de Créqui", "de Montrevel", "de Puységur", "d'Harcourt", "de Saint-Hilaire", "de Bezons", "de La Feuillade", "de Chamlay", "de Rosen"]],
   en: [["John", "Thomas", "William", "Charles", "Henry", "George", "Richard", "Edward"], ["Kirke", "Mackay", "Talmash", "Sackville", "Ginkel", "Ormonde", "Cutts", "Lanier", "Stanhope", "Trelawney"]],
   es: [["Juan", "Francisco", "Diego", "Alonso", "Pedro", "Fernando", "Gaspar", "Antonio"], ["de Velasco", "de Agurto", "Gastañaga", "de Bournonville", "de Leganés", "de Villahermosa", "de Ayala", "de Guzmán"]],
+  pt: [["João", "Pedro", "Luís", "Manuel", "Francisco", "António", "Diogo", "Fernão"], ["de Meneses", "de Mascarenhas", "de Sousa", "de Castro", "de Noronha", "Coutinho", "de Távora", "de Almeida", "da Câmara", "Pereira"]],
+  sco: [["James", "John", "Archibald", "Alexander", "George", "William", "Patrick", "Hugh"], ["Graham", "Drummond", "Hamilton", "Mackay", "Douglas", "Murray", "Campbell", "Gordon", "Livingstone", "Ramsay"]],
+  ga: [["Patrick", "Richard", "Justin", "Daniel", "Thomas", "Hugh", "Theobald", "Donough"], ["Sarsfield", "Talbot", "Butler", "Dillon", "Fitzgerald", "MacCarthy", "O'Neill", "Burke", "Maguire", "O'Brien"]],
   it: [["Antonio", "Carlo", "Enea", "Giovanni", "Ottavio", "Raimondo", "Federico", "Silvio"], ["Caprara", "Piccolomini", "Montecuccoli", "Strassoldo", "Pallavicini", "Carafa", "Gonzaga", "Spinola"]],
   de: [["Johann", "Georg", "Friedrich", "Heinrich", "Wolfgang", "Christian", "Ernst", "Karl"], ["von Schöning", "von Goltz", "von Leslie", "von Dünewald", "von Heister", "von Thüngen", "von Holstein", "von Waldeck", "von Barfus", "von Steinau"]],
   nl: [["Hendrik", "Willem", "Jan", "Godard", "Frederik", "Maurits"], ["van Nassau", "van Ginkel", "van Obdam", "van Weede", "van Wassenaer", "van Coehoorn"]],
@@ -167,7 +170,7 @@ const NAMES = {
   crh: [["Devlet", "Selim", "Kaplan", "Mengli", "Saadet", "Adil", "Bahadır", "Mansur", "Azamat", "Kantemir"], ["Mirza", "Mirza", "Bey", "Bey", "Agha"]],
   ar: [["Hassan", "Muhammad", "Abdallah", "Ali", "Uthman", "Ahmad", "Yusuf"], ["Bey", "Pasha", "Dey", "Agha"]],
 };
-const TONGUE = { france: "fr", savoy: "fr", england: "en", scotland: "en", ireland: "en", castile: "es", aragon: "es", portugal: "es", naples: "it", sicily: "it", milan: "it",
+const TONGUE = { france: "fr", savoy: "fr", england: "en", scotland: "sco", ireland: "ga", castile: "es", aragon: "es", portugal: "pt", naples: "it", sicily: "it", milan: "it",
   venice: "it", tuscany: "it", papal: "it", hre: "de", austria: "de", bavaria: "de", saxony: "de", brandenburg: "de", dutch: "nl", sweden: "sv", denmark: "da", poland: "pl",
   russia: "ru", cossacks: "ru", hungary: "hu", transylvania: "hu", moldavia: "ro", wallachia: "ro", ottoman: "tr", crimea: "crh", algiers: "ar", tunis: "ar", tripoli: "ar", morocco: "ar" };
 // (the woods' nations: their leaders known by one name, as the French and English records of the time give them)
@@ -186,7 +189,7 @@ const NW_NAMES = {
   p_caddo: ["Bigotes", "Xinesi", "Tinhiouen", "Cocay", "Hasinai", "Dehahuit"],
   p_cree: ["Mouchouaouastiirinioek", "Kiskatinaw", "Maskwa", "Wapistan", "Atihk", "Kakakiw"],
 };
-const LOOK = { native: "native", fr: "west", en: "west", es: "west", it: "west", de: "west", nl: "west", sv: "north", da: "north", pl: "east", ru: "east", hu: "east", ro: "east", tr: "ottoman", crh: "ottoman", ar: "ottoman" };
+const LOOK = { native: "native", fr: "west", en: "west", sco: "west", ga: "west", pt: "west", es: "west", it: "west", de: "west", nl: "west", sv: "north", da: "north", pl: "east", ru: "east", hu: "east", ro: "east", tr: "ottoman", crh: "ottoman", ar: "ottoman" };
 // the portraits painted for new men: how many of each look there are, generals (g) and governors (v)
 export const POOL = { g: { west: 10, north: 4, east: 8, ottoman: 8, native: 6 }, v: { west: 8, north: 3, east: 6, ottoman: 6, native: 4 } };
 const TRAITS = {

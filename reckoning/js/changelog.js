@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.86", date: "23 October 2026", title: "Names of their own",
+    items: [
+      "Campaign: Portugal’s ministers and generals are Portuguese (Meneses, Mascarenhas, Távora…), not Spanish; Scotland’s are Scots (Graham, Drummond, Hamilton…) and Ireland’s Irish (Sarsfield, Talbot, MacCarthy…), no longer borrowed from England.",
+      "Campaign: the Ottomans’ missions come from the Porte, their navy’s from the Kapudan Pasha, and a failure displeases the Divan; the Papal States’ come from the Holy See and its Curia.",
+      "Campaign: a crown that declares war is “its” army, a nation of the woods “their” army, as everywhere else in the news.",
+    ],
+  },
+  {
     v: "1.99.85", date: "23 October 2026", title: "On the march",
     items: [
       "Campaign: the news of an army marching on your town reads as one sentence: “Its army is a year’s march off, and will be at the walls next year”, or “Some 40 regiments are two years’ march off”, rather than an army that was “it” and then “they”.",
