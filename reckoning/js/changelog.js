@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.105", date: "23 October 2026", title: "Stone, wood and glass",
+    items: [
+      "Stones: every loose stone, fire ring, cairn, boulder and cave rock was a twelve-sided die. They are weathered stones now — rounded and lumpy, split flat on a face or two, settled flat on the ground, pitted and cracked, the tops paler; the big boulders in the woods have moss and lichen where the rain sits on them.",
+      "Logs are logs, not turned posts: thicker at the butt, uneven in their girth, swelling at a knot or two, with the cut ends following their outline. Every woodpile, wall and stack has them.",
+      "Windows: the glass in every window is leaded, as it was in 1683 — little diamond panes in strips of lead, each a touch different, with a bubble here and there. At night the candlelight shows through the panes, between the lead.",
+      "Bushes are leaf sprays like the trees, cut out round their edges, not solid green lumps.",
+    ],
+  },
+  {
     v: "1.99.104", date: "23 October 2026", title: "Your own hands",
     items: [
       "Your hands, first person: they were a lump of skin peeking from behind a great white cuff. Your shoulders now sit down below your eyes, where they belong, so each forearm comes up from beneath the hand and the whole hand shows in front of its cuff, and each hand is turned round what it holds so you see the fingers wrapped round the front of the haft.",

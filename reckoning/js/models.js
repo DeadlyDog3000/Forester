@@ -1514,7 +1514,7 @@ function foliageTex(kind) {
   }
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
-const FOL = { needle: foliageTex("needle"), leaf: foliageTex("leaf") };
+export const FOL = { needle: foliageTex("needle"), leaf: foliageTex("leaf") };
 // (cards and the solid heart in one geometry: positions, greys, uvs, and normals bent outward from the crown's middle so
 //  the cards are lit as a rounded crown, not as so many flat boards)
 function cardsGeo(core, cards) {
@@ -1620,6 +1620,9 @@ export const TREE = {
   // (far off, the same trees with fewer boughs and sprays: nobody can count them at a hundred metres)
   coneFar: spruceTierCards(9),
   blobFar: leafClumpCards(10, 0),
+  // (the old solid shapes, for what is drawn without a cut-out leaf — ferns' fronds and hedges built into one mesh)
+  coneSolid: spruceTierGeo(),
+  blobSolid: leafClumpGeo(2, 0.22),
   trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x5a4332, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
   birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3, surface: "bark" }),
   spruceMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
@@ -1981,7 +1984,19 @@ function birchLogMats() {
   const side = new THREE.MeshStandardMaterial({ map: bark, roughness: 0.8 }), cap = new THREE.MeshStandardMaterial({ map: end, roughness: 0.85 });
   return [side, cap, cap];
 }
-const LOG_GEO = new THREE.CylinderGeometry(1, 1, 1, 12, 1); LOG_GEO._shared = true;
+// (a log as a log is: not a turned post, but thicker at its butt end, uneven in its girth, swelling at a knot or two;
+//  the cut ends follow its outline. The bark and end-grain textures lie on it as before)
+const LOG_GEO = (() => {
+  const g = new THREE.CylinderGeometry(1, 1, 1, 20, 8), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x);
+    let k = 1 + 0.035 * Math.sin(3 * a + y * 4) + 0.022 * Math.sin(5 * a - y * 9 + 1) + 0.012 * Math.sin(9 * a + 2);
+    k += 0.05 * Math.exp(-((y - 0.18) ** 2) * 160) * Math.max(0, Math.cos(a - 1.2)) + 0.04 * Math.exp(-((y + 0.27) ** 2) * 200) * Math.max(0, Math.cos(a + 2));
+    k *= 1.05 - (y + 0.5) * 0.1;
+    p.setXYZ(i, x * k, y, z * k);
+  }
+  g.computeVertexNormals(); g._shared = true; return g;
+})();
 // many logs in one draw: [{x,y,z,len,r,dir:"x"|"z"}], each a touch uneven
 // ---- a stump: no two alike, and each kind its own. A spruce's (the brown fir) dark red-brown and scaly, its roots
 // spread shallow; a pine's thick-plated, grey at the foot and fox-orange above, the cut face warm and beaded with resin,

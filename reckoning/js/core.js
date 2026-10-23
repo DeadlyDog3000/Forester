@@ -9,6 +9,7 @@
 // collision the player and the watchmen walk into.
 
 import * as THREE from "three";
+import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
 export { THREE };
 
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -410,6 +411,29 @@ export const MAT = {
 addDetail(MAT.solid, { scale: 1.4, amount: 0.26 });
 addDetail(MAT.rough, { scale: 1.1, amount: 0.3, grain: 0.7 });
 addDetail(MAT.lit, { scale: 1.4, amount: 0.12, grain: 0.2 });
+// leaded glass, as every window in 1683 had: little diamond panes held in strips of lead, each pane a touch different
+// (greenish, uneven, a bubble here and there). On the lit windows the candlelight shows through the panes and not the lead
+export const LEADED = (() => {
+  if (typeof document === "undefined") return null;
+  const S = 256, cv = document.createElement("canvas"); cv.width = cv.height = S; const c = cv.getContext("2d"), R = rng(41);
+  const nx = 5, ny = 7, w = S / nx, h = S / ny;
+  for (let j = -1; j <= ny; j++) for (let i = -1; i <= nx; i++) for (const o of [0, 0.5]) {
+    const x = (i + o) * w, y = (j + o) * h, v = 200 + Math.floor(R() * 55);
+    c.fillStyle = `rgb(${v},${v},${Math.min(255, v + 6)})`;
+    c.beginPath(); c.moveTo(x, y - h / 2); c.lineTo(x + w / 2, y); c.lineTo(x, y + h / 2); c.lineTo(x - w / 2, y); c.closePath(); c.fill();
+    if (R() < 0.5) { c.fillStyle = "rgba(255,255,255,0.25)"; c.beginPath(); c.arc(x - w * 0.12, y - h * 0.12, 3 + R() * 5, 0, TAU); c.fill(); }
+  }
+  c.strokeStyle = "rgb(38,36,34)"; c.lineWidth = 5;
+  for (let k = -nx - ny; k <= nx + ny; k++) {
+    c.beginPath(); c.moveTo(k * w, 0); c.lineTo(k * w + S * w / h, S); c.stroke();
+    c.beginPath(); c.moveTo(k * w, 0); c.lineTo(k * w - S * w / h, S); c.stroke();
+  }
+  c.lineWidth = 10; c.strokeRect(0, 0, S, S);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+})();
+if (LEADED) { MAT.lit.map = LEADED; MAT.lit.emissiveMap = LEADED; MAT.glass.map = LEADED; }
+// (the dark windows of a street, built into one mesh with their own colours: the same leaded glass, catching the sky)
+MAT.pane = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.25, map: LEADED });
 
 const _mc = {};
 // people, and what they carry, never have snow lying on them: their materials (which may be shared with a roof or a
@@ -450,6 +474,46 @@ const _e = new THREE.Euler();
 const _v = new THREE.Vector3();
 const _s = new THREE.Vector3();
 
+// ---- a stone: weathered and rounded, lumpy, flat where it has settled into the ground; never a die with twelve faces ----
+// (a handful of shapes made once, each a unit across, and handed out scaled: radius r, and the shape picked by seed. Each
+//  carries "shade", the stone's own light and dark — cracks and hollows darker, the tops paler — which the Builder
+//  multiplies into whatever colour it is given, and a material with vertexColors reads directly as its "color")
+const ROCKS = [];
+function rockShape(seed) {
+  const R = rng(1000 + seed * 77);
+  let g = new THREE.IcosahedronGeometry(1, 3); g.deleteAttribute("normal"); g.deleteAttribute("uv"); g = mergeVertices(g);
+  const p = g.attributes.position, n = p.count, sh = new Float32Array(n), col = new Float32Array(n * 3);
+  // (a few broad lumps and flats, then finer knobs: sums of waves in random directions, which is enough for a stone)
+  const waves = []; for (let i = 0; i < 13; i++) { const d = new THREE.Vector3(R() - 0.5, R() - 0.5, R() - 0.5).normalize(); waves.push([d, i < 3 ? 1.3 + R() : i < 6 ? 3 + R() * 2 : i < 9 ? 7 + R() * 4 : 13 + R() * 6, R() * TAU, i < 3 ? 0.16 : i < 6 ? 0.07 : i < 9 ? 0.026 : 0.012]); }
+  const cuts = []; for (let i = 0, nc = 2 + Math.floor(R() * 3); i < nc; i++) cuts.push([new THREE.Vector3(R() - 0.5, (R() - 0.3) * 0.8, R() - 0.5).normalize(), 0.7 + R() * 0.2]);
+  const sx = 0.85 + R() * 0.35, sz = 0.85 + R() * 0.35, sy = 0.62 + R() * 0.2, v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+    v.fromBufferAttribute(p, i);
+    let k = 1, crev = 0;
+    for (const [d, f, ph, a] of waves) { const w = Math.sin(v.dot(d) * f + ph); k += w * a; if (a < 0.06) crev += (a < 0.02 ? Math.abs(w) - 0.6 : w) * a; }
+    // (one or two flat faces, where it split; and sat flat on the ground below)
+    k = Math.min(k, 1.02 + 0.05 * Math.sin(v.x * 2 + seed));
+    // (and faces where it split: cut flat across, so it has edges and a shape to it, not an egg's)
+    for (const [d, o] of cuts) { const t = v.dot(d) * k; if (t > o) k -= (t - o) / Math.max(0.2, v.dot(d)); }
+    let y = v.y * k * sy; if (y < -0.3 * sy) y = -0.3 * sy + (y + 0.3 * sy) * 0.15;
+    p.setXYZ(i, v.x * k * sx, y, v.z * k * sz);
+    const t = 1.0 + crev * 5 + (v.y > 0 ? v.y * 0.12 : v.y * 0.2) + (R() - 0.5) * 0.06;
+    sh[i] = t; col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = t;
+  }
+  g.setAttribute("shade", new THREE.BufferAttribute(sh, 1)); g.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  // (a little uv from where it faces, so a detailed material's grain lies on it rather than smearing)
+  const uv = new Float32Array(n * 2); for (let i = 0; i < n; i++) { uv[i * 2] = p.getX(i) + p.getZ(i) * 0.5; uv[i * 2 + 1] = p.getY(i) + p.getZ(i) * 0.5; }
+  g.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  g.computeBoundingSphere(); g.computeBoundingBox();
+  return g;
+}
+export function rockGeo(r = 1, seed) {
+  if (!ROCKS.length) for (let i = 0; i < 6; i++) ROCKS.push(rockShape(i));
+  const i = seed == null ? Math.floor(Math.random() * ROCKS.length) : ((Math.floor(seed) % ROCKS.length) + ROCKS.length) % ROCKS.length;
+  return ROCKS[i].clone().scale(r, r, r);
+}
+
 export class Builder {
   constructor() { this.parts = []; }
   // add a geometry, painted one colour, placed by position/rotation/scale
@@ -463,7 +527,8 @@ export class Builder {
     const c = new Float32Array(n * 3);
     _col.set(color);
     if (jitter) _col.offsetHSL(0, 0, (Math.random() - 0.5) * jitter);
-    for (let i = 0; i < n; i++) { c[i * 3] = _col.r; c[i * 3 + 1] = _col.g; c[i * 3 + 2] = _col.b; }
+    const shade = g.attributes.shade;
+    for (let i = 0; i < n; i++) { const k = shade ? shade.getX(i) : 1; c[i * 3] = _col.r * k; c[i * 3 + 1] = _col.g * k; c[i * 3 + 2] = _col.b * k; }
     g.setAttribute("color", new THREE.BufferAttribute(c, 3));
     if (!g.attributes.uv) g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(n * 2), 2));
     this.parts.push(g);

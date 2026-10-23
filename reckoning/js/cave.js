@@ -5,7 +5,7 @@
 // dark but for your lantern and a few old torches — thick with copper, tin and iron. Sometimes a band of
 // raiders has made its camp down there. The caves lie far off the map, under the ground as it were: the
 // forest's heightAt asks the cave for its floor while you are in it.
-import { THREE, mat, MAT, rng, TAU, makeFlame, camera, addDetail, renderer } from "./core.js";
+import { THREE, rockGeo, mat, MAT, rng, TAU, makeFlame, camera, addDetail, renderer } from "./core.js";
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -132,9 +132,9 @@ export class Caves {
     const exit = { x: h0.x, z: h0.z - h0.r + 2.5 };
     // the way out: a ragged arch of rock in the hall's far wall, and daylight in it — you walk up into it, and you're out
     {
-      const fy = this.floorAt(exit.x, exit.z), ex = exit.x, ez = exit.z - 1.6, rockM = new THREE.MeshStandardMaterial({ color: 0x5e5a52, roughness: 1, flatShading: true });
+      const fy = this.floorAt(exit.x, exit.z), ex = exit.x, ez = exit.z - 1.6, rockM = new THREE.MeshStandardMaterial({ color: 0x5e5a52, roughness: 1 });
       for (const [px, py, pz, s] of [[-1.7, 0.9, 0, 1.0], [1.7, 0.9, 0, 1.0], [-1.9, 2.1, -0.2, 0.9], [1.9, 2.1, -0.2, 0.9], [0, 3.1, -0.1, 1.2], [-1.0, 2.9, 0.2, 0.8], [1.0, 2.9, 0.2, 0.8], [-2.6, 0.3, 0.6, 0.8], [2.5, 0.35, 0.5, 0.8], [0.6, 0.15, 1.2, 0.4], [-0.8, 0.12, 1.5, 0.35]]) {
-        const m = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), rockM); m.position.set(ex + px, fy + py, ez + pz); m.rotation.set(px * 1.7, pz + 0.3, py); root.add(m);
+        const m = new THREE.Mesh(rockGeo(s), rockM); m.position.set(ex + px, fy + py, ez + pz); m.rotation.set(px * 1.7, pz + 0.3, py); root.add(m);
       }
       // the light itself: a pale glow filling the opening, brighter at its heart, and a fall of it on the floor
       const c = document.createElement("canvas"); c.width = 64; c.height = 96; const x = c.getContext("2d");
@@ -154,13 +154,13 @@ export class Caves {
   mouth(x, z, ry) {
     const w = this.w, y = w.heightAt(x, z), g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry;
     w.clearScenery && w.clearScenery(x + Math.sin(ry) * 2, z + Math.cos(ry) * 2, 7);
-    const rock = new THREE.MeshStandardMaterial({ color: 0x6a665e, roughness: 1, flatShading: true });
+    const rock = new THREE.MeshStandardMaterial({ color: 0x6a665e, roughness: 1 });
     // the hill it goes into: a low mound of earth and moss behind
     const mound = new THREE.Mesh(new THREE.SphereGeometry(7, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4a5a32, roughness: 1, flatShading: true }));
     mound.scale.set(1, 0.62, 0.9); mound.position.set(0, -0.3, -8.2); mound.receiveShadow = true; g.add(mound);
     // an arch of rock: two jambs, a lintel across, and rubble either side
     for (const [px, py, pz, s] of [[-1.9, 1.1, 0.2, 1.1], [1.9, 1.1, 0.2, 1.1], [-2.1, 2.4, -0.2, 0.9], [2.1, 2.4, -0.2, 0.9], [0, 3.35, 0, 1.25], [-1.1, 3.2, -0.4, 0.9], [1.1, 3.2, -0.4, 0.9], [-3.2, 0.5, -0.6, 1.0], [3.2, 0.5, -0.6, 1.0], [-2.6, 3.0, -1.6, 1.4], [2.6, 3.0, -1.6, 1.4], [0, 4.2, -1.8, 1.6]]) {
-      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), rock); m.position.set(px, py, pz); m.rotation.set(px * 1.3, pz + 0.4, py); m.castShadow = true; g.add(m);
+      const m = new THREE.Mesh(rockGeo(s), rock); m.position.set(px, py, pz); m.rotation.set(px * 1.3, pz + 0.4, py); m.castShadow = true; g.add(m);
     }
     // the passage: black, going back and down into the hill
     const dark = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.7, 2.2), new THREE.MeshBasicMaterial({ color: 0x040302, side: THREE.BackSide }));

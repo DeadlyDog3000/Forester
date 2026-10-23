@@ -5,7 +5,7 @@
 // A NATION'S FLAG, FLOWN: a tall pole by the fire with the flag at its head, the cloth rippling in the wind. In
 // Classic it's yours (made in the nations screen, N); marching on someone, it's theirs, over their settlement.
 
-import { THREE, mat } from "./core.js";
+import { THREE, rockGeo, mat } from "./core.js";
 import { G } from "./engine.js";
 import { FIRE } from "./woods.js";
 import { drawFlag, cleanFlag } from "./economy.js";
@@ -22,7 +22,7 @@ export function flyFlag(w, f) {
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 8, 8), mat(0x5a4230, { surface: "wood" })); pole.position.y = 4; pole.castShadow = true; g.add(pole);
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xa88a46, { metalness: 0.6, roughness: 0.4 })); knob.position.y = 8.05; g.add(knob);
   // the stones round its foot
-  for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, s = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22, 0), mat(0x7a7468, { roughness: 1 })); s.position.set(Math.cos(a) * 0.35, 0.08, Math.sin(a) * 0.35); g.add(s); }
+  for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, s = new THREE.Mesh(rockGeo(0.22), mat(0x7a7468, { roughness: 1 })); s.position.set(Math.cos(a) * 0.35, 0.08, Math.sin(a) * 0.35); g.add(s); }
   // the cloth: a plane in many strips, waved from the hoist out to the fly, more at the free end
   const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawFlag(cv, f);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;

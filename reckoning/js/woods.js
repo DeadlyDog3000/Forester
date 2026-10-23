@@ -5,9 +5,9 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs } from "./core.js";
+import { THREE, rockGeo, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs } from "./core.js";
 import { WorldBase, G } from "./engine.js";
-import { P, forestInstances, makeSpruce, TREE, modelCopy, ensureModel, SWAY, swayGeo, addSway } from "./models.js";
+import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon, relief } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear, fitsRoom } from "./furnish.js";
@@ -280,13 +280,13 @@ export class Woods extends WorldBase {
       const k = r();
       if (k < 0.45) shrubs.push({ kind: "bush", x, z, y, col: r.pick([0x3e5a2e, 0x4a6a34, 0x55703a]), ry: r() * 3, sx: r.range(0.6, 1.3), sy: r.range(0.4, 0.8), sz: r.range(0.6, 1.3) });
       else if (k < 0.8) { const f = { kind: "fern", x, z, y, fronds: [] }; for (let j = 0; j < 5; j++) f.fronds.push([x + r.range(-0.4, 0.4), z + r.range(-0.4, 0.4), r.range(-0.5, 0.5), r.range(-0.5, 0.5)]); shrubs.push(f); }
-      else ub.add(new THREE.DodecahedronGeometry(0.5, 0), 0x7a7870, x, y + 0.1, z, r(), r(), r(), r.range(0.5, 1.4), r.range(0.3, 0.7), r.range(0.5, 1.2), 0.08);
+      else ub.add(rockGeo(0.5), 0x7a7870, x, y + 0.1, z, r(), r(), r(), r.range(0.5, 1.4), r.range(0.3, 0.7), r.range(0.5, 1.2), 0.08);
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
     {
-      const leafM = this.shrubLeaf = new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" }); addSway(leafM);
+      const leafM = this.shrubLeaf = new THREE.MeshStandardMaterial({ roughness: 1, map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" }); addSway(leafM);
       const bushes = shrubs.filter(q => q.kind === "bush"), ferns = shrubs.filter(q => q.kind === "fern");
-      const bm = new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length), fm = new THREE.InstancedMesh(swayGeo(TREE.cone, ferns.length * 5), leafM, ferns.length * 5);
+      const bm = new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length), fm = new THREE.InstancedMesh(swayGeo(TREE.coneSolid, ferns.length * 5), leafM, ferns.length * 5);
       // (a bush stirs in the wind, and a fern frond more)
       const sw = (m, i, q, h) => m.geometry.attributes.aSway.array.set([q.y - 0.05, h, (q.x * 0.71 + q.z * 0.43) % 6.283], i * 3);
       const d = new THREE.Object3D(), c = new THREE.Color();
@@ -356,8 +356,8 @@ export class Woods extends WorldBase {
       for (let i = 0; i < R.length; i += every) {
         const a = R[i], b = R[Math.min(R.length - 1, i + 1)];
         const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
-        if (r() < 0.7) { const o = (r() < 0.5 ? -1 : 1) * W * (0.9 + r() * 0.5); const x = a.x + nx * o, z = a.z + nz * o; sb2.add(new THREE.DodecahedronGeometry(0.12, 0), r.pick([0x7a7870, 0x8a857a, 0x6a665e]), x, this.heightAt(x, z) + 0.04, z, r(), r(), r(), r.range(0.6, 1.8), r.range(0.4, 0.8), r.range(0.6, 1.5), 0.08); }
-        if (r() < 0.5) { const x = a.x + nx * (r() - 0.5) * 0.3, z = a.z + nz * (r() - 0.5) * 0.3; for (let k = 0; k < 3; k++) sb2.add(TREE.cone, 0x6a7a3a, x + (r() - 0.5) * 0.2, this.heightAt(x, z) + 0.02, z + (r() - 0.5) * 0.2, (r() - 0.5) * 0.6, 0, (r() - 0.5) * 0.6, 0.05, 0.22, 0.05); }
+        if (r() < 0.7) { const o = (r() < 0.5 ? -1 : 1) * W * (0.9 + r() * 0.5); const x = a.x + nx * o, z = a.z + nz * o; sb2.add(rockGeo(0.12), r.pick([0x7a7870, 0x8a857a, 0x6a665e]), x, this.heightAt(x, z) + 0.04, z, r(), r(), r(), r.range(0.6, 1.8), r.range(0.4, 0.8), r.range(0.6, 1.5), 0.08); }
+        if (r() < 0.5) { const x = a.x + nx * (r() - 0.5) * 0.3, z = a.z + nz * (r() - 0.5) * 0.3; for (let k = 0; k < 3; k++) sb2.add(TREE.coneSolid, 0x6a7a3a, x + (r() - 0.5) * 0.2, this.heightAt(x, z) + 0.02, z + (r() - 0.5) * 0.2, (r() - 0.5) * 0.6, 0, (r() - 0.5) * 0.6, 0.05, 0.22, 0.05); }
       }
     };
     strew(this.road, 0.95, 3);
@@ -385,7 +385,7 @@ export class Woods extends WorldBase {
       const e = br.pts[br.pts.length - 4], e2 = br.pts[br.pts.length - 1];
       const ey = this.heightAt(e.x, e.z), ang = Math.atan2(e2.x - e.x, e2.z - e.z);
       sb.add(new THREE.CylinderGeometry(0.22, 0.3, 9, 8), 0x4e3a2a, e.x, ey + 0.28, e.z, Math.PI / 2, ang + Math.PI / 2, 0.05);
-      for (let j = 0; j < 4; j++) sb.add(TREE.blob, 0x2f4a2c, e.x + Math.sin(ang + Math.PI / 2) * (2 + j * 1.2), ey + 0.7, e.z + Math.cos(ang + Math.PI / 2) * (2 + j * 1.2), 0, j, 0, 1.1, 0.8, 1.1, 0.08);
+      for (let j = 0; j < 4; j++) sb.add(TREE.blobSolid, 0x2f4a2c, e.x + Math.sin(ang + Math.PI / 2) * (2 + j * 1.2), ey + 0.7, e.z + Math.cos(ang + Math.PI / 2) * (2 + j * 1.2), 0, j, 0, 1.1, 0.8, 1.1, 0.08);
       this.col.addCircle(e.x, e.z, 1.6, this.heightAt(e.x, e.z) + 2);
     }
     root.add(sb.build(MAT.rough));
@@ -424,18 +424,17 @@ export class Woods extends WorldBase {
   // ---- rocks to break with a pick: grey stone near the clearing, copper farther out, iron deep in ----
   buildRocks(r) {
     this.rocks = [];
-    const rockMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
+    const rockMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
     // a boulder: a rough ball of facets, each a slightly different grey
     const boulder = (size, pale = false) => {
-      let geo = new THREE.IcosahedronGeometry(size, 1); if (geo.index) geo = geo.toNonIndexed(); const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
-      const seen = new Map();
-      for (let i = 0; i < pos.count; i++) {
-        const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
-        if (!seen.has(key)) seen.set(key, 0.82 + r() * 0.3);
-        const k = seen.get(key); pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * k * 0.72, pos.getZ(i) * k);
+      const geo = rockGeo(size, Math.floor(r() * 6)), sh = geo.attributes.shade, col = geo.attributes.color;
+      const g0 = (pale ? 0.62 : 0.5) + r() * 0.1, mossy = !pale && r() < 0.6, nrm = geo.attributes.normal;
+      for (let i = 0; i < sh.count; i++) {
+        const k = sh.getX(i) * g0, up = nrm.getY(i);
+        // (moss and lichen on the tops of the darker stones, where the rain sits)
+        const m = mossy ? Math.max(0, up - 0.45) * 1.3 : 0;
+        col.setXYZ(i, k * (1 - m * 0.45), k * (pale ? 0.99 : 0.97) * (1 + m * 0.05), k * (pale ? 1.02 : 0.92) * (1 - m * 0.55));
       }
-      for (let t = 0; t < pos.count; t += 3) { const g = (pale ? 0.6 : 0.44) + r() * 0.12; for (let j = 0; j < 3; j++) col.set([g, g * 0.99, g * (pale ? 1.02 : 0.95)], (t + j) * 3); }
-      geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
       return geo;
     };
     const FLECK = { copper: [mat(0x3aa878, { surface: "none" }), mat(0xc87a3e, { surface: "none" })], tin: [mat(0x3c4048, { surface: "none" }), mat(0xc8ccd6, { surface: "none", metalness: 0.4, roughness: 0.4 })], iron: [mat(0xa0442a, { surface: "none" }), mat(0x7a3420, { surface: "none" })] };
@@ -956,7 +955,7 @@ export class Woods extends WorldBase {
 
     // ---- a fire ring ----
     const fr = new Builder();
-    for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; fr.add(new THREE.DodecahedronGeometry(0.2, 0), 0x6a6660, FIRE.x + Math.cos(a) * 0.65, 0.1, FIRE.z + Math.sin(a) * 0.65, i, i, 0, 1, 0.8, 1, 0.1); }
+    for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; fr.add(rockGeo(0.2), 0x6a6660, FIRE.x + Math.cos(a) * 0.65, 0.1, FIRE.z + Math.sin(a) * 0.65, i, i, 0, 1, 0.8, 1, 0.1); }
     for (let i = 0; i < 4; i++) fr.add(new THREE.CylinderGeometry(0.06, 0.06, 0.9, 5), 0x3a2a20, FIRE.x, 0.12, FIRE.z, Math.PI / 2, i * 0.8, 0.2);
     // logs to sit on
     fr.add(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 8), 0x7a5634, FIRE.x - 1.9, 0.2, FIRE.z + 0.3, Math.PI / 2, 0.3, 0);
@@ -1261,11 +1260,11 @@ export class Woods extends WorldBase {
       { const [x, y, z] = P2(L / 2 - 0.1, 0, 0.78); b.box(0.84, 1.56, 0.06, x, y, z, 0x120d0a, da); }                  // (the dark of the doorway)
       { const [x, y, z] = P2(L / 2, 0, 1.62); b.box(0.98, 0.1, 0.16, x, y, z, 0x5e4a38, da); }                           // (the lintel)
       // sods along the eaves
-      for (const side of [-1, 1]) for (let k = 0; k < 6; k++) { const [x, y, z] = P2(-L / 2 + (k + 0.5) * L / 6, side * (Wd + 0.12), 0.16); b.add(new THREE.DodecahedronGeometry(0.3, 0), r.pick([0x4a5230, 0x3e3a2c, 0x46502e]), x, y, z, r(), r(), r(), 1.4, 0.55, 1.0, 0.08); }
+      for (const side of [-1, 1]) for (let k = 0; k < 6; k++) { const [x, y, z] = P2(-L / 2 + (k + 0.5) * L / 6, side * (Wd + 0.12), 0.16); b.add(rockGeo(0.3), r.pick([0x4a5230, 0x3e3a2c, 0x46502e]), x, y, z, r(), r(), r(), 1.4, 0.55, 1.0, 0.08); }
     }
     // his fire, a log to sit on, and a kettle on a crane over it
     const [ox, oz] = at(3.2, 1.8), oy = H(ox, oz);
-    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; b.add(new THREE.DodecahedronGeometry(0.16, 0), 0x6a665e, ox + Math.cos(a) * 0.55, oy + 0.08, oz + Math.sin(a) * 0.55, r(), r(), r(), 1, 0.7, 1, 0.08); }
+    for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; b.add(rockGeo(0.16), 0x6a665e, ox + Math.cos(a) * 0.55, oy + 0.08, oz + Math.sin(a) * 0.55, r(), r(), r(), 1, 0.7, 1, 0.08); }
     b.add(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 5), 0x4a3828, ox + 0.6, oy + 0.65, oz);
     b.box(0.9, 0.04, 0.04, ox + 0.15, oy + 1.25, oz, 0x3a3028);
     b.add(new THREE.CylinderGeometry(0.13, 0.11, 0.22, 10), 0x2a2a2c, ox, oy + 0.62, oz);
@@ -1276,11 +1275,11 @@ export class Woods extends WorldBase {
     const [sx2, sz2] = at(2.2, 3.4); b.add(new THREE.CylinderGeometry(0.22, 0.24, 1.8, 8), 0x6a5038, sx2, H(sx2, sz2) + 0.22, sz2, 0, ang, Math.PI / 2);
     // the charcoal: a black heap of it raked out, baskets and sacks of it ready for the buyer
     const [cx3, cz3] = at(5.5, -0.8), cy3 = H(cx3, cz3);
-    for (let i = 0; i < 40; i++) { const a = r() * TAU, d = Math.sqrt(r()) * 1.1; b.add(new THREE.DodecahedronGeometry(0.12, 0), r.pick([0x141210, 0x1e1a18, 0x262220]), cx3 + Math.cos(a) * d, cy3 + (1.1 - d) * 0.35 + 0.05, cz3 + Math.sin(a) * d, r(), r(), r(), 1, 0.7, 1, 0.1); }
+    for (let i = 0; i < 40; i++) { const a = r() * TAU, d = Math.sqrt(r()) * 1.1; b.add(rockGeo(0.12), r.pick([0x141210, 0x1e1a18, 0x262220]), cx3 + Math.cos(a) * d, cy3 + (1.1 - d) * 0.35 + 0.05, cz3 + Math.sin(a) * d, r(), r(), r(), 1, 0.7, 1, 0.1); }
     for (let i = 0; i < 3; i++) { const [bx2, bz2] = at(2.4 + i * 0.7, -2.6), by2 = H(bx2, bz2);
       b.add(new THREE.CylinderGeometry(0.3, 0.24, 0.42, 12, 1, true), 0xa08454, bx2, by2 + 0.21, bz2); b.add(new THREE.TorusGeometry(0.3, 0.025, 4, 14), 0x8a6e44, bx2, by2 + 0.42, bz2, Math.PI / 2, 0, 0);
-      for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; b.add(new THREE.DodecahedronGeometry(0.09, 0), 0x18140f, bx2 + Math.cos(a) * 0.15, by2 + 0.42, bz2 + Math.sin(a) * 0.15, r(), r(), r()); }
-      b.add(new THREE.DodecahedronGeometry(0.12, 0), 0x18140f, bx2, by2 + 0.48, bz2); }
+      for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; b.add(rockGeo(0.09), 0x18140f, bx2 + Math.cos(a) * 0.15, by2 + 0.42, bz2 + Math.sin(a) * 0.15, r(), r(), r()); }
+      b.add(rockGeo(0.12), 0x18140f, bx2, by2 + 0.48, bz2); }
     // (sacks of it, in coarse cloth, tied at the neck: not wood)
     { const cloth = new Builder();
       for (let i = 0; i < 3; i++) { const [sx, sz] = at(1.4, -3.4 - i * 0.65), sy = H(sx, sz), sr = r() * 3;
@@ -1829,7 +1828,7 @@ export class Woods extends WorldBase {
       const y = this.heightAt(x, z);
       if (this.col.solidAt(x, y + 0.5, z, 0.9) || this.bushes.some(b => Math.hypot(b.x - x, b.z - z) < 4)) continue;
       // the bramble: a low tangle of dark leaves
-      for (let j = 0; j < 4; j++) leafB.add(TREE.blob, r.pick([0x2e4a24, 0x35522a, 0x3a5a2c]), x + r.range(-0.45, 0.45), y + 0.25 + r() * 0.2, z + r.range(-0.45, 0.45), 0, r() * 3, 0, r.range(0.45, 0.75), r.range(0.35, 0.55), r.range(0.45, 0.75), 0.08);
+      for (let j = 0; j < 4; j++) leafB.add(TREE.blobSolid, r.pick([0x2e4a24, 0x35522a, 0x3a5a2c]), x + r.range(-0.45, 0.45), y + 0.25 + r() * 0.2, z + r.range(-0.45, 0.45), 0, r() * 3, 0, r.range(0.45, 0.75), r.range(0.35, 0.55), r.range(0.45, 0.75), 0.08);
       // and the fruit on it: ripe black, a few still red
       const fb = new Builder();
       for (let j = 0; j < 16; j++) { const a = r() * TAU, d = 0.3 + r() * 0.45; fb.add(new THREE.IcosahedronGeometry(0.035, 0), r() < 0.8 ? 0x241030 : 0x9a2a2a, x + Math.cos(a) * d, y + 0.3 + r() * 0.45, z + Math.sin(a) * d, 0, 0, 0, 1, 1, 1, 0); }

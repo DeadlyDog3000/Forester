@@ -9,7 +9,7 @@
 // Your company is yours to command (F): where to stand and in what order, when to fire and at whom, when to charge.
 // The other side has its own officer.
 
-import { THREE, mat, makeFlame, flicker, FLAMES } from "./core.js";
+import { THREE, rockGeo, mat, makeFlame, flicker, FLAMES } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -480,7 +480,7 @@ export class Field {
   // a breach: the bank thrown down, its earth and broken stakes lying in the gap
   rubble(x, z) {
     const g = new THREE.Group();
-    for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(new THREE.DodecahedronGeometry(0.4 + this.r() * 0.35, 0), this.M.earth); c.position.set((this.r() - 0.5) * 3, 0.1, (this.r() - 0.5) * 1.6); c.scale.y = 0.45; g.add(c); }
+    for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(rockGeo(0.4 + this.r() * 0.35), this.M.earth); c.position.set((this.r() - 0.5) * 3, 0.1, (this.r() - 0.5) * 1.6); c.scale.y = 0.45; g.add(c); }
     for (let i = 0; i < 5; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), this.M.log); st.position.set((this.r() - 0.5) * 3, 0.25, (this.r() - 0.5) * 1.4); st.rotation.set(Math.PI / 2 + (this.r() - 0.5), this.r() * 3, 0); g.add(st); }
     this.put(g, x, z, this.r() * 3);
   }
@@ -571,10 +571,10 @@ export class Field {
     const g = new THREE.Group(), r = this.r;
     for (let i = 0; i < len / 0.4; i++) for (let row = 0; row < 3; row++) {
       if (row === 2 && r() < 0.3) continue;
-      const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.22 + r() * 0.08, 0), this.M.stone);
+      const st = new THREE.Mesh(rockGeo(0.22 + r() * 0.08), this.M.stone);
       st.position.set(-len / 2 + 0.2 + i * 0.4 + (row % 2) * 0.2 - 0.1, 0.2 + row * 0.3, (r() - 0.5) * 0.15); st.scale.set(1.1, 0.75, 0.9); st.rotation.set(r() * 3, r() * 3, r() * 3); g.add(st);
     }
-    for (let i = 0; i < len / 2; i++) { const st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18 + r() * 0.08, 0), this.M.stone); st.position.set((r() - 0.5) * len, 0.08, (r() < 0.5 ? -1 : 1) * (0.45 + r() * 0.4)); st.scale.y = 0.6; g.add(st); }
+    for (let i = 0; i < len / 2; i++) { const st = new THREE.Mesh(rockGeo(0.18 + r() * 0.08), this.M.stone); st.position.set((r() - 0.5) * len, 0.08, (r() < 0.5 ? -1 : 1) * (0.45 + r() * 0.4)); st.scale.y = 0.6; g.add(st); }
     this.put(g, x, z, ry);
     this.solid(x, z, len, 0.6, ry, 0.95, null);
   }
@@ -663,7 +663,7 @@ export class Field {
     const r = this.r, n = 3 + Math.floor(r() * 3);
     for (let i = 0; i < n; i++) {
       const R = i ? 0.35 + r() * 0.35 : 0.9 + r() * 0.35, a = r() * Math.PI * 2, d = i ? 1.2 + r() * 1.2 : 0, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
-      const g = new THREE.Group(), m = new THREE.Mesh(new THREE.DodecahedronGeometry(R, 1), this.M.boulder);
+      const g = new THREE.Group(), m = new THREE.Mesh(rockGeo(R), this.M.boulder);
       // (lumpy: its points pushed in and out a little)
       const p = m.geometry.attributes.position; for (let k = 0; k < p.count; k++) { const f = 0.85 + ((Math.sin(p.getX(k) * 7.1 + p.getY(k) * 3.3 + p.getZ(k) * 5.7 + i) + 1) / 2) * 0.3; p.setXYZ(k, p.getX(k) * f, p.getY(k) * f, p.getZ(k) * f); } m.geometry.computeVertexNormals();
       const hy = 0.7 + r() * 0.2; m.scale.set(1.1, hy, 0.95); m.position.y = R * hy * 0.55; m.rotation.y = r() * 3; g.add(m);
@@ -715,7 +715,7 @@ export class Field {
   }
   watchFire(x, z) {
     const g = new THREE.Group(), r = this.r;
-    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, st = new THREE.Mesh(new THREE.DodecahedronGeometry(0.16 + r() * 0.06, 0), this.M.stone); st.position.set(Math.cos(a) * 0.62, 0.08, Math.sin(a) * 0.62); st.scale.y = 0.7; g.add(st); }
+    for (let i = 0; i < 9; i++) { const a = i / 9 * Math.PI * 2, st = new THREE.Mesh(rockGeo(0.16 + r() * 0.06), this.M.stone); st.position.set(Math.cos(a) * 0.62, 0.08, Math.sin(a) * 0.62); st.scale.y = 0.7; g.add(st); }
     for (let i = 0; i < 5; i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.9, 6), this.M.soot); lg.position.y = 0.2; lg.rotation.set(0.9, i / 5 * Math.PI * 2, 0); lg.position.x = Math.cos(i / 5 * Math.PI * 2) * 0.15; g.add(lg); }
     this.put(g, x, z, r() * 3);
     const fl = makeFlame(2.4, new THREE.PointLight(0xff9a48, 14, 30, 1.5)); fl.position.set(x, this.y(x, z) + 0.15, z); this.root.add(fl); this.flames.push(fl);

@@ -17,7 +17,7 @@ import { sicken, weighted, CARRIED, diseaseName, newcomerMayCarry } from "./dise
 import { BUILD_GATES } from "./gov.js";
 import { dishOffers, isRawMeat } from "./cook.js";
 import { restoreBody, bodyToSave, skillK, axeBonus, TOOL_RECIPES, ITEM, TIER_NAME, SELL_PRICE } from "./body.js";
-import { THREE, clamp, mat, Builder, MAT, TAU } from "./core.js";
+import { THREE, rockGeo, clamp, mat, Builder, MAT, TAU } from "./core.js";
 import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -982,7 +982,7 @@ function stones(w, spots) {
   const stoneMat = mat(0x77736a, { surface: "rock" });
   const show = () => UI.carry(pl.stones ? `${pl.stones} stone${pl.stones > 1 ? "s" : ""} — click to throw` : null);
   spots.forEach(([x, z], i) => {
-    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09 + (i % 2) * 0.02), stoneMat);
+    const m = new THREE.Mesh(rockGeo(0.09 + (i % 2) * 0.02), stoneMat);
     m.position.set(x, w.heightAt(x, z) + 0.07, z); m.rotation.set(i, i * 2, 0); m.castShadow = true;
     w.root.add(m);
     const st = { m };
@@ -998,7 +998,7 @@ function stones(w, spots) {
         pl.stones--; show();
         const f = pl.forward(), up = Math.sin(pl.pitch) + 0.28, c = Math.cos(pl.pitch);
         const ep = pl.eyePos();
-        const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1), stoneMat); m.castShadow = true;
+        const m = new THREE.Mesh(rockGeo(0.1), stoneMat); m.castShadow = true;
         w.root.add(m);
         flying.push({ m, p: new THREE.Vector3(ep.x + f.x * 0.4, ep.y - 0.15, ep.z + f.z * 0.4), v: new THREE.Vector3(f.x * c * 13, up * 13, f.z * c * 13) });
       }
@@ -1946,7 +1946,7 @@ async function ch9(w, opts = {}) {
   for (const m of MOSS) {
     // the rock stays where it is; only the moss comes away
     const y = w.heightAt(m.x, m.z), rock = new Builder();
-    rock.add(new THREE.DodecahedronGeometry(0.7, 0), 0x6a665e, m.x, y + 0.2, m.z, 0.3, m.i, 0.2, 1.3, 0.6, 1.1, 0.06);
+    rock.add(rockGeo(0.7), 0x6a665e, m.x, y + 0.2, m.z, 0.3, m.i, 0.2, 1.3, 0.6, 1.1, 0.06);
     w.root.add(rock.build(MAT.rough));
     if (S.moss.includes(m.i)) continue;
     const b = new Builder();

@@ -347,7 +347,7 @@ export class Hamburg extends WorldBase {
     }
 
     for (const bb of [b, props]) { const m = bb.build(); root.add(m); }
-    const wm = win.build(MAT.solid, { shadow: false }); root.add(wm);
+    const wm = win.build(MAT.pane, { shadow: false }); root.add(wm);
     const lm = lit.build(MAT.lit, { shadow: false }); root.add(lm);
 
     // lights — a fixed pool, switched on and off, so no scene ever recompiles
