@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.87", date: "23 October 2026", title: "Your officers",
+    items: [
+      "Campaign: when a town is attacked and your army is there to defend it, the choice not to fight it yourself is “Leave it to your officers”. It said “Leave it to the garrison” even with the whole army standing by.",
+    ],
+  },
+  {
     v: "1.99.86", date: "23 October 2026", title: "Names of their own",
     items: [
       "Campaign: Portugal’s ministers and generals are Portuguese (Meneses, Mascarenhas, Távora…), not Spanish; Scotland’s are Scots (Graham, Drummond, Hamilton…) and Ireland’s Irish (Sarsfield, Talbot, MacCarthy…), no longer borrowed from England.",
