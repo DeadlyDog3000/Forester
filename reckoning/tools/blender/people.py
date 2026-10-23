@@ -79,6 +79,55 @@ CAST = {
 
 H = 1.78  # height to the crown
 
+# ---- the head itself: Blender Studio's realistic base head (Human Base Meshes, CC0), made lighter, its neck cut short;
+# each person's own face painted on it and fitted to their head's size. Without the bundle, the head is sculpted from an
+# ellipsoid as before ----
+BASE_BLEND = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "human-base-meshes", "human-base-meshes-bundle-v1.4.1", "human_base_meshes_bundle.blend")
+_BASE = {}
+
+
+def base_head():
+    """{'tris': [[Vector]*3...], 'eyes': [centre L, centre R], 'er': radius, 'eye_z', 'crown', 'cx', 'eye_y'} or None"""
+    if "v" in _BASE:
+        return _BASE["v"]
+    if not os.path.exists(BASE_BLEND):
+        _BASE["v"] = None; return None
+    name = "GEO-head_animation_realistic"
+    with bpy.data.libraries.load(BASE_BLEND) as (src, dst):
+        dst.objects = [n for n in src.objects if n in (name, name + ".sclera.L", name + ".sclera.R")]
+    sc = bpy.context.scene
+    for ob in dst.objects:
+        sc.collection.objects.link(ob)
+    bpy.context.view_layer.update()
+    H_ = next(o for o in dst.objects if o.name == name)
+    eyes = []
+    for o in dst.objects:
+        if ".sclera." in o.name:
+            M = o.matrix_world; pts = [M @ v.co for v in o.data.vertices]
+            c = sum(pts, Vector()) / len(pts); eyes.append((c, max((q - c).length for q in pts)))
+    eyes.sort(key=lambda e: e[0].x)
+    for m in list(H_.modifiers):
+        H_.modifiers.remove(m)
+    # (lighter: a person is meant to be a few thousand triangles, the head a third of them)
+    dec = H_.modifiers.new("dec", "DECIMATE"); dec.ratio = 0.5
+    dg = bpy.context.evaluated_depsgraph_get(); ev = H_.evaluated_get(dg); me = ev.to_mesh()
+    M = H_.matrix_world
+    bm = bmesh.new(); bm.from_mesh(me); bm.transform(M); ev.to_mesh_clear()
+    eye_z = sum(e[0].z for e in eyes) / 2
+    # (the neck cut short under the jaw: the body's own neck and the collar take it from there)
+    cut = eye_z - 0.21
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if all(v.co.z < cut for v in f.verts)], context="FACES")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bmesh.ops.triangulate(bm, faces=bm.faces[:])
+    tris = [[v.co.copy() for v in f.verts] for f in bm.faces]
+    crown = max(v.co.z for v in bm.verts)
+    cx = sum(e[0].x for e in eyes) / 2
+    bm.free()
+    for ob in list(dst.objects):
+        bpy.data.objects.remove(ob, do_unlink=True)
+    _BASE["v"] = dict(tris=tris, eyes=[e[0] for e in eyes], er=sum(e[1] for e in eyes) / 2, eye_z=eye_z, crown=crown, cx=cx, eye_y=sum(e[0].y for e in eyes) / 2)
+    return _BASE["v"]
+
 
 class Parts:
     """Meshes built piece by piece in bmesh, one bmesh per material."""
@@ -308,8 +357,11 @@ def build_person(key):
     sh = 0.17 if f else 0.195                 # shoulder half width
     hp = 0.125 if f else 0.105                # hip half width
     stoop = o.get("stoop", 0.0)
+    # (with the base head: the head set lower on the shoulders, its neck shorter — the base head's jaw sits lower than
+    #  the old one's, and the neck between it and the collar stood too long)
+    nk = 0.028 if base_head() else 0.0
     J = {
-        "pelvis": (0, 0, 0.93), "spine": (0, 0.0, 1.10), "chest": (0, stoop * 0.3, 1.30), "neck": (0, stoop * 0.6, 1.49), "head": (0, stoop * 0.8, 1.56),
+        "pelvis": (0, 0, 0.93), "spine": (0, 0.0, 1.10), "chest": (0, stoop * 0.3, 1.30), "neck": (0, stoop * 0.6, 1.49 - nk * 0.5), "head": (0, stoop * 0.8, 1.56 - nk),
         # the yoke: the breadth across the top of the chest that the shoulders grow out of
         "yoke": (0, stoop * 0.45, 1.405),
         "shoulder.L": (sh, stoop * 0.4, 1.42), "elbow.L": (sh + 0.03, 0.02, 1.16), "wrist.L": (sh + 0.045, -0.01, 0.93), "hand.L": (sh + 0.05, -0.02, 0.84),
@@ -377,6 +429,13 @@ def build_person(key):
     bpy.ops.object.join()
     body.select_set(False)
     me = body.data
+    # (with the base head, which brings its own neck: the body's neck drawn in a little, to stay inside it)
+    if base_head():
+        for v in me.vertices:
+            t = smooth((v.co.z - (J["neck"][2] + 0.015)) / 0.04)
+            if t > 0:
+                k = 1 - 0.24 * t
+                v.co.x *= k; v.co.y = J["neck"][1] + (v.co.y - J["neck"][1]) * k
 
     # ---- dress the body: each face gets a material by where it is ----
     bm = bmesh.new()
@@ -457,7 +516,7 @@ def build_person(key):
         return Vector(p) if loc is None else loc + n * off
 
     P = Parts(key)
-    hz = 1.56                                            # the base of the skull
+    hz = 1.56 - nk                                       # the base of the skull
     hy = stoop * 0.8
     hc = Vector((0, hy - 0.005, hz + 0.105))             # centre of the head
     RX, RY, RZ = 0.088, 0.1, 0.112
@@ -519,11 +578,11 @@ def build_person(key):
         if Z < -0.85: z = -0.85 * RZ + (z + 0.85 * RZ) * 0.7
         # the jaw: below the cheeks the skull's sides and back draw in to the neck, so the head grows out of the neck
         # instead of sitting on it like a ball; the chin, at the front, stays where it is
-        jl = smooth((-Z - 0.38) / 0.55) * smooth((Y + 0.62) / 0.5)
+        jl = smooth((-Z - 0.5) / 0.45) * smooth((Y + 0.62) / 0.5)
         if jl > 0:
             rn = 0.048 if f else 0.056
             ln = math.hypot(x, y - 0.012) or 1e-6
-            k = jl * 0.75
+            k = jl * 0.55   # (a jaw to the head, standing a little out over the neck, not a post tapering into it)
             x = x * (1 - k) + (x / ln * rn) * k
             y = (y - 0.012) * (1 - k) + ((y - 0.012) / ln * rn) * k + 0.012
             z -= 0.012 * jl
@@ -553,9 +612,46 @@ def build_person(key):
         return Vector((x, y, z))
     lipc = rgb(0xb8726a) if f else rgb(0xa47462)
     hv_unit = {}
-    for v in hb.verts:
-        hv_unit[v.index] = v.co.copy()
-        v.co = hc + sculpt(*v.co)
+    BH = base_head()
+    if BH:
+        # the base head in place of the sculpted one: scaled so its crown stands where this head's would, its eyes where
+        # this head's eyes go; each vertex's place on the unit ellipsoid kept for the face's paint
+        hb.free(); hb = newbm()
+        bs = (RZ - 0.008) / (BH["crown"] - BH["eye_z"])
+        eye_at = Vector((0, hc.y - 0.0706, hc.z + 0.008))
+        def to(q):
+            d = Vector(((q.x - BH["cx"]) * bs, (q.y - BH["eye_y"]) * bs, (q.z - BH["eye_z"]) * bs))
+            if f:
+                # (a woman's face from the same head: the jaw and chin narrower, the nose smaller and shorter)
+                d.x *= 1 - 0.1 * smooth(-d.z / 0.075)
+                if d.y < -0.018 and -0.065 < d.z < 0.01:
+                    d.y = -0.018 + (d.y + 0.018) * (1 - 0.2 * gauss(d.z + 0.03, 0.03))
+            return eye_at + d
+        vmap = {}
+        for t in BH["tris"]:
+            vs_ = []
+            for q in t:
+                k = (round(q.x, 6), round(q.y, 6), round(q.z, 6))
+                if k not in vmap: vmap[k] = hb.verts.new(to(q))
+                vs_.append(vmap[k])
+            try: hb.faces.new(vs_)
+            except ValueError: pass
+        hb.verts.index_update()
+        # (the neck drawn in, below the jaw, to the body's own: no lip of skin where the one ends inside the other)
+        rnx, rny = R["neck"][0] * 0.94, R["neck"][1] * 0.94
+        for v in hb.verts:
+            t = smooth(((hc.z - 0.085) - v.co.z) / 0.045)
+            if t > 0:
+                ax = Vector((0, J["neck"][1] + 0.004, v.co.z)); dx, dy_ = v.co.x - ax.x, v.co.y - ax.y; rr = math.hypot(dx / rnx, dy_ / rny) or 1
+                v.co.x = ax.x + dx * (1 - t + t / rr); v.co.y = ax.y + dy_ * (1 - t + t / rr)
+        for v in hb.verts:
+            d = v.co - hc
+            hv_unit[v.index] = Vector((d.x / RX, d.y / RY, d.z / RZ))
+        for f_ in hb.faces: f_.smooth = True
+    else:
+        for v in hb.verts:
+            hv_unit[v.index] = v.co.copy()
+            v.co = hc + sculpt(*v.co)
     def hcol(v):
         X, Y, Z = hv_unit[v.index]
         fr = max(0.0, -Y)
@@ -572,15 +668,15 @@ def build_person(key):
             c = mix(c, tint(skin, (1.07, 1.04, 1.0)), 0.3 * gauss(X - sd * 0.5, 0.14) * gauss(Z + 0.14, 0.08) * fr)   # the cheekbones catching the light
             c = mix(c, tint(skin, (0.82, 0.76, 0.76)), 0.3 * gauss(X - sd * 0.62, 0.12) * gauss(Z + 0.42, 0.18) * fr)  # the hollow of the cheek
         c = mix(c, tint(skin, (0.8, 0.74, 0.74)), 0.4 * gauss(X, 0.13) * gauss(Z + 0.395, 0.03) * fr)   # the shade under the nose
-        c = mix(c, tint(skin, (0.84, 0.78, 0.78)), 0.35 * smooth((-Z - 0.8) / 0.12) * fr)            # under the jaw
+        c = mix(c, tint(skin, (0.8, 0.74, 0.74)), 0.5 * smooth((-Z - 0.78) / 0.12) * fr)            # under the jaw
         lip = gauss(X, 0.22) * max(gauss(Z + 0.46, 0.032), gauss(Z + 0.555, 0.038)) * fr
-        c = mix(c, lipc, min(1.0, lip * (0.85 if f else 0.6)))
+        c = mix(c, lipc, min(1.0, lip * (1.0 if f else 0.8)))
         c = mix(c, tint(lipc, (0.55, 0.5, 0.5)), 0.6 * gauss(X, 0.22) * gauss(Z + 0.505, 0.018) * fr)  # the line between them
         # eyebrows, painted on: a soft arch over each eye
         for sd in (-1, 1):
-            zc = 0.25 + 0.035 * gauss(abs(X) - 0.36, 0.2)
-            m_ = gauss(Z - zc, 0.03 if f else 0.05) * smooth((abs(X) - 0.1) / 0.06) * smooth((0.66 - abs(X)) / 0.08) * (1 if X * sd > 0 else 0) * fr
-            c = mix(c, tint(rgb(o.get("beard", o["hair"])), (0.8, 0.8, 0.8)) if not old else rgb(0xa8a49c), min(1.0, m_ * (0.9 if f else 1.15)))
+            zc = (0.2 if BH else 0.25) + 0.035 * gauss(abs(X) - 0.36, 0.2)   # (on the base head: down on its brow ridge)
+            m_ = gauss(Z - zc, (0.07 if f else 0.09) if BH else (0.042 if f else 0.06)) * smooth((abs(X) - 0.1) / 0.06) * smooth((0.66 - abs(X)) / 0.08) * (1 if X * sd > 0 else 0) * fr
+            c = mix(c, tint(rgb(o.get("beard", o["hair"])), (0.62, 0.62, 0.62)) if not old else rgb(0x9a968e), min(1.0, m_ * ((1.5 if f else 2.0) if BH else (1.15 if f else 1.4))))
         # the hairline painted on, finer than the hair's own shell can draw it
         phi = math.atan2(X, -Y)
         mh = smooth((Z - piecewise(HL, abs(phi)) + 0.02) / 0.11)
@@ -608,8 +704,11 @@ def build_person(key):
     for sd in (-1, 1):
         ex, ez = sd * 0.034, hc.z + 0.008
         ey = front(ex, ez)
-        er = 0.0118
+        er = 0.0132   # (a shade larger than life: at the distance a face is seen in the game, a life-size eye is a bead)
         ec = Vector((ex, ey + er - 0.0028, ez))   # (set back in the socket: further out, the ball stared)
+        if BH:
+            q = BH["eyes"][0 if sd < 0 else 1]
+            ec = to(q); er = BH["er"] * bs * 1.02
         b = newbm()
         bmesh.ops.create_uvsphere(b, u_segments=24, v_segments=16, radius=er)
         bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.pi / 2, 3, "X"))
@@ -624,13 +723,15 @@ def build_person(key):
         b = newbm()
         bmesh.ops.create_uvsphere(b, u_segments=24, v_segments=16, radius=er * 1.012)
         bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(math.pi / 2, 3, "X"))
-        bmesh.ops.delete(b, geom=[v for v in b.verts if math.acos(max(-1.0, min(1.0, -v.co.y / (er * 1.012)))) > 0.7], context="VERTS")
+        bmesh.ops.delete(b, geom=[v for v in b.verts if math.acos(max(-1.0, min(1.0, -v.co.y / (er * 1.012)))) > 0.8], context="VERTS")
         def icol(v):
             a = math.acos(max(-1.0, min(1.0, -v.co.y / (er * 1.012))))
             return rgb(0x060505) if a < 0.24 else mix(rgb(0xb8b0a8), rgb(0x3a3430), smooth((a - 0.38) / 0.3))
         paint_verts(b, icol)
         bmesh.ops.translate(b, verts=b.verts, vec=ec)
         merge(b, "iris")
+        if BH:
+            continue          # (the base head has its own lids, and its own ears)
         # the upper lid, its lashes dark along its edge
         b = newbm()
         bmesh.ops.create_uvsphere(b, u_segments=16, v_segments=10, radius=1)
@@ -685,6 +786,11 @@ def build_person(key):
             if groove: e -= groove(X, Y, Z, phi) * m_
             n = Vector((X, Y, Z))
             p = sculpt(X, Y, Z) if Y < 0 else Vector((X * RX, Y * RY * (1 + 0.07 * Y * smooth((Z + 0.4) / 0.8)), Z * RZ))
+            if BH and Z > -0.45:
+                # (on the base head: the hair laid over its own surface, found coming in towards the centre — but only
+                #  on the skull: lower, a ray finds the neck far below, and the hair hung down to it in a curtain)
+                hit = htree.ray_cast(hc + n * 0.4, -n, 0.5)
+                if hit[0] is not None and (hit[0] - hc).length < p.length * 1.35: p = hit[0] - hc
             v.co = hc + p + n * e
             uv[v] = (r_, m_, Z)
         paint_verts(b, lambda v: col(*uv[v]))

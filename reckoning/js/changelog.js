@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.92", date: "23 October 2026", title: "New faces",
+    items: [
+      "People: every face is new. The heads are made from a properly sculpted human head (Blender Studio’s, free to use), with a real jaw, cheekbones, eyelids, lips and ears, fitted to each person and painted with their own colouring, brows and lips. The women’s faces are softer in the jaw and nose than the men’s.",
+      "People: the head sits lower on a shorter, slimmer neck, which meets the collar cleanly.",
+      "Character builder: no more stripes of shadow across a face in the close view, and the close view frames the face again.",
+    ],
+  },
+  {
     v: "1.99.91", date: "23 October 2026", title: "Shown the way",
     items: [
       "Campaign: your first year is shown, not only listed. The step you’re on is marked in the list at the side, and what to use for it is lit: a ring round your army on the map (“click it”, then “right-click a town to march on”), a ring round your chief town to raise regiments, then the Learning button, then End the year. Each goes out as it’s done, and the whole guide with the list, put away or done.",

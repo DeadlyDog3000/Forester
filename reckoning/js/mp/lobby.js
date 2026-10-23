@@ -297,7 +297,7 @@ function openPreview() {
   const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(24, W / H, 0.05, 50);
   // a portrait painter's light: a warm key from high on one side, a cool rim behind, a soft fill
   const key = new THREE.DirectionalLight(0xffe2b8, 2.6); key.position.set(-2.2, 4, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
-  Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.5, bottom: -0.5, near: 0.5, far: 12 }); key.shadow.bias = -0.0005; scene.add(key);
+  Object.assign(key.shadow.camera, { left: -1.5, right: 1.5, top: 2.5, bottom: -0.5, near: 0.5, far: 12 }); key.shadow.bias = -0.0005; key.shadow.normalBias = 0.02; scene.add(key);   // (the normal bias: no stripes of its own shadow across a curved face)
   const rim = new THREE.DirectionalLight(0x9cc0ff, 1.4); rim.position.set(2.5, 2.5, -3); scene.add(rim);
   scene.add(new THREE.HemisphereLight(0xc8d8f0, 0x5a5038, 0.9), new THREE.AmbientLight(0xffdcb8, 0.15));
   const disc = new THREE.Mesh(new THREE.CircleGeometry(0.75, 48), new THREE.MeshStandardMaterial({ color: 0x3a3a2a, roughness: 1 })); disc.rotation.x = -Math.PI / 2; disc.receiveShadow = true; scene.add(disc);
@@ -314,7 +314,7 @@ function openPreview() {
     else if (pv.drag == null && pv.cam !== "face" && now - (pv.idleAt || 0) > 3000) pv.yaw += dt * 0.22;
     // the camera: the whole figure, or close on the face — eased between
     const ht = (me.look.height || 1), face = pv.cam === "face";
-    const wantY = face ? 1.66 * ht : 0.95 * ht, wantD = (face ? 1.75 : 4.6) * pv.zoom;
+    const wantY = face ? 1.63 * ht : 0.95 * ht, wantD = (face ? 1.75 : 4.6) * pv.zoom;
     pv.cy += (wantY - pv.cy) * Math.min(1, dt * 5); pv.cd += (wantD - pv.cd) * Math.min(1, dt * 5);
     cam.position.set(0, pv.cy + (face ? 0.02 : 0.15), pv.cd); cam.lookAt(0, pv.cy, 0);
     if (pv.P) { pv.P.root.rotation.y = pv.yaw; pv.P.update(dt, 0); }
