@@ -136,21 +136,68 @@ def base_body(J, female, wide=0.0):
     return out, faces0, is_arm
 
 
-def base_hands(J, female):
-    """Just the hands of the base body, hanging at this person's wrists as base_body() would set them: (verts, faces),
-    each face wholly beyond the wrist, the cut edge reaching a little up into the forearm so the join is covered."""
-    BB = base_body(J, female)
-    if not BB:
+_HAND = {}
+
+
+def _rest_hand():
+    """The bundle's realistic right hand, relaxed: in its own frame the fingers down (−z), the palm toward +y, the thumb
+    out at +x; the wrist at the origin; the forearm cut away and the cut closed; the fingers curled a little toward the
+    palm, more at their tips, as a hand hangs at rest."""
+    if "v" in _HAND:
+        return _HAND["v"]
+    if not os.path.exists(BLEND):
+        _HAND["v"] = None
         return None
-    vs, fs, isarm = BB
-    raw = _raw(female)[0]
-    L = _landmarks(raw)
-    sho, wri = L["sho"], L["wri"]
-    ad = (wri - sho).normalized(); ln = (wri - sho).length
-    def in_hand(i):
-        q = raw[i]; p = Vector((abs(q.x), q.y, q.z)) - sho
-        return isarm[i] and p.dot(ad) > ln * 0.93 and q.z > 0.55
-    keep = [fc for fc in fs if all(in_hand(i) for i in fc)]
-    used = sorted({i for fc in keep for i in fc})
-    remap = {i: k for k, i in enumerate(used)}
-    return [vs[i] for i in used], [tuple(remap[i] for i in fc) for fc in keep]
+    with bpy.data.libraries.load(BLEND) as (src, dst):
+        dst.objects = [n for n in src.objects if n == "Hand  - Realistic"]
+    ob = dst.objects[0]
+    bpy.context.scene.collection.objects.link(ob)
+    bpy.context.view_layer.update()
+    for m in list(ob.modifiers):
+        ob.modifiers.remove(m)
+    bm = bmesh.new(); bm.from_mesh(ob.data); bm.transform(ob.matrix_world)
+    bpy.data.objects.remove(ob, do_unlink=True)
+    cx = sum(v.co.x for v in bm.verts) / len(bm.verts)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z > 0.345], context="VERTS")
+    bmesh.ops.holes_fill(bm, edges=[e for e in bm.edges if e.is_boundary], sides=0)
+    zk = 0.262
+    for v in bm.verts:
+        x, y, z = v.co.x - cx, v.co.y, v.co.z
+        if z < zk and not (x > 0.05 and z > 0.2):
+            th = ((zk - z) / 0.11) ** 1.2 * 0.42
+            piv = Vector((0, 0.03, zk))
+            v.co = piv + Matrix.Rotation(-th, 3, "X") @ (Vector((x, y, z)) - piv)
+        else:
+            v.co = Vector((x, y, z))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    wrist = Vector((0, 0.02, 0.33))
+    bmesh.ops.translate(bm, verts=bm.verts, vec=-wrist)
+    vs = [v.co.copy() for v in bm.verts]
+    bm.verts.index_update()
+    fs = [tuple(v.index for v in f.verts) for f in bm.faces]
+    bm.free()
+    _HAND["v"] = (vs, fs)
+    return _HAND["v"]
+
+
+def base_hands(J, female):
+    """Both hands at this person's wrists, hanging at rest, the palm toward the thigh and the thumb forward: (verts, faces)."""
+    H = _rest_hand()
+    if not H:
+        return None
+    hv, hf = H
+    k = 0.92 if female else 1.0
+    out_v, out_f = [], []
+    for sd in (1, -1):                       # (+x is the left hand, as the joints have it; the bundle's hand is a right)
+        w = Vector((sd * (abs(J["wrist.L"][0]) + (0.03 if female else 0.0)), J["wrist.L"][1] - (0.015 if female else 0.0), J["wrist.L"][2] + 0.01))   # (a woman's clear of her skirts)
+        # (the right hand turned so its palm faces in, +x, and its thumb forward, −y; the left is its mirror)
+        R = Matrix.Rotation(-math.pi / 2, 3, "Z")
+        base = len(out_v)
+        for q in hv:
+            p = R @ (q * k)
+            if sd > 0:
+                p = Vector((-p.x, p.y, p.z))
+            out_v.append(w + p)
+        for f in hf:
+            out_f.append(tuple(base + i for i in (f if sd < 0 else f[::-1])))
+    return out_v, out_f

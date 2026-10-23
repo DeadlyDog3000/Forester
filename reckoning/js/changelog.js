@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.98", date: "23 October 2026", title: "Better hands",
+    items: [
+      "Your own hands, first person, are hands at last: the sculpted hand closed round whatever you hold (axe, musket, pistol, spear, bow and the tools of work), its fingers wrapped round the haft and the thumb across, the wrist turned back toward your arm. They were plain round fists.",
+      "Everyone’s hands hang as hands do at rest: the palm toward the thigh, the thumb forward, the fingers easing toward the palm. A woman’s are clear of her skirts, not lost in them.",
+    ],
+  },
+  {
     v: "1.99.97", date: "23 October 2026", title: "Hands, and all sorts",
     items: [
       "People: real hands, with fingers, a thumb and knuckles, taken from the same sculpted human body as the heads (Blender Studio’s), in place of the mittens they had. They hang from the wrist, hold a musket, and come out of the cuff as hands do.",

@@ -14,7 +14,7 @@ export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
-import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse } from "./models.js";
+import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse, ensureModel } from "./models.js";
 import { fillPaper, you, INK, TOWN } from "./map.js";
 import { UI } from "./ui.js";
 import { Bugs } from "./bugs.js";
@@ -25,7 +25,18 @@ import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate,
 // (what's only ever thrust, never swung: the spear, and a musket with its bayonet fixed)
 const THRUST = new Set(["spear", "bayonet"]);
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
-const ARMS_M = { skin: new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6 }), sleeve: new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.95 }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 }) };
+// your own hands, first person: the sculpted hand closed round what it holds (models/hand_grip.glb, made by
+// tools/blender/hands.py), the haft along the hand's up; a plain fist till it's loaded. fitArms turns each about the haft
+// so the wrist runs back to its own arm
+ensureModel("hand_grip");
+function gripMesh(side) {
+  const m = modelCopy("hand_grip");
+  let mesh = null;
+  if (m) m.scene.traverse(o => { if (!mesh && o.isMesh && o.name.endsWith(side)) mesh = o; });
+  if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.castShadow = false; return g; }
+  const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), ARMS_M.skin); f.rotation.z = Math.PI / 2; return f;
+}
+const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6 }), sleeve: new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.95 }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 }) };
 
 /* global SFX */
 
@@ -329,14 +340,14 @@ export class Player {
       const skinM = ARMS_M.skin;
       const sleeveM = ARMS_M.sleeve;
       const cuffM = ARMS_M.cuff;
-      const hand = y => {
+      const hand = (y, side) => {
         const h = new THREE.Group(); h.position.set(0, y, 0);
-        const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); fist.rotation.z = Math.PI / 2; h.add(fist);
+        h.add(gripMesh(side));
         a.add(h); return h;
       };
       // (a sword's grip is short: the second hand close under the guard)
       const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], bayonet: [0.0, 0.42], pick: [0.03, 0.15], dagger: [0.02, 0.08] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
-      this.hands = [hand(grips[0]), hand(grips[1])];
+      this.hands = [hand(grips[0], "R"), hand(grips[1], "L")];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
         const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
@@ -379,9 +390,9 @@ export class Player {
       const skinM = ARMS_M.skin;
       const sleeveM = ARMS_M.sleeve;
       const cuffM = ARMS_M.cuff;
-      const fist = (y, z) => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); f.rotation.z = Math.PI / 2; h.add(f); h.position.set(0, y, z); m.add(h); return h; };
+      const fist = (y, z, side) => { const h = new THREE.Group(); h.add(gripMesh(side)); h.position.set(0, y, z); m.add(h); return h; };
       // (a pistol is held in the one hand, at the grip)
-      this.hands = pis ? [fist(-0.06, -0.068), fist(0.1, -0.03)] : [fist(-0.065, -0.024), fist(0.46, -0.016)];
+      this.hands = pis ? [fist(-0.06, -0.068, "R"), fist(0.1, -0.03, "L")] : [fist(-0.065, -0.024, "R"), fist(0.46, -0.016, "L")];
       // (the ramrod, for loading: drawn out of its pipes and down the barrel)
       const rodL = pis ? 0.27 : 0.92;
       this.gunRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }));
@@ -559,9 +570,9 @@ export class Player {
       const skinM = ARMS_M.skin;
       const sleeveM = ARMS_M.sleeve;
       const cuffM = ARMS_M.cuff;
-      const fist = parent => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skinM); h.add(f); parent.add(h); return h; };
-      const grip = fist(g); grip.position.set(0, 0, 0.02);
-      this.nockHand = fist(g);
+      const fist = (parent, side) => { const h = new THREE.Group(); h.add(gripMesh(side)); parent.add(h); return h; };
+      const grip = fist(g, "L"); grip.position.set(0, 0, 0.02);
+      this.nockHand = fist(g, "R");
       this.hands = [this.nockHand, grip];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
@@ -757,6 +768,11 @@ export class Player {
       const { arm, sleeve, cuff, shoulder, fore, foreSleeve } = this.arms[i];
       const hp = new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld).applyMatrix4(inv);
       const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length();
+      // (the hand turned about what it holds, so its wrist runs back toward its own shoulder)
+      // (and with a whole hand there, the sleeve and its cuff end at the wrist, a hand's length short of what it holds —
+      //  the cuff ran on to the haft, and swallowed the palm)
+      const gm = this.hands[i].children.find(c => c.userData.grip), wr = 0;
+      { if (gm) { const sw = shoulder.clone().applyMatrix4(vm.matrixWorld), lv = this.hands[i].worldToLocal(sw); gm.rotation.y = Math.atan2(lv.z, -lv.x); } }
       arm.position.copy(shoulder);
       if (fore) {
         // (two bones: reach far and the arm's straight; nearer, the elbow drops down and out to the side)
@@ -771,12 +787,12 @@ export class Player {
         const up = elbow.clone().sub(shoulder), lo = hp.clone().sub(elbow), ul = up.length(), ll = lo.length();
         arm.quaternion.setFromUnitVectors(Y, up.normalize()); sleeve.scale.set(1, Math.max(0.02, ul), 1);
         fore.position.copy(elbow); fore.quaternion.setFromUnitVectors(Y, lo.normalize()); fore.visible = arm.visible;
-        foreSleeve.scale.set(1, Math.max(0.02, ll - 0.08), 1); cuff.position.y = Math.max(0.02, ll - 0.12);
+        foreSleeve.scale.set(1, Math.max(0.02, ll - 0.08 - wr), 1); cuff.position.y = Math.max(0.02, ll - 0.12 - wr);
         continue;
       }
       arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
-      sleeve.scale.set(1, Math.max(0.05, L - 0.08), 1);
-      cuff.position.y = Math.max(0.05, L - 0.12);
+      sleeve.scale.set(1, Math.max(0.05, L - 0.08 - wr), 1);
+      cuff.position.y = Math.max(0.05, L - 0.12 - wr);
     }
   }
   // ---- work in your hands: a saw drawn back and forth, a hammer striking, a knife whittling ----
@@ -802,7 +818,7 @@ export class Player {
         const g = new THREE.Group();
         const hand = new THREE.Group(); g.add(hand);
         const skin = ARMS_M.skin;
-        const fist = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), skin); fist.rotation.z = Math.PI / 2; hand.add(fist);
+        const fist = gripMesh("R"); hand.add(fist);
         const tool = kind === "eat" || kind === "food" ? makeFood(G.working.food) : kind === "reap" ? makeSickle() : kind === "pick" ? new THREE.Group() : kind === "dig" ? makeSpade() : kind === "sow" ? new THREE.Group() : kind === "saw" ? makeSaw() : kind === "craft" ? makeKnife() : kind === "stir" ? makeLadle() : kind === "toss" ? makeSpatula() : makeHammer();
         // (blades turned flat to the eye, not edge on)
         if (kind !== "hammer" && kind !== "eat" && kind !== "food" && kind !== "reap") tool.rotation.y = Math.PI / 2;
