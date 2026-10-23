@@ -12,7 +12,7 @@
 // creeping; stride: metres a stride. fierce: comes for you when you're close (and how hard it bites); herd: comes in
 // groups of so many
 export const SPECIES = {
-  deer:       { name: "roe deer",      r: 0.34, h: 0.8,  len: 0.42, leg: 0.75, walk: 0.9, run: 8.5,  hp: 2, meat: 3,  hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6, herd: 3 },
+  deer:       { name: "red deer",      r: 0.42, h: 1.0,  len: 0.75, leg: 1.0,  walk: 0.9, run: 8.5,  hp: 2, meat: 3,  hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6, herd: 3 },
   hare:       { name: "hare",          r: 0.16, h: 0.2,  len: 0.12, leg: 0.15, walk: 0.6, run: 7.5,  hp: 1, meat: 1,  hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 0.7 },
   boar:       { name: "wild boar",     r: 0.42, h: 0.55, len: 0.5,  leg: 0.38, walk: 0.7, run: 6.8,  hp: 4, meat: 4,  hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 1.2, fierce: 0.12, herd: 2 },
   moose:      { name: "moose",         r: 0.6,  h: 1.45, len: 0.85, leg: 1.2,  walk: 1.0, run: 9,    hp: 6, meat: 8,  hearRun: 30, hearWalk: 14, hearCreep: 5,   stride: 2.4 },

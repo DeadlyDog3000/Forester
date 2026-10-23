@@ -225,14 +225,18 @@ export const RIM = { value: new THREE.Color(0, 0, 0) };   // (the graphics setti
 // (limbs: a tree's own branches — whatever of its bark stands further than this from its axis, in its own space — thin
 //  away right up against the eye, as its needles do: stood at the trunk with an axe, you'd otherwise be looking out
 //  through a cage of bare poles)
-export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false, limbs = 0 } = {}) {
+export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false, limbs = 0, rim = true, cards = false } = {}) {
   const surf = SURFACE[surface] ?? -1;
   material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local, limbs };
   const lit = material.isMeshStandardMaterial || material.isMeshLambertMaterial || material.isMeshPhongMaterial;
   material.onBeforeCompile = sh => {
     detailCompile(sh);
+    // (leaves and needles on cards, seen from either side: lit the same from both, not turned to face the ground from behind)
+    if (cards) sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", ""));
     // (the rim: lit stuff only — a flat-coloured thing has no light to catch)
-    if (lit) sh.fragmentShader = sh.fragmentShader.replace("#include <opaque_fragment>", `{
+    // (and not on leaves and needles: cut out on cards facing every way, their edges caught it all and the woods went
+    //  frosted blue-white at noon)
+    if (lit && rim) sh.fragmentShader = sh.fragmentShader.replace("#include <opaque_fragment>", `{
         float rk = 1.0 - clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0);
         outgoingLight += dRim * mix(diffuseColor.rgb, vec3(0.6), 0.35) * rk * rk * rk;
       }
@@ -369,7 +373,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
   };
-  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w") + (local ? "l" : "");
+  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w") + (local ? "l" : "") + (rim ? "" : "r") + (cards ? "c" : "");
   material.needsUpdate = true;
   return material;
 }

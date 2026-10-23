@@ -284,7 +284,7 @@ export class Woods extends WorldBase {
     }
     root.add(ub.build(MAT.rough, { shadow: false }));
     {
-      const leafM = this.shrubLeaf = new THREE.MeshStandardMaterial({ roughness: 1, map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles" }); addSway(leafM);
+      const leafM = this.shrubLeaf = new THREE.MeshStandardMaterial({ roughness: 1, map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles", rim: false, cards: true }); addSway(leafM);
       const bushes = shrubs.filter(q => q.kind === "bush"), ferns = shrubs.filter(q => q.kind === "fern");
       const bm = new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length), fm = new THREE.InstancedMesh(swayGeo(TREE.coneSolid, ferns.length * 5), leafM, ferns.length * 5);
       // (a bush stirs in the wind, and a fern frond more)

@@ -551,6 +551,8 @@ async function fetchModel(k, url) {
       m.userData.surface = CLOTH_PARTS.has(n) ? "cloth" : BARE_PARTS.has(n) ? "none" : SURF_BY_NAME[n] || "auto";
       // (a quarry's and a mine's stone is the rock of the hill, broken — not a mason's wall)
       if (n === "stone" && /quarry|mine/.test(k)) m.userData.surface = "rock";
+      // (a real animal's fur and eyes are painted in its own textures: no grain laid over them)
+      if (/^(deer|doe|hare)$/.test(k)) m.userData.surface = "none";
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
       // (bright metal — a gun's furniture, a blade — with no reflection to show goes black: kept only a little metal)
       if (n === "steel" || n === "brass" || n === "iron") m.metalness = Math.min(m.metalness, n === "iron" ? 0.3 : 0.4);
@@ -1496,7 +1498,7 @@ function foliageTex(kind) {
       for (let i = 0; i < n; i++) {
         const t = i / n, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t, a = Math.atan2(y1 - y0, x1 - x0);
         for (const sd of [-1, 1]) { const b = a + sd * (0.9 + r() * 0.5) - 0.3, l = len * (0.7 + r() * 0.5) * (1 - t * 0.35);
-          c.strokeStyle = g(120 + Math.floor(r() * 110)); c.lineWidth = 1.6; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(b) * l, y + Math.sin(b) * l); c.stroke(); }
+          c.strokeStyle = g(110 + Math.floor(r() * 100)); c.lineWidth = 1.6; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(b) * l, y + Math.sin(b) * l); c.stroke(); }
       }
     };
     twig(4, S / 2, S - 6, S / 2 + 6, 70, 22);
@@ -1506,7 +1508,7 @@ function foliageTex(kind) {
     for (let i = 0; i < 95; i++) {
       const x = 20 + r() * (S - 40), y = 20 + r() * (S - 52), a = r() * TAU, L = 14 + r() * 12, W = L * (0.42 + r() * 0.15);
       c.save(); c.translate(x, y); c.rotate(a);
-      c.fillStyle = g(105 + Math.floor(r() * 120));
+      c.fillStyle = g(105 + Math.floor(r() * 110));
       c.beginPath(); c.moveTo(-L / 2, 0); c.quadraticCurveTo(0, -W, L / 2, 0); c.quadraticCurveTo(0, W, -L / 2, 0); c.fill();
       c.strokeStyle = g(80); c.lineWidth = 1; c.beginPath(); c.moveTo(-L / 2, 0); c.lineTo(L / 2, 0); c.stroke();
       c.restore();
@@ -1526,7 +1528,7 @@ function cardsGeo(core, cards) {
   }
   for (const q of cards) {
     const b = pos.length / 3;
-    for (const [P, U, K] of q) { pos.push(P.x, P.y, P.z); uv.push(U[0], U[1]); col.push(K, K, K); const n = new THREE.Vector3(P.x, P.y - 0.35, P.z).normalize(); nrm.push(n.x, n.y + 0.3, n.z); }
+    for (const [P, U, K] of q) { pos.push(P.x, P.y, P.z); uv.push(U[0], U[1]); col.push(K, K, K); const n = new THREE.Vector3(P.x, P.y - 0.35, P.z).normalize(); nrm.push(n.x * 0.6, n.y * 0.6 + 0.55, n.z * 0.6); }
     idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
   }
   const g = new THREE.BufferGeometry();
@@ -1625,15 +1627,15 @@ export const TREE = {
   blobSolid: leafClumpGeo(2, 0.22),
   trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x5a4332, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
   birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3, surface: "bark" }),
-  spruceMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
-  pineMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
-  leafMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
+  spruceMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
+  pineMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
+  leafMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
   // (the trees of the other biomes: the broadleaf oak, the savanna's acacia, the rain forest's giants, the palm, desert scrub)
   frond: frondGeo(),
-  oakMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x3d5e28, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
-  acaciaMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x6b7a34, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
-  jungleMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x2a5622, roughness: 0.85, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6 }),
-  scrubMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x6e7448, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.25, grain: 0.6, surface: "needles" }),
+  oakMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x3d5e28, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
+  acaciaMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x6b7a34, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
+  jungleMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x2a5622, roughness: 0.85, vertexColors: true }), { scale: 2.5, amount: 0.22, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
+  scrubMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x6e7448, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.25, grain: 0.6, surface: "needles", rim: false, cards: true }),
   palmMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x4f8030, roughness: 0.8, side: THREE.DoubleSide }), { scale: 2.5, amount: 0.18, grain: 0.5, surface: "needles", seeThrough: 3.6 }),
   palmTrunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x8a7a62, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
 };

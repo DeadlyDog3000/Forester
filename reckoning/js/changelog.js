@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.106", date: "23 October 2026", title: "Real animals",
+    items: [
+      "The deer and the hares in the woods are real animals now: sculpted, furred in painted coats with the light catching every hair, and moving as the animals they were made from moved. A stag with a full head of antlers, or a hind; they graze with their heads down, look up and about with their ears turning, walk on, and bolt in a proper gallop; a hare sits up on its haunches and runs in long bounds. Shot, they go down as an animal does.",
+      "They are red deer, as the models are — the stag near two metres long with his antlers — and their size to aim at is theirs. A hind is the one with her calf at heel in spring.",
+      "Models by Čestmír Dammer, made for Kelgar and given to everyone (CC0); credited in the credits.",
+      "The woods in daylight: the new needles and leaves caught the sky's blue at their edges and, seen from behind, were lit as though they faced the ground — the spruces went frosted at noon and black in shade. Each spray is lit the same from either side now, and the forest is green through and through.",
+      "The main menu: behind it now, paintings of the 1680s in the manner of the Dutch masters of battle and the sea, each giving way to the next through a drift of powder smoke — the standards raised over the line, a cavalry charge, Hamburg's harbour at dusk, the relief of Vienna, two ships at their broadsides, a stockade in the forest, and the burned cabin where it all begins. Each is drawn slowly closer while it shows.",
+    ],
+  },
+  {
     v: "1.99.105", date: "23 October 2026", title: "Stone, wood and glass",
     items: [
       "Stones: every loose stone, fire ring, cairn, boulder and cave rock was a twelve-sided die. They are weathered stones now — rounded and lumpy, split flat on a face or two, settled flat on the ground, pitted and cracked, the tops paler; the big boulders in the woods have moss and lichen where the rain sits on them.",

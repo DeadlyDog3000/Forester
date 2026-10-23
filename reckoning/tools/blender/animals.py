@@ -219,5 +219,8 @@ def arrow():
 
 
 only = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-makers = {"deer": deer, "hare": hare, "boar": boar, "bow": bow, "arrow": arrow}
+# (the deer and the hare are real animals now, from realanimals.py: built here only when asked for by name)
+makers = {"boar": boar, "bow": bow, "arrow": arrow}
+if only:
+    makers.update({"deer": deer, "hare": hare})
 print("wrote", *[f() for n, f in makers.items() if not only or n in only])

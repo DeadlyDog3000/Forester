@@ -125,7 +125,7 @@ export const ITEM = {
   tin: { name: "Tin", note: "Smelted from the ore. Cast it with copper at a forge: one of each makes two of bronze." },
   bronze: { name: "Bronze", note: "Copper and tin melted together. For bronze tools and a bronze sword." },
   iron: { name: "Iron", note: "Smelted from the ore. For an iron pickaxe or axe." },
-  venison: { name: "Venison", note: "From a roe deer. Lean, dark and rich: taste 4, tenderness 3/4, fills 30%. Dries out fast if overcooked. Cook it in the kitchen, or roast it at the fire." },
+  venison: { name: "Venison", note: "From a red deer. Lean, dark and rich: taste 4, tenderness 3/4, fills 30%. Dries out fast if overcooked. Cook it in the kitchen, or roast it at the fire." },
   hare: { name: "Hare", note: "Sweet and delicate: taste 3, tenderness 4/4, fills 18%. Quick to cook and quicker to ruin." },
   mushrooms: { name: "Ceps", note: "Fat brown mushrooms from under the trees, after rain. Eat them as they are, or stew them with rye in the kitchen." },
   fish: { name: "Fish", note: "A perch out of the pond, striped and spiny-finned: taste 3, tenderness 4/4, fills 16%. Fry it in the kitchen, or roast it at the fire." },

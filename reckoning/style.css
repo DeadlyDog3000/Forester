@@ -223,10 +223,24 @@ body.menu-open #hint, body.menu-open #dialog, body.menu-open #bark, body.menu-op
 
 /* ---------- menus ---------- */
 #menus { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; background: rgba(5, 16, 10, 0.6); backdrop-filter: blur(2px); overflow-y: auto; padding: 16px; }
-#menus.backdrop { background:
+#menus.backdrop { background: var(--deep); }
+/* the backdrop: 1680s paintings one into the next through powder smoke (js/menuart.js), each drawn slowly closer */
+#menuArt { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; background: var(--deep); }
+#menus:not(.backdrop) #menuArt { display: none; }
+#menus > .screen { position: relative; z-index: 1; }
+.ma-scene { position: absolute; inset: -2%; background: center / cover no-repeat; opacity: 0; transform: scale(1.08); transition: opacity 3.2s ease, transform 0s linear 3.2s; }
+.ma-scene.on { opacity: 1; transform: scale(1); transition: opacity 3.2s ease, transform 16s cubic-bezier(0.2, 0, 0.6, 1); }
+.ma-scene:nth-child(odd) { transform-origin: 32% 62%; }
+.ma-scene:nth-child(even) { transform-origin: 68% 38%; }
+.ma-smoke { position: absolute; left: 0; width: 400%; top: 18%; height: 70%; background-size: 25% 100%; background-repeat: repeat-x; opacity: 0.2; animation: maDrift 90s linear infinite; transition: opacity 2.4s ease; }
+.ma-smoke1 { top: 38%; height: 60%; opacity: 0.14; animation-duration: 140s; animation-direction: reverse; }
+#menuArt.puff .ma-smoke0 { opacity: 0.62; }
+#menuArt.puff .ma-smoke1 { opacity: 0.5; }
+#menuArt::after { content: ""; position: absolute; inset: 0; background:
     radial-gradient(ellipse 46% 52% at 50% 42%, rgba(12, 14, 9, 0.62), rgba(12, 14, 9, 0) 100%),
-    linear-gradient(180deg, rgba(8, 12, 8, 0) 55%, rgba(5, 10, 7, 0.7) 100%),
-    url("art/menu_painted.jpg") center / cover no-repeat, var(--deep); }
+    linear-gradient(180deg, rgba(8, 12, 8, 0) 55%, rgba(5, 10, 7, 0.7) 100%); }
+@keyframes maDrift { from { transform: translateX(0); } to { transform: translateX(-25%); } }
+@media (prefers-reduced-motion: reduce) { .ma-scene, .ma-scene.on { transform: none; } .ma-smoke { animation: none; } }
 .screen { width: min(640px, 100%); text-align: center; image-rendering: auto; }
 .logo { margin: 0 auto 12px; }
 .logo-top { font: 700 clamp(46px, 9vw, 92px)/1 var(--display); letter-spacing: 0.08em; color: var(--ink); text-shadow: 0 4px 30px rgba(0, 0, 0, 0.9); }

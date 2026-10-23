@@ -2,7 +2,7 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// Hunting: roe deer and hares in the woods, and arrows that fly as arrows do —
+// Hunting: red deer and hares in the woods, and arrows that fly as arrows do —
 // they drop, they stick where they land, and you go and pull them out again.
 //
 // An animal grazes, lifts its head, walks a little way and grazes again. It
@@ -25,8 +25,9 @@ import { CLEARING, POND, pondR } from "./woods.js";
 /* global SFX */
 
 const KINDS = {
-  deer: { name: "roe deer", r: 0.34, h: 0.8, len: 0.42, leg: 0.75, walk: 0.9, run: 8.5, hp: 2, meat: 3, hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6, meatKind: "venison" },
-  hare: { name: "hare", r: 0.16, h: 0.2, len: 0.12, walk: 0.6, run: 7.5, hp: 1, meat: 1, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 0.7, meatKind: "hare" },
+  // (red deer: a stag near two metres long with his antlers, or a hind; the models are real animals, sculpted and furred)
+  deer: { name: "red deer", r: 0.42, h: 1.0, len: 0.75, leg: 1.0, walk: 0.9, run: 8.5, hp: 2, meat: 3, hearRun: 30, hearWalk: 15, hearCreep: 5.5, stride: 1.6, meatKind: "venison" },
+  hare: { name: "hare", r: 0.16, h: 0.2, len: 0.22, walk: 0.6, run: 7.5, hp: 1, meat: 1, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 0.7, meatKind: "hare" },
   // a boar: heavy, slow to frighten, hard to bring down — and, wounded, it comes for you
   boar: { name: "wild boar", r: 0.42, h: 0.55, len: 0.5, leg: 0.38, walk: 0.7, run: 6.8, hp: 4, meat: 3, hearRun: 22, hearWalk: 10, hearCreep: 3.5, stride: 1.2, meatKind: "boar" },
 };
@@ -45,10 +46,20 @@ const GAIT = {
   trot: { off: [0, 0.5, 0.5, 0], duty: 0.45 },
   gallop: { off: [0.55, 0.65, 0, 0.12], duty: 0.3 },
 };
+// a real animal's own movements, by what it is doing: its clips in the model, a deer's or a hare's
+const CLIPS = {
+  idle: ["Idle.000", "Sitting.000"], look: ["LookAround.000", "LookAround.001", "Guarding"], eat: ["Eat.001", "Sitting.001"],
+  walk: ["Walk", "Running"], run: ["Run", "Running"], die: ["Die.000", "Die.001", "Dying.000"],
+};
+// (the pace each clip was made for, at full size, in metres a second: played faster or slower to match the ground covered)
+const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 } };
 class Animal {
-  constructor(hunt, kind, x, z) {
+  constructor(hunt, kind, x, z, opts = {}) {
     this.hunt = hunt; this.kind = kind; this.K = KINDS[kind];
-    const m = modelCopy(kind), beast = m ? null : makeBeast(kind, this.K);
+    // (a deer is a stag or a hind — a hind always, with her fawn at heel)
+    const key = kind === "deer" && (opts.hind ?? Math.random() < 0.55) && modelCopy("doe") ? "doe" : kind;
+    const m = modelCopy(key), beast = m ? null : makeBeast(kind, this.K);
+    this.hind = key === "doe";
     this.root = new THREE.Group(); this.root.rotation.order = "YXZ";
     if (m) this.root.add(m.scene); else if (beast) this.root.add(beast);
     else if (!beast) { const b = new THREE.Mesh(new THREE.BoxGeometry(this.K.r * 1.2, this.K.r * 1.4, this.K.len * 2.4), new THREE.MeshStandardMaterial({ color: 0x8a5a3a })); b.position.y = this.K.h; this.root.add(b); }
@@ -58,6 +69,16 @@ class Animal {
     this.lows = ["legFL", "legFR", "legHL", "legHR"].map(n => find(n + "Low"));
     this.neck = find("neck");
     this.neck0 = this.neck ? this.neck.rotation.x : 0;
+    // a real animal: it moves as the animal it was made from moved, its own clips crossfaded by what it's doing
+    if (m && m.animations.length && !this.legs.some(Boolean)) {
+      this.mix = new THREE.AnimationMixer(m.scene); this.acts = {};
+      for (const [k, names] of Object.entries(CLIPS)) {
+        const c = names.map(n => m.animations.find(a => a.name === n)).find(Boolean);
+        if (c) this.acts[k] = this.mix.clipAction(c);
+      }
+      if (this.acts.die) { this.acts.die.setLoop(THREE.LoopOnce); this.acts.die.clampWhenFinished = true; }
+      this.play("idle", 0); this.mix.update(Math.random() * 5);
+    }
     this.pos = new THREE.Vector3(x, 0, z);
     this.yaw = Math.random() * Math.PI * 2;
     this.state = "graze"; this.t = 1 + Math.random() * 4;
@@ -67,6 +88,27 @@ class Animal {
     this.sync();
   }
   get alive() { return this.state !== "dead"; }
+  play(name, fade = 0.35) {
+    const a = this.acts[name] || this.acts.idle; if (!a || a === this.cur) return a;
+    // (only ever the one going and the one coming: a third still fading would leave the weights short of one, and the
+    //  rest of the pose taken from the bare skeleton — legs splayed, the neck bolt upright)
+    for (const o of Object.values(this.acts)) if (o !== a && o !== this.cur) o.stop();
+    if (this.cur) { this.cur.stopFading(); this.cur.setEffectiveWeight(1); }
+    a.reset().setEffectiveWeight(1).play();
+    if (this.cur && fade > 0) a.crossFadeFrom(this.cur, fade, false); else if (this.cur) this.cur.stop();
+    this.cur = a; return a;
+  }
+  // (which clip, and how fast: at a walk or a run, as fast as its feet must go to cover the ground it covers)
+  drive(dt) {
+    const K = this.K, P = PACE[this.kind] || PACE.deer, sc = this.root.scale.x || 1;
+    let a;
+    if (this.state === "graze") a = this.play(this.looking ? "look" : "eat");
+    else if (this.speed > K.walk * 1.8) { a = this.play("run"); a.timeScale = clamp(this.speed / (P.run * sc), 0.6, 1.8); }
+    else if (this.speed > 0.08) { a = this.play("walk"); a.timeScale = clamp(this.speed / (P.walk * sc), 0.4, 1.6); }
+    else a = this.play("idle");
+    if (a && this.state === "graze") a.timeScale = 1;
+    this.mix.update(dt);
+  }
   centre() { return new THREE.Vector3(this.pos.x, this.pos.y + this.K.h, this.pos.z); }
   sync() {
     const w = this.hunt.w;
@@ -109,6 +151,13 @@ class Animal {
     if (this.state === "dead") {
       // it carries on a stride or two with what speed it had, stumbles, goes down on its side, and the legs kick
       this.slide ??= 0;
+      if (this.mix) {
+        // (a real one goes down as it does in its own clip)
+        this.slide = Math.max(0, this.slide - dt * 9);
+        if (this.slide > 0.05) { this.pos.x += Math.sin(this.yaw) * this.slide * dt; this.pos.z += Math.cos(this.yaw) * this.slide * dt; this.pos.y = this.hunt.w.heightAt(this.pos.x, this.pos.z); this.root.position.copy(this.pos); }
+        this.play("die", 0.15); this.mix.update(dt);
+        return;
+      }
       this.slide = Math.max(0, this.slide - dt * 9);
       if (this.slide > 0.05) { this.pos.x += Math.sin(this.yaw) * this.slide * dt; this.pos.z += Math.cos(this.yaw) * this.slide * dt; this.pos.y = this.hunt.w.heightAt(this.pos.x, this.pos.z); this.root.position.x = this.pos.x; this.root.position.z = this.pos.z; }
       this.fall = Math.min(1, this.fall + dt * (this.slide > 0.5 ? 1.2 : 2.2));
@@ -238,7 +287,7 @@ class Animal {
     const K = this.K, home = this.ownHome || this.hunt.home;
     this.speed += (want - this.speed) * Math.min(1, dt * (this.state === "flee" || this.state === "charge" ? 4 : 2));
     // a hare goes in hops: it covers its ground in the air and sits a moment between them (less, the faster it goes)
-    const hare = this.kind === "hare" || !!K.hops, runK = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1);
+    const hare = (this.kind === "hare" || !!K.hops) && !this.mix, runK = clamp((this.speed - K.walk) / (K.run - K.walk), 0, 1);
     let hop = -1, hopK = 1;
     if (hare) {
       const duty = 0.32 + 0.55 * runK, u = (this.phase / (Math.PI * 2)) % 1;
@@ -255,6 +304,12 @@ class Animal {
       if (before.distanceTo(this.pos) > 0.001 && this.state !== "flee") this.yaw += dt * 2;
       // a fleeing animal that has run out of woods turns back into them
       if (Math.hypot(this.pos.x - home.x, this.pos.z - home.z) > home.r + 25) this.target = { x: home.x, z: home.z };
+    }
+    if (this.mix) {
+      this.drive(dt);
+      this.root.position.set(this.pos.x, this.pos.y, this.pos.z); this.root.rotation.y = this.yaw; this.root.rotation.x = 0;
+      this.pos.y = this.hunt.w.heightAt(this.pos.x, this.pos.z);
+      return;
     }
     // the legs, as a four-legged animal moves them. A walk is four beats, each foot down in turn (hind, fore on the same
     // side, the other hind, the other fore) with three on the ground most of the time; a trot the diagonal pairs together;
@@ -404,17 +459,18 @@ export class Hunt {
   }
   spawn(kind, n = 1) {
     for (let i = 0; i < n; i++) {
-      const [x, z] = this.spot(), a = new Animal(this, kind, x, z); this.animals.push(a);
       // (in spring and early summer, a doe now and then has her fawn with her: smaller, spotted, and never far from her)
       const T = G.town, young = T && (T.season === "spring" || (T.season === "summer" && T.day % 8 === 2));
-      if (kind === "deer" && young && Math.random() < 0.5) {
-        const f = new Animal(this, "deer", x + 1, z + 1);
-        f.K = { ...KINDS.deer, name: "roe fawn", h: KINDS.deer.h * 0.58, len: KINDS.deer.len * 0.58, leg: KINDS.deer.leg * 0.58, r: KINDS.deer.r * 0.6, meat: 1, stride: KINDS.deer.stride * 0.6, hp: 1, run: KINDS.deer.run * 1.05 };
+      const calf = kind === "deer" && young && Math.random() < 0.5;
+      const [x, z] = this.spot(), a = new Animal(this, kind, x, z, calf ? { hind: true } : {}); this.animals.push(a);
+      if (calf) {
+        const f = new Animal(this, "deer", x + 1, z + 1, { hind: true });
+        f.K = { ...KINDS.deer, name: "red deer calf", h: KINDS.deer.h * 0.58, len: KINDS.deer.len * 0.58, leg: KINDS.deer.leg * 0.58, r: KINDS.deer.r * 0.6, meat: 1, stride: KINDS.deer.stride * 0.6, hp: 1, run: KINDS.deer.run * 1.05 };
         f.root.scale.setScalar(0.58); f.mother = a; f.fawn = true; f.hp = 1;
         // (dappled: pale spots on the back)
         const spots = new THREE.Group(), sm = new THREE.MeshStandardMaterial({ color: 0xe8dcc0, roughness: 0.9 });
         for (let k = 0; k < 10; k++) { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 5, 4), sm); sp.scale.set(1, 0.4, 1); sp.position.set((k % 2 ? 1 : -1) * (0.06 + (k % 3) * 0.025), KINDS.deer.h + 0.06, -0.25 + k * 0.055); spots.add(sp); }
-        f.root.add(spots);
+        if (!f.mix) f.root.add(spots);
         this.animals.push(f);
       }
     }
@@ -660,7 +716,7 @@ export class Hunt {
       if (!a) {
         if (!KINDS[kind]) continue;
         a = new Animal(this, kind, x, z); a.puppet = true; a.netId = id; a.yaw = yaw; a.hp = 99;
-        if (fawn) { a.K = { ...KINDS.deer, name: "roe fawn", h: KINDS.deer.h * 0.58, len: KINDS.deer.len * 0.58, leg: KINDS.deer.leg * 0.58, r: KINDS.deer.r * 0.6, stride: KINDS.deer.stride * 0.6 }; a.root.scale.setScalar(0.58); }
+        if (fawn) { a.K = { ...KINDS.deer, name: "red deer calf", h: KINDS.deer.h * 0.58, len: KINDS.deer.len * 0.58, leg: KINDS.deer.leg * 0.58, r: KINDS.deer.r * 0.6, stride: KINDS.deer.stride * 0.6 }; a.root.scale.setScalar(0.58); }
         by.set(id, a); this.animals.push(a);
       }
       a.net = { x, z, yaw, spd, st, head };

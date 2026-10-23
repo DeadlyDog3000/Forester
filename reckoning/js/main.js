@@ -2335,6 +2335,8 @@ if (/[?&]raid\b/.test(location.search)) loadModels().finally(() => {
 // ---- the key to the map: beside the minimap (K), and always in the corner of the big map ----
 import { drawLegend, LEGEND } from "./map.js";
 import "./dev.js";
+import { startMenuArt } from "./menuart.js";
+startMenuArt();
 function legendCanvas(rows) {
   const cv = document.createElement("canvas"), d = Math.min(2, devicePixelRatio || 1), w = 228, h = 28 + rows.length * 17;
   cv.width = w * d; cv.height = h * d; cv.style.width = w + "px"; cv.style.height = h + "px";
