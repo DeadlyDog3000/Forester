@@ -284,7 +284,7 @@ function begin(me, into = slot, opt = {}) {
   const al = Object.keys(C.ally).filter(id => C.ally[id]), wr = Object.keys(C.E.war).filter(id => C.E.war[id]);
   for (const L of LEAGUES_1683.filter(L => L.ids.includes(me))) { const o = L.ids.filter(x => x !== me).map(x => the(x)); say(`You are in ${L.n}`, `With ${o.length > 1 ? o.slice(0, -1).join(", ") + " and " + o[o.length - 1] : o[0]}.`); }
   if (wr.length) say(`At war`, `You are already at war with ${wr.length > 1 ? wr.slice(0, -1).map(x => the(x)).join(", ") + " and " + the(wr[wr.length - 1]) : the(wr[0])}.`);
-  say(`${The(me)} — ${C.year}`, `You take the crown. ${citiesOfNow(grid(), me).length} towns, ${C.army} regiments, ${C.gold} thalers in the treasury.${al.length ? ` Allies: ${al.length}.` : ""}`);
+  say(`${The(me)} — ${C.year}`, `${govOf_().type === "republic" ? "You take the helm of the republic" : "You take the crown"}. ${(n => `${n} town${n === 1 ? "" : "s"}`)(citiesOfNow(grid(), me).length)}, ${C.army} regiments, ${C.gold} thalers in the treasury.${al.length ? ` Allies: ${al.length}.` : ""}`);
   save();
 }
 function resume() {
@@ -757,8 +757,10 @@ function realmWorld(g, ids) {
 }
 // ---- and for each player: the levies in, the learning done, the years told on their men ----
 // (who sets the missions: the Crown and its court; for a nation of the woods, its council)
-const crownW = cap => C && C.story ? (cap ? "The Emperor" : "the Emperor") : NATIONS[C.me] && NATIONS[C.me].nw ? (cap ? "The council" : "the council") : (cap ? "The Crown" : "the Crown");
-const courtW = cap => NATIONS[C.me] && NATIONS[C.me].nw ? (cap ? "The council" : "the council") : (cap ? "The court" : "the court");
+//  — and for a republic, its own assembly: the States General, the Senate, the Diet
+const REPUBLIC_W = { dutch: "States General", venice: "Senate", genoa: "Senate", swiss: "Diet" };
+const crownW = cap => { const w = C && C.story ? "the Emperor" : NATIONS[C.me] && NATIONS[C.me].nw ? "the council" : govOf_().type === "republic" ? `the ${REPUBLIC_W[C.me] || "Assembly"}` : "the Crown"; return cap ? w[0].toUpperCase() + w.slice(1) : w; };
+const courtW = cap => { const w = NATIONS[C.me] && NATIONS[C.me].nw ? "the council" : !C.story && govOf_().type === "republic" ? "the chamber" : "the court"; return cap ? w[0].toUpperCase() + w.slice(1) : w; };
 // ---- the Crown's missions, as in Empire: Total War: now and then the court sets you a task — a town to take, a building
 //  to raise, an army or a fleet to have, a battle to win, a treaty to sign — with a year to have it done by and a reward
 //  when it is. Two at a time at most; one that runs out of time is simply dropped, with the court's displeasure ----
@@ -1338,7 +1340,7 @@ function pvpSea(fid, h, hf) {
   f.pos = { x: F.pos.x + 0.6, y: F.pos.y + 0.6 }; f.moved = true; f.go = null; syncAboard(f);
   const won = R() < odds(gunsOf(f.ships) * 1.05, gunsOf(F.ships), false), res = autoSea(f.ships, F.ships, won);
   const keep = L => L.filter(s => !s.sunk && !s.struck).map(s => ({ k: s.k, hp: Math.max(0.1, s.hp) })), taken = L => L.filter(s => s.struck).map(s => ({ k: s.k, hp: Math.max(0.2, s.hp) }));
-  const sunk = L => L.filter(s => s.sunk).length, line = (w, a, b, pa, pb) => !sunk(a) && !sunk(b) && !pa && !pb ? "neither side loses a ship, though both are badly knocked about." : `${sunk(b)} of theirs sunk${pa ? `, ${pa} taken as prize${pa > 1 ? "s" : ""}` : ""}; ${sunk(a)} of yours sunk${pb ? `, ${pb} taken` : ""}.`;
+  const sunk = L => L.filter(s => s.sunk).length, line = (w, a, b, pa, pb) => !sunk(a) && !sunk(b) && !pa && !pb ? "neither side loses a ship, though both are badly knocked about." : seaTally(sunk(b), pa, sunk(a), pb);
   const toMe = won ? taken(res.theirs) : [], toThem = won ? [] : taken(res.mine);
   const side = (fl, ships, title, body) => { const cap = fleetCap(fl); fl.ships = ships; say(title, body); drownAboard(fl, cap); if (!fl.ships.length) C.fleets = C.fleets.filter(x => x !== fl); moraleMove(title.startsWith("Victory") ? 6 : -6); };
   side(f, [...keep(res.mine), ...toMe], won ? "Victory at sea" : "Beaten at sea", `Against ${poss(nameOf(h))} ${fleetName(F).toLowerCase()}: ${line(won, res.mine, res.theirs, toMe.length, toThem.length)}`);
@@ -1352,6 +1354,12 @@ function autoSea(mine, theirs, won) {
   return { won, mine: hurt(mine, !won), theirs: hurt(theirs, won) };
 }
 // the battle's outcome on the campaign: ships lost, prizes taken, the armies aboard drowned with their ships
+// (a battle at sea told: what each side lost, in words — "none of yours lost", not "0 of yours sunk")
+function seaTally(sT, pT, sM, pM) {
+  const theirs = sT && pT ? `${sT} of theirs sunk and ${pT} taken as prize${pT > 1 ? "s" : ""}` : sT ? `${sT} of theirs sunk` : pT ? `${pT} of theirs taken as ${pT > 1 ? "prizes" : "a prize"}` : "none of theirs lost";
+  const yours = sM && pM ? `${sM} of yours sunk and ${pM} taken` : sM ? `${sM} of yours sunk` : pM ? `${pM} of yours taken` : "none of yours lost";
+  return `${theirs}; ${yours}.`;
+}
 function seaEnd(fid, foe, res) {
   const f = fleetById(fid), F = C.foeFleets && C.foeFleets[foe]; if (!f || !F) return;
   const capBefore = fleetCap(f), keep = L => L.filter(s => !s.sunk && !s.struck).map(s => ({ k: s.k, hp: Math.max(0.1, s.hp) })), taken = L => L.filter(s => s.struck).map(s => ({ k: s.k, hp: Math.max(0.2, s.hp) }));
@@ -1360,7 +1368,7 @@ function seaEnd(fid, foe, res) {
   // (and the winner's own struck ships, retaken once the loser is beaten off or gone)
   f.ships.push(...prizes, ...(res.won ? taken(res.mine) : [])); F.ships.push(...lostTo, ...(res.won ? [] : taken(res.theirs)));
   const sunkM = res.mine.filter(s => s.sunk).length, sunkT = res.theirs.filter(s => s.sunk).length;
-  say(res.won ? `Victory at sea` : res.left ? `Your fleet breaks off the action` : `Beaten at sea`, `Against ${poss(the(foe))} fleet: ${!sunkT && !sunkM && !prizes.length && !lostTo.length ? "neither side loses a ship, though both are badly knocked about." : `${sunkT} of theirs sunk${prizes.length ? `, ${prizes.length} taken as prize${prizes.length > 1 ? "s" : ""}` : ""}; ${sunkM} of yours sunk${lostTo.length ? `, ${lostTo.length} taken` : ""}.`}`);
+  say(res.won ? `Victory at sea` : res.left ? `Your fleet breaks off the action` : `Beaten at sea`, `Against ${poss(the(foe))} fleet: ${!sunkT && !sunkM && !prizes.length && !lostTo.length ? "neither side loses a ship, though both are badly knocked about." : seaTally(sunkT, prizes.length, sunkM, lostTo.length)}`);
   // (the regiments aboard ships that went down or were taken: lost with them)
   drownAboard(f, capBefore);
   if (!f.ships.length) C.fleets = C.fleets.filter(x => x !== f);

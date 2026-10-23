@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.84", date: "23 October 2026", title: "The Senate wants it",
+    items: [
+      "Campaign: a republic’s missions come from its own assembly, not a crown it hasn’t got: the States General for the Dutch, the Senate for Venice and Genoa, the Diet for the Swiss, the Assembly for a crown that has had its revolution. A mission failed displeases the chamber, not the court, and you take the helm of the republic, not its crown.",
+      "Campaign: a battle at sea is told in words when a side loses nothing (“none of yours lost”, not “0 of yours sunk”), and a crown of one town begins with “1 town”, not “1 towns”.",
+    ],
+  },
+  {
     v: "1.99.83", date: "23 October 2026", title: "Darker cards",
     items: [
       "Saves, and the campaign’s list of crowns, are set on darker cards, as the achievements and credits are, so their writing stands clear of the painting behind.",
