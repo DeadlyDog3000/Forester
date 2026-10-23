@@ -220,12 +220,13 @@ function refreshTitle() {
   $("btnContinue").innerHTML = s ? `Continue<small class="btn-sub">${chapterOf(s.chapter || 1).title}${getSlot() > 1 ? ` · save ${getSlot()}` : ""}</small>` : "Continue";
   UI.show("btnChapters", !!s);
   // (a story under way: Continue is the big button, and starting another is a quieter one under it)
-  $("btnNew").innerHTML = s ? "New story" : `Begin the story<small class="btn-sub">${CHAPTERS[0].title} · your family's tale</small>`;
+  $("btnNew").innerHTML = s ? "New story" : `Begin the story<small class="btn-sub">Hamburg, 1683 · ${CHAPTERS[0].title}</small>`;
   $("btnNew").classList.toggle("primary", !s); $("btnNew").classList.toggle("tm-second", !!s);
   // (the demo: said so on the cards, and the way to the rest)
   const f = full();
   $("tmStoryKick").textContent = f ? "The story · the campaign" : "Demo · Part One of the story";
   $("tmOnlineKick").textContent = f ? "Multiplayer" : "Multiplayer · full game";
+  $("btnCampaign").innerHTML = `The campaign<small class="btn-sub">Europe, 1683 · ${f ? "a crown of your own to rule" : "in the full game"}</small>`;
   UI.show("btnUnlock", !f);
 }
 function toTitle() {

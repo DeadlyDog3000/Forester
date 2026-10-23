@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.80", date: "22 October 2026", title: "The front door",
+    items: [
+      "Title: in the demo, the campaign’s button says it’s in the full game, though it sits with the demo’s story. Begin the story reads “Hamburg, 1683 · The House by the Harbour” on one line, as the campaign’s reads “Europe, 1683”.",
+    ],
+  },
+  {
     v: "1.99.79", date: "22 October 2026", title: "Said up front",
     items: [
       "Demo: Free Play and the Frontier are marked “In the full game” on their cards, and choosing one says so at once, with what it is. Free Play no longer let you draw up your settler and then told you “That’s the end of Part One” before you’d played a minute of it.",
