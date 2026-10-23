@@ -1647,7 +1647,9 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-acts .btn.danger { border-color: #8a3a2a; color: #f0b0a0; }
 .cmp-rel { position: relative; height: 16px; margin-top: 8px; border-radius: 3px; background: linear-gradient(90deg, rgba(160, 50, 40, 0.35), rgba(120, 120, 100, 0.2), rgba(90, 160, 90, 0.35)); overflow: hidden; }
 .cmp-rel i { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1px; background: var(--ink); }
-.cmp-rel span { position: relative; font: 11px/16px var(--sans); padding-left: 6px; color: var(--ink); }
+/* (the words on the side of the bar its mark isn't: a crown that dislikes you has its mark left of the middle) */
+.cmp-rel.neg span { position: absolute; right: 6px; padding-left: 0; }
+.cmp-rel span { position: relative; z-index: 1; font: 11px/16px var(--sans); padding-left: 6px; color: var(--ink); text-shadow: 0 0 3px #000, 0 0 2px #000, 0 0 1px #000; }
 .cmp-ev { border-color: var(--gold); }
 .cmp-ev.war { border-color: #b0442e; background: rgba(60, 18, 12, 0.85); }
 .cmp-ev b { display: block; font: 16px var(--serif); }

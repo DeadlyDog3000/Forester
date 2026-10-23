@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.89", date: "23 October 2026", title: "Their view of you",
+    items: [
+      "Diplomacy: a crown’s view of you is written clear of the mark on its bar (to the right when they dislike you, to the left when they like you), so the mark no longer runs through the words, and a poor opinion has a proper minus sign.",
+    ],
+  },
+  {
     v: "1.99.88", date: "23 October 2026", title: "The year turns",
     items: [
       "Campaign: in the news at the side, each year’s own line reads “The year turns”, with its profit or loss, under the date, rather than giving the date twice over.",
