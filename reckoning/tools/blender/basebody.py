@@ -160,13 +160,20 @@ def _rest_hand():
     cx = sum(v.co.x for v in bm.verts) / len(bm.verts)
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z > 0.345], context="VERTS")
     bmesh.ops.holes_fill(bm, edges=[e for e in bm.edges if e.is_boundary], sides=0)
-    zk = 0.262
+    # (a loose fist, as a hand hangs or holds: each finger bent round a rod across the palm — the same curl as your own
+    #  hands' grip, a little open — and the thumb brought in across; whatever is held passes through it, at GRIP)
+    zk, yf, Rr = 0.262, 0.018, 0.024
+    yc = yf + Rr
     for v in bm.verts:
         x, y, z = v.co.x - cx, v.co.y, v.co.z
-        if z < zk and not (x > 0.05 and z > 0.2):
-            th = ((zk - z) / 0.11) ** 1.2 * 0.42
-            piv = Vector((0, 0.03, zk))
-            v.co = piv + Matrix.Rotation(-th, 3, "X") @ (Vector((x, y, z)) - piv)
+        if x > 0.05 and z > 0.2:
+            piv = Vector((0.045, 0.03, 0.31)); p = Vector((x, y, z)) - piv
+            k = max(0.0, min(1.0, (0.31 - z) / 0.06)); k = k * k * (3 - 2 * k)
+            p = Matrix.Rotation(-1.0 * k, 3, "Z") @ p; p = Matrix.Rotation(0.45 * k, 3, "X") @ p
+            v.co = piv + p
+        elif z < zk:
+            s_ = zk - z; rho = Rr - (y - yf); th = s_ / Rr * 0.9
+            v.co = Vector((x, yc - rho * math.cos(th), zk - rho * math.sin(th)))
         else:
             v.co = Vector((x, y, z))
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
@@ -176,7 +183,7 @@ def _rest_hand():
     bm.verts.index_update()
     fs = [tuple(v.index for v in f.verts) for f in bm.faces]
     bm.free()
-    _HAND["v"] = (vs, fs)
+    _HAND["v"] = (vs, fs, Vector((0, yc, zk)) - wrist)
     return _HAND["v"]
 
 
@@ -185,11 +192,11 @@ def base_hands(J, female):
     H = _rest_hand()
     if not H:
         return None
-    hv, hf = H
-    k = 0.92 if female else 1.0
-    out_v, out_f = [], []
+    hv, hf, grip = H
+    k = 0.8 if female else 0.86                # (sized to these people's slighter forearms: life-size, the hands were too big)
+    out_v, out_f, grips = [], [], {}
     for sd in (1, -1):                       # (+x is the left hand, as the joints have it; the bundle's hand is a right)
-        w = Vector((sd * (abs(J["wrist.L"][0]) + (0.03 if female else 0.0)), J["wrist.L"][1] - (0.015 if female else 0.0), J["wrist.L"][2] + 0.01))   # (a woman's clear of her skirts)
+        w = Vector((sd * abs(J["wrist.L"][0]), J["wrist.L"][1], J["wrist.L"][2] + 0.035))   # (the wrist up inside the forearm's end: no gap)
         # (the right hand turned so its palm faces in, +x, and its thumb forward, −y; the left is its mirror)
         R = Matrix.Rotation(-math.pi / 2, 3, "Z")
         base = len(out_v)
@@ -200,4 +207,8 @@ def base_hands(J, female):
             out_v.append(w + p)
         for f in hf:
             out_f.append(tuple(base + i for i in (f if sd < 0 else f[::-1])))
-    return out_v, out_f
+        g = R @ (grip * k)
+        if sd > 0:
+            g = Vector((-g.x, g.y, g.z))
+        grips[sd] = w + g
+    return out_v, out_f, grips

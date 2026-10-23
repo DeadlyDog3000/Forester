@@ -720,8 +720,11 @@ function useModel(P, key, colors = {}) {
   });
   // (a bone runs out along the fingers; what is held stands up out of the fist, square to them — a quarter turn —
   // and sits in the palm, a little past the wrist)
-  if (hand) { hand.add(P.held); P.held.position.set(0, 0.07, 0); P.held.rotation.set(-Math.PI / 2, 0, 0); }
-  if (handL) { handL.add(P.heldL); P.heldL.position.set(0, 0.07, 0); P.heldL.rotation.set(-Math.PI / 2, 0, 0); }
+  //  (where the model marks it — grip_R, grip_L, the hole through its closed hand — exactly there, so what is held goes
+  //  through the fist and not beside it)
+  const gR = m.scene.getObjectByName("grip_R"), gL = m.scene.getObjectByName("grip_L");
+  if (hand) { hand.add(P.held); if (gR && gR.parent === hand) P.held.position.copy(gR.position); else P.held.position.set(0, 0.07, 0); P.held.rotation.set(-Math.PI / 2, 0, 0); }
+  if (handL) { handL.add(P.heldL); if (gL && gL.parent === handL) P.heldL.position.copy(gL.position); else P.heldL.position.set(0, 0.07, 0); P.heldL.rotation.set(-Math.PI / 2, 0, 0); }
   const base = P.update.bind(P);
   P.update = function (dt, speed = 0) {
     base(dt, speed);

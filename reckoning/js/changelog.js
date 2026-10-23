@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.99", date: "23 October 2026", title: "Hands that hold",
+    items: [
+      "Hands: everyone’s are their right size now (the sculpted hand was life-size on slighter forearms, and looked too big) and joined to the arm, the wrist up inside the sleeve, with no gap and no stray flap of the old hand by the cuff.",
+      "Hands: people’s hands close into a loose fist, and what they carry goes through it. A musket, a torch or a tool is held where the fist closes, not beside an open hand. Each hand marks where its fist is for the game to put things in.",
+      "Your own hands, first person, are a little smaller and meet your sleeves at the wrist; every weapon and tool was checked from the front, side, top and below for the fingers round the haft.",
+    ],
+  },
+  {
     v: "1.99.98", date: "23 October 2026", title: "Better hands",
     items: [
       "Your own hands, first person, are hands at last: the sculpted hand closed round whatever you hold (axe, musket, pistol, spear, bow and the tools of work), its fingers wrapped round the haft and the thumb across, the wrist turned back toward your arm. They were plain round fists.",

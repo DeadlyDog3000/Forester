@@ -33,7 +33,7 @@ function gripMesh(side) {
   const m = modelCopy("hand_grip");
   let mesh = null;
   if (m) m.scene.traverse(o => { if (!mesh && o.isMesh && o.name.endsWith(side)) mesh = o; });
-  if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.castShadow = false; return g; }
+  if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.castShadow = false; g.scale.setScalar(0.86); return g; }
   const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), ARMS_M.skin); f.rotation.z = Math.PI / 2; return f;
 }
 const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6 }), sleeve: new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.95 }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 }) };

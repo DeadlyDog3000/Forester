@@ -436,9 +436,9 @@ def build_person(key):
     #  arm, after it, as the rig's weighting looks for)
     BHN = base_hands(J, f)
     if BHN:
-        hvs, hfs = BHN
+        hvs, hfs, hgrips = BHN
         bmh = bmesh.new(); bmh.from_mesh(me)
-        wz = J["wrist.L"][2] - 0.012
+        wz = J["wrist.L"][2] + 0.03           # (the old hand and the root of its thumb away entirely: it stood out by the cuff)
         bmesh.ops.delete(bmh, geom=[v for v in bmh.verts if v.index >= n_trunk and v.co.z < wz], context="VERTS")
         nv = [bmh.verts.new(q) for q in hvs]
         for fc in hfs:
@@ -1387,6 +1387,16 @@ def build_person(key):
 
     animate(rig, key, f, J)
     objs = [rig, body] + extra
+    # (where a held thing goes: the hole through each fist, marked on its hand bone for the game — grip_L and grip_R)
+    if BHN:
+        was_ = rig.data.pose_position; rig.data.pose_position = "REST"; bpy.context.scene.frame_set(0); bpy.context.view_layer.update()
+        for sd_, nm in ((1, "L"), (-1, "R")):
+            e = bpy.data.objects.new(f"grip_{nm}", None); sc.collection.objects.link(e)
+            e.parent = rig; e.parent_type = "BONE"; e.parent_bone = f"hand.{nm}"
+            bpy.context.view_layer.update()
+            e.matrix_world = Matrix.Translation(hgrips[sd_])
+            objs.append(e)
+        bpy.context.view_layer.update(); rig.data.pose_position = was_
     path = os.path.join(MODELS, f"{key}.glb")
     for ob in sc.objects:
         ob.select_set(ob in objs)
