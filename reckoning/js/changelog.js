@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.90", date: "23 October 2026", title: "Unknown",
+    items: [
+      "Diplomacy: a crown whose army you can’t see reads “army unknown”, not “army ?”; rest the pointer on it for how to learn it. On the map its men still carry a question mark.",
+    ],
+  },
+  {
     v: "1.99.89", date: "23 October 2026", title: "Their view of you",
     items: [
       "Diplomacy: a crown’s view of you is written clear of the mark on its bar (to the right when they dislike you, to the left when they like you), so the mark no longer runs through the words, and a poor opinion has a proper minus sign.",
