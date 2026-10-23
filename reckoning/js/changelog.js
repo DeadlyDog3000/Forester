@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.81", date: "22 October 2026", title: "A clean pause",
+    items: [
+      "Pause: the line of talk on the screen, the key prompts and the name of what you look at are put away while a menu is open, and come back when you resume. The note that your progress is kept no longer sat over someone’s words.",
+    ],
+  },
+  {
     v: "1.99.80", date: "22 October 2026", title: "The front door",
     items: [
       "Title: in the demo, the campaign’s button says it’s in the full game, though it sits with the demo’s story. Begin the story reads “Hamburg, 1683 · The House by the Harbour” on one line, as the campaign’s reads “Europe, 1683”.",
