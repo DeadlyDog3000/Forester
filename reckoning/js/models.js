@@ -552,7 +552,14 @@ async function fetchModel(k, url) {
       // (a quarry's and a mine's stone is the rock of the hill, broken — not a mason's wall)
       if (n === "stone" && /quarry|mine/.test(k)) m.userData.surface = "rock";
       // (a real animal's fur and eyes are painted in its own textures: no grain laid over them)
-      if (/^(deer|doe|hare)$/.test(k)) m.userData.surface = "none";
+      if (/^(deer|doe|hare|bear|boar|wolf|fox|horse)$/.test(k)) {
+        m.userData.surface = "none";
+        // (fur and hide are matte: a soft sheen at most, never the gloss of wet paint the files came with)
+        m.roughness = Math.max(m.roughness ?? 1, 0.88); m.metalness = 0; if (m.roughnessMap) m.roughnessMap = null; if (m.metalnessMap) m.metalnessMap = null;
+        // (and no baked shadow map: the horse's, laid over the game's own light and shadow, all but blacked it out)
+        if (m.aoMap) m.aoMap = null;
+        if (m.specularIntensity != null) m.specularIntensity = 0.3;
+      }
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
       // (bright metal — a gun's furniture, a blade — with no reflection to show goes black: kept only a little metal)
       if (n === "steel" || n === "brass" || n === "iron") m.metalness = Math.min(m.metalness, n === "iron" ? 0.3 : 0.4);
@@ -2208,7 +2215,61 @@ const HSPH = new THREE.SphereGeometry(1, 14, 10), HTAPER = {}, HCONE = new THREE
 const taper = (rt, rb, seg = 10) => HTAPER[rt + "," + rb] ??= new THREE.CylinderGeometry(rt, rb, 1, seg);
 let HORSE_MAT = null;
 const G_T = () => performance.now() / 1000;
-export function makeHorse(coat = 0x6a4428, seed = 1, { draught = false } = {}) {
+// a horse: the real one (models/horse.glb, a draught horse sculpted and rigged by BlueMesh, CC BY 4.0) when it's loaded —
+// its coat tinted to the colour asked for, walking and galloping on its own legs as fast as the horse goes — with the
+// built one's workings kept underneath it (its gaits, its rearing, the lift of the saddle, the beat of its hooves for
+// the sounds), unseen; else the built one, as it always was
+// (the top of its back where the saddle goes, measured on the model: its height, and how far back of its middle)
+const HORSE_BACK = 1.44, HORSE_SADDLE_Z = -0.12;
+const GREY_MAPS = new WeakMap();
+function greyMap(t) {
+  if (GREY_MAPS.has(t)) return GREY_MAPS.get(t);
+  const im = t.image; if (!im || !im.width || typeof document === "undefined") return t;
+  const cv = document.createElement("canvas"); cv.width = im.width; cv.height = im.height;
+  const c = cv.getContext("2d"); c.filter = "grayscale(1) contrast(0.85)"; c.drawImage(im, 0, 0);
+  const g = new THREE.CanvasTexture(cv); g.colorSpace = t.colorSpace; g.flipY = t.flipY; g.wrapS = t.wrapS; g.wrapT = t.wrapT;
+  GREY_MAPS.set(t, g); return g;
+}
+export function makeHorse(coat = 0x6a4428, seed = 1, opts = {}) {
+  const H = makeBuiltHorse(coat, seed, opts), m = modelCopy("horse");
+  if (!m || !m.animations.length) return H;
+  H.root.traverse(o => { if (o.isMesh) o.visible = false; });
+  const bod = H.root.children[0];
+  bod.add(m.scene); H.model = m.scene;
+  // (the coat: the sculpt is a chestnut; any other colour is that, tinted)
+  // (a grey or a white is no tint of a chestnut: its coat is the same hair, the colour taken out, and then lightened)
+  const want = new THREE.Color(coat), base = new THREE.Color(0x8a5232), hsl = want.getHSL({}), grey = hsl.s < 0.18;
+  const tint = grey ? new THREE.Color(1, 1, 1).multiplyScalar(Math.min(2.2, 0.6 + hsl.l * 2.4)).multiply(want.clone().multiplyScalar(1 / Math.max(want.r, want.g, want.b, 0.01)))
+    : (() => { const w = want.clone().convertLinearToSRGB(), b0 = base.clone().convertLinearToSRGB(), t = new THREE.Color(Math.min(1.5, w.r / b0.r), Math.min(1.5, w.g / b0.g), Math.min(1.5, w.b / b0.b)); return t.convertSRGBToLinear(); })();
+  m.scene.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); if (grey && o.material.map) o.material.map = greyMap(o.material.map); o.material.color.multiply(tint); o.castShadow = true; o.receiveShadow = true; } });
+  // (a riding horse's tack — the cloth and the saddle on its back; a draught horse's is its collar and traces, in the cart)
+  if (!opts.draught) {
+    const cloth = [0x7a2a22, 0x2a3a5a, 0x2a4a32, 0x6a5a2a][seed % 4];
+    const tack = new THREE.Group(), cm = mat(cloth, { surface: "cloth", roughness: 0.95 }), lm = mat(0x3a2416, { surface: "none", roughness: 0.7 });
+    // (the cloth a thin blanket over the back, just wider than the saddle; the saddle on it, high at the pommel and the
+    //  cantle; the stirrup leathers down each side)
+    const blanket = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.42), cm); blanket.scale.set(1.0, 0.45, 1.7); blanket.position.set(0, HORSE_BACK - 0.12, HORSE_SADDLE_Z); tack.add(blanket);
+    const seat = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2), lm); seat.scale.set(0.95, 0.38, 1.35); seat.position.set(0, HORSE_BACK - 0.03, HORSE_SADDLE_Z); tack.add(seat);
+    for (const z of [0.24, -0.25]) { const r = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6), lm); r.scale.set(1.6, 0.8, 0.6); r.position.set(0, HORSE_BACK + 0.04, HORSE_SADDLE_Z + z); tack.add(r); }
+    for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.4, 0.03), lm); st.position.set(sd * 0.27, HORSE_BACK - 0.27, HORSE_SADDLE_Z + 0.05); st.rotation.z = sd * 0.12; tack.add(st); }
+    tack.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    bod.add(tack);
+  }
+  const mix = new THREE.AnimationMixer(m.scene), act = {};
+  for (const c of m.animations) act[c.name] = mix.clipAction(c);
+  let cur = null;
+  const play = (n, ts) => { const a = act[n] || act.Walk; if (!a) return; if (a !== cur) { a.reset().play(); if (cur) a.crossFadeFrom(cur, 0.3, false); for (const o of Object.values(act)) if (o !== a && o !== cur) o.stop(); cur = a; } a.timeScale = ts; };
+  const gait = H.gait;
+  H.gait = (dt, speed) => {
+    const ph = gait(dt, speed);
+    // (its walk is made for a metre and a bit a second, its gallop for about eight)
+    if (speed < 0.25) play("Idle", 1); else if (speed < 5) play("Walk", Math.max(0.5, Math.min(3, speed / 1.2))); else play("Run", Math.max(0.6, Math.min(1.8, speed / 8)));
+    mix.update(dt);
+    return ph;
+  };
+  return H;
+}
+function makeBuiltHorse(coat = 0x6a4428, seed = 1, { draught = false } = {}) {
   HORSE_MAT ??= new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0 });
   const rr = (() => { let s = (Math.imul(seed + 7, 2654435761) ^ 0x9e3779b9) >>> 0; const f = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; for (let i = 0; i < 4; i++) f(); return f; })();
   const c = new THREE.Color(coat), hide = coat;

@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.109", date: "23 October 2026", title: "Bear, wolf, boar, fox and horse",
+    items: [
+      "The wild boar is a real boar now — coarse black bristles, a long snout and tusks — walking the woods as boars walk; shot, it goes over onto its side.",
+      "Bears are real bears: a black bear, heavy-shouldered and shaggy, that ambles, stands and looks about, breaks into a run, and when it's brought down sinks and lies.",
+      "Wolves and foxes are real too: a grey wolf and a red fox, furred and sculpted, each with a walk in four beats and a gallop of their own; the wolf stands and howls.",
+      "The horse: a real horse under you and under every rider, and between the shafts of every cart — a chestnut, or tinted to the bay, grey or black it should be — walking and galloping on its own legs, a riding horse's saddle and cloth on its back (a cart horse's collar and traces are to come). From the saddle you see its ears and its mane ahead of you.",
+      "Their coats are matte, as hair and hide are — they came glossy as wet paint, the horse worst of all — and the grey horses are grey, not tinted chestnut.",
+      "All of them given to everyone by their makers under Creative Commons — WildMesh 3D, AnimalMesh 3D, Alexei Ostapenko and BlueMesh — and credited in the credits.",
+    ],
+  },
+  {
     v: "1.99.108", date: "23 October 2026", title: "Real music",
     items: [
       "The music is real music now: recordings of the time and just after it — Charpentier's Te Deum, Lully's march for the Turkish ceremony, Purcell's fantasias for viols, Pachelbel's Canon, Corelli's Christmas Concerto, Bach's cello suite, his Air and his Goldberg aria, the Toccata in D minor, Vivaldi's Seasons — each chosen for its moment: the court for the campaign, the viols and the cello for the woods, the Presto of Summer for a chase and a battle, the Largo of Winter for the cold and for grief. All of them given to everyone by their players; every one named in the credits.",

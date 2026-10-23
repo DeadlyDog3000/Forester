@@ -48,11 +48,11 @@ const GAIT = {
 };
 // a real animal's own movements, by what it is doing: its clips in the model, a deer's or a hare's
 const CLIPS = {
-  idle: ["Idle.000", "Sitting.000"], look: ["LookAround.000", "LookAround.001", "Guarding"], eat: ["Eat.001", "Sitting.001"],
-  walk: ["Walk", "Running"], run: ["Run", "Running"], die: ["Die.000", "Die.001", "Dying.000"],
+  idle: ["Idle.000", "Sitting.000", "Idle"], look: ["LookAround.000", "LookAround.001", "Guarding", "Look"], eat: ["Eat.001", "Sitting.001", "Eat"],
+  walk: ["Walk", "Running"], run: ["Run", "Running"], die: ["Die.000", "Die.001", "Dying.000", "Die"],
 };
 // (the pace each clip was made for, at full size, in metres a second: played faster or slower to match the ground covered)
-const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 } };
+const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 }, bear: { walk: 1.1, run: 7 }, boar: { walk: 1.0, run: 1.0 }, wolf: { walk: 0.5, run: 3 }, fox: { walk: 0.3, run: 1.8 } };
 class Animal {
   constructor(hunt, kind, x, z, opts = {}) {
     this.hunt = hunt; this.kind = kind; this.K = KINDS[kind];
@@ -76,6 +76,11 @@ class Animal {
         const c = names.map(n => m.animations.find(a => a.name === n)).find(Boolean);
         if (c) this.acts[k] = this.mix.clipAction(c);
       }
+      // (what a model hasn't got, it borrows: a run from its walk, a look and a graze from its standing; and standing,
+      //  from its walk held still at the step's start, if that's all it has)
+      this.acts.run ??= this.acts.walk; this.acts.look ??= this.acts.idle; this.acts.eat ??= this.acts.idle;
+      if (!this.acts.idle && this.acts.walk) { const c = this.acts.walk.getClip(); this.acts.idle = this.mix.clipAction(THREE.AnimationUtils.subclip(c, "still", 0, 1, 30)); }
+      this.acts.look ??= this.acts.idle; this.acts.eat ??= this.acts.idle;
       if (this.acts.die) { this.acts.die.setLoop(THREE.LoopOnce); this.acts.die.clampWhenFinished = true; }
       this.play("idle", 0); this.mix.update(Math.random() * 5);
     }
@@ -103,7 +108,7 @@ class Animal {
     const K = this.K, P = PACE[this.kind] || PACE.deer, sc = this.root.scale.x || 1;
     let a;
     if (this.state === "graze") a = this.play(this.looking ? "look" : "eat");
-    else if (this.speed > K.walk * 1.8) { a = this.play("run"); a.timeScale = clamp(this.speed / (P.run * sc), 0.6, 1.8); }
+    else if (this.speed > K.walk * 1.8) { a = this.play("run"); a.timeScale = clamp(this.speed / (P.run * sc), 0.6, 2.6); }
     else if (this.speed > 0.08) { a = this.play("walk"); a.timeScale = clamp(this.speed / (P.walk * sc), 0.4, 1.6); }
     else a = this.play("idle");
     if (a && this.state === "graze") a.timeScale = 1;
@@ -155,7 +160,12 @@ class Animal {
         // (a real one goes down as it does in its own clip)
         this.slide = Math.max(0, this.slide - dt * 9);
         if (this.slide > 0.05) { this.pos.x += Math.sin(this.yaw) * this.slide * dt; this.pos.z += Math.cos(this.yaw) * this.slide * dt; this.pos.y = this.hunt.w.heightAt(this.pos.x, this.pos.z); this.root.position.copy(this.pos); }
-        this.play("die", 0.15); this.mix.update(dt);
+        if (this.acts.die) { this.play("die", 0.15); this.mix.update(dt); return; }
+        // (no fall of its own in the model: still, and over onto its side)
+        if (this.cur) this.cur.timeScale = 0;
+        this.fall = Math.min(1, this.fall + dt * 1.8); const e = this.fall * this.fall * (3 - 2 * this.fall);
+        this.root.rotation.z = e * Math.PI / 2; this.root.position.y = this.pos.y + e * K.r * 0.55;
+        this.mix.update(dt);
         return;
       }
       this.slide = Math.max(0, this.slide - dt * 9);
