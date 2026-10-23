@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.96", date: "23 October 2026", title: "Square toes",
+    items: [
+      "People: shoes as they were made in the 1680s: square at the toe, a high tongue over the instep with its buckle lying on it, and the heel stacked under the foot, not hung behind it.",
+    ],
+  },
+  {
     v: "1.99.95", date: "23 October 2026", title: "Hair and beard",
     items: [
       "People: hair lies on the head and the nape, and beards on the jaw, instead of standing round the neck in a ring, and the ears are no longer painted dark inside.",

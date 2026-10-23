@@ -429,6 +429,15 @@ def build_person(key):
     bpy.ops.object.join()
     body.select_set(False)
     me = body.data
+    # (a square toe, as shoes were cut in the 1680s: the front of the foot made flat-topped and square-ended)
+    if not native and not wild and not o.get("east"):
+        for v in me.vertices:
+            if v.co.z < 0.1 and v.co.y < -0.05:
+                t = smooth((-0.05 - v.co.y) / 0.06)
+                fx_ = (hp + 0.01) * (1 if v.co.x > 0 else -1)
+                dx = v.co.x - fx_
+                v.co.x = fx_ + dx * (1 - 0.25 * t) + math.copysign(0.004 * t, dx)
+                v.co.z = min(v.co.z, 0.075 - 0.02 * t) if v.co.z > 0.03 else v.co.z
     # (with the base head, which brings its own neck: the body's neck drawn in a little, to stay inside it)
     if base_head():
         for v in me.vertices:
@@ -1083,9 +1092,12 @@ def build_person(key):
         # shoes: a heel, a tongue, a square buckle
         for sd in ((-1, 1) if not east else ()):
             fx = sd * (hp + 0.01)
-            P.box("leather", WHITE, (fx, 0.035, 0.018), (0.056, 0.05, 0.036))
-            P.box("leather", WHITE, (fx, -0.075, 0.105), (0.05, 0.012, 0.06), (-0.5, 0, 0))
-            P.box("metal", WHITE, (fx, -0.096, 0.076), (0.042, 0.008, 0.03), (-0.5, 0, 0))
+            # (the heel stacked under the heel of the foot, not hung behind it; the high tongue and its buckle laid on
+            #  the instep, not stood off it)
+            P.box("leather", WHITE, (fx, 0.008, 0.022), (0.05, 0.05, 0.044))
+            tg = [hug((fx + 0.021 * k, y, z), 0.004) for y, z in ((-0.005, 0.15), (-0.03, 0.125), (-0.055, 0.1)) for k in (-1, 0, 1)]
+            sheet(P, "leather", [tg[0:3], tg[3:6], tg[6:9]], thick=0.004)
+            P.box("metal", WHITE, hug((fx, -0.045, 0.12), 0.01), (0.036, 0.006, 0.026), (-0.75, 0, 0))
     elif f:
         P.cyl("linen", WHITE, (0, hy, 1.45), (0, hy, 1.5), 0.062, 0.054, segs=16)
         # a kerchief round the shoulders, crossed over the breast
