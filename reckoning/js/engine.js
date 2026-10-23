@@ -36,7 +36,33 @@ function gripMesh(side) {
   if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.castShadow = false; g.scale.setScalar(0.86); return g; }
   const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), ARMS_M.skin); f.rotation.z = Math.PI / 2; return f;
 }
-const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshStandardMaterial({ color: 0xe8c4a0, roughness: 0.6 }), sleeve: new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.95 }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95 }) };
+// (skin, not plastic: a soft reddish glow where the light grazes it, as light comes back out of real skin; the coat a
+//  wool, dull and soft at its edges; the shirt's linen thin enough to see both sides of)
+const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshPhysicalMaterial({ color: 0xe8c4a0, roughness: 0.55, sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0xff8f70) }), sleeve: new THREE.MeshPhysicalMaterial({ color: 0x4d5a3c, roughness: 0.95, sheen: 0.5, sheenRoughness: 0.8, sheenColor: new THREE.Color(0x9a9a8a), side: THREE.DoubleSide }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95, side: THREE.DoubleSide }) };
+// a coat's sleeve, base at the shoulder, one long: round and full, with the soft creases of wool along it
+const SHOULDER_DROP = new THREE.Vector3(0, -0.14, 0.04);
+// (and each hand turned a little further round what it holds than straight on from its wrist, so from your eyes you see
+//  the fingers wrapped round the front of it, not only the back of the hand)
+const GRIP_TWIST = 1.0;
+function sleeveGeo(r0, r1) {
+  const g = new THREE.CylinderGeometry(r0 * 0.84, r1, 1, 28, 8, true).translate(0, 0.5, 0), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x);
+    const k = 1 + 0.05 * Math.sin(3 * a + y * 2.5) + 0.025 * Math.sin(7 * a - y * 4) + 0.015 * Math.sin(11 * a + 1.3);
+    p.setXYZ(i, x * k, y, z * k * 0.9);
+  }
+  g.computeVertexNormals(); return g;
+}
+// the shirt's cuff out of the coat's: linen, a little wider at its open end and gathered there in small ruffles
+function cuffGeo() {
+  const g = new THREE.CylinderGeometry(0.043, 0.041, 0.055, 36, 4, true).translate(0, 0.0275, 0), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x), t = y / 0.055;
+    const k = 1 + t * t * (0.08 + 0.025 * Math.sin(10 * a));
+    p.setXYZ(i, x * k, y, z * k);
+  }
+  g.computeVertexNormals(); return g;
+}
 
 /* global SFX */
 
@@ -350,8 +376,8 @@ export class Player {
       this.hands = [hand(grips[0], "R"), hand(grips[1], "L")];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
+        const sleeve = new THREE.Mesh(sleeveGeo(0.048, 0.056), sleeveM); arm.add(sleeve);
+        const cuff = new THREE.Mesh(cuffGeo(), cuffM); arm.add(cuff);
         vm.add(arm);
         // (both arms come in from the right: the axe is held right-handed, the left hand low on the haft)
         return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.3 : 0.12, i === 0 ? -0.5 : -0.56, 0.12) };
@@ -400,9 +426,9 @@ export class Player {
       // (each arm in two, jointed at the elbow — it bends as the hand comes in to the work, and straightens as it goes out)
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group(), fore = new THREE.Group();
-        arm.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM));
-        fore.add(new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.046, 1, 10).translate(0, 0.5, 0), sleeveM));
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); fore.add(cuff);
+        arm.add(new THREE.Mesh(sleeveGeo(0.05, 0.056), sleeveM));
+        fore.add(new THREE.Mesh(sleeveGeo(0.038, 0.046), sleeveM));
+        const cuff = new THREE.Mesh(cuffGeo(), cuffM); fore.add(cuff);
         vm.add(arm); vm.add(fore);
         return { arm, sleeve: arm.children[0], fore, foreSleeve: fore.children[0], cuff, side: i === 0 ? 1 : -1, len: pis ? 0.3 : 0.56, bend: 0, shoulder: new THREE.Vector3(i === 0 ? 0.26 : 0.02, i === 0 ? -0.48 : -0.55, 0.12) };
       });
@@ -576,8 +602,8 @@ export class Player {
       this.hands = [this.nockHand, grip];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM); arm.add(sleeve);
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
+        const sleeve = new THREE.Mesh(sleeveGeo(0.048, 0.056), sleeveM); arm.add(sleeve);
+        const cuff = new THREE.Mesh(cuffGeo(), cuffM); arm.add(cuff);
         vm.add(arm);
         return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.24 : -0.22, -0.5, 0.12) };
       });
@@ -686,8 +712,8 @@ export class Player {
       this.hands = [fist(0.012, -0.06, 0.02, Math.PI / 2 - 0.3), fist(-0.006, -0.05, -0.27, Math.PI / 2 + 0.2)];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
-        arm.add(new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), sleeveM));
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), cuffM); arm.add(cuff);
+        arm.add(new THREE.Mesh(sleeveGeo(0.048, 0.056), sleeveM));
+        const cuff = new THREE.Mesh(cuffGeo(), cuffM); arm.add(cuff);
         vm.add(arm);
         return { arm, sleeve: arm.children[0], cuff, shoulder: new THREE.Vector3(i === 0 ? 0.26 : -0.02, i === 0 ? -0.48 : -0.55, 0.12) };
       });
@@ -765,14 +791,17 @@ export class Player {
     (this.axe || this.bow || this.gun || this.xbow).updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < this.arms.length; i++) {
-      const { arm, sleeve, cuff, shoulder, fore, foreSleeve } = this.arms[i];
+      const { arm, sleeve, cuff, fore, foreSleeve } = this.arms[i];
       const hp = new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld).applyMatrix4(inv);
+      // (the shoulder well down below the eye, as your own is: the forearm comes up from under the hand, and the hand is
+      //  seen whole in front of its cuff, not hidden behind it)
+      const shoulder = this.arms[i].shoulder.clone().add(SHOULDER_DROP);
       const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length();
       // (the hand turned about what it holds, so its wrist runs back toward its own shoulder)
       // (and with a whole hand there, the sleeve and its cuff end at the wrist, a hand's length short of what it holds —
       //  the cuff ran on to the haft, and swallowed the palm)
       const gm = this.hands[i].children.find(c => c.userData.grip), wr = 0;
-      { if (gm) { const sw = shoulder.clone().applyMatrix4(vm.matrixWorld), lv = this.hands[i].worldToLocal(sw); gm.rotation.y = Math.atan2(lv.z, -lv.x); } }
+      { if (gm) { const sw = shoulder.clone().applyMatrix4(vm.matrixWorld), lv = this.hands[i].worldToLocal(sw); gm.rotation.y = Math.atan2(lv.z, -lv.x) + (this.gripTwist ?? GRIP_TWIST); } }
       arm.position.copy(shoulder);
       if (fore) {
         // (two bones: reach far and the arm's straight; nearer, the elbow drops down and out to the side)
@@ -827,8 +856,8 @@ export class Player {
         hand.add(tool);
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), ARMS_M.sleeve); arm.add(sleeve);
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), ARMS_M.cuff); arm.add(cuff);
+        const sleeve = new THREE.Mesh(sleeveGeo(0.048, 0.056), ARMS_M.sleeve); arm.add(sleeve);
+        const cuff = new THREE.Mesh(cuffGeo(), ARMS_M.cuff); arm.add(cuff);
         g.userData.hand = hand; g.userData.arm = { arm, sleeve, cuff };
         vm.add(g); this.workRig = g;
         // and the same tool in the hand of your body, for when the camera is behind you
@@ -1304,8 +1333,8 @@ export class Player {
       const g = this.swimRig = new THREE.Group(); vm.add(g);
       this.swimLimbs = [-1, 1].map(side => {
         const arm = new THREE.Group();
-        const sleeve = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.056, 1, 10).translate(0, 0.5, 0), ARMS_M.sleeve); arm.add(sleeve);
-        const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.07, 10).translate(0, 0.035, 0), ARMS_M.cuff); arm.add(cuff);
+        const sleeve = new THREE.Mesh(sleeveGeo(0.048, 0.056), ARMS_M.sleeve); arm.add(sleeve);
+        const cuff = new THREE.Mesh(cuffGeo(), ARMS_M.cuff); arm.add(cuff);
         const hand = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.03, 0.12).translate(0, 0, -0.05), ARMS_M.skin);
         g.add(arm, hand); return { side, arm, sleeve, cuff, hand };
       });

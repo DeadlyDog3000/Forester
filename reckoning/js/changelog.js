@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.104", date: "23 October 2026", title: "Your own hands",
+    items: [
+      "Your hands, first person: they were a lump of skin peeking from behind a great white cuff. Your shoulders now sit down below your eyes, where they belong, so each forearm comes up from beneath the hand and the whole hand shows in front of its cuff, and each hand is turned round what it holds so you see the fingers wrapped round the front of the haft.",
+      "Your sleeves are round and soft, with the creases of wool along them, instead of ten-sided tubes; the shirt cuff is slimmer, open at the end and gathered in small ruffles, and no wider than a wrist; and the skin catches the light as skin does, with a faint warm glow at its edges, instead of looking like painted plastic.",
+    ],
+  },
+  {
     v: "1.99.103", date: "23 October 2026", title: "Needles and leaves",
     items: [
       "Trees: the woods now match the people. Spruces and pines are built of drooping boughs, each one a spray of needles with a ragged edge and the sky showing through it, round a dark heart; oaks, birches and the other broadleaves are clumps of real leaf sprays instead of smooth green balls. Every kind keeps its own colour, sway and place, so a forest reads the same on the map and much more like a forest up close.",
