@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.85", date: "23 October 2026", title: "On the march",
+    items: [
+      "Campaign: the news of an army marching on your town reads as one sentence: “Its army is a year’s march off, and will be at the walls next year”, or “Some 40 regiments are two years’ march off”, rather than an army that was “it” and then “they”.",
+    ],
+  },
+  {
     v: "1.99.84", date: "23 October 2026", title: "The Senate wants it",
     items: [
       "Campaign: a republic’s missions come from its own assembly, not a crown it hasn’t got: the States General for the Dutch, the Senate for Venice and Genoa, the Diet for the Swiss, the Assembly for a crown that has had its revolution. A mission failed displeases the chamber, not the court, and you take the helm of the republic, not its crown.",
