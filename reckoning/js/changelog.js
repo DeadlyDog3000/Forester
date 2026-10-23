@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.93", date: "23 October 2026", title: "With thanks",
+    items: [
+      "Credits: the heads the people are made from are credited to Blender Studio’s Human Base Meshes.",
+    ],
+  },
+  {
     v: "1.99.92", date: "23 October 2026", title: "New faces",
     items: [
       "People: every face is new. The heads are made from a properly sculpted human head (Blender Studio’s, free to use), with a real jaw, cheekbones, eyelids, lips and ears, fitted to each person and painted with their own colouring, brows and lips. The women’s faces are softer in the jaw and nose than the men’s.",
