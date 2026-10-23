@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.108", date: "23 October 2026", title: "Real music",
+    items: [
+      "The music is real music now: recordings of the time and just after it — Charpentier's Te Deum, Lully's march for the Turkish ceremony, Purcell's fantasias for viols, Pachelbel's Canon, Corelli's Christmas Concerto, Bach's cello suite, his Air and his Goldberg aria, the Toccata in D minor, Vivaldi's Seasons — each chosen for its moment: the court for the campaign, the viols and the cello for the woods, the Presto of Summer for a chase and a battle, the Largo of Winter for the cold and for grief. All of them given to everyone by their players; every one named in the credits.",
+      "Your hands, first person: the turn added to show the fingers twisted each hand round the haft away from its own wrist, so the hands curled the wrong way, away from your body. They close round the haft as a hand does again, the wrist running back to the arm. And the sword, the dagger and the pistol are held up where you see your hand on the grip, not with the hand off the bottom of the screen.",
+      "Battles: fallen with no place left in the ranks, you spectate — following any man still standing, yours or theirs, over his shoulder (Space or Tab for the next, Q for the one before), or flying the field freely with V.",
+      "Your loadout: a musket is a soldier's whole kit — with it, a pistol if you like, and its bayonet or no blade at all; never a sword, an axe, a club or a spear. With no bayonet you can't fix one (F does nothing). There's a None for the blade, beside a long arm.",
+      "Hamburg: the last few townsfolk who were still the old wooden figures — the latecomers hurrying to the square, and the hooded man on the scaffold — are made like everyone else now.",
+    ],
+  },
+  {
     v: "1.99.107", date: "23 October 2026", title: "Plaster, brick and tile",
     items: [
       "Hamburg: every house's walls and roof are made of what they are now, not one flat colour. The plastered houses show their lime plaster, a little uneven; the brick ones their courses of red brick, mortar between; the roofs their tiles.",

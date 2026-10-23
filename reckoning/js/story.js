@@ -705,7 +705,7 @@ async function ch3(w, opts) {
   }
   // people still on their way
   for (const [x, z, s] of [[-4, -12, 401], [2, -3, 402], [-1, 12, 403], [1.5, 20, 404], [-20, 1, 405]]) {
-    const c = spawn({ seed: s, hat: s % 2 ? "tricorn" : null, skirt: s % 3 === 0 }, x, z);
+    const c = spawn(s % 3 === 0 ? { model: "townswoman", seed: s, skirt: true, hat: s % 2 ? "bonnet" : null } : { model: "townsman", seed: s, hat: s % 2 ? "tricorn" : null }, x, z);
     c.walk([[0, x < -10 ? 0 : z], [x * 0.3, 33 + (s % 3)]], 1.25).then(() => c.faceTo(0, 45));
     crowd.push(c);
   }
@@ -715,7 +715,7 @@ async function ch3(w, opts) {
   if (!opts.chase) {
     father = spawn(FATHER, 1.2, 43.2, 0); father.yOff = 1.92; father.person.setPose("bound");
     mag = spawn(MAGISTRATE, -1.6, 44.6, 0); mag.yOff = 1.92; const sc = mag.hold(makeScroll(true));
-    const hood = spawn({ name: "", coat: 0x1a1414, legs: 0x1a1414, hat: "cap", hatColor: 0x121010, seed: 71 }, 1.8, 46.5, 0); hood.yOff = 1.92;
+    const hood = spawn({ model: "townsman", name: "", coat: 0x1a1414, legs: 0x1a1414, vest: 0x1a1414, hat: "cap", hatColor: 0x121010, seed: 71 }, 1.8, 46.5, 0); hood.yOff = 1.92;
     const g1 = spawn(GUARD(72), -2.4, 42.6, 0); g1.yOff = 1.92; g1.hold(makeHalberd());
     const g2 = spawn(GUARD(73), 2.6, 42.3, 0); g2.yOff = 1.92; g2.hold(makeHalberd());
     onScaffold.push(father, mag, hood, g1, g2);

@@ -53,7 +53,7 @@ export const LONG = {
 };
 export const SIDE = {
   pistol: { name: "Pistol", icon: "pistol", w: 3, stats: [["Ball", "32 · head 51"], ["Range", "25 m, wild"], ["Loading", "2.4 s"]], note: "A horseman's flintlock: quick to load, but only for close work — past a few paces it could go anywhere." },
-  none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No pistol. A musket wants both hands and most of what you can carry." },
+  none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No pistol: lighter on your feet." },
 };
 export const BLADE = {
   sword: { name: "Sword", icon: "sword5", w: 3, dmg: 20, rate: 1.15, reach: 2.4, stats: [["Blow", "20"], ["Pace", "quick"], ["Reach", "2.4 m"]], note: "A soldier's sword: quick to strike and quick to guard." },
@@ -62,21 +62,31 @@ export const BLADE = {
   spear: { name: "Spear", icon: "spear", w: 3, dmg: 16, rate: 1.0, reach: 3.0, stats: [["Blow", "16"], ["Pace", "steady"], ["Reach", "3 m"]], note: "Keeps him off: you reach him before he reaches you." },
   axe: { name: "Felling axe", icon: "axe", w: 3, dmg: 14, rate: 1.05, reach: 2.3, stats: [["Blow", "14"], ["Pace", "steady"], ["Reach", "2.3 m"]], note: "The woodsman's axe. It'll do, in the right hands." },
   dagger: { name: "Bayonet", icon: "dagger", w: 1, dmg: 11, rate: 1.5, reach: 1.9, stats: [["Blow", "11 · fixed 24"], ["Reach", "1.9 m · fixed 2.7"]], note: "A socket bayonet: with a musket, F fixes it under the muzzle, for good — you still fire, slower to load and less true, and once you've fired a click is the steel. Alone, a long dagger." },
+  // (no blade at all: a musket and a pistol, and nothing for hand to hand but the butt of the one)
+  none: { name: "None", icon: "", w: 0, dmg: 6, rate: 1.2, reach: 1.6, stats: [["Load", "nothing"]], note: "No blade, and no bayonet to fix: if it comes to hand to hand, you've the butt of your musket." },
   // (the musket with the bayonet fixed: not chosen, but what the musket and the bayonet make together)
   bayonet: { name: "Fixed bayonet", icon: "musket", w: 0, dmg: 24, rate: 0.95, reach: 2.7, hidden: true, stats: [], note: "" },
 };
-// what you can carry: a long arm, a sidearm and a blade, all within this. (A musket is so heavy it's your sidearm's
-// share too: beside it, only a dagger.) The lighter you go, the quicker on your feet.
+// what you can carry: a long arm, a sidearm and a blade, all within this. A musket is a soldier's whole kit: beside it a
+// pistol if you like, and its bayonet or nothing — no sword, no axe, no spear (both hands are on the musket). The
+// lighter you go, the quicker on your feet.
 export const LOAD_MAX = 9;
+const MUSKET_BLADES = new Set(["dagger", "none"]);
+const loadMax = l => l.long === "musket" ? 11 : LOAD_MAX;
+export const allowedLoad = l => !(l.long === "musket" && !MUSKET_BLADES.has(l.blade)) && !(l.long === "none" && l.blade === "none") && weightOf(l) <= loadMax(l);
 export const weightOf = l => (LONG[l.long] || LONG.none).w + (SIDE[l.side] || SIDE.none).w + (BLADE[l.blade] || BLADE.dagger).w;
 export const loadMul = l => 1.06 - weightOf(l) * 0.012;
 // a choice made, and whatever else no longer fits put down (the sidearm first, then the blade down to the dagger)
 function fitLoad(l, keep) {
   const o = { ...l };
-  if (weightOf(o) > LOAD_MAX && keep !== "side") o.side = "none";
-  if (weightOf(o) > LOAD_MAX && keep !== "blade") o.blade = "dagger";
-  if (weightOf(o) > LOAD_MAX && keep !== "long") o.long = "none";
-  if (weightOf(o) > LOAD_MAX) o.side = "none";
+  // (a sword or an axe chosen with a musket: the musket goes, if the blade was what you just picked; else the bayonet)
+  if (o.long === "musket" && !MUSKET_BLADES.has(o.blade)) { if (keep === "blade") o.long = "none"; else o.blade = "dagger"; }
+  if (!allowedLoad(o) && keep !== "side") o.side = "none";
+  if (!allowedLoad(o) && keep !== "blade") o.blade = "dagger";
+  if (!allowedLoad(o) && keep !== "long") o.long = "none";
+  if (!allowedLoad(o)) o.side = "none";
+  // (no blade only with a long arm to fight with: never nothing in your hands)
+  if (o.long === "none" && o.blade === "none") o.blade = "dagger";
   return o;
 }
 const AMMO = { bow: 20, crossbow: 12 };
@@ -385,13 +395,13 @@ function drawVs() {
 }
 // your own arms: three rows of choices, one of each
 function drawMe(note = "") {
-  const I = ctx.ICON, heavy = (slot, id) => weightOf({ ...lo, [slot]: id }) > LOAD_MAX;
+  const I = ctx.ICON, heavy = (slot, id) => !allowedLoad({ ...lo, [slot]: id });
   const chip = (slot, id, o) => `<button class="mc${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}" data-slot="${slot}" data-id="${id}" title="${esc(o.stats.map(([a, b]) => a + " " + b).join(" · ") + " — " + o.note)}">${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="mc-none"></span>`}<span>${esc(o.name)}</span></button>`;
   const row = (slot, title, list) => `<div class="mr"><div class="pv-h">${title}</div><div class="mcs">${Object.entries(list).filter(([, o]) => !o.hidden).map(([id, o]) => chip(slot, id, o)).join("")}</div></div>`;
   const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100), pick = { long: LONG[lo.long], side: SIDE[lo.side], blade: BLADE[lo.blade] };
   { const sea = !!(must && must.kind === "hist" && battleById(histPick().id).sea); $("musMe").classList.toggle("hidden", sea); $("musMe").parentElement.classList.toggle("solo", sea); }
   $("musMe").innerHTML = `<div class="pv-h big">Your soldier</div>` + row("long", "Long arm", LONG) + row("side", "Sidearm", SIDE) + row("blade", "Blade", BLADE)
-    + `<div class="m-load"><b>Load</b> ${w} of ${LOAD_MAX} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
+    + `<div class="m-load"><b>Load</b> ${w} of ${loadMax(lo)}${lo.long === "musket" ? " (with a musket: a pistol, and the bayonet or no blade)" : ""} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
     + `<div class="m-pick">${["long", "side", "blade"].filter(k => pick[k] && pick[k].icon).map(k => `<div><b>${esc(pick[k].name)}</b> ${esc(pick[k].stats.map(([a, b]) => a + " " + b).join(" · "))}</div>`).join("")}</div>`
     + (must && must.kind !== "duel" ? `<div class="mr"><div class="pv-h">Mount</div><div class="mcs"><button class="mc${riding() ? " on" : ""}" data-ride="1"><span>${riding() ? "On horseback" : "On foot"}</span></button></div><div class="m-load">${riding() ? `You ride into battle: quicker than any man, a longer reach with the blade, and the weight of the horse in a charge — but pikes are death to a rider.${must.kind === "bots" || must.kind === "mp" ? ` ${RIDE_COST} thalers from the purse.` : ""}` : "Click to ride into battle instead."}</div></div>` : "")
     + (note ? `<div class="m-note">${esc(note)}</div>` : "");
@@ -1694,7 +1704,7 @@ class Arena {
       if (G.arena !== this || this.over || this.ended) return;
       const fx = $("deathFx"); if (fx) fx.classList.add("watch");
       this.watching = true; this.watchTick();
-      UI.hint("Watching your company. Esc to leave the field.", 4);
+      UI.hint("Fallen, and no place left in the ranks: watching. Space for the next soldier, V to fly free, Esc to leave the field.", 6);
     }, 3800);
     this.checkEnd();
   }
@@ -1738,10 +1748,22 @@ class Arena {
   fallInBattleWatch() {
     const fx = $("deathFx"); if (fx) fx.classList.add("watch");
     this.watching = true; this.watchTick();
+    UI.hint("Fallen, and no place left in the ranks: watching. Space for the next soldier, V to fly free, Esc to leave the field.", 6);
+  }
+  // spectating, once you can't rise again: any man still standing on the field — your own first, then theirs — followed
+  // over his shoulder, the next at a key; or the free camera, flown wherever you like
+  watchStep(d) {
+    const all = [...this.alliesOf(0), ...this.enemiesOf(0)].filter(u => u && u.alive);
+    if (!all.length) return;
+    const i = all.indexOf(this.watched), u = this.watched = all[((i < 0 ? 0 : i + d) % all.length + all.length) % all.length];
+    if (G.freecam && G.endFreecam) G.endFreecam();
+    this.watchTick();
+    const mine = this.alliesOf(0).includes(u);
+    UI.hint(`Watching ${mine ? "one of your company" : "one of theirs"}${u.lo && LONG[u.lo.long] && u.lo.long !== "none" ? ` (${LONG[u.lo.long].name.toLowerCase()})` : ""} · ${all.length} standing`, 2);
   }
   watchTick() {
     let u = this.watched;
-    if (!u || !u.alive) u = this.watched = this.alliesOf(0)[0];
+    if (!u || !u.alive) u = this.watched = this.alliesOf(0)[0] || this.enemiesOf(0).find(e => e.alive);
     if (!u) { this.watching = false; return; }
     const back = new THREE.Vector3(), look = new THREE.Vector3();
     // (over his shoulder, a little above — and never under the ground: on a hillside the slope behind him rises, so the
@@ -1792,6 +1814,17 @@ class Arena {
   takesNumbers(e) { return !!(this.multi && !e.fromWheel && /^Digit\d$/.test(e.code)); }
   onKey(e) {
     if (G.arena === this && this.viewing && e.code === "Enter" && !e.repeat) { e.stopImmediatePropagation(); e.preventDefault(); G.endFreecam && G.endFreecam(); this.finish(this.viewing.won); return; }
+    if (G.arena === this && this.watching && !this.over && !this.viewing && !e.repeat && G.mode === "play") {
+      const stop = () => { e.stopImmediatePropagation(); e.preventDefault(); };
+      if ((e.code === "Space" && !G.freecam) || e.code === "Tab" || e.code === "ArrowRight" || e.code === "KeyE") { stop(); this.watchStep(1); return; }
+      if (e.code === "ArrowLeft" || e.code === "KeyQ") { stop(); this.watchStep(-1); return; }
+      if (e.code === "KeyV") {
+        stop(); G.toggleFreecam && G.toggleFreecam();
+        UI.hint(G.freecam ? "Flying free — WASD, Space up, C down, Shift faster. V or Tab to follow a soldier again." : "Following a soldier — Space for the next.", 3);
+        if (!G.freecam) this.watchTick();
+        return;
+      }
+    }
     if (G.arena !== this || e.repeat || !this.live || G.downed || G.mode !== "play") return;
     // F (with nothing else to hand): the bayonet fixed under your musket's muzzle — for good, this fight. It's in the way
     // of the rod and the aim: slower loading, and the shot less true
@@ -1908,7 +1941,7 @@ class Arena {
     if (L.side === "pistol") out.push({ icon: "pistol", name: "Pistol", tool: "gun", kind: "pistol" });
     const B = BLADE[L.blade] || BLADE.dagger;
     // (a musket and a bayonet: the bayonet's fixed on the musket — the blade alone is only the last resort)
-    out.push({ icon: B.icon, name: L.blade === "dagger" ? "Bayonet, in hand" : B.name, tool: "arm", kind: L.blade });
+    if (L.blade !== "none") out.push({ icon: B.icon, name: L.blade === "dagger" ? "Bayonet, in hand" : B.name, tool: "arm", kind: L.blade });
     return out;
   }
   // ---- a round: both put back at their ends, made whole, loaded, and three, two, one ----
@@ -1965,7 +1998,7 @@ class Arena {
     if (k === "musket" || k === "pistol") { if (pl.gun) pl.showGun(false); pl.gunKind = k; pl.showGun(true); }
     else if (k === "bow") pl.showBow(true);
     else if (k === "crossbow") pl.showXbow(true);
-    else pl.wield(this.lo.blade);
+    else if (this.lo.blade !== "none") pl.wield(this.lo.blade);
   }
   // ---- your blade: a stroke at him, if he's in reach and in front of you ----
   // what your blade is now: the bayonet on your musket, if it's fixed; else the one in your belt
@@ -2045,6 +2078,7 @@ class Arena {
   // up again for the next round: the ragdoll let go of, your eye your own again
   rise() {
     const pl = G.player;
+    if (this.watching && G.freecam && G.endFreecam) G.endFreecam();
     if (this.myRag) { this.myRag.stop(); this.myRag = null; }
     G.deathCam = null; pl.frozen = false; G.wasDeathCam = true;   // (your hands shown again, next frame)
     const fx = $("deathFx"); if (fx) fx.classList.remove("on", "watch");

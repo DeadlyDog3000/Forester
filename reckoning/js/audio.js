@@ -9,7 +9,8 @@
 
 /* global SFX */
 import { createMusic } from "./music.js";
-let MUSIC = null;
+import { createRecorded } from "./recorded.js";
+let MUSIC = null, RECORDED = null;
 
 let ac = null, bus = null, musicBus = null, noise = null;
 // ---- the budget: how much is sounding at once ----
@@ -960,7 +961,9 @@ export const AUDIO = {
     if (mood === this._mood) return;
     this._mood = mood;
     if (!MUSIC) MUSIC = createMusic(() => ctx(), () => { ctx(); return musicBus; });
-    MUSIC.play(mood);
+    // (real recordings of the music of the time; the players in music.js only if one of them won't load)
+    if (!RECORDED) RECORDED = createRecorded(() => ctx(), () => { ctx(); return musicBus; }, m => MUSIC.play(m));
+    RECORDED.play(mood);
   },
   // ---- the score: a recording, not the players — for a battle's opening and its highlights only (see replay.js) ----
   // (the Sarabande from Handel's suite in D minor, HWV 437, as zero-project arranged it: CC BY 3.0, credited)
@@ -992,7 +995,7 @@ export const AUDIO = {
     for (const [node, base] of [[bus, 1], [fb, this._fbBase ?? 1]]) if (node) { node.gain.cancelScheduledValues(t); node.gain.setTargetAtTime(base * k, t, 0.25); }
   },
   get load() { return { live: liveSrc, pressure }; },
-  get musicState() { return MUSIC ? { mood: MUSIC.mood, playing: MUSIC.playing } : null; },
+  get musicState() { const M = RECORDED || MUSIC; return M ? { mood: M.mood, playing: M.playing } : null; },
 };
 
 

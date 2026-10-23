@@ -24,6 +24,7 @@ import { tickTemperature } from "./temperature.js";
 import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
 // (what's only ever thrust, never swung: the spear, and a musket with its bayonet fixed)
 const THRUST = new Set(["spear", "bayonet"]);
+const SHORT = new Set(["sword", "dagger"]);
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
 // your own hands, first person: the sculpted hand closed round what it holds (models/hand_grip.glb, made by
 // tools/blender/hands.py), the haft along the hand's up; a plain fist till it's loaded. fitArms turns each about the haft
@@ -43,7 +44,7 @@ const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.
 const SHOULDER_DROP = new THREE.Vector3(0, -0.14, 0.04);
 // (and each hand turned a little further round what it holds than straight on from its wrist, so from your eyes you see
 //  the fingers wrapped round the front of it, not only the back of the hand)
-const GRIP_TWIST = 1.0;
+const GRIP_TWIST = 0;
 function sleeveGeo(r0, r1) {
   const g = new THREE.CylinderGeometry(r0 * 0.84, r1, 1, 28, 8, true).translate(0, 0.5, 0), p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -517,7 +518,7 @@ export class Player {
     // before you, the muzzle up, for the charge, the ball and the rod. (A pistol: out at arm's length to aim, its kick
     // a sharp flip of the wrist.)
     const H = pis
-      ? [0.2 - 0.17 * a, -0.21 + 0.155 * a, -0.36 - 0.14 * a + 0.05 * k, 0.05 * (1 - a) + 0.35 * k, 0.05 * (1 - a) + 0.03 * a, 0.12 * (1 - a)]
+      ? [0.2 - 0.17 * a, -0.15 + 0.095 * a, -0.4 - 0.1 * a + 0.05 * k, 0.05 * (1 - a) + 0.35 * k, 0.05 * (1 - a) + 0.03 * a, 0.12 * (1 - a)]
       : [0.22 - 0.22 * a, -0.27 + 0.155 * a, -0.32 + 0.02 * a + 0.06 * k, 0.04 * (1 - a) + 0.12 * k, 0.06 * (1 - a), 0.1 * (1 - a)];
     const P = pis ? [0.1, -0.27, -0.34, 0.25, 0.45, -1.0] : [0.12, -0.34, -0.4, 0.2, 0.45, -1.05];
     const v = H.map((h, i) => h + (P[i] - h) * LP.prime);
@@ -946,7 +947,9 @@ export class Player {
   // held low on the right, head up, ready
   axeRest() { const R = this.restPose(); this.axe.rotation.set(R[0], R[1], R[2]); this.axe.position.set(R[3], R[4], R[5]); }
   // (a pike or a fixed bayonet is carried levelled, its point out before you — "charge your bayonets" — not upright)
-  restPose() { return THRUST.has(this.blade) ? [0.22, -0.1, 0.0, 0.28, -0.36, -0.12] : [1.05, -0.35, -0.5, 0.34, -0.5, -0.42]; }
+  // (a short grip — a sword's, a dagger's — is held up where you can see the hand on it and the hilt, the blade forward;
+  //  held as low as an axe's long haft, the hand was off the bottom of the screen and the blade floated in the air)
+  restPose() { return THRUST.has(this.blade) ? [0.22, -0.1, 0.0, 0.28, -0.36, -0.12] : SHORT.has(this.blade) ? [0.6, -0.3, -0.35, 0.3, -0.3, -0.5] : [1.05, -0.35, -0.5, 0.34, -0.5, -0.42]; }
   swing(onHit) {
     if (this.swingT >= 0 || this.swimming || G.time < (this.fixUntil || 0)) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
@@ -1234,7 +1237,7 @@ export class Player {
         // (pitch, yaw, roll) of the hands, and where they are: a level swing from right to left
         const e = x => x * x * (3 - 2 * x), L = (a, b, k) => a + (b - a) * k;
         // (pitch, yaw, roll, x, y, z) — from the right (a level stroke leftward), from the left (backhand, rightward), or from above
-        const REST = THRUST.has(this.blade) ? this.restPose() : [1.05, -0.35, -0.5, 0.3, -0.42, -0.4];
+        const REST = THRUST.has(this.blade) || SHORT.has(this.blade) ? this.restPose() : [1.05, -0.35, -0.5, 0.3, -0.42, -0.4];
         const [BACK, HIT, THRU] = {
           right: [[0.25, -1.25, 0.0, 0.42, -0.24, -0.26], [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], [0.2, 1.6, 0.0, -0.12, -0.34, -0.36]],
           left: [[0.25, 1.2, 0.0, -0.3, -0.22, -0.3], [0.18, -0.7, 0.0, 0.02, -0.3, -0.46], [0.2, -1.5, 0.0, 0.3, -0.36, -0.36]],
