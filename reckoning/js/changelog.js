@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.83", date: "23 October 2026", title: "Darker cards",
+    items: [
+      "Saves, and the campaign’s list of crowns, are set on darker cards, as the achievements and credits are, so their writing stands clear of the painting behind.",
+      "Battles at sea: the orders before the battle tell what shot aloft does: it cuts her rigging, her sails come down and she slows.",
+    ],
+  },
+  {
     v: "1.99.82", date: "23 October 2026", title: "Found your feet",
     items: [
       "Campaign: the getting-started list at the side puts itself away once a campaign is five years old, done or not, rather than staying on through the decades.",
