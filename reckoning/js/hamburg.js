@@ -12,7 +12,7 @@ import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, gro
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
-import { WaterMat } from "./water.js";
+import { WaterMat, trackWater } from "./water.js";
 import { Smoke } from "./smoke.js";
 import { water, label, INK, seen } from "./map.js";
 
@@ -224,7 +224,7 @@ export class Hamburg extends WorldBase {
     // the Elbe, wide as a sea here, out past the ships to the horizon
     // (the Elbe: grey-green and silty, holding the sky, the quays and the ships dark along it, a slow swell running)
     this.wm = new WaterMat({ deep: [0.03, 0.05, 0.055], round: [0.05, 0.045, 0.04], swell: 1.8 });
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 900, 110, 60), this.wm.mat);
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(1400, 900, 110, 60), this.wm.mat); trackWater(water, this.wm);
     water.rotation.x = -Math.PI / 2; water.position.set(0, -1.1, -496);
     water.receiveShadow = true;
     root.add(water);

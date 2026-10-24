@@ -13,7 +13,7 @@ import { forestInstances, modelCopy, ensureModel, makeSpruce, makeStump, makeShi
 import { Woods } from "../woods.js";
 import { fillPaper, tree as mapTree, INK, TOWN, label, relief, caveIcon } from "../map.js";
 import { makeTerrain, CHUNK, WATER, BIOMES } from "./terrain.js";
-import { WaterMat, waveAt } from "../water.js";
+import { WaterMat, waveAt, trackWater } from "../water.js";
 import { Caves } from "../cave.js";
 import { REALMS_1683, SEAS_1683 } from "./earth-1683.js";
 import { BUILD, claimOf } from "./rules.js";
@@ -249,7 +249,7 @@ export class Wilds extends WorldBase {
     const wg = new THREE.PlaneGeometry(2, 2, 150, 150); wg.rotateX(-Math.PI / 2);
     { const p = wg.attributes.position; for (let i = 0; i < p.count; i++) { const f = v => Math.sign(v) * Math.pow(Math.abs(v), 2.2) * 800; p.setXYZ(i, f(p.getX(i)), 0, f(p.getZ(i))); } wg.computeVertexNormals(); }
     this.wm = new WaterMat({ deep: [0.02, 0.06, 0.075], round: [0.05, 0.08, 0.06], amp: 0.45, len: 24, swell: 1.4 });
-    this.water = new THREE.Mesh(wg, this.wm.mat); this.water.frustumCulled = false;
+    this.water = new THREE.Mesh(wg, this.wm.mat); this.water.frustumCulled = false; trackWater(this.water, this.wm);
     this.water.position.y = WATER - 0.05; noSnow(this.water);
     this.root.add(this.water);
     this.wm.setRough(...seaRoughness(this.land, this.half));

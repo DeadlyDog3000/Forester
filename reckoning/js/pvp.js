@@ -1191,8 +1191,12 @@ class Arena {
     // (in a line, every man to his arm's place in it: the pikes a block in the middle, the muskets out either side of
     //  them, the horse on the wings — the order of battle, not the order they were mustered in)
     let i = Math.max(0, mates.indexOf(u));
+    // (following you in line: you stand in the middle of its front rank, a man at either shoulder — your place in it
+    //  kept for you, and the line round you)
+    const inRank = u.team === 0 && O.mode === "follow" && this.you.alive && O.form === "line" && this.battle;
+    const N = inRank ? n + 1 : n;
     if (O.form === "line" && n > 3) {
-      const pl = this.placeOrder(O, mates); i = pl.get(u) ?? i;
+      const pl = this.placeOrder(O, mates, inRank); i = pl.get(u) ?? i;
     }
     // (an arm following on its own: a few paces further back than the company, each arm its own rows)
     const S = this.sub && this.sub[u.team], back = O === this.orders[u.team] || !S ? 0 : 3.4 * (1 + Object.keys(S).sort().indexOf(groupOf(u)));
@@ -1200,13 +1204,17 @@ class Arena {
     const cx = foes.length ? foes.reduce((a, f) => a + f.pos.x, 0) / foes.length : C.x + (u.team === 0 ? 1 : -1) * 10;
     const cz = foes.length ? foes.reduce((a, f) => a + f.pos.z, 0) / foes.length : C.z;
     let anchor;
-    if (u.team === 0 && O.mode === "follow" && this.you.alive) { const pl = G.player, fw = pl.forward(); anchor = { x: pl.pos.x - fw.x * 2.4, z: pl.pos.z - fw.z * 2.4 }; }
+    if (inRank) anchor = { x: G.player.pos.x, z: G.player.pos.z };
+    else if (u.team === 0 && O.mode === "follow" && this.you.alive) { const pl = G.player, fw = pl.forward(); anchor = { x: pl.pos.x - fw.x * 2.4, z: pl.pos.z - fw.z * 2.4 }; }
     else if (u.team === 1 && O.mode === "follow" && this.netFoe && this.netFoe.alive) { const f = this.netFoe, y = f.a.yaw; anchor = { x: f.pos.x - Math.sin(y) * 2.4, z: f.pos.z - Math.cos(y) * 2.4 }; }
     else anchor = O.at || this.spawns[u.team];
     const face = Math.atan2(cx - anchor.x, cz - anchor.z);
     // (an arm sent to the same ground as the rest — or following you with them — forms its own rows behind theirs)
     if (back) { const M = this.orders[u.team], same = O.mode === "follow" ? M.mode === "follow" : M.mode !== "follow" && M.at && Math.hypot(M.at.x - anchor.x, M.at.z - anchor.z) < 4; if (same) anchor = { x: anchor.x - Math.sin(face) * back, z: anchor.z - Math.cos(face) * back }; }
-    const p = O.slot(i, n, anchor, face);
+    const p = O.slot(i, N, anchor, face);
+    // (the men at your shoulders a little further off than a yard, so it's their muskets you see at the edges of your
+    //  eye, not their hats in your face)
+    if (inRank) { const dx = p.x - anchor.x, dz = p.z - anchor.z, d = Math.hypot(dx, dz); if (d > 0.01 && d < 1.5) { p.x = anchor.x + dx / d * 1.5; p.z = anchor.z + dz / d * 1.5; } }
     // (never out past the trees)
     const dx = p.x - C.x, dz = p.z - C.z, d = Math.hypot(dx, dz), lim = this.bound - 3;
     if (d > lim) { p.x = C.x + dx / d * lim; p.z = C.z + dz / d * lim; }
@@ -1214,12 +1222,14 @@ class Arena {
   }
   // the line's places, handed out by arm (cached while the company's the same men): the most central places to the
   // pikes, the furthest out to the horse, the muskets and the rest between
-  placeOrder(O, mates) {
-    const key = mates.map(m => m.uid ?? m.idx).join(",");
+  placeOrder(O, mates, mine = false) {
+    const key = mates.map(m => m.uid ?? m.idx).join(",") + (mine ? "|you" : "");
     if (O._po && O._po.key === key) return O._po.map;
-    const n = mates.length, C0 = { x: 0, z: 0 };
-    const spots = [...Array(n).keys()].map(k => ({ k, a: Math.abs(O.slot(k, n, C0, 0).x) }));
-    const central = spots.slice().sort((p, q) => p.a - q.a || p.k - q.k).map(p => p.k);
+    const n = mates.length + (mine ? 1 : 0), C0 = { x: 0, z: 0 };
+    const spots = [...Array(n).keys()].map(k => { const p = O.slot(k, n, C0, 0); return { k, a: Math.abs(p.x), front: Math.abs(p.z) < 0.01 }; });
+    // (your own place, if you're in it: the middle of the front rank — the line's other places round it)
+    const yours = mine ? spots.filter(p => p.front).sort((p, q) => p.a - q.a)[0] : null;
+    const central = spots.filter(p => p !== yours).sort((p, q) => p.a - q.a || p.k - q.k).map(p => p.k);
     const rank = m => { const g = groupOf(m); return g === "pike" ? 0 : g === "blade" ? 1 : g === "horse" ? 4 : g === "shot" ? 3 : 2; };
     const order = mates.slice().sort((p, q) => rank(p) - rank(q) || p.idx - q.idx), map = new Map();
     order.forEach((m, j) => map.set(m, central[j]));
@@ -1316,13 +1326,14 @@ class Arena {
     if (this.battle && riding()) { if (!pl.horse) pl.mount(); } else if (pl.horse) pl.dismount();
     // (a pace before the line where there are works ahead, so the battery's gabions are a few paces off and not in your face)
     // (on a town's wall walk, though: where the company stands, back from the parapet — not in it with your face to the stone)
-    const lead0 = this.siege && this.siege.side === 0 ? 0 : this.battle && this.fortSide == null && !this.siege ? 1 : 3;
+    const lead0 = this.siege && this.siege.side === 0 ? 0 : this.battle && this.fortSide == null && !this.siege ? 0 : 3;
     pl.place(mine.x + Math.sin(face0) * lead0, mine.z + Math.cos(face0) * lead0, face0 + Math.PI);
     const placing = this.custom ? this.cos.map((c, co) => { const at = this.spawns[co], tw = toward(at), O = this.orders[co]; if (co) { O.mode = "hold"; O.at = { x: at.x, z: at.z }; } return [co, at, Math.atan2(tw.x - at.x, tw.z - at.z), O, tw]; })
       : [[0, mine, face0, O0, theirs], [1, theirs, face1, O1, mine]];
     for (const [team, at, face, O, look] of placing) {
       const list = this.alliesOf(team).filter(u => !u.crewOf).sort((a, b) => a.idx - b.idx);
-      list.forEach((u, i) => { const p = this.clearSpot(...Object.values(O.slot(i, list.length, at, face))); u.reset(p, look); });
+      // (yours round you in the ranks, if you're in them; everyone else in the order of battle)
+      list.forEach((u, i) => { const p = this.clearSpot(...Object.values(team === 0 && O.mode === "follow" && this.battle ? this.slotFor(u) : O.slot(i, list.length, at, face))); u.reset(p, look); });
       for (const u of this.alliesOf(team).filter(u => u.crewOf)) u.reset(this.field.station(u.crewOf, u.crewIdx), look);
     }
     this.cmds = [];

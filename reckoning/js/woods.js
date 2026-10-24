@@ -1487,7 +1487,8 @@ export class Woods extends WorldBase {
   brookAt(x, z) {
     const B = this.brook; if (!B || x < B.box[0] || x > B.box[1] || z < B.box[2] || z > B.box[3]) return null;
     const E = B.end, de = Math.hypot(x - E.x, z - E.z);
-    let best = de < E.r + 4 ? { d: Math.max(0, de - E.r + 1.2), y: E.y, w: 1.2, pool: true } : null;
+    // (no pool at its end any more: the brook runs out into the boggy hollow and soaks away — one pond in the woods)
+    let best = null; void de;
     const list = B.grid.get(Math.floor(x / 8) + "," + Math.floor(z / 8)); if (!list) return best;
     for (const i of list) {
       const a = B.pts[i], b = B.pts[i + 1], vx = b.x - a.x, vz = b.z - a.z, L2 = vx * vx + vz * vz;
@@ -2154,7 +2155,7 @@ function pondMap(c, X, Z, w) {
   if (B) {
     c.strokeStyle = "rgba(92,122,138,0.85)"; c.lineCap = "round"; c.lineWidth = Math.max(1.6, Math.abs(X(1) - X(0)) * 2.0);
     c.beginPath(); B.pts.forEach((p, i) => i ? c.lineTo(X(p.x), Z(p.z)) : c.moveTo(X(p.x), Z(p.z))); c.stroke();
-    c.fillStyle = "rgba(92,122,138,0.7)"; c.beginPath(); c.arc(X(B.end.x), Z(B.end.z), Math.abs(X(B.end.r) - X(0)), 0, Math.PI * 2); c.fill();
+    // (the brook's pool: gone)
   }
   c.beginPath();
   for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = pondR(a); const x = X(POND.x + Math.cos(a) * r), y = Z(POND.z + Math.sin(a) * r); i ? c.lineTo(x, y) : c.moveTo(x, y); }

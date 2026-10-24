@@ -14,7 +14,7 @@ import { ITEM } from "./body.js";
 import { AUDIO } from "./audio.js";
 import { POND, pondR, pondK } from "./woods.js";
 import { addSway, swayGeo } from "./models.js";
-import { WaterMat, waveAt } from "./water.js";
+import { WaterMat, waveAt, trackWater } from "./water.js";
 import { FOLEY } from "./foley.js";
 import { fishingGear, hasRod } from "./fishing.js";
 
@@ -30,8 +30,10 @@ export class Pond {
     for (let k = 1; k < RINGS; k++) for (let i = 0; i < N; i++) { const a = 1 + (k - 1) * N + i, b = 1 + (k - 1) * N + (i + 1) % N, c = 1 + k * N + i, d = 1 + k * N + (i + 1) % N; idx.push(a, b, c, b, d, c); }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
     this.wm = new WaterMat({ amp: 0.07, len: 5 }); this.mat = this.wm.mat; this.uni = this.wm.uni;
-    this.water = new THREE.Mesh(geo, this.mat);
+    this.water = new THREE.Mesh(geo, this.mat); trackWater(this.water, this.wm);
     this.water.position.set(POND.x, L, POND.z); this.water.receiveShadow = false;
+    // (how deep it is at each point: the bed's own height under it)
+    this.wm.useDepth(geo, (x, y, z) => L - w.heightAt(POND.x + x, POND.z + z));
     g.add(this.water);
     // ---- rushes round the margin, standing in the shallows and up the bank ----
     const rush = rushGeo(), RN = 140, rm = new THREE.InstancedMesh(swayGeo(rush, RN), addSway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })), RN);

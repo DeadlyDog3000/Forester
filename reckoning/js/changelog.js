@@ -7,6 +7,22 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.128", date: "24 October 2026", title: "Still water",
+    items: [
+      "Water holds what stands round it: the pond, the brook's pool, the Elbe and the sea mirror the trees, the banks, the ships and the sky above them — truly, drawn upside down about the surface — and the mirror is broken by every ripple and swell. (Only the sky's colour was reflected before; the trees were a dark smudge.)",
+      "The pond has depth: its shallows show the bed through them, browner and lighter as they shoal, and its edge goes into the wet ground without a line, instead of stopping at a hard rim like a plate laid on the grass.",
+      "The second pond in the woods is gone: the brook no longer ends in a pool of its own, but runs out among the reeds in its hollow and soaks away. One pond.",
+      "The mirror costs little: worked out every other frame, only for water you can see, only so far off — and not at all on the Performance graphics setting.",
+    ],
+  },
+  {
+    v: "1.99.127", date: "24 October 2026", title: "In the ranks",
+    items: [
+      "Following you in line, your company forms round you: you stand in the middle of its front rank, a man at either shoulder, the second rank behind — not a pace out in front of them with all of them out of sight at your back.",
+      "Two armies meeting in the open have no siege works in front of them any more — no gabions, banks, chevaux-de-frise or palisades dug where they happen to stand; those are for an assault on a fortified camp. Their field guns are unlimbered out on the flanks of each line instead, the powder cart behind.",
+    ],
+  },
+  {
     v: "1.99.126", date: "24 October 2026", title: "Two in five",
     items: [
       "In a pitched battle a soldier's musket finds its man two shots in five at fifty paces (a middling soldier; a good one more, a raw one less) — up from one in ten. Firefights are short and bloody: stand in the open in front of a loaded line at your peril.",

@@ -6,6 +6,7 @@
 
 // Boot, the front door, the pause menu, and the loop.
 
+import { reflections } from "./water.js";
 import { renderer, clamp } from "./core.js";
 import { G, Player, frame, setAtmo, input, drawMap, setGraphics, dm, post } from "./engine.js";
 import { INK as MAPINK, SERIF as MAPSERIF, compass as mapCompass } from "./map.js";
@@ -80,6 +81,8 @@ function applySettings() {
   $("setChat").value = String(s.chat || 1); document.documentElement.style.setProperty("--chat-k", String(s.chat || 1));
   $("setDark").checked = !!s.dark; document.body.classList.toggle("dark-fantasy", !!s.dark);
   post.on = s.post !== false; $("setPost").checked = post.on;
+  // (water's mirror: off when the game is set to run as light as it can)
+  reflections(s.quality !== "performance");
   post.ao = post.on && s.ao !== false; $("setAO").checked = s.ao !== false; $("setAO").disabled = !post.on;
   // saturation and pixelation: the colour turned up or down, and the picture drawn in bigger, harder pixels
   const sat = s.sat ?? 1, pix = s.pix ?? 1;

@@ -10,6 +10,7 @@ import "./keys.js";   // (first: your own keys turned into the game's before any
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES } from "./core.js";
 import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
+import { reflectWater } from "./water.js";
 export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
 import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
@@ -2949,7 +2950,7 @@ export function frame(dt, skipRender) {
   input.endFrame();
   // (hard shadows, the cheaper kind, are only redrawn every other frame)
   if (G.shadowEvery > 1) renderer.shadowMap.needsUpdate = (G.frameN = (G.frameN || 0) + 1) % G.shadowEvery === 0;
-  if (!skipRender) renderFrame(G.scene, camera);
+  if (!skipRender) { reflectWater(renderer, G.scene, camera); renderFrame(G.scene, camera); }
 }
 
 // ---- graphics: the FPS boosters in the settings ----

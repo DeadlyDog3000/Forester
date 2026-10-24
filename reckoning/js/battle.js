@@ -265,7 +265,9 @@ export class Field {
     this.fortSide = battle ? fort : null; this.siege = siege; this.breaks = [];
     if (camps) for (const c of camps) this.battery(c);
     // (a town of the woods' nations: its own side has its palisade and no battery — no guns, no gabions)
-    else if (battle) for (const side of [0, 1]) siege && side === siege.side ? this.wallGuns(side, siege) : side === this.fortSide ? this.fort(side) : w.woods === side ? null : this.works(side);
+    // (two armies met in the open have no works: no gabions, banks or chevaux-de-frise dug in front of them — those are a
+    //  siege's or a fortified camp's — only their field guns, unlimbered on the flanks of the line)
+    else if (battle) for (const side of [0, 1]) siege && side === siege.side ? this.wallGuns(side, siege) : side === this.fortSide ? this.fort(side) : w.woods === side ? null : fort != null || siege ? this.works(side) : this.fieldGuns(side);
     this.between(battle ? 20 : 5);
   }
   y(x, z) { return this.w.heightAt(x, z); }
@@ -366,6 +368,20 @@ export class Field {
     if (pp) this.palisade(pp.x, pp.z, pl, Math.PI / 2 + (r() - 0.5) * 0.3, side);
     // the powder for the guns, back behind them under a tarpaulin
     const ap = this.find(() => ({ x: lineX + sx * (9 + r() * 3), z: C.z + (r() - 0.5) * 14 }), 1.2);
+    if (ap) this.powder(ap.x, ap.z, r() * 3);
+  }
+  // an army's guns in the open: unlimbered out on the flanks of its line and a little ahead of it, where they can fire
+  // across the front without the line in the way; the powder cart behind; nothing dug
+  fieldGuns(side) {
+    const r = this.r, C = this.C, sx = side === 0 ? -1 : 1, lineX = C.x + sx * this.dx;
+    for (let z = -16; z <= 16; z += 4) this.claim(lineX, C.z + z, 2.5);
+    const ng = this.gunsWant ? this.gunsWant[side] : 1 + Math.floor(r() * 2.4), at = [-1, 1, 0];
+    for (let g = 0; g < Math.min(ng, 3); g++) {
+      const z = C.z + at[g] * (17 + r() * 3), x = lineX - sx * (2 + r());
+      this.gun(side, x, z, sx); this.claim(x, z, 1.4);
+      for (let k = 4; k <= 16; k += 4) this.claim(x - sx * k, z, 1.2);
+    }
+    const ap = this.find(() => ({ x: lineX + sx * (12 + r() * 4), z: C.z + (r() - 0.5) * 20 }), 1.2);
     if (ap) this.powder(ap.x, ap.z, r() * 3);
   }
   // a walled town's guns: up on the walk behind the embrasures, looking out over the field (as many as were raised)

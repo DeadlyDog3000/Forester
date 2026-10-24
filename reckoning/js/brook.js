@@ -9,7 +9,7 @@
 import { THREE } from "./core.js";
 import { G } from "./engine.js";
 import { AUDIO } from "./audio.js";
-import { WaterMat } from "./water.js";
+import { WaterMat, trackWater } from "./water.js";
 import { addSway, swayGeo } from "./models.js";
 import { rushGeo } from "./pond.js";
 import { pondK } from "./woods.js";
@@ -55,8 +55,8 @@ export class Brook {
     this.water = new THREE.Mesh(geo, this.wm.mat); g.add(this.water);
     // ---- the boggy pool it ends in: still water (the same, but nothing running in it) ----
     this.wmPool = new WaterMat({ deep: [0.03, 0.04, 0.025], round: [0.05, 0.07, 0.04] });
-    const E = B.end, pool = new THREE.Mesh(new THREE.CircleGeometry(E.r + 0.4, 28), this.wmPool.mat);
-    pool.rotation.x = -Math.PI / 2; pool.position.set(E.x, E.y, E.z); g.add(pool);
+    // (the pool it ended in is gone: the brook runs out into the hollow and soaks away)
+    const E = B.end;
     // ---- rushes along the banks, thick round the pool ----
     const RN = 120, rm = new THREE.InstancedMesh(swayGeo(rushGeo(), RN), addSway(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })), RN);
     const d = new THREE.Object3D(), sw = rm.geometry.attributes.aSway.array;
