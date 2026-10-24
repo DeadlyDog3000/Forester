@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.114", date: "23 October 2026", title: "Arms with elbows",
+    items: [
+      "Your arms, first person, are arms: an upper arm from a shoulder just below and beside your eye, and a forearm from the elbow to the wrist, bent between them — for the axe, the sword, the spear, the pick and the dagger, as the guns already had. They were one stiff sleeve each, from far below straight to the hand, and stood across the view like posts; now each forearm comes up from the bottom of the screen to the hand on the end of it.",
+    ],
+  },
+  {
     v: "1.99.113", date: "23 October 2026", title: "Both hands on the axe",
     items: [
       "Every hand grows out of its own arm: each sleeve now runs from the shoulder to the hand's wrist, where the hand begins, so the hand carries on from the forearm. Before, the sleeve ran to the middle of the fist round the haft, and the hand stuck out of the sleeve's side. For every weapon and tool, and the saw, the hammer, the spade, the sickle and the knife at work.",

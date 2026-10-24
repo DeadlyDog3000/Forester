@@ -28,7 +28,7 @@ const SHORT = new Set(["sword", "dagger"]);
 const TWO_HAND = new Set(["axe", "pick"]);
 // (an axe at rest held across you in both hands — the right up by the head, the left low on the haft — both where you
 //  can see them, not the one hand and the haft going off the bottom of the screen)
-const AXE_REST = [0.8, -0.35, 0.15, 0.08, -0.29, -0.5];
+const AXE_REST = [0.85, -0.3, 0.1, 0.18, -0.34, -0.62];
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
 // your own hands, first person: the sculpted hand closed round what it holds (models/hand_grip.glb, made by
 // tools/blender/hands.py), the haft along the hand's up; a plain fist till it's loaded. fitArms turns each about the haft
@@ -385,14 +385,16 @@ export class Player {
       const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], bayonet: [0.0, 0.42], pick: [0.03, 0.15], dagger: [0.02, 0.08] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
       // (a felling axe or a pick, two-handed: the right hand high, near the head, the left low by the knob)
       this.hands = TWO_HAND.has(this.blade || "axe") ? [hand(grips[1], "R"), hand(grips[0], "L")] : [hand(grips[0], "R"), hand(grips[1], "L")];
+      // (each arm in two, as an arm is: the upper arm from a shoulder just below and beside your eye, the forearm from
+      //  the elbow to the wrist, bent between them — one stiff sleeve from far below, straight to the hand, stood across
+      //  the view like a post. The right from the right shoulder, the left from the left)
       this.arms = this.hands.map((h, i) => {
-        const arm = new THREE.Group();
-        const sleeve = new THREE.Mesh(sleeveGeo(0.048, 0.056), sleeveM); arm.add(sleeve);
-        const cuff = new THREE.Mesh(cuffGeo(), cuffM); arm.add(cuff);
-        vm.add(arm);
-        // (in both hands, as an axe is held: the right from the right shoulder up the haft, the left from the left shoulder
-        //  low on it, by the knob — each arm from its own side, not both from the right)
-        return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.3 : -0.16, i === 0 ? -0.5 : -0.56, 0.12) };
+        const arm = new THREE.Group(), fore = new THREE.Group();
+        arm.add(new THREE.Mesh(sleeveGeo(0.05, 0.056), sleeveM));
+        fore.add(new THREE.Mesh(sleeveGeo(0.04, 0.047), sleeveM));
+        const cuff = new THREE.Mesh(cuffGeo(), cuffM); fore.add(cuff);
+        vm.add(arm); vm.add(fore);
+        return { arm, sleeve: arm.children[0], fore, foreSleeve: fore.children[0], cuff, side: i === 0 ? 1 : -1, len: 0.34, bend: 1, shoulder: new THREE.Vector3(i === 0 ? 0.24 : -0.24, -0.28, -0.04) };
       });
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
@@ -402,7 +404,7 @@ export class Player {
       else if (this.model && this.model.held) this.model.held.add(this.axeBody);
     } else if (!on && this.axe) {
       vmDrop(this.axe); this.axe = null;
-      for (const a of this.arms || []) vmDrop(a.arm);
+      for (const a of this.arms || []) { vmDrop(a.arm); if (a.fore) vmDrop(a.fore); }
       this.arms = null; this.hands = null;
       if (this.axeBody && this.model && this.model.aimH && this.model.aimH.obj === this.axeBody) this.model.aimHold(null);
       if (this.axeBody && this.model && this.model.held) this.model.held.remove(this.axeBody); this.axeBody = null;
@@ -966,7 +968,7 @@ export class Player {
   // (a pike or a fixed bayonet is carried levelled, its point out before you — "charge your bayonets" — not upright)
   // (a short grip — a sword's, a dagger's — is held up where you can see the hand on it and the hilt, the blade forward;
   //  held as low as an axe's long haft, the hand was off the bottom of the screen and the blade floated in the air)
-  restPose() { return THRUST.has(this.blade) ? [0.22, -0.1, 0.0, 0.28, -0.36, -0.12] : SHORT.has(this.blade) ? [0.6, -0.3, -0.35, 0.3, -0.3, -0.5] : AXE_REST; }
+  restPose() { return THRUST.has(this.blade) ? [0.22, -0.1, 0.0, 0.28, -0.36, -0.12] : SHORT.has(this.blade) ? [0.6, -0.3, -0.3, 0.24, -0.33, -0.62] : AXE_REST; }
   swing(onHit) {
     if (this.swingT >= 0 || this.swimming || G.time < (this.fixUntil || 0)) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
