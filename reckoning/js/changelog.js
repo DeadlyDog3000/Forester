@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.129", date: "24 October 2026", title: "Blood as it lies",
+    items: [
+      "Blood on the ground looks like blood: a ragged edge where it's soaked into the earth and grass, near black where it's pooled thick, a darker drying rim, droplets and tails flung out round it the way they flew — a pool under the fallen wet and catching the light. They were soft round blots of flat red.",
+      "The fallen fall more as the dead do: a knee left standing up in an arch, heel and hip on the ground, goes over to one side as the leg goes slack, and a coat's skirts hang from the hips as the body goes down instead of being levered up into the air by the thighs like boards. (Sometimes a skirt still stands off a little: there's work to do on it.)",
+    ],
+  },
+  {
     v: "1.99.128", date: "24 October 2026", title: "Still water",
     items: [
       "Water holds what stands round it: the pond, the brook's pool, the Elbe and the sea mirror the trees, the banks, the ships and the sky above them — truly, drawn upside down about the surface — and the mirror is broken by every ripple and swell. (Only the sky's colour was reflected before; the trees were a dark smudge.)",

@@ -84,6 +84,23 @@ class Ragdoll {
     }
     // (where each bone's own tip is, in its own frame: so it can be turned to point anywhere)
     for (const [bone, , to] of DRIVE) { const b = B[bone]; if (b && this.p[to]) this.tips[bone] = b.worldToLocal(this.p[to].clone()); }
+    // (the coat's skirts: hung from the hips while he falls — tied to the thighs as they are for walking, the legs
+    //  folding as he went down levered them up into the air like boards)
+    this.skirts = [];
+    P.root.traverse(o => {
+      if (!o.isSkinnedMesh || !/_(coat|vest)$/.test((o.material && o.material.name) || "")) return;
+      const bones = o.skeleton.bones, hip = bones.findIndex(b => b.name === "hips"), legs = new Set(bones.map((b, i) => /^(thigh|shin)/.test(b.name) ? i : -1).filter(i => i >= 0));
+      if (hip < 0 || !legs.size) return;
+      const g0 = o.geometry, g = g0.clone(), si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+      for (let v = 0; v < si.count; v++) {
+        let moved = 0; const w = [sw.getX(v), sw.getY(v), sw.getZ(v), sw.getW(v)], ix = [si.getX(v), si.getY(v), si.getZ(v), si.getW(v)];
+        for (let k = 0; k < 4; k++) if (legs.has(ix[k]) && w[k] > 0) { const m = w[k] * 0.5; w[k] -= m; moved += m; }
+        if (!moved) continue;
+        let h = ix.indexOf(hip); if (h < 0) { h = w.indexOf(Math.min(...w)); moved += w[h]; ix[h] = hip; w[h] = 0; }
+        w[h] += moved; si.setXYZW(v, ...ix); sw.setXYZW(v, ...w);
+      }
+      o.geometry = g; this.skirts.push([o, g0, g]);
+    });
     this.t = 0; P.rag = this; live.add(this); ensureTick();
   }
   step(dt) {
@@ -94,6 +111,16 @@ class Ragdoll {
     for (const n in p) {
       const c = p[n], prev = o[n], vx = (c.x - prev.x) * DAMP, vy = (c.y - prev.y) * DAMP, vz = (c.z - prev.z) * DAMP;
       prev.copy(c); c.x += vx; c.y += vy - GRAV * dt * dt; c.z += vz;
+    }
+    // (a knee left standing up in an arch, heel and hip on the ground, goes over to one side as the leg goes slack —
+    //  a body doesn't lie with its knees in the air)
+    if (this.t > 0.45 && this.t < 3) {
+      this.kneeDir ??= Math.random() < 0.5 ? 1 : -1;
+      for (const s of ["L", "R"]) {
+        const k = p[`kn${s}`], hp = p[`hp${s}`], an = p[`an${s}`]; if (!k || !hp || !an) continue;
+        const up = k.y - Math.min(hp.y, an.y);
+        if (up > 0.12) { const ax = an.x - hp.x, az = an.z - hp.z, L = Math.hypot(ax, az) || 1; k.x += -az / L * this.kneeDir * 0.6 * dt * up; k.z += ax / L * this.kneeDir * 0.6 * dt * up; k.y -= 0.4 * dt * up; }
+      }
     }
     for (let k = 0; k < ITER; k++) {
       for (const [a, b, len, slack] of this.sticks) {
@@ -139,6 +166,8 @@ class Ragdoll {
   stop() {
     live.delete(this);
     for (const [b, q, pos] of this.saved) { b.quaternion.copy(q); b.position.copy(pos); }
+    for (const [o, g0, g] of this.skirts || []) { o.geometry = g0; g.dispose(); }
+    this.skirts = [];
     if (this.P.rag === this) this.P.rag = null;
   }
 }

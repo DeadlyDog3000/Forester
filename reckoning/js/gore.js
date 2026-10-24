@@ -18,24 +18,36 @@ const groundY = (x, z) => (G.world && G.world.heightAt ? G.world.heightAt(x, z) 
 
 // ---- the stains: a few irregular blots, drawn once ----
 let TEX = null;
+// (the stains as they really lie: art/tex/blood0..3.png, ragged at the edge, near black where the blood's pooled thick,
+//  a drying rim, droplets and tails flung round — tools/make_blood.py; the drawn blots below if those can't be had)
+const LOADER = typeof document !== "undefined" ? new THREE.TextureLoader() : null;
+let NRM = null;
+function drawn(v) {
+  const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
+  const blot = (cx, cy, r, a) => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.7, `rgba(255,255,255,${a * 0.85})`); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); };
+  blot(64, 64, 26 + Math.random() * 10, 0.95);
+  for (let i = 0; i < 7; i++) { const a = Math.random() * 6.28, d = rnd(10, 30); blot(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, rnd(8, 18), 0.9); }
+  for (let i = 0; i < 18; i++) { const a = Math.random() * 6.28, d = rnd(30, 58); blot(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, rnd(1.5, 5), 0.9); }
+  return c;
+}
 function textures() {
   if (TEX) return TEX;
   TEX = [];
   for (let v = 0; v < 4; v++) {
-    const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
-    const blot = (cx, cy, r, a) => { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(0.7, `rgba(255,255,255,${a * 0.85})`); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); };
-    // (a main splash, lobes round it, and droplets thrown out further)
-    blot(64, 64, 26 + Math.random() * 10, 0.95);
-    for (let i = 0; i < 7; i++) { const a = Math.random() * 6.28, d = rnd(10, 30); blot(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, rnd(8, 18), 0.9); }
-    for (let i = 0; i < 18; i++) { const a = Math.random() * 6.28, d = rnd(30, 58); blot(64 + Math.cos(a) * d, 64 + Math.sin(a) * d, rnd(1.5, 5), 0.9); }
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; TEX.push(t);
+    let t;
+    if (LOADER) { t = LOADER.load(`art/tex/blood${v}.png`, undefined, undefined, () => { t.image = drawn(v); t.needsUpdate = true; t.userData.drawn = true; }); }
+    else t = new THREE.CanvasTexture(drawn(v));
+    t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; TEX.push(t);
   }
+  if (LOADER) NRM = LOADER.load("art/tex/blood_n.png");
   return TEX;
 }
 const MATS = [];
+// (fresh: a deep, wet red, its surface catching the light; old: darker, browner, dull as it dries)
 function stainMat(dark) {
   const i = Math.floor(Math.random() * 4) + (dark ? 4 : 0);
-  if (!MATS[i]) MATS[i] = new THREE.MeshStandardMaterial({ map: textures()[i % 4], color: dark ? 0x3e0403 : 0x4a0604, roughness: dark ? 0.2 : 0.5, metalness: 0, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  if (!MATS[i]) { MATS[i] = new THREE.MeshStandardMaterial({ map: textures()[i % 4], color: dark ? 0x6a0303 : 0x8c0606, roughness: dark ? 0.14 : 0.42, metalness: 0, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    if (NRM && dark) { MATS[i].normalMap = NRM; MATS[i].normalScale.set(0.6, 0.6); } }
   return MATS[i];
 }
 const PLANE = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
