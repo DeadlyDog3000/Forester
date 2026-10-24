@@ -22,6 +22,9 @@ from PIL import Image, ImageFilter
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RAW = ROOT / "art" / "raw" / "tex"
+# (real ones where there are: Poly Haven's scanned surfaces, CC0 — their colour, and their displacement for the grain,
+#  which is the surface's true height and not a guess at it from light and dark. See art/raw/tex_ph/SOURCES.json)
+PH = ROOT / "art" / "raw" / "tex_ph"
 OUT = ROOT / "reckoning" / "art" / "tex"
 
 # which surface goes in which channel of which pack
@@ -77,10 +80,14 @@ def main():
     cache = {}
     def load(n):
         if n not in cache:
-            cache[n] = seamless(Image.open(RAW / f"{n}.png").convert("RGB"))
+            ph = PH / f"{n}_diff.jpg"
+            cache[n] = Image.open(ph).convert("RGB") if ph.exists() else seamless(Image.open(RAW / f"{n}.png").convert("RGB"))
         return cache[n]
+    def height(n):
+        ph = PH / f"{n}_disp.png"
+        return Image.open(ph).convert("RGB") if ph.exists() else load(n)
     for name, chans in PACKS.items():
-        rgb = np.stack([detail(load(n)) for n in chans], axis=-1)
+        rgb = np.stack([detail(height(n)) for n in chans], axis=-1)
         Image.fromarray((rgb * 255).astype(np.uint8)).save(OUT / name)
         print("wrote", name, chans)
     strip = np.concatenate([colour(load(n)) for n in COLOUR], axis=1)

@@ -519,7 +519,10 @@ export function rockGeo(r = 1, seed) {
 }
 
 export class Builder {
-  constructor() { this.parts = []; }
+  constructor() { this.parts = []; this.objects = []; }
+  // (a whole model alongside the merged pieces — a real barrel, a real table — set at its place, and carried by the
+  //  mesh this builds)
+  object(o, x = 0, y = 0, z = 0, ry = 0, s = 1) { o.position.set(x, y, z); o.rotation.y = ry; o.scale.setScalar(s); this.objects.push(o); return this; }
   // add a geometry, painted one colour, placed by position/rotation/scale
   add(geo, color, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, sx = 1, sy = 1, sz = 1, jitter = 0) {
     let g = geo.index ? geo.toNonIndexed() : geo.clone();
@@ -547,9 +550,11 @@ export class Builder {
     this.parts = [];
     const m = new THREE.Mesh(geo, material);
     m.castShadow = shadow; m.receiveShadow = receive;
+    for (const o of this.objects) { o.traverse(c => { if (c.isMesh) { c.castShadow = shadow; c.receiveShadow = receive; } }); m.add(o); }
+    this.objects = [];
     return m;
   }
-  get empty() { return this.parts.length === 0; }
+  get empty() { return this.parts.length === 0 && this.objects.length === 0; }
 }
 
 const BOX = new THREE.BoxGeometry(1, 1, 1);

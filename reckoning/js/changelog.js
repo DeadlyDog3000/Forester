@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.112", date: "23 October 2026", title: "Real surfaces, real needles",
+    items: [
+      "Every surface is a real one now, scanned: the planks weathered silver, the plaster on the walls, the stone of the old blocks, the brick in its courses, the pine's bark, the roof tiles, the forest floor with its needles and cones, the mud of the tracks and the cobbles of the streets — from Poly Haven (CC0). And the relief that catches the light on them is the surfaces' own measured height, not a guess at it.",
+      "The trees' needles and leaves are photographs: the spruces' boughs are real conifer sprays, layered and drooping with the light coming through them; the broadleaves' crowns are real oak and beech leaves (from ambientCG, CC0).",
+      "Hamburg's barrels are real oak barrels with iron hoops, and its long tables real trestle tables.",
+      "The tools in your hands are lighter to download, the same to look at.",
+    ],
+  },
+  {
     v: "1.99.111", date: "23 October 2026", title: "Real tools",
     items: [
       "The tools and blades in your hands are real ones now — photographed and scanned, worn wood and pitted iron: the felling axe, the pick (whatever your pick, no more crude wooden one), the spade, the hammer, the saw, a long-bladed sword with its swept guard, and the dagger. From Poly Haven, given to everyone (CC0).",

@@ -1534,7 +1534,15 @@ function foliageTex(kind) {
   }
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
-export const FOL = { needle: foliageTex("needle"), leaf: foliageTex("leaf") };
+// (photographed: art/tex/needle.png and leaf.png, from ambientCG's CC0 leaf atlases — see tools/make_foliage.py; the
+//  drawn ones above are kept for anything that can't load them)
+const FOL_LOADER = typeof document !== "undefined" ? new THREE.TextureLoader() : null;
+const folPhoto = kind => {
+  if (!FOL_LOADER) return foliageTex(kind);
+  const t = FOL_LOADER.load(`art/tex/${kind}.png`, undefined, undefined, () => { const c = foliageTex(kind); if (c) { t.image = c.image; t.needsUpdate = true; } });
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+};
+export const FOL = { needle: folPhoto("needle"), leaf: folPhoto("leaf") };
 // (cards and the solid heart in one geometry: positions, greys, uvs, and normals bent outward from the crown's middle so
 //  the cards are lit as a rounded crown, not as so many flat boards)
 function cardsGeo(core, cards) {
@@ -1827,12 +1835,16 @@ export const P = {
     b.box(1.02 * s, 0.1 * s, 1.02 * s, x, y + 0.1 * s, z, 0x6a4f32, ry);
   },
   barrel(b, x, z, y = 0) {
+    // (a real one, scanned — its staves and iron hoops — where it's loaded)
+    { const m = b.object && modelCopy("prop_barrel"); if (m) { b.object(m.scene, x, y, z, (x * 7.3 + z * 3.1) % 6.283, 0.82); return; } }
     b.add(new THREE.CylinderGeometry(0.34, 0.3, 0.95, 10), 0x7a5634, x, y + 0.475, z, 0, 0, 0, 1, 1, 1, 0.08);
     b.add(new THREE.CylinderGeometry(0.355, 0.355, 0.05, 10), 0x3a3a3a, x, y + 0.2, z);
     b.add(new THREE.CylinderGeometry(0.355, 0.355, 0.05, 10), 0x3a3a3a, x, y + 0.75, z);
   },
   sack(b, x, z, y = 0, ry = 0) { b.add(new THREE.SphereGeometry(0.32, 8, 6), 0xc8b48a, x, y + 0.26, z, 0, ry, 0, 1, 0.8, 0.8, 0.1); },
   table(b, x, z, w = 2, d = 0.9, ry = 0) {
+    // (a real trestle table where a long one stands, the length asked for)
+    { const m = w >= 1.6 && b.object && modelCopy("prop_table"); if (m) { b.object(m.scene, x, 0, z, ry, 1); m.scene.scale.set(w / 2.56, 1, d / 0.93); return; } }
     const c = Math.cos(ry), s = Math.sin(ry);
     b.box(w, 0.08, d, x, 0.78, z, 0x6b4a2e, ry);
     for (const [lx, lz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {

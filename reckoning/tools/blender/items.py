@@ -83,6 +83,11 @@ def build(name):
             if m:
                 m.name = f"{name}_pbr"
     print(name, "from", asset, "scale", round(k, 3), "haft at", round(cx, 3), round(cy, 3))
+    # (textures no bigger than a thing in the hand wants)
+    for im in bpy.data.images:
+        if max(im.size) > 512:
+            sc = 512 / max(im.size)
+            im.scale(max(1, int(im.size[0] * sc)), max(1, int(im.size[1] * sc)))
     out = os.path.join(os.environ.get("REAL_OUT", MODELS), f"{name}.glb")
     for o in bpy.context.scene.objects:
         o.select_set(True)
