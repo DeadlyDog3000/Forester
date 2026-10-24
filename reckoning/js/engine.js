@@ -26,9 +26,9 @@ import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate,
 const THRUST = new Set(["spear", "bayonet"]);
 const SHORT = new Set(["sword", "dagger"]);
 const TWO_HAND = new Set(["axe", "pick"]);
-// (an axe at rest held across you in both hands — the right up by the head, the left low on the haft — both where you
-//  can see them, not the one hand and the haft going off the bottom of the screen)
-const AXE_REST = [0.85, -0.3, 0.1, 0.18, -0.34, -0.62];
+// (an axe carried in the right hand, low by the knob, the head up — its left hand comes on to the haft for the stroke;
+//  the hand and the head both where you can see them)
+const AXE_REST = [1.0, -0.4, -0.35, 0.3, -0.3, -0.52];
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
 // your own hands, first person: the sculpted hand closed round what it holds (models/hand_grip.glb, made by
 // tools/blender/hands.py), the haft along the hand's up; a plain fist till it's loaded. fitArms turns each about the haft
@@ -385,6 +385,7 @@ export class Player {
       const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], bayonet: [0.0, 0.42], pick: [0.03, 0.15], dagger: [0.02, 0.08] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
       // (a felling axe or a pick, two-handed: the right hand high, near the head, the left low by the knob)
       this.hands = TWO_HAND.has(this.blade || "axe") ? [hand(grips[1], "R"), hand(grips[0], "L")] : [hand(grips[0], "R"), hand(grips[1], "L")];
+      this.grips = TWO_HAND.has(this.blade || "axe") ? grips : null;
       // (each arm in two, as an arm is: the upper arm from a shoulder just below and beside your eye, the forearm from
       //  the elbow to the wrist, bent between them — one stiff sleeve from far below, straight to the hand, stood across
       //  the view like a post. The right from the right shoulder, the left from the left)
@@ -808,6 +809,14 @@ export class Player {
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < this.arms.length; i++) {
       const { arm, sleeve, cuff, fore, foreSleeve } = this.arms[i];
+      // (an axe or a pick carried in the one hand, the right; the left comes on to the haft only for the stroke)
+      if (this.axe && i === 1 && TWO_HAND.has(this.blade || "axe")) {
+        const both = this.swingT >= 0;
+        this.hands[1].visible = both; arm.visible = both && !G.working; if (fore) fore.visible = arm.visible;
+        // (carried, the right hand low by the knob; in the stroke it slides up the haft toward the head, as it does)
+        if (this.grips) this.hands[0].position.y = both ? this.grips[1] : this.grips[0];
+        if (!both) continue;
+      }
       // (the shoulder well down below the eye, as your own is: the forearm comes up from under the hand, and the hand is
       //  seen whole in front of its cuff, not hidden behind it)
       const shoulder = this.arms[i].shoulder.clone().add(SHOULDER_DROP);

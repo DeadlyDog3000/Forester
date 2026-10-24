@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.115", date: "24 October 2026", title: "One hand to carry, two to swing",
+    items: [
+      "The felling axe and the pick are carried in the right hand, low on the haft by the knob, the head up where you can see it; the left hand comes on to the haft only for the stroke, and the right slides up toward the head as it does — then back to the one hand.",
+    ],
+  },
+  {
     v: "1.99.114", date: "23 October 2026", title: "Arms with elbows",
     items: [
       "Your arms, first person, are arms: an upper arm from a shoulder just below and beside your eye, and a forearm from the elbow to the wrist, bent between them — for the axe, the sword, the spear, the pick and the dagger, as the guns already had. They were one stiff sleeve each, from far below straight to the hand, and stood across the view like posts; now each forearm comes up from the bottom of the screen to the hand on the end of it.",
