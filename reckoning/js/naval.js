@@ -178,12 +178,14 @@ class Ship {
     this.reload = [S.reload * Math.random() * 0.5, S.reload * Math.random() * 0.5]; this.sink = 0; this.sunk = false; this.struck = false; this.heelK = 0; this.recoil = 0;
     this.L = 26 * S.scale; this.beam = 6.4 * S.scale; this.side0 = Math.random() < 0.5 ? 1 : -1;
     const g = this.root = new THREE.Group(), inner = new THREE.Group(); g.add(inner);
-    const m = modelCopy("ship");
-    if (m) { m.scene.position.z = -2.4; inner.add(m.scene); m.scene.traverse(o => { if (o.isMesh && o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(color); this.flag = o; } }); }
+    // (a real ship of the age where it's loaded — the large Dutch-built one for a frigate or a ship of the line, the middling
+    //  one for a sloop — her sails as they're set on her; else the built one, whose sails are let fall and shot away)
+    const real = modelCopy(S.scale < 0.9 ? "ship_dutch_m" : "ship_dutch"), m = real || modelCopy("ship");
+    if (m) { m.scene.position.z = real ? 0 : -2.4; inner.add(m.scene); m.scene.traverse(o => { if (o.isMesh && o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(color); this.flag = o; } }); }
     else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; inner.add(hull); const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 20), new THREE.MeshStandardMaterial({ color: 0x4a3a2a })); mast.position.y = 11; inner.add(mast); const sail = new THREE.Mesh(new THREE.PlaneGeometry(10, 12), new THREE.MeshStandardMaterial({ color: 0xeee6d0, side: THREE.DoubleSide })); sail.position.set(0, 11, 0.5); inner.add(sail); }
     inner.scale.setScalar(S.scale); this.inner = inner;
     // (her sails set, each let fall from its yard: see RIG)
-    this.sails = m ? shipSails(m.scene) : [];
+    this.sails = m && !real ? shipSails(m.scene) : [];
     // (her pennant in her colours, high on the mainmast, so friend and foe are told apart across the water)
     //  (a long streamer, tapering to a point, flown from the very top of the mast her flag is on — not a board in the air
     //  beside it)

@@ -52,7 +52,7 @@ export const LONG = {
   none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No long arm: the pistol and the blade, and lighter on your feet." },
 };
 export const SIDE = {
-  pistol: { name: "Pistol", icon: "pistol", w: 3, stats: [["Ball", "32 · head 51"], ["Range", "25 m, wild"], ["Loading", "2.4 s"]], note: "A horseman's flintlock: quick to load, but only for close work — past a few paces it could go anywhere." },
+  pistol: { name: "Pistol", icon: "pistol", w: 3, stats: [["Ball", "32 · head 51"], ["Range", "25 m, wild"], ["Loading", "4.2 s"]], note: "A horseman's flintlock: quick to load, but only for close work — past a few paces it could go anywhere." },
   none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No pistol: lighter on your feet." },
 };
 export const BLADE = {
@@ -68,12 +68,14 @@ export const BLADE = {
   bayonet: { name: "Fixed bayonet", icon: "musket", w: 0, dmg: 24, rate: 0.95, reach: 2.7, hidden: true, stats: [], note: "" },
 };
 // what you can carry: a long arm, a sidearm and a blade, all within this. A musket is a soldier's whole kit: beside it a
-// pistol if you like, and its bayonet or nothing — no sword, no axe, no spear (both hands are on the musket). The
+// pistol or its bayonet, not both (the bayonet's your blade, and a musket leaves room for one thing more), or neither —
+// no sword, no axe, no spear (both hands are on the musket). The
 // lighter you go, the quicker on your feet.
 export const LOAD_MAX = 9;
 const MUSKET_BLADES = new Set(["dagger", "none"]);
 const loadMax = l => l.long === "musket" ? 11 : LOAD_MAX;
-export const allowedLoad = l => !(l.long === "musket" && !MUSKET_BLADES.has(l.blade)) && !(l.long === "none" && l.blade === "none") && weightOf(l) <= loadMax(l);
+const bothArms = l => l.long === "musket" && l.side !== "none" && l.blade !== "none";
+export const allowedLoad = l => !(l.long === "musket" && !MUSKET_BLADES.has(l.blade)) && !bothArms(l) && !(l.long === "none" && l.blade === "none") && weightOf(l) <= loadMax(l);
 export const weightOf = l => (LONG[l.long] || LONG.none).w + (SIDE[l.side] || SIDE.none).w + (BLADE[l.blade] || BLADE.dagger).w;
 export const loadMul = l => 1.06 - weightOf(l) * 0.012;
 // a choice made, and whatever else no longer fits put down (the sidearm first, then the blade down to the dagger)
@@ -81,16 +83,19 @@ function fitLoad(l, keep) {
   const o = { ...l };
   // (a sword or an axe chosen with a musket: the musket goes, if the blade was what you just picked; else the bayonet)
   if (o.long === "musket" && !MUSKET_BLADES.has(o.blade)) { if (keep === "blade") o.long = "none"; else o.blade = "dagger"; }
+  if (bothArms(o)) { if (keep === "side") o.blade = "none"; else o.side = "none"; }
   if (!allowedLoad(o) && keep !== "side") o.side = "none";
   if (!allowedLoad(o) && keep !== "blade") o.blade = "dagger";
   if (!allowedLoad(o) && keep !== "long") o.long = "none";
   if (!allowedLoad(o)) o.side = "none";
   // (no blade only with a long arm to fight with: never nothing in your hands)
   if (o.long === "none" && o.blade === "none") o.blade = "dagger";
+  // (and a musket with a pistol and the bayonet both: whichever you didn't just pick goes)
+  if (bothArms(o)) { if (keep === "side") o.blade = "none"; else o.side = "none"; }
   return o;
 }
 const AMMO = { bow: 20, crossbow: 12 };
-const RELOAD = { musket: 6.5, pistol: 2.4, bow: 0.9, crossbow: 2.6 };
+const RELOAD = { musket: 6.5, pistol: 4.2, bow: 0.9, crossbow: 2.6 };
 const RANGE = { musket: 100, pistol: 12, bow: 38, crossbow: 45 };   // (a musket's reach: the two lines as they first stand, and a little more)
 const HP = 100, ROUNDS_TO_WIN = 2, ROUND_SECS = 150;
 
@@ -170,7 +175,8 @@ export function initPvp(c) {
     const b = e.target.closest("[data-slot][data-id]"); if (!b || (must && must.mine)) return;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
     const put = ["long", "side", "blade"].filter(k => k !== b.dataset.slot && lo[k] !== was[k]).map(k => ({ long: LONG, side: SIDE, blade: BLADE }[k][was[k]].name.toLowerCase()));
-    drawMe(put.length ? `Too heavy to carry it all: you put down the ${put.join(" and the ")}.` : "");
+    const pair = lo.long === "musket" && (was.side !== "none" && lo.side === "none" || was.blade !== "none" && lo.blade === "none");
+    drawMe(put.length ? `${pair ? "With a musket, a pistol or the bayonet, not both" : "Too heavy to carry it all"}: you put down the ${put.join(" and the ")}.` : "");
     window.__uisfx && window.__uisfx.click && window.__uisfx.click();
   });
   for (const b of document.querySelectorAll(".camp-tabs [data-tab]")) b.onclick = () => {
@@ -401,7 +407,7 @@ function drawMe(note = "") {
   const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100), pick = { long: LONG[lo.long], side: SIDE[lo.side], blade: BLADE[lo.blade] };
   { const sea = !!(must && must.kind === "hist" && battleById(histPick().id).sea); $("musMe").classList.toggle("hidden", sea); $("musMe").parentElement.classList.toggle("solo", sea); }
   $("musMe").innerHTML = `<div class="pv-h big">Your soldier</div>` + row("long", "Long arm", LONG) + row("side", "Sidearm", SIDE) + row("blade", "Blade", BLADE)
-    + `<div class="m-load"><b>Load</b> ${w} of ${loadMax(lo)}${lo.long === "musket" ? " (with a musket: a pistol, and the bayonet or no blade)" : ""} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
+    + `<div class="m-load"><b>Load</b> ${w} of ${loadMax(lo)}${lo.long === "musket" ? " (with a musket: a pistol or the bayonet, not both)" : ""} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
     + `<div class="m-pick">${["long", "side", "blade"].filter(k => pick[k] && pick[k].icon).map(k => `<div><b>${esc(pick[k].name)}</b> ${esc(pick[k].stats.map(([a, b]) => a + " " + b).join(" · "))}</div>`).join("")}</div>`
     + (must && must.kind !== "duel" ? `<div class="mr"><div class="pv-h">Mount</div><div class="mcs"><button class="mc${riding() ? " on" : ""}" data-ride="1"><span>${riding() ? "On horseback" : "On foot"}</span></button></div><div class="m-load">${riding() ? `You ride into battle: quicker than any man, a longer reach with the blade, and the weight of the horse in a charge — but pikes are death to a rider.${must.kind === "bots" || must.kind === "mp" ? ` ${RIDE_COST} thalers from the purse.` : ""}` : "Click to ride into battle instead."}</div></div>` : "")
     + (note ? `<div class="m-note">${esc(note)}</div>` : "");
@@ -2586,7 +2592,7 @@ class Arena {
     if ((this.sendT = (this.sendT || 0) - dt) > 0) return; this.sendT = 1 / 12;
     const pl = G.player, held = pl.gun ? pl.gunIs : pl.bow ? "bow" : pl.xbow ? "crossbow" : pl.axe ? this.lo.blade : "";
     const aim = (pl.gun && pl.gunAim > 0.5) || (pl.bow && pl.draw > 0.1) || (pl.xbow && pl.xaim > 0.5);
-    const ld = pl.gun && pl.gunReload > 0 ? +((pl.gunIs === "pistol" ? 2.4 : 6.5) - pl.gunReload).toFixed(2) : 0;
+    const ld = pl.gun && pl.gunReload > 0 ? +((pl.gunIs === "pistol" ? 4.2 : 6.5) - pl.gunReload).toFixed(2) : 0;
     this.net.send({ t: "ds", x: +pl.pos.x.toFixed(2), z: +pl.pos.z.toFixed(2), yaw: +pl.yaw.toFixed(2), s: +(pl.speed || 0).toFixed(1), h: held, aim: aim ? 1 : 0, g: pl.guard ? 1 : 0, c: pl.crouched ? 1 : 0, dn: G.downed ? 1 : 0, ld });
   }
 }

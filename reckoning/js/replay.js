@@ -118,7 +118,7 @@ export class Recorder {
     const aim = (pl.gun && pl.gunAim > 0.5) || (pl.bow && pl.draw > 0.1) || (pl.xbow && pl.xaim > 0.5);
     const swing = pl.swingT >= 0 ? (pl.swingDir === "up" ? "overhead" : "slash") : null;
     const pose = swing || (aim && held === "bow" ? "reach" : pl.guard ? "guard" : "idle");
-    const ld = pl.gun && pl.gunReload > 0 ? r2((pl.gunIs === "pistol" ? 2.4 : 6.5) - pl.gunReload) : 0;
+    const ld = pl.gun && pl.gunReload > 0 ? r2((pl.gunIs === "pistol" ? 4.2 : 6.5) - pl.gunReload) : 0;
     const fl = (aim && held !== "bow" ? 2 : 0) | (pl.crouched ? 4 : 0);
     return [pl.pos.x, pl.pos.z, pl.yaw + Math.PI, fl, pose, held, Math.round(ld * 10) / 10];
   }

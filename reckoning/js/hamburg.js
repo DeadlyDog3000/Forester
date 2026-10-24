@@ -239,7 +239,8 @@ export class Hamburg extends WorldBase {
     // ships
     this.ships = [];
     for (const [x, len, s] of [[-34, 22, 4], [4, 18, 7], [44, 26, 9]]) {
-      const sm = modelCopy("ship");
+      // (the real ships of the age where they're loaded — Dutch-built, as half of Hamburg's were — a large and a middling)
+      const sm = modelCopy(len >= 22 ? "ship_dutch" : "ship_dutch_m") || modelCopy("ship");
       const sh = sm ? (() => { const g = new THREE.Group(); sm.scene.scale.setScalar(len / 20); g.add(sm.scene); g.userData.bob = s; return g; })() : makeShip(len, s);
       sh.position.set(x, -1.3, -53.5); sh.rotation.y = Math.PI / 2 + (r() - 0.5) * 0.04;
       root.add(sh); this.ships.push(sh);

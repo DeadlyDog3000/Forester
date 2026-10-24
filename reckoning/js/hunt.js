@@ -54,12 +54,22 @@ const CLIPS = {
 // (the pace each clip was made for, at full size, in metres a second: played faster or slower to match the ground covered)
 const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 }, bear: { walk: 1.1, run: 7 }, boar: { walk: 1.0, run: 1.0 }, wolf: { walk: 0.5, run: 3 }, fox: { walk: 0.3, run: 1.8 },
   elephant: { walk: 0.9, run: 3.5 }, giraffe: { walk: 1.5, run: 4 }, camel: { walk: 1.0, run: 4 }, polarbear: { walk: 5, run: 5 } };
+// beasts with no model of their own, drawn as their nearest kin that has one, in their own coat and size: the reindeer
+// and the moose as the red stag (greyer, and bigger), the antelope as the hind (sandier, and slighter)
+const KIN = { reindeer: ["deer", 0x9a9a92, 1.0], moose: ["deer", 0x5a4232, 1.4], antelope: ["doe", 0xd8a868, 0.82] };
 class Animal {
   constructor(hunt, kind, x, z, opts = {}) {
     this.hunt = hunt; this.kind = kind; this.K = KINDS[kind];
     // (a deer is a stag or a hind — a hind always, with her fawn at heel)
-    const key = kind === "deer" && (opts.hind ?? Math.random() < 0.55) && modelCopy("doe") ? "doe" : kind;
+    const kin = !modelCopy(kind) && KIN[kind] && modelCopy(KIN[kind][0]) ? KIN[kind] : null;
+    const key = kin ? kin[0] : kind === "deer" && (opts.hind ?? Math.random() < 0.55) && modelCopy("doe") ? "doe" : kind;
     const m = modelCopy(key), beast = m ? null : makeBeast(kind, this.K);
+    if (kin && m) {
+      const tint = new THREE.Color(kin[1]).convertLinearToSRGB(), base = new THREE.Color(0x8a5a3a).convertLinearToSRGB();
+      const t = new THREE.Color(Math.min(1.6, tint.r / base.r), Math.min(1.6, tint.g / base.g), Math.min(1.6, tint.b / base.b)).convertSRGBToLinear();
+      m.scene.traverse(o => { if (o.isMesh && !/eye/i.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.multiply(t); } });
+      m.scene.scale.multiplyScalar(kin[2]); this.paceKey = kin[0] === "doe" ? "deer" : kin[0];
+    }
     this.hind = key === "doe";
     this.root = new THREE.Group(); this.root.rotation.order = "YXZ";
     if (m) this.root.add(m.scene); else if (beast) this.root.add(beast);
@@ -106,7 +116,7 @@ class Animal {
   }
   // (which clip, and how fast: at a walk or a run, as fast as its feet must go to cover the ground it covers)
   drive(dt) {
-    const K = this.K, P = PACE[this.kind] || PACE.deer, sc = this.root.scale.x || 1;
+    const K = this.K, P = PACE[this.paceKey || this.kind] || PACE.deer, sc = (this.root.scale.x || 1) * (this.mix && this.mix.getRoot().scale.x || 1);
     let a;
     if (this.state === "graze") a = this.play(this.looking ? "look" : "eat");
     else if (this.speed > K.walk * 1.8) { a = this.play("run"); a.timeScale = clamp(this.speed / (P.run * sc), 0.6, 2.6); }

@@ -138,13 +138,15 @@ function loop(name, on, build) {
 }
 
 // a short burst of filtered noise, the stuff most footfalls are made of
+// (where a burst goes: the mix, or — while a placed sound is being made — that place's panner)
+let OUT = null;
 function burst(a, t, dur, vol, f0, f1, q = 1, type = "bandpass") {
   const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
   f.type = type; f.Q.value = q;
   f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.008, dur / 4));
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02);
+  s.connect(f); f.connect(g); g.connect(OUT || bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02);
 }
 
 // where a sound comes from: quieter with distance, and to the left or right of where you're looking
@@ -166,9 +168,18 @@ const VOWELS = { a: [[800, 1], [1200, 0.5], [2600, 0.2]], ae: [[660, 1], [1700, 
 export const AUDIO = {
   init: ctx,
   // a footfall on whatever is underfoot: grass, leaves, dirt, stone, wood, snow, marsh.
-  // vol is how loud (distance already taken off); heavy is a big man in boots
-  step(surface = "grass", vol = 0.6, { fast = false, heavy = false } = {}) {
+  // vol is how loud (distance already taken off); heavy is a big man in boots; at, where the foot fell (to your left or
+  // right, and dulled with distance); kit, a soldier's — the charges on his bandolier knocking, his sword in its scabbard
+  step(surface = "grass", vol = 0.6, { fast = false, heavy = false, at = null, kit = false } = {}) {
     const a = ctx(); if (!a || vol <= 0.01) return;
+    OUT = at ? placed(a, at, 60).node : null;
+    try { this._step(a, surface, vol, fast, heavy); if (kit && Math.random() < 0.6) {
+      // (wooden charge bottles against each other, a buckle: small dry clicks, a little after the foot lands)
+      const t = a.currentTime + rnd(0.03, 0.09);
+      for (let i = 0, n = 1 + (Math.random() * 3 | 0); i < n; i++) burst(a, t + i * rnd(0.015, 0.04), 0.018, 0.022 * vol * rnd(0.5, 1), rnd(2400, 3800), 1800, 6);
+    } } finally { OUT = null; }
+  },
+  _step(a, surface, vol, fast, heavy) {
     const t = a.currentTime, k = vol * (fast ? 1.25 : 1) * (heavy ? 1.6 : 1), low = heavy ? 0.7 : 1;
     // the weight of it, under everything
     burst(a, t, 0.05 * (heavy ? 1.4 : 1), 0.05 * k, 220 * low, 90, 0.8, "lowpass");

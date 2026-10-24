@@ -552,6 +552,8 @@ async function fetchModel(k, url) {
       // (a quarry's and a mine's stone is the rock of the hill, broken — not a mason's wall)
       if (n === "stone" && /quarry|mine/.test(k)) m.userData.surface = "rock";
       // (a real animal's fur and eyes are painted in its own textures: no grain laid over them)
+      // (the real ships' hulls and rigging as photographed: no grain over them; their sails, cloth)
+      if (/^ship_dutch/.test(k)) { m.userData.surface = n === "sail" ? "cloth" : "none"; if (n === "sail") m.side = THREE.DoubleSide; }
       if (/^(deer|doe|hare|bear|boar|wolf|fox|horse|elephant|giraffe|camel|polarbear)$/.test(k)) {
         m.userData.surface = "none";
         // (fur and hide are matte: a soft sheen at most, never the gloss of wet paint the files came with)
@@ -1303,7 +1305,7 @@ export function makeMusket() {
 // brass-capped pommel, a long barrel octagonal at the breech, a brass muzzle cap and the ramrod beneath. Built like
 // the musket: the barrel up +Y, its top to +Z, held at the grip.
 export function makePistol() {
-  const fm = fromModel("pistol", [0, 0.336, 0.022], [[0, -0.065, -0.072]]); if (fm) return fm;
+  const fm = fromModel("pistol", [0, 0.336, 0.022], [[0, -0.08, -0.05]]); if (fm) return fm;
   const g = new THREE.Group(), M = GUNM();
   g.add(stockFrom([[0.3, 0.012], [0.04, 0.016], [-0.01, 0.01], [-0.05, -0.02], [-0.085, -0.06], [-0.11, -0.095], [-0.12, -0.112], [-0.095, -0.128], [-0.06, -0.11], [-0.03, -0.07], [0.0, -0.045], [0.04, -0.03], [0.3, -0.012]], 0.03, M.wood));
   g.add(along(0.0118, 0.0118, 0.02, 0.12, 0.022, M.iron, 8));

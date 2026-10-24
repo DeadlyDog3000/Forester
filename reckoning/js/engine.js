@@ -38,7 +38,7 @@ function gripMesh(side) {
   const m = modelCopy("hand_grip");
   let mesh = null;
   if (m) m.scene.traverse(o => { if (!mesh && o.isMesh && o.name.endsWith(side)) mesh = o; });
-  if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.castShadow = false; g.scale.setScalar(0.86); return g; }
+  if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.castShadow = false; g.scale.setScalar(0.86); g.add(wristGeo()); return g; }
   const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), ARMS_M.skin); f.rotation.z = Math.PI / 2; return f;
 }
 // (skin, not plastic: a soft reddish glow where the light grazes it, as light comes back out of real skin; the coat a
@@ -51,9 +51,54 @@ const SHOULDER_DROP = new THREE.Vector3(0, -0.14, 0.04);
 const GRIP_TWIST = 0;
 // (the hand model's wrist, where its forearm was cut, in its own frame: the sleeve ends here)
 const WRIST = new THREE.Vector3(-0.08, 0, 0.026);
+// (and the arm's skin on back from that cut: the wrist and the start of the forearm, out of the hand along its own line
+//  and bending, as a wrist bends, into the line of the forearm in its sleeve — the hand grows out of the arm, not out of
+//  the cuff's end like a glove on a stick. bendWrist lays it each frame, from the hand's cut to inside the cuff)
+const WRIST_N = 20, WRIST_SEG = 8;
+function wristGeo() {
+  const pos = new Float32Array((WRIST_SEG + 1) * (WRIST_N + 1) * 3), col = [], idx = [];
+  for (let j = 0; j <= WRIST_SEG; j++) for (let i = 0; i <= WRIST_N; i++) { const sn = Math.sin(i / WRIST_N * Math.PI * 2), ao = 0.9 + 0.08 * Math.max(0, sn); col.push(ao, ao, ao); }
+  for (let j = 0; j < WRIST_SEG; j++) for (let i = 0; i < WRIST_N; i++) { const a = j * (WRIST_N + 1) + i, b = a + WRIST_N + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const g = new THREE.BufferGeometry(); g.setIndex(idx);
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  const m = new THREE.Mesh(g, ARMS_M.gripSkin); m.userData.wrist = true; m.frustumCulled = false;
+  // (till it's fitted: straight back along the hand)
+  layWrist(m, new THREE.Vector3(-0.074, -0.003, 0.03), new THREE.Vector3(-0.24, -0.003, 0.03), new THREE.Vector3(-1, 0, 0));
+  return m;
+}
+// the wrist from the hand's cut (its own frame) to `end`, coming into `end` along `dir` (the forearm's line, toward the hand)
+const _wv = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+function layWrist(m, p0, p3, dir) {
+  const [p1, p2, c, t, n, b] = _wv, L = p0.distanceTo(p3), pos = m.geometry.attributes.position;
+  p1.set(-1, 0, 0).multiplyScalar(L * 0.4).add(p0); p2.copy(dir).multiplyScalar(L * 0.4).add(p3);
+  for (let j = 0; j <= WRIST_SEG; j++) {
+    const u = j / WRIST_SEG, v = 1 - u;
+    c.copy(p0).multiplyScalar(v * v * v).addScaledVector(p1, 3 * v * v * u).addScaledVector(p2, 3 * v * u * u).addScaledVector(p3, u * u * u);
+    t.copy(p1).sub(p0).multiplyScalar(3 * v * v).addScaledVector(p2.clone().sub(p1), 6 * v * u).addScaledVector(p3.clone().sub(p2), 3 * u * u).normalize();
+    // (oval: 4.7 cm across the back of the hand, 4.1 through it at the wrist, widening toward the elbow)
+    n.set(0, 0, 1).addScaledVector(t, -t.z).normalize(); b.crossVectors(t, n);
+    const k = Math.min(1, u * 1.4), ry = 0.0235 + 0.012 * k, rz = 0.0205 + 0.009 * k;
+    for (let i = 0; i <= WRIST_N; i++) {
+      const a = i / WRIST_N * Math.PI * 2, cs = Math.cos(a), sn = Math.sin(a), q = (j * (WRIST_N + 1) + i);
+      const r = rz * (sn > 0 ? 0.92 : 1.05);
+      pos.setXYZ(q, c.x + b.x * cs * ry + n.x * sn * r, c.y + b.y * cs * ry + n.y * sn * r, c.z + b.z * cs * ry + n.z * sn * r);
+    }
+  }
+  pos.needsUpdate = true; m.geometry.computeVertexNormals();
+}
+// lay a grip hand's wrist into its arm: `end` the point inside the cuff the forearm runs to, `dir` along the forearm
+// toward the hand (both in world space)
+const _we = new THREE.Vector3(), _wd = new THREE.Vector3();
+function bendWrist(gm, end, dir) {
+  const w = gm.children.find(c => c.userData.wrist); if (!w) return;
+  gm.updateMatrixWorld(true);
+  const e = gm.worldToLocal(_we.copy(end)), o = gm.worldToLocal(_wd.copy(end).add(dir)).sub(e).normalize();
+  layWrist(w, new THREE.Vector3(-0.074, -0.003, 0.03), e, o);
+}
 const PISTOL_TILT = -0.7;
-// (the musket's fore-hand round its fore-stock, below the barrel: it closed round the barrel's top line, and hung beside the gun)
-const MUSKET_FORE_Z = 0.022;
+// (the musket's fore-hand under its fore-stock, the barrel lying in the palm and the fingers up its side, the arm
+//  coming up beneath: closed round the barrel's top line, the hand hung beside the gun)
+const MUSKET_FORE_Z = -0.02;
 function sleeveGeo(r0, r1) {
   const g = new THREE.CylinderGeometry(r0 * 0.84, r1, 1, 28, 8, true).translate(0, 0.5, 0), p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -435,7 +480,7 @@ export class Player {
       // (a pistol is held in the one hand, at the grip)
       this.hands = pis ? [fist(-0.06, -0.068, "R"), fist(0.1, -0.03, "L")] : [fist(-0.065, -0.024, "R"), fist(0.46, MUSKET_FORE_Z, "L")];
       // (a pistol's butt drops away from the line of its barrel: the hand closed round that, turned to its slope)
-      if (pis) { const h = this.hands[0]; h.rotation.x = PISTOL_TILT; h.position.set(0, -0.07, -0.075); }
+      if (pis) { const h = this.hands[0]; h.rotation.x = PISTOL_TILT; h.position.set(0, -0.085, -0.052); }
       // (the ramrod, for loading: drawn out of its pipes and down the barrel)
       const rodL = pis ? 0.27 : 0.92;
       this.gunRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }));
@@ -447,7 +492,7 @@ export class Player {
         fore.add(new THREE.Mesh(sleeveGeo(0.038, 0.046), sleeveM));
         const cuff = new THREE.Mesh(cuffGeo(), cuffM); fore.add(cuff);
         vm.add(arm); vm.add(fore);
-        return { arm, sleeve: arm.children[0], fore, foreSleeve: fore.children[0], cuff, side: i === 0 ? 1 : -1, len: pis ? 0.3 : 0.56, bend: 0, shoulder: new THREE.Vector3(i === 0 ? 0.26 : 0.02, i === 0 ? -0.48 : -0.55, 0.12) };
+        return { arm, sleeve: arm.children[0], fore, foreSleeve: fore.children[0], cuff, side: i === 0 ? 1 : -1, len: pis ? 0.3 : 0.56, bend: 0, shoulder: new THREE.Vector3(i === 0 ? 0.26 : pis ? 0.02 : 0.18, i === 0 ? -0.48 : -0.6, 0.12) };
       });
       // (what the working hand holds through the drill: the priming flask, a charge off the bandolier, the ball)
       this.loadKit = loadKit(this.hands[pis ? 1 : 0]);
@@ -534,9 +579,9 @@ export class Player {
     // before you, the muzzle up, for the charge, the ball and the rod. (A pistol: out at arm's length to aim, its kick
     // a sharp flip of the wrist.)
     const H = pis
-      ? [0.2 - 0.17 * a, -0.15 + 0.095 * a, -0.4 - 0.1 * a + 0.05 * k, 0.05 * (1 - a) + 0.35 * k, 0.05 * (1 - a) + 0.03 * a, 0.12 * (1 - a)]
+      ? [0.14 - 0.11 * a, -0.12 + 0.065 * a, -0.44 - 0.06 * a + 0.05 * k, -0.04 * (1 - a) + 0.35 * k, 0.03 * a, 0.15 * (1 - a)]
       : [0.22 - 0.22 * a, -0.27 + 0.155 * a, -0.32 + 0.02 * a + 0.06 * k, 0.04 * (1 - a) + 0.12 * k, 0.06 * (1 - a), 0.1 * (1 - a)];
-    const P = pis ? [0.1, -0.27, -0.34, 0.25, 0.45, -1.0] : [0.12, -0.34, -0.4, 0.2, 0.45, -1.05];
+    const P = pis ? [0.06, -0.19, -0.38, 0.3, 0.45, -1.0] : [0.12, -0.34, -0.4, 0.2, 0.45, -1.05];
     const v = H.map((h, i) => h + (P[i] - h) * LP.prime);
     g.position.set(v[0], v[1], v[2]); g.rotation.set(v[3], v[4], v[5]);
     // (the thrust: drawn back a little, then out hard along the line of the barrel, and back to the hip)
@@ -552,7 +597,7 @@ export class Player {
     // (stood up for the charge and the rod: leaning away to the left, the muzzle up in the corner of your eye — so the
     //  hand at it and the rod going down are in sight, and the field in front of you still is)
     if (LP.up > 0.001) {
-      const M = pis ? _gv.set(-0.17, -0.06, -0.46) : _gv.set(-0.15, -0.04, -0.6), d = _gd.set(pis ? -0.3 : -0.12, 0.85, pis ? -0.42 : -0.34).normalize();
+      const M = pis ? _gv.set(-0.15, -0.12, -0.5) : _gv.set(-0.15, -0.04, -0.6), d = _gd.set(pis ? -0.3 : -0.12, 0.85, pis ? -0.42 : -0.34).normalize();
       const len = this.gunModel.userData.muzzle.position.y;
       _gq.setFromUnitVectors(_gz.set(0, 0, -1), d);                 // (the barrel, -z in here, along d)
       _gq.multiply(_gq2.setFromAxisAngle(_gz.set(0, 0, 1), pis ? 0.4 : 0.5));   // (rolled, the lock toward you)
@@ -826,7 +871,9 @@ export class Player {
       // and the arm runs to the wrist itself — where the hand's own forearm was cut — so the hand grows out of the sleeve's
       // end; to the middle of the fist, as it did, the hand stuck out of the sleeve's side
       const hp = (gm ? gm.localToWorld(WRIST.clone()) : new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld)).applyMatrix4(inv);
-      const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length(), wr = gm ? -0.05 : 0;
+      const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length(), wr = 0;
+      // (the wrist's skin from the hand's cut bending into the forearm's line, and on into the cuff)
+      const wrist = dir => { if (gm) bendWrist(gm, hp.clone().addScaledVector(dir, -0.11).applyMatrix4(vm.matrixWorld), dir.clone().transformDirection(vm.matrixWorld)); };
       arm.position.copy(shoulder);
       if (fore) {
         // (two bones: reach far and the arm's straight; nearer, the elbow drops down and out to the side)
@@ -841,12 +888,12 @@ export class Player {
         const up = elbow.clone().sub(shoulder), lo = hp.clone().sub(elbow), ul = up.length(), ll = lo.length();
         arm.quaternion.setFromUnitVectors(Y, up.normalize()); sleeve.scale.set(1, Math.max(0.02, ul), 1);
         fore.position.copy(elbow); fore.quaternion.setFromUnitVectors(Y, lo.normalize()); fore.visible = arm.visible;
-        foreSleeve.scale.set(1, Math.max(0.02, ll - 0.08 - wr), 1); cuff.position.y = Math.max(0.02, ll - 0.12 - wr);
+        foreSleeve.scale.set(1, Math.max(0.02, ll - 0.08 - wr), 1); cuff.position.y = Math.max(0.02, ll - 0.12 - wr); wrist(lo);
         continue;
       }
       arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
       sleeve.scale.set(1, Math.max(0.05, L - 0.08 - wr), 1);
-      cuff.position.y = Math.max(0.05, L - 0.12 - wr);
+      cuff.position.y = Math.max(0.05, L - 0.12 - wr); wrist(d.clone().normalize());
     }
   }
   // ---- work in your hands: a saw drawn back and forth, a hammer striking, a knife whittling ----
@@ -967,10 +1014,11 @@ export class Player {
     // (to the hand's own wrist, as the axe's arms go: the hand out of the sleeve's end, not its side)
     const fist = h.children.find(c => c.userData.grip);
     let to = h.position, k = 0.08, kc = 0.12;
-    if (fist) { this.workRig.updateMatrixWorld(true); to = this.workRig.worldToLocal(fist.localToWorld(WRIST.clone())); k = 0.03; kc = 0.07; }
+    if (fist) { this.workRig.updateMatrixWorld(true); to = this.workRig.worldToLocal(fist.localToWorld(WRIST.clone())); }
     const d = new THREE.Vector3().subVectors(to, sh), L = d.length();
     arm.position.copy(sh); arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
     sleeve.scale.set(1, Math.max(0.05, L - k), 1); cuff.position.y = Math.max(0.05, L - kc);
+    if (fist) bendWrist(fist, to.clone().addScaledVector(d, -0.11).applyMatrix4(this.workRig.matrixWorld), d.clone().transformDirection(this.workRig.matrixWorld));
   }
   // held low on the right, head up, ready
   axeRest() { const R = this.restPose(); this.axe.rotation.set(R[0], R[1], R[2]); this.axe.position.set(R[3], R[4], R[5]); }
@@ -1608,7 +1656,7 @@ function viewModel(dt, p, third) {
 // line is taken when it is clear; otherwise a small grid search finds the way
 // and the corners are pulled tight so the walk still looks direct.
 const NPC_R = 0.3, CELL = 0.5;
-const stepClock = { t: 0 };
+const stepClock = { t: 0, n: 0 };
 let planFrame = -1, plansNow = 0;
 // (routes found per frame, at most: enough that a melee of forty men re-routing after each other aren't left standing
 //  waiting their turn — they were, one route a frame, and a charge crawled and stuttered)
@@ -2232,11 +2280,14 @@ export class Actor {
       this.stepD = (this.stepD || 0) + spd * dt;
       if (this.stepD > (spd > 3 ? 1.5 : 0.75)) {
         this.stepD = 0;
-        const d = Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z), hear = this.horse ? 40 : this.heavy ? 26 : 16;
-        if (d < hear && G.time - (stepClock.t) > 0.09) {
-          stepClock.t = G.time;
+        // (every one of them heard — each foot from where it falls, left or right of you — up to a dozen footfalls in a
+        //  tenth of a second, so a company on the march is a tramp of boots, not one man's)
+        const d = Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z), soldier = !!(this.lo || this.soldier || G.arena), hear = this.horse ? 40 : this.heavy ? 26 : soldier ? 24 : 16;
+        if (G.time - stepClock.t > 0.1) { stepClock.t = G.time; stepClock.n = 0; }
+        if (d < hear && stepClock.n < 12) {
+          stepClock.n++;
           const w = G.world, k = (1 - d / hear) ** 2;
-          AUDIO.step(w && w.surfaceAt ? w.surfaceAt(p.x, p.z) : "grass", 0.5 * k, { fast: spd > 3, heavy: !!this.heavy });
+          AUDIO.step(w && w.surfaceAt ? w.surfaceAt(p.x, p.z) : "grass", 0.5 * k, { fast: spd > 3, heavy: !!this.heavy || soldier, at: p, kit: soldier });
         }
       }
     }

@@ -7,6 +7,26 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.117", date: "24 October 2026", title: "Wrists, and real flintlocks",
+    items: [
+      "Your hands grow out of your arms: each hand has its wrist and the start of its forearm now, in skin, bending from the hand into the line of the arm and on into the shirt's cuff, as a wrist does. The hand no longer sits on the end of the sleeve like a glove on a stick, nor sticks out of its side.",
+      "The pistol is a real one: a horseman's flintlock modelled to the last screw (djonvincent's, CC0) — a walnut stock with its grain, a browned barrel, a brass butt cap, the lock with its flint in the cock's jaws. Held lower and further out, the hand round its grip.",
+      "The musket's stock is walnut you can see the grain of, running along it as the gunsmith laid it; its barrel browned iron, its furniture worn brass — from photographs of the real stuff (Poly Haven, CC0), not flat colour.",
+      "Loading a pistol takes its time: 4.2 seconds of the same drill — half-cock, prime, shut the pan, the charge, the ball, the rod twice, the rod home, full cock — not 2.4 seconds of it at a blur.",
+      "The musket's fore-hand stays under the stock, the barrel lying in the palm and the arm coming up beneath, instead of hanging beside the gun.",
+      "With a musket you carry a pistol or the bayonet, not both: the bayonet's your blade. Pick one and the other is put down.",
+      "Every soldier's feet are heard: each footfall from where it falls, to your left or right, dulled with distance, the charges on his bandolier knocking — up to a dozen at a time, so a company on the march is a tramp of boots, not one man's.",
+    ],
+  },
+  {
+    v: "1.99.116", date: "24 October 2026", title: "Ships at the quay",
+    items: [
+      "Hamburg's harbour: the ships moored at the quay are real ships of the age now — Dutch-built, as half of Hamburg's trade was, from Poly Haven's models: carved and planked hulls, their fighting tops, every shroud and ratline and block of their rigging, their sails half-furled, a lantern at the stern.",
+      "The wider world's moose, reindeer and antelope are real deer now, in their own coats and sizes — the moose a great dark stag, the reindeer a greyer one, the antelope a slight sandy hind — no longer the built shapes.",
+      "And at sea: the ships in a sea battle are these real ships too — the large one for a frigate or a ship of the line, the middling one for a sloop. (Their sails are their own and stay as they're set: rigging shot away still slows a ship as it did, but you no longer see each sail fall.)",
+    ],
+  },
+  {
     v: "1.99.115", date: "24 October 2026", title: "One hand to carry, two to swing",
     items: [
       "The felling axe and the pick are carried in the right hand, low on the haft by the knob, the head up where you can see it; the left hand comes on to the haft only for the stroke, and the right slides up toward the head as it does — then back to the one hand.",

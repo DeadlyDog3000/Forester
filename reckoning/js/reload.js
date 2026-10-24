@@ -6,11 +6,11 @@
 // flask and the steel snapped shut over it; the gun stood on its butt, the charge poured down the barrel and the ball
 // after it; the ramrod drawn from its pipes and rammed home, three strokes; the rod put back; the gun brought up and
 // cocked. One timeline for all of it — what the hands do on the screen, what your body and anyone else's do, and the
-// sound of each step (foley.js) — so they never drift apart. A pistol is the same drill, quicker.
+// sound of each step (foley.js) — so they never drift apart. A pistol is the same drill, a little quicker (a short barrel, a short rod).
 
 export const LOAD = {
   musket: { time: 6.5, steps: [[0, "halfcock"], [0.3, "prime"], [0.85, "frizzen"], [1.2, "powder"], [2.05, "ball"], [2.55, "rodOut"], [3.45, "ram"], [3.95, "ram"], [4.45, "ram"], [4.95, "rodIn"], [5.95, "cock"]] },
-  pistol: { time: 2.4, steps: [[0, "halfcock"], [0.1, "prime"], [0.32, "frizzen"], [0.45, "powder"], [0.8, "ball"], [0.95, "rodOut"], [1.32, "ram"], [1.58, "ram"], [1.78, "rodIn"], [2.25, "cock"]] },
+  pistol: { time: 4.2, steps: [[0.0, "halfcock"], [0.18, "prime"], [0.56, "frizzen"], [0.79, "powder"], [1.4, "ball"], [1.66, "rodOut"], [2.31, "ram"], [2.77, "ram"], [3.12, "rodIn"], [3.94, "cock"]] },
 };
 
 const ease = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
@@ -22,7 +22,7 @@ const at = (L, name) => (L.steps.find(s => s[0] !== undefined && s[1] === name) 
 //  hand   what the free hand is at: "lock", "muzzle", "rod", or null (its usual place)
 //  rod    how far the ramrod is out of its pipes (0..1) and how deep it's down the barrel (0..1)
 export function loadPose(kind, e) {
-  const L = LOAD[kind] || LOAD.musket, s = n => at(L, n), fast = kind === "pistol" ? 0.4 : 1;
+  const L = LOAD[kind] || LOAD.musket, s = n => at(L, n), fast = kind === "pistol" ? 0.7 : 1;
   const prime = ease(e / (0.25 * fast)) * (1 - ease((e - s("frizzen") - 0.08 * fast) / (0.25 * fast)));
   const up = ease((e - s("frizzen") - 0.05 * fast) / (0.35 * fast)) * (1 - ease((e - s("rodIn") - 0.35 * fast) / (0.55 * fast)));
   let hand = null;
@@ -48,7 +48,7 @@ export function loadSteps(kind, e0, e1) {
 // turned back, and slid home into the pipes. R is the rammer end (it goes in), T the tail; show: out of its pipes.
 export const ROD_GEO = { musket: { pipeY: 0.12, pipeZ: -0.018, boreZ: 0.032, muzY: 1.13, L: 0.98 }, pistol: { pipeY: 0.06, pipeZ: -0.006, boreZ: 0.022, muzY: 0.336, L: 0.27 } };
 export function rodEnds(kind, e) {
-  const L0 = LOAD[kind] || LOAD.musket, g = ROD_GEO[kind] || ROD_GEO.musket, f = kind === "pistol" ? 0.4 : 1;
+  const L0 = LOAD[kind] || LOAD.musket, g = ROD_GEO[kind] || ROD_GEO.musket, f = kind === "pistol" ? 0.7 : 1;
   const sOut = at(L0, "rodOut"), sIn = at(L0, "rodIn"), clear = g.muzY + 0.04;
   const show = e >= sOut && e < sIn + 0.95 * f;
   if (!show) return { show: false };
