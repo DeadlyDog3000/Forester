@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.123", date: "24 October 2026", title: "A real loaf",
+    items: [
+      "Bread is a real country loaf, scanned with its floured crust (ambientCG, CC0) in your hand — not a brown half-ball.",
+      "Your hands cost a tenth of what they did each frame: the fingers are fitted to a grip once and kept while you hold it, not worked out afresh sixty times a second.",
+    ],
+  },
+  {
     v: "1.99.122", date: "24 October 2026", title: "A bowl on the hand",
     items: [
       "A hot dish comes in a real turned wooden bowl, worn with use (Poly Haven, CC0), borne on your open hand underneath it as a bowl is carried — not clutched by the rim.",

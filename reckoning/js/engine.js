@@ -1437,9 +1437,9 @@ export class Player {
         continue;
       }
       // (food: the hand cupped round it — the fingers bent less the bigger it is)
-      if (food) { const c = Math.max(0.45, Math.min(1, 0.03 / r)); wrapHand(A, arm, at, along, r, { fixed: { index: [30 * c + 15, 45 * c + 15, 30 * c + 10], middle: [32 * c + 15, 48 * c + 15, 30 * c + 10], ring: [34 * c + 15, 50 * c + 15, 30 * c + 10], pinky: [38 * c + 15, 52 * c + 15, 30 * c + 10], thumb: [-15, 20, 25] } }); }
-      else if (fp && fp.hook) wrapHand(A, arm, at, along, r, { fixed: { index: [8, 72, 48], middle: [8, 74, 48], ring: [10, 74, 46], pinky: [55, 85, 55], thumb: [25, 35, 25] } });
-      else wrapHand(A, arm, at, along, r, g === "pistol" && arm.trigger ? { aim: { index: { to: arm.trigger, hook: [62, 48] } } } : g === "fore" ? { most: 55 } : {});
+      if (food) { const c = Math.max(0.45, Math.min(1, 0.03 / r)); wrapHand(A, arm, at, along, r, { key: "food", fixed: { index: [30 * c + 15, 45 * c + 15, 30 * c + 10], middle: [32 * c + 15, 48 * c + 15, 30 * c + 10], ring: [34 * c + 15, 50 * c + 15, 30 * c + 10], pinky: [38 * c + 15, 52 * c + 15, 30 * c + 10], thumb: [-15, 20, 25] } }); }
+      else if (fp && fp.hook) wrapHand(A, arm, at, along, r, { key: "hook", fixed: { index: [8, 72, 48], middle: [8, 74, 48], ring: [10, 74, 46], pinky: [55, 85, 55], thumb: [25, 35, 25] } });
+      else wrapHand(A, arm, at, along, r, g === "pistol" && arm.trigger ? { key: "pistol", aim: { index: { to: arm.trigger, hook: [62, 48] } } } : g === "fore" ? { most: 55, key: "fore" } : { key: g });
     }
   }
   // ---- swimming ----

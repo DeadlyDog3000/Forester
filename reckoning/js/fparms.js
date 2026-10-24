@@ -124,7 +124,16 @@ function offAxis(root, b, at, axis, tip = 0) {
   b.getWorldPosition(_cp); if (tip) { _cq.set(0, 1, 0).transformDirection(b.matrixWorld); _cp.addScaledVector(_cq, tip); }
   root.worldToLocal(_cp); _cp.sub(at); return _cp.addScaledVector(axis, -_cp.dot(axis)).length();
 }
-export function wrapHand(arms, A, at, axis, r, { most = 110, k = 1, start = { thumb: -40 }, fixed = {}, aim = {} } = {}) {
+export function wrapHand(arms, A, at, axis, r, opts = {}) {
+  // (the hand lies the same way on the same grip frame after frame: the fingers fitted once and kept, till the grip
+  //  changes — a third of a millisecond a frame saved)
+  const key = opts.key ? opts.key + "|" + r.toFixed(4) + "|" + (A.palmOff || 0).toFixed(3) : null;
+  if (key && A.wrapKey === key) { A.wrapQ.forEach(([b, q]) => b.quaternion.copy(q)); return; }
+  wrapFit(arms, A, at, axis, r, opts);
+  if (key) { A.wrapKey = key; A.wrapQ = []; for (const f of [...FINGERS, "thumb"]) for (const j of A.fingers[f]) A.wrapQ.push([j.b, j.b.quaternion.clone()]); }
+  else A.wrapKey = null;
+}
+function wrapFit(arms, A, at, axis, r, { most = 110, k = 1, start = { thumb: -40 }, fixed = {}, aim = {} } = {}) {
   const root = arms.root;
   for (const f of [...FINGERS, "thumb"]) {
     const js = A.fingers[f], thick = f === "thumb" ? 0.011 : f === "pinky" ? 0.008 : 0.0095;
