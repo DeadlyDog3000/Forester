@@ -211,34 +211,35 @@ def musket():
     wood = rgb(WALNUT, 0.04, j)
     # the stock: the butt dropped, a slim wrist, the lock's flat, the fore-end running up under the barrel to its nose,
     # half the barrel sunk in it
-    butt = [(-0.43, 0.018), (-0.43, -0.132), (-0.37, -0.124), (-0.27, -0.104), (-0.17, -0.08), (-0.09, -0.056), (-0.03, -0.048),
-            (0.03, -0.05), (0.09, -0.042), (0.2, -0.03), (0.2, 0.03), (0.1, 0.034), (0.03, 0.026), (-0.03, 0.014), (-0.09, 0.008),
+    # (slim, as a Brown Bess or a Charleville is: a hand's width at the butt, two fingers' at the fore-end)
+    butt = [(-0.43, 0.018), (-0.43, -0.12), (-0.37, -0.112), (-0.27, -0.094), (-0.17, -0.072), (-0.09, -0.05), (-0.03, -0.042),
+            (0.03, -0.043), (0.09, -0.036), (0.2, -0.024), (0.2, 0.028), (0.1, 0.031), (0.03, 0.024), (-0.03, 0.014), (-0.09, 0.008),
             (-0.19, 0.014), (-0.3, 0.018)]
-    k.slab("wood", butt, ("y", "z"), 0.044, wood, round_=0.36, segs=3,
+    k.slab("wood", butt, ("y", "z"), 0.038, wood, round_=0.36, segs=3,
            taper=lambda a, b: 0.82 if -0.11 < a < 0.0 else 1.0)
-    fore = [(0.12, -0.034), (0.4, -0.027), (0.7, -0.022), (0.93, -0.019), (0.95, -0.012), (0.95, 0.03), (0.4, 0.031), (0.12, 0.032)]
-    k.slab("wood", fore, ("y", "z"), 0.034, wood, round_=0.4, segs=3)
+    fore = [(0.12, -0.024), (0.4, -0.019), (0.7, -0.015), (0.93, -0.013), (0.95, -0.008), (0.95, 0.03), (0.4, 0.031), (0.12, 0.031)]
+    k.slab("wood", fore, ("y", "z"), 0.026, wood, round_=0.4, segs=3)
     # the barrel: eight-sided at the breech, round and tapering to the muzzle, a ring there and the bore
-    k.lathe("iron", [(0.0, 0.0172), (0.29, 0.0168)], rgb(BLUED, 0.03, j), segs=8, c=(0, 0.032), phase=PI / 8)
-    k.lathe("iron", [(0.28, 0.0152), (0.31, 0.0148), (0.7, 0.0138), (1.105, 0.0128)], rgb(BLUED, 0.03, j), segs=24, c=(0, 0.032))
-    k.lathe("iron", [(1.1, 0.0142), (1.124, 0.0142)], rgb(IRON, 0.03, j), segs=24, c=(0, 0.032))
-    k.lathe("soot", [(1.122, 0.0078), (1.1255, 0.0078)], rgb(SOOT), segs=16, c=(0, 0.032))
+    k.lathe("iron", [(0.0, 0.0148), (0.29, 0.0144)], rgb(BLUED, 0.03, j), segs=8, c=(0, 0.032), phase=PI / 8)
+    k.lathe("iron", [(0.28, 0.0132), (0.31, 0.0128), (0.7, 0.0118), (1.105, 0.011)], rgb(BLUED, 0.03, j), segs=24, c=(0, 0.032))
+    k.lathe("iron", [(1.1, 0.0122), (1.124, 0.0122)], rgb(IRON, 0.03, j), segs=24, c=(0, 0.032))
+    k.lathe("soot", [(1.122, 0.0072), (1.1255, 0.0072)], rgb(SOOT), segs=16, c=(0, 0.032))
     k.slab("iron", [(-0.1, 0.01), (0.0, 0.026), (0.0, 0.032), (-0.1, 0.016)], ("y", "z"), 0.012, rgb(BLUED, 0.03, j), round_=0.3)  # the tang
     k.slab("brass", [(1.088, 0.046), (1.104, 0.046), (1.1, 0.052), (1.092, 0.052)], ("y", "z"), 0.003, rgb(BRASS, 0.03, j), round_=0.2)  # foresight
     k.slab("iron", [(0.26, 0.046), (0.285, 0.046), (0.285, 0.052), (0.26, 0.052)], ("y", "z"), 0.012, rgb(IRON, 0.03, j), round_=0.2)   # backsight
     # the ramrod under the barrel, its tip, the pipes holding it; the brass nose cap of the fore-end
-    k.lathe("rod", [(0.12, 0.0046), (1.09, 0.0046)], rgb(DARKWOOD, 0.04, j), segs=8, c=(0, -0.018))
-    k.lathe("rod", [(1.088, 0.0056), (1.112, 0.0056)], rgb(BRASS, 0.03, j), segs=8, c=(0, -0.018))
+    k.lathe("rod", [(0.12, 0.0042), (1.09, 0.0042)], rgb(DARKWOOD, 0.04, j), segs=8, c=(0, -0.012))
+    k.lathe("rod", [(1.088, 0.0052), (1.112, 0.0052)], rgb(BRASS, 0.03, j), segs=8, c=(0, -0.012))
     for y in (0.46, 0.74, 0.98):
-        k.lathe("brass", [(y, 0.0078), (y + 0.032, 0.0078)], rgb(BRASS, 0.03, j), segs=12, c=(0, -0.018))
-    k.slab("brass", [(0.938, -0.016), (0.952, -0.012), (0.952, 0.03), (0.938, 0.031)], ("y", "z"), 0.035, rgb(BRASS, 0.03, j), round_=0.3)
+        k.lathe("brass", [(y, 0.0072), (y + 0.032, 0.0072)], rgb(BRASS, 0.03, j), segs=12, c=(0, -0.012))
+    k.slab("brass", [(0.938, -0.012), (0.952, -0.008), (0.952, 0.03), (0.938, 0.031)], ("y", "z"), 0.027, rgb(BRASS, 0.03, j), round_=0.3)
     # the lock, and the brass side plate opposite it
     flintlock(k, 0.02, 0.0, 0.006, 1.0)
-    k.slab("brass", [(-0.04, 0.0), (0.0, 0.01), (0.06, 0.008), (0.09, 0.0), (0.06, -0.008), (0.0, -0.01)], ("y", "z"), 0.003, rgb(BRASS, 0.03, j), at=-0.023, round_=0.2)
+    k.slab("brass", [(-0.04, 0.0), (0.0, 0.01), (0.06, 0.008), (0.09, 0.0), (0.06, -0.008), (0.0, -0.01)], ("y", "z"), 0.003, rgb(BRASS, 0.03, j), at=-0.02, round_=0.2)
     # the trigger and its guard; the butt plate; the sling swivels
     trigger_guard(k, -0.07, 0.07, -0.046, 0.028, rgb(BRASS, 0.03, j))
     k.slab("steel", [(-0.004, -0.046), (0.006, -0.046), (0.0, -0.066), (-0.006, -0.064)], ("y", "z"), 0.005, rgb(STEEL, 0.03, j), round_=0.3)
-    k.slab("brass", [(-0.437, 0.02), (-0.426, 0.02), (-0.426, -0.134), (-0.437, -0.134)], ("y", "z"), 0.046, rgb(BRASS, 0.03, j), round_=0.3)
+    k.slab("brass", [(-0.437, 0.02), (-0.426, 0.02), (-0.426, -0.122), (-0.437, -0.122)], ("y", "z"), 0.04, rgb(BRASS, 0.03, j), round_=0.3)
     k.ring("iron", (0, -0.25, -0.104), "x", 0.011, 0.0022, rgb(IRON))
     k.ring("iron", (0, 0.62, -0.03), "x", 0.011, 0.0022, rgb(IRON))
     return export(sc, "musket.glb", k.finish(sc))
@@ -338,4 +339,7 @@ def spear():
     return export(sc, "spear.glb", k.finish(sc))
 
 
-print("wrote", musket(), pistol(), sword(), dagger(), battleaxe(), spear())
+# (one or some of them: blender ... -P arms.py -- musket; the pistol is a real one now, guns_real.py, so it's left out
+#  unless asked for by name)
+_want = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else ["musket", "sword", "dagger", "battleaxe", "spear"]
+print("wrote", *[globals()[n]() for n in _want])

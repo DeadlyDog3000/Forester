@@ -172,11 +172,13 @@ export const AUDIO = {
   // right, and dulled with distance); kit, a soldier's — the charges on his bandolier knocking, his sword in its scabbard
   step(surface = "grass", vol = 0.6, { fast = false, heavy = false, at = null, kit = false } = {}) {
     const a = ctx(); if (!a || vol <= 0.01) return;
+    // (another man's footfall is the first thing left out when the sound is busy: never in the way of a shot or a cry)
+    if (at && !room(Math.min(0.5, vol))) return;
     OUT = at ? placed(a, at, 60).node : null;
-    try { this._step(a, surface, vol, fast, heavy); if (kit && Math.random() < 0.6) {
+    try { this._step(a, surface, vol, fast, heavy); if (kit && vol > 0.15 && Math.random() < 0.35) {
       // (wooden charge bottles against each other, a buckle: small dry clicks, a little after the foot lands)
       const t = a.currentTime + rnd(0.03, 0.09);
-      for (let i = 0, n = 1 + (Math.random() * 3 | 0); i < n; i++) burst(a, t + i * rnd(0.015, 0.04), 0.018, 0.022 * vol * rnd(0.5, 1), rnd(2400, 3800), 1800, 6);
+      for (let i = 0, n = 1 + (Math.random() * 2 | 0); i < n; i++) burst(a, t + i * rnd(0.015, 0.04), 0.018, 0.022 * vol * rnd(0.5, 1), rnd(2400, 3800), 1800, 6);
     } } finally { OUT = null; }
   },
   _step(a, surface, vol, fast, heavy) {
@@ -328,7 +330,9 @@ export const AUDIO = {
   gunshot(vol = 1, at = null) {
     const a = ctx(); if (!a) return;
     const small = vol < 0.85, D = shotDistance(at), v = 0.55 * vol * Math.max(0.12, 1 - D / 260);   // (well under the cannon: room left above it)
-    if (!room(Math.max(0, 1 - D / 120))) return;
+    // (a shot is the battle: one within a long musket shot is always heard, and further ones come before footsteps and
+    //  cries — it was the first thing dropped, so in a crowded fight the muskets went silent unless you fired one)
+    if (!room(D < 80 ? 1 : Math.max(0.6, 1 - D / 400))) return;
     const t = a.currentTime + D / 343 + (at ? 0 : 0);
     const out = shotOut(a, D, 1);
     // the lock: the flint on the steel, and the priming going up in the pan

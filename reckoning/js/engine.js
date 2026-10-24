@@ -925,6 +925,8 @@ export class Player {
         if (kind !== "hammer" && kind !== "eat" && kind !== "food" && kind !== "reap") tool.rotation.y = Math.PI / 2;
         // (the hammer's face leading the blow, square onto what it strikes — not its back)
         if (kind === "hammer") tool.rotation.y = Math.PI;
+        // (and a saw's teeth down, into the cut)
+        if (kind === "saw") tool.rotation.y = Math.PI;
         hand.add(tool);
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
@@ -942,8 +944,9 @@ export class Player {
     if (kind === "saw") {
       // long strokes, forward and back, the blade pointing away and down into the cut
       const k = Math.sin(t * Math.PI * 2 * 1.3);
-      h.position.set(0.16, -0.28 + k * 0.012, -0.5 - k * 0.13);
-      h.rotation.set(-1.25, 0, 0.12);
+      // (held out before you, the blade forward and down, its teeth under it, in the cut — seen along its side)
+      h.position.set(0.17, -0.1 + k * 0.03, -0.42 - k * 0.12);
+      h.rotation.set(-2.1 + k * 0.05, -0.3, 0.8);
       if (beat(2.6) && !wk.quiet) AUDIO.whoosh(0.18, false);
     } else if (kind === "hammer") {
       // raise it slowly, bring it down fast
@@ -2280,11 +2283,11 @@ export class Actor {
       this.stepD = (this.stepD || 0) + spd * dt;
       if (this.stepD > (spd > 3 ? 1.5 : 0.75)) {
         this.stepD = 0;
-        // (every one of them heard — each foot from where it falls, left or right of you — up to a dozen footfalls in a
+        // (every one of them heard — each foot from where it falls, left or right of you — up to six footfalls in a
         //  tenth of a second, so a company on the march is a tramp of boots, not one man's)
         const d = Math.hypot(G.player.pos.x - p.x, G.player.pos.z - p.z), soldier = !!(this.lo || this.soldier || G.arena), hear = this.horse ? 40 : this.heavy ? 26 : soldier ? 24 : 16;
         if (G.time - stepClock.t > 0.1) { stepClock.t = G.time; stepClock.n = 0; }
-        if (d < hear && stepClock.n < 12) {
+        if (d < hear && stepClock.n < 6) {
           stepClock.n++;
           const w = G.world, k = (1 - d / hear) ** 2;
           AUDIO.step(w && w.surfaceAt ? w.surfaceAt(p.x, p.z) : "grass", 0.5 * k, { fast: spd > 3, heavy: !!this.heavy || soldier, at: p, kit: soldier });

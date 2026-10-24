@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.118", date: "24 October 2026", title: "Every shot heard",
+    items: [
+      "Other men's muskets are heard again when you aren't carrying one. In a crowded fight the far shots were the first sounds dropped to keep the sound from overloading — so the field went quiet unless you fired yourself. Now a shot within a long musket range is always heard, and further ones come before footsteps and cries.",
+      "Soldiers' footsteps give way to everything else when the sound is busy, and fewer play at once, so they no longer crowd out the battle or cut it out.",
+      "The musket is slimmer, as a Brown Bess or a Charleville is: a thinner barrel, a narrower stock and fore-end, the ramrod and its pipes closer under the barrel.",
+      "The saw is held as you saw: the blade forward and down, its teeth underneath, seen along its side.",
+    ],
+  },
+  {
     v: "1.99.117", date: "24 October 2026", title: "Wrists, and real flintlocks",
     items: [
       "Your hands grow out of your arms: each hand has its wrist and the start of its forearm now, in skin, bending from the hand into the line of the arm and on into the shirt's cuff, as a wrist does. The hand no longer sits on the end of the sleeve like a glove on a stick, nor sticks out of its side.",
@@ -15,7 +24,7 @@ export const CHANGELOG = [
       "Loading a pistol takes its time: 4.2 seconds of the same drill — half-cock, prime, shut the pan, the charge, the ball, the rod twice, the rod home, full cock — not 2.4 seconds of it at a blur.",
       "The musket's fore-hand stays under the stock, the barrel lying in the palm and the arm coming up beneath, instead of hanging beside the gun.",
       "With a musket you carry a pistol or the bayonet, not both: the bayonet's your blade. Pick one and the other is put down.",
-      "Every soldier's feet are heard: each footfall from where it falls, to your left or right, dulled with distance, the charges on his bandolier knocking — up to a dozen at a time, so a company on the march is a tramp of boots, not one man's.",
+      "Every soldier's feet are heard: each footfall from where it falls, to your left or right, dulled with distance, the charges on his bandolier knocking — up to six at a time, so a company on the march is a tramp of boots, not one man's.",
     ],
   },
   {

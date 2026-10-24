@@ -46,7 +46,7 @@ export function loadSteps(kind, e0, e1) {
 // the gun's own frame. It lies in its pipes under the barrel; it's drawn up out of them till it clears the muzzle,
 // turned end for end in the air, and its rammer end put into the bore and driven down on the ball; then out again,
 // turned back, and slid home into the pipes. R is the rammer end (it goes in), T the tail; show: out of its pipes.
-export const ROD_GEO = { musket: { pipeY: 0.12, pipeZ: -0.018, boreZ: 0.032, muzY: 1.13, L: 0.98 }, pistol: { pipeY: 0.06, pipeZ: -0.006, boreZ: 0.022, muzY: 0.336, L: 0.27 } };
+export const ROD_GEO = { musket: { pipeY: 0.12, pipeZ: -0.012, boreZ: 0.032, muzY: 1.13, L: 0.98 }, pistol: { pipeY: 0.06, pipeZ: -0.006, boreZ: 0.022, muzY: 0.336, L: 0.27 } };
 export function rodEnds(kind, e) {
   const L0 = LOAD[kind] || LOAD.musket, g = ROD_GEO[kind] || ROD_GEO.musket, f = kind === "pistol" ? 0.7 : 1;
   const sOut = at(L0, "rodOut"), sIn = at(L0, "rodIn"), clear = g.muzY + 0.04;
