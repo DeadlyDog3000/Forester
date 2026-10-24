@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.113", date: "23 October 2026", title: "Both hands on the axe",
+    items: [
+      "Every hand grows out of its own arm: each sleeve now runs from the shoulder to the hand's wrist, where the hand begins, so the hand carries on from the forearm. Before, the sleeve ran to the middle of the fist round the haft, and the hand stuck out of the sleeve's side. For every weapon and tool, and the saw, the hammer, the spade, the sickle and the knife at work.",
+      "The felling axe and the pick are held in both hands, as they are: the right up the haft by the head, the left low by the knob, each arm from its own shoulder — and held across you where you can see both, not one hand and a haft running off the bottom of the screen.",
+    ],
+  },
+  {
     v: "1.99.112", date: "23 October 2026", title: "Real surfaces, real needles",
     items: [
       "Every surface is a real one now, scanned: the planks weathered silver, the plaster on the walls, the stone of the old blocks, the brick in its courses, the pine's bark, the roof tiles, the forest floor with its needles and cones, the mud of the tracks and the cobbles of the streets — from Poly Haven (CC0). And the relief that catches the light on them is the surfaces' own measured height, not a guess at it.",

@@ -25,6 +25,10 @@ import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate,
 // (what's only ever thrust, never swung: the spear, and a musket with its bayonet fixed)
 const THRUST = new Set(["spear", "bayonet"]);
 const SHORT = new Set(["sword", "dagger"]);
+const TWO_HAND = new Set(["axe", "pick"]);
+// (an axe at rest held across you in both hands — the right up by the head, the left low on the haft — both where you
+//  can see them, not the one hand and the haft going off the bottom of the screen)
+const AXE_REST = [0.8, -0.35, 0.15, 0.08, -0.29, -0.5];
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
 // your own hands, first person: the sculpted hand closed round what it holds (models/hand_grip.glb, made by
 // tools/blender/hands.py), the haft along the hand's up; a plain fist till it's loaded. fitArms turns each about the haft
@@ -45,6 +49,8 @@ const SHOULDER_DROP = new THREE.Vector3(0, -0.14, 0.04);
 // (and each hand turned a little further round what it holds than straight on from its wrist, so from your eyes you see
 //  the fingers wrapped round the front of it, not only the back of the hand)
 const GRIP_TWIST = 0;
+// (the hand model's wrist, where its forearm was cut, in its own frame: the sleeve ends here)
+const WRIST = new THREE.Vector3(-0.08, 0, 0.026);
 const PISTOL_TILT = -0.7;
 // (the musket's fore-hand round its fore-stock, below the barrel: it closed round the barrel's top line, and hung beside the gun)
 const MUSKET_FORE_Z = 0.022;
@@ -377,14 +383,16 @@ export class Player {
       };
       // (a sword's grip is short: the second hand close under the guard)
       const grips = { sword: [0.03, 0.15], spear: [0.12, 0.5], bayonet: [0.0, 0.42], pick: [0.03, 0.15], dagger: [0.02, 0.08] }[this.blade] || [0.07, 0.3];   // (a pick swung with both hands together at the end of the haft, as a pick is)
-      this.hands = [hand(grips[0], "R"), hand(grips[1], "L")];
+      // (a felling axe or a pick, two-handed: the right hand high, near the head, the left low by the knob)
+      this.hands = TWO_HAND.has(this.blade || "axe") ? [hand(grips[1], "R"), hand(grips[0], "L")] : [hand(grips[0], "R"), hand(grips[1], "L")];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
         const sleeve = new THREE.Mesh(sleeveGeo(0.048, 0.056), sleeveM); arm.add(sleeve);
         const cuff = new THREE.Mesh(cuffGeo(), cuffM); arm.add(cuff);
         vm.add(arm);
-        // (both arms come in from the right: the axe is held right-handed, the left hand low on the haft)
-        return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.3 : 0.12, i === 0 ? -0.5 : -0.56, 0.12) };
+        // (in both hands, as an axe is held: the right from the right shoulder up the haft, the left from the left shoulder
+        //  low on it, by the knob — each arm from its own side, not both from the right)
+        return { arm, sleeve, cuff, shoulder: new THREE.Vector3(i === 0 ? 0.3 : -0.16, i === 0 ? -0.5 : -0.56, 0.12) };
       });
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
@@ -798,16 +806,16 @@ export class Player {
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < this.arms.length; i++) {
       const { arm, sleeve, cuff, fore, foreSleeve } = this.arms[i];
-      const hp = new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld).applyMatrix4(inv);
       // (the shoulder well down below the eye, as your own is: the forearm comes up from under the hand, and the hand is
       //  seen whole in front of its cuff, not hidden behind it)
       const shoulder = this.arms[i].shoulder.clone().add(SHOULDER_DROP);
-      const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length();
       // (the hand turned about what it holds, so its wrist runs back toward its own shoulder)
-      // (and with a whole hand there, the sleeve and its cuff end at the wrist, a hand's length short of what it holds —
-      //  the cuff ran on to the haft, and swallowed the palm)
-      const gm = this.hands[i].children.find(c => c.userData.grip), wr = 0;
-      { if (gm) { const sw = shoulder.clone().applyMatrix4(vm.matrixWorld), lv = this.hands[i].worldToLocal(sw); gm.rotation.y = Math.atan2(lv.z, -lv.x) + (this.gripTwist ?? GRIP_TWIST); } }
+      const gm = this.hands[i].children.find(c => c.userData.grip);
+      { if (gm) { const sw = shoulder.clone().applyMatrix4(vm.matrixWorld), lv = this.hands[i].worldToLocal(sw); gm.rotation.y = Math.atan2(lv.z, -lv.x) + (this.gripTwist ?? GRIP_TWIST); gm.updateMatrixWorld(true); } }
+      // and the arm runs to the wrist itself — where the hand's own forearm was cut — so the hand grows out of the sleeve's
+      // end; to the middle of the fist, as it did, the hand stuck out of the sleeve's side
+      const hp = (gm ? gm.localToWorld(WRIST.clone()) : new THREE.Vector3().setFromMatrixPosition(this.hands[i].matrixWorld)).applyMatrix4(inv);
+      const d = new THREE.Vector3().subVectors(hp, shoulder), L = d.length(), wr = gm ? -0.05 : 0;
       arm.position.copy(shoulder);
       if (fore) {
         // (two bones: reach far and the arm's straight; nearer, the elbow drops down and out to the side)
@@ -945,16 +953,20 @@ export class Player {
     }
     // the sleeve, shoulder to hand
     const { arm, sleeve, cuff } = this.workRig.userData.arm, sh = new THREE.Vector3(0.3, -0.62, 0.1);
-    const d = new THREE.Vector3().subVectors(h.position, sh), L = d.length();
+    // (to the hand's own wrist, as the axe's arms go: the hand out of the sleeve's end, not its side)
+    const fist = h.children.find(c => c.userData.grip);
+    let to = h.position, k = 0.08, kc = 0.12;
+    if (fist) { this.workRig.updateMatrixWorld(true); to = this.workRig.worldToLocal(fist.localToWorld(WRIST.clone())); k = 0.03; kc = 0.07; }
+    const d = new THREE.Vector3().subVectors(to, sh), L = d.length();
     arm.position.copy(sh); arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-    sleeve.scale.set(1, Math.max(0.05, L - 0.08), 1); cuff.position.y = Math.max(0.05, L - 0.12);
+    sleeve.scale.set(1, Math.max(0.05, L - k), 1); cuff.position.y = Math.max(0.05, L - kc);
   }
   // held low on the right, head up, ready
   axeRest() { const R = this.restPose(); this.axe.rotation.set(R[0], R[1], R[2]); this.axe.position.set(R[3], R[4], R[5]); }
   // (a pike or a fixed bayonet is carried levelled, its point out before you — "charge your bayonets" — not upright)
   // (a short grip — a sword's, a dagger's — is held up where you can see the hand on it and the hilt, the blade forward;
   //  held as low as an axe's long haft, the hand was off the bottom of the screen and the blade floated in the air)
-  restPose() { return THRUST.has(this.blade) ? [0.22, -0.1, 0.0, 0.28, -0.36, -0.12] : SHORT.has(this.blade) ? [0.6, -0.3, -0.35, 0.3, -0.3, -0.5] : [1.05, -0.35, -0.5, 0.34, -0.5, -0.42]; }
+  restPose() { return THRUST.has(this.blade) ? [0.22, -0.1, 0.0, 0.28, -0.36, -0.12] : SHORT.has(this.blade) ? [0.6, -0.3, -0.35, 0.3, -0.3, -0.5] : AXE_REST; }
   swing(onHit) {
     if (this.swingT >= 0 || this.swimming || G.time < (this.fixUntil || 0)) return;
     this.swingT = 0; this.onSwingHit = onHit; this._hitDone = false;
@@ -1242,7 +1254,7 @@ export class Player {
         // (pitch, yaw, roll) of the hands, and where they are: a level swing from right to left
         const e = x => x * x * (3 - 2 * x), L = (a, b, k) => a + (b - a) * k;
         // (pitch, yaw, roll, x, y, z) — from the right (a level stroke leftward), from the left (backhand, rightward), or from above
-        const REST = THRUST.has(this.blade) || SHORT.has(this.blade) ? this.restPose() : [1.05, -0.35, -0.5, 0.3, -0.42, -0.4];
+        const REST = this.restPose();
         const [BACK, HIT, THRU] = {
           right: [[0.25, -1.25, 0.0, 0.42, -0.24, -0.26], [0.18, 0.75, 0.0, 0.1, -0.3, -0.46], [0.2, 1.6, 0.0, -0.12, -0.34, -0.36]],
           left: [[0.25, 1.2, 0.0, -0.3, -0.22, -0.3], [0.18, -0.7, 0.0, 0.02, -0.3, -0.46], [0.2, -1.5, 0.0, 0.3, -0.36, -0.36]],
