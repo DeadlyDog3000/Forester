@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.131", date: "24 October 2026", title: "Woven cloth",
+    items: [
+      "Coats, skirts, aprons and shirts show a real weave, photographed (ambientCG, CC0): every surface in the game — timber, plaster, stone, brick, roof tiles, bark, needles, cloth, mud, cobbles and the forest floor — is now laid over with a photograph of the real stuff.",
+    ],
+  },
+  {
     v: "1.99.130", date: "24 October 2026", title: "The woods, scanned",
     items: [
       "The woods' floor is real: ferns photographed and scanned frond by frond, stones and boulders half sunk in the ground, nettles about the trees, old stumps gone grey and mossy, and trunks long fallen across the forest floor (Poly Haven, CC0) — in place of the built ones. (The bushes stay as they were: Poly Haven's shrubs are the dry South African country's, sparse and twiggy, not a European wood's.)",
