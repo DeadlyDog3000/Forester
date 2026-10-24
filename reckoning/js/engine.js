@@ -12,6 +12,7 @@ import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
+import { makeFPArms, gripAt, wrapHand, restArm } from "./fparms.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse, ensureModel } from "./models.js";
@@ -38,14 +39,18 @@ function gripMesh(side) {
   const m = modelCopy("hand_grip");
   let mesh = null;
   if (m) m.scene.traverse(o => { if (!mesh && o.isMesh && o.name.endsWith(side)) mesh = o; });
-  if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.castShadow = false; g.scale.setScalar(0.86); g.add(wristGeo()); return g; }
+  if (mesh) { const g = new THREE.Mesh(mesh.geometry, ARMS_M.gripSkin); g.userData.grip = true; g.userData.side = side; g.castShadow = false; g.scale.setScalar(0.86); g.add(wristGeo()); return g; }
   const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.036, 0.05, 4, 8), ARMS_M.skin); f.rotation.z = Math.PI / 2; return f;
 }
 // (skin, not plastic: a soft reddish glow where the light grazes it, as light comes back out of real skin; the coat a
 //  wool, dull and soft at its edges; the shirt's linen thin enough to see both sides of)
-const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.vertexColors = true; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshPhysicalMaterial({ color: 0xe8c4a0, roughness: 0.55, sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0xff8f70) }), sleeve: new THREE.MeshPhysicalMaterial({ color: 0x4d5a3c, roughness: 0.95, sheen: 0.5, sheenRoughness: 0.8, sheenColor: new THREE.Color(0x9a9a8a), side: THREE.DoubleSide }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95, side: THREE.DoubleSide }) };
+const ARMS_M = { get fpSkin() { return this._fps ??= this.skin.clone(); }, get fpSleeve() { return this._fpsl ??= this.sleeve.clone(); }, get fpCuff() { return this._fpc ??= this.cuff.clone(); }, get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.vertexColors = true; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshPhysicalMaterial({ color: 0xe8c4a0, roughness: 0.55, sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0xff8f70) }), sleeve: new THREE.MeshPhysicalMaterial({ color: 0x4d5a3c, roughness: 0.95, sheen: 0.5, sheenRoughness: 0.8, sheenColor: new THREE.Color(0x9a9a8a), side: THREE.DoubleSide }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95, side: THREE.DoubleSide }) };
 // a coat's sleeve, base at the shoulder, one long: round and full, with the soft creases of wool along it
 const SHOULDER_DROP = new THREE.Vector3(0, -0.14, 0.04);
+// (where the one-skin arms stand in the view model: their shoulders a little below and behind your eye)
+const FP_ROOT = new THREE.Vector3(0, -1.72, 0.14);
+const _fpInv = new THREE.Matrix4(), _fpQ = new THREE.Quaternion(), _fpQ2 = new THREE.Quaternion(), _fpP = new THREE.Vector3(), _fpA = new THREE.Vector3(), _fpO = new THREE.Vector3();
+const inside = (o, p) => { for (; o; o = o.parent) if (o === p) return true; return false; };
 // (and each hand turned a little further round what it holds than straight on from its wrist, so from your eyes you see
 //  the fingers wrapped round the front of it, not only the back of the hand)
 const GRIP_TWIST = 0;
@@ -96,9 +101,15 @@ function bendWrist(gm, end, dir) {
   layWrist(w, new THREE.Vector3(-0.074, -0.003, 0.03), e, o);
 }
 const PISTOL_TILT = -0.7;
+// (the pistol's grip in its own frame: the middle of it; its line up from the butt toward the lock, the thumb's side;
+//  and which way the knuckles go round it — across, to its left side (the lock's on the right), the palm on the back
+//  of the grip and the fingers round its front, under the guard)
+const PISTOL_GRIP = new THREE.Vector3(0, -0.056, -0.031), PISTOL_AXIS = new THREE.Vector3(0, 0.83, 0.55).normalize(), PISTOL_FWD = new THREE.Vector3(0, 0.55, -0.83).normalize(), PISTOL_TRIGGER = new THREE.Vector3(0, 0.008, -0.034);
 // (the musket's fore-hand under its fore-stock, the barrel lying in the palm and the fingers up its side, the arm
 //  coming up beneath: closed round the barrel's top line, the hand hung beside the gun)
 const MUSKET_FORE_Z = -0.02;
+// (and how far up the stock from the trigger: a forearm's length forward of the lock, where your left arm reaches)
+const MUSKET_FORE_Y = 0.32;
 function sleeveGeo(r0, r1) {
   const g = new THREE.CylinderGeometry(r0 * 0.84, r1, 1, 28, 8, true).translate(0, 0.5, 0), p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -478,7 +489,7 @@ export class Player {
       const cuffM = ARMS_M.cuff;
       const fist = (y, z, side) => { const h = new THREE.Group(); h.add(gripMesh(side)); h.position.set(0, y, z); m.add(h); return h; };
       // (a pistol is held in the one hand, at the grip)
-      this.hands = pis ? [fist(-0.06, -0.068, "R"), fist(0.1, -0.03, "L")] : [fist(-0.065, -0.024, "R"), fist(0.46, MUSKET_FORE_Z, "L")];
+      this.hands = pis ? [fist(-0.06, -0.068, "R"), fist(0.1, -0.03, "L")] : [fist(-0.065, -0.024, "R"), fist(MUSKET_FORE_Y, MUSKET_FORE_Z, "L")];
       // (a pistol's butt drops away from the line of its barrel: the hand closed round that, turned to its slope)
       if (pis) { const h = this.hands[0]; h.rotation.x = PISTOL_TILT; h.position.set(0, -0.085, -0.052); }
       // (the ramrod, for loading: drawn out of its pipes and down the barrel)
@@ -574,12 +585,13 @@ export class Player {
     // where it is: at the hip, at the eye, or down for loading; and kicked by the shot
     const a = this.gunAim, k = this.gunKickT * this.gunKickT, g = this.gun;
     const LP = reloading ? loadPose(kind, RL - this.gunReload) : { up: 0, prime: 0, hand: null, rod: { out: 0, depth: 0 } };
+    this.loadHand = LP.hand;
     if (this.model) this.model.load = reloading ? { kind, e: RL - this.gunReload } : null;
     // three places for it: at the hip or the eye (aimed); low and turned lock-up for priming; and stood on its butt
     // before you, the muzzle up, for the charge, the ball and the rod. (A pistol: out at arm's length to aim, its kick
     // a sharp flip of the wrist.)
     const H = pis
-      ? [0.14 - 0.11 * a, -0.12 + 0.065 * a, -0.44 - 0.06 * a + 0.05 * k, -0.04 * (1 - a) + 0.35 * k, 0.03 * a, 0.15 * (1 - a)]
+      ? [0.14 - 0.11 * a, -0.12 + 0.042 * a, -0.44 - 0.12 * a + 0.05 * k, -0.04 * (1 - a) + 0.35 * k, -0.12 * (1 - a) + 0.03 * a, 0.15 * (1 - a)]
       : [0.22 - 0.22 * a, -0.27 + 0.155 * a, -0.32 + 0.02 * a + 0.06 * k, 0.04 * (1 - a) + 0.12 * k, 0.06 * (1 - a), 0.1 * (1 - a)];
     const P = pis ? [0.06, -0.19, -0.38, 0.3, 0.45, -1.0] : [0.12, -0.34, -0.4, 0.2, 0.45, -1.05];
     const v = H.map((h, i) => h + (P[i] - h) * LP.prime);
@@ -597,7 +609,7 @@ export class Player {
     // (stood up for the charge and the rod: leaning away to the left, the muzzle up in the corner of your eye — so the
     //  hand at it and the rod going down are in sight, and the field in front of you still is)
     if (LP.up > 0.001) {
-      const M = pis ? _gv.set(-0.15, -0.12, -0.5) : _gv.set(-0.15, -0.04, -0.6), d = _gd.set(pis ? -0.3 : -0.12, 0.85, pis ? -0.42 : -0.34).normalize();
+      const M = pis ? _gv.set(-0.15, -0.12, -0.5) : _gv.set(-0.13, -0.2, -0.64), d = _gd.set(pis ? -0.3 : -0.12, 0.85, pis ? -0.42 : -0.34).normalize();
       const len = this.gunModel.userData.muzzle.position.y;
       _gq.setFromUnitVectors(_gz.set(0, 0, -1), d);                 // (the barrel, -z in here, along d)
       _gq.multiply(_gq2.setFromAxisAngle(_gz.set(0, 0, 1), pis ? 0.4 : 0.5));   // (rolled, the lock toward you)
@@ -619,12 +631,12 @@ export class Player {
       //  charge, the ball, the rod — as the drill had it. The pistol stays in the right, and the left works.)
       const wi = pis ? 1 : 0, h = this.hands[wi], rest = pis ? null : [-0.065, -0.024];
       const top = RE.show ? (RE.R[0] > RE.T[0] ? RE.R : RE.T) : null;
-      const tgt = LP.hand === "lock" ? [0.07, 0.06] : LP.hand === "muzzle" ? [muzY + 0.05, 0.035] : LP.hand === "rod" && top ? [top[0] - 0.05, top[1]] : LP.hand === "rod" ? [muzY + 0.03, 0.03] : rest;
+      const tgt = LP.hand === "lock" ? [0.07, 0.06] : LP.hand === "muzzle" ? [muzY + 0.05, 0.035] : LP.hand === "rod" && top ? [Math.min(top[0] - 0.05, muzY + 0.2), top[1]] : LP.hand === "rod" ? [muzY + 0.03, 0.03] : rest;
       h.userData.at = h.userData.at || [rest ? rest[0] : 0.1, rest ? rest[1] : -0.03];
       if (tgt) { const kk = Math.min(1, dt * 12); h.userData.at[0] += (tgt[0] - h.userData.at[0]) * kk; h.userData.at[1] += (tgt[1] - h.userData.at[1]) * kk; }
       h.position.set(LP.hand === "lock" ? 0.05 : !pis && LP.hand ? 0.045 : 0, h.userData.at[0], h.userData.at[1]);
       if (pis && this.arms && this.arms[1]) { const seen = !!(reloading && LP.hand); this.arms[1].arm.visible = seen; h.visible = seen; }
-      if (!pis) { const f = this.hands[1]; f.position.y = 0.46 + (0.6 - 0.46) * LP.up; }
+      if (!pis) { const f = this.hands[1]; f.position.y = MUSKET_FORE_Y + (0.6 - MUSKET_FORE_Y) * LP.up; }
       if (this.loadKit) this.loadKit.show(reloading ? kind : null, RL - this.gunReload, muzY);
     }
     // (the arms come in to it while it's stood up: the shoulders forward, the elbows bent)
@@ -770,8 +782,12 @@ export class Player {
       const skinM = ARMS_M.skin;
       const sleeveM = ARMS_M.sleeve;
       const cuffM = ARMS_M.cuff;
-      const fist = (x, y, z, rz) => { const h = new THREE.Group(); const f = new THREE.Mesh(new THREE.CapsuleGeometry(0.034, 0.05, 4, 8), skinM); f.rotation.z = rz; h.add(f); h.position.set(x, y, z); g.add(h); return h; };
-      this.hands = [fist(0.012, -0.06, 0.02, Math.PI / 2 - 0.3), fist(-0.006, -0.05, -0.27, Math.PI / 2 + 0.2)];
+      // (each hand told how it lies on the stock — the line of the wood through it, to the thumb's side, and which way the
+      //  knuckles go round it — for the arms that reach for it: fpUpdate)
+      const fist = (x, y, z, side, along, out) => { const h = new THREE.Group(); h.add(gripMesh(side)); h.position.set(x, y, z); h.userData.fp = { along: new THREE.Vector3(...along), out: new THREE.Vector3(...out), r: 0.02 }; g.add(h); return h; };
+      // (the right round the wrist of the stock, the thumb along its top toward the lock and the fingers round under it;
+      //  the left under the fore-end, palm up, the thumb along one side and the fingers up the other)
+      this.hands = [fist(0.012, -0.045, 0.02, "R", [0, 0, -1], [0, -1, 0]), fist(-0.006, -0.05, -0.27, "L", [0, 0, -1], [1, 0, 0])];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
         arm.add(new THREE.Mesh(sleeveGeo(0.048, 0.056), sleeveM));
@@ -1345,6 +1361,56 @@ export class Player {
     this.updateXbow(dt);
     this.updateGun(dt);
     this.updateWork(dt);
+    this.fpUpdate();
+  }
+  // your arms as one skin each (fparms.js): every hand the code above has put on something — the axe's haft, the
+  // musket's wrist and fore-end, the bow, a tool — is reached for by its own arm, from the shoulder, the fingers closed
+  // round it; the pieces that stood in for an arm (a sculpted fist, its wrist, a sleeve and a cuff) are hidden. An arm
+  // with nothing to hold hangs at your side, out of sight.
+  fpUpdate() {
+    if (!this.fpa) {
+      if (!(this.fpa = makeFPArms({ skin: ARMS_M.fpSkin, sleeve: ARMS_M.fpSleeve, cuff: ARMS_M.fpCuff }))) return;
+      vm.add(this.fpa.root); this.fpa.root.position.copy(FP_ROOT);
+    }
+    const A = this.fpa, root = A.root, want = {};
+    vm.updateMatrixWorld(true);
+    const shown = o => { for (; o && o !== vm; o = o.parent) if (!o.visible) return false; return !!o; };
+    vm.traverse(o => {
+      if (o === root || (this.swimRig && o === this.swimRig)) return;
+      if (o.userData.grip) { if (shown(o.parent) && !want[o.userData.side]) want[o.userData.side] = o; o.visible = false; }
+      else if (o.isMesh && (o.material === ARMS_M.sleeve || o.material === ARMS_M.cuff) && !inside(o, root) && !(this.swimRig && inside(o, this.swimRig))) o.visible = false;
+    });
+    // (a dagger's in the one hand: its grip's too short for two)
+    if (this.axe && this.blade === "dagger") want.L = null;
+    root.visible = !!(want.R || want.L);
+    if (!root.visible) return;
+    root.updateMatrixWorld(true);
+    const inv = _fpInv.copy(root.matrixWorld).invert(), rq = root.getWorldQuaternion(_fpQ).invert();
+    for (const s of ["R", "L"]) {
+      const arm = A[s], gm = want[s];
+      if (!gm) { restArm(arm); continue; }
+      const at = gm.getWorldPosition(_fpP).applyMatrix4(inv), gq = gm.getWorldQuaternion(_fpQ2).premultiply(rq);
+      const along = _fpA.set(0, 1, 0).applyQuaternion(gq), out = _fpO.set(1, 0, 0).applyQuaternion(gq);
+      // (a hold that says how the hand lies on it, in its own frame — the crossbow's)
+      const fp = gm.parent && gm.parent.userData.fp;
+      if (fp) { const pq = gm.parent.getWorldQuaternion(_fpQ2).premultiply(rq); along.copy(fp.along).applyQuaternion(pq); out.copy(fp.out).applyQuaternion(pq); }
+      // (a pistol's grip: its own line, from the butt up to the lock, the palm on its back and the fingers round its
+      //  front — the sculpted fist's frame lay across it)
+      if (this.gun && this.gunIs === "pistol" && s === "R" && this.gunModel) {
+        const m = this.gunModel; m.updateWorldMatrix(true, false);
+        at.copy(PISTOL_GRIP).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+        along.copy(PISTOL_AXIS).transformDirection(m.matrixWorld).applyQuaternion(rq);
+        out.copy(PISTOL_FWD).transformDirection(m.matrixWorld).applyQuaternion(rq);
+        arm.trigger = (arm.trigger || new THREE.Vector3()).copy(PISTOL_TRIGGER).applyMatrix4(m.matrixWorld).applyMatrix4(inv);
+      }
+      const g = this.gun ? (this.gunIs === "pistol" ? (s === "R" ? "pistol" : "stock") : s === "R" ? "stock" : "fore") : "haft";
+      // (the hand that loads holds the rod, thin; or a flask, a charge, the ball — a small round thing)
+      const loading = this.gun && this.loadHand && ((this.gunIs === "pistol") === (s === "L"));
+      const r = fp ? fp.r : loading ? (this.loadHand === "rod" ? 0.006 : 0.012) : g === "stock" ? 0.022 : g === "fore" ? 0.02 : 0.017;
+      arm.short = gripAt(A, arm, at, along, out, r); arm.at = at.clone(); arm.along = along.clone(); arm.r = r;
+      // (the fingers closed till each lies on it; under a fore-end only half closed, the gun lying in the palm)
+      wrapHand(A, arm, at, along, r, g === "pistol" && arm.trigger ? { aim: { index: { to: arm.trigger, hook: [62, 48] } } } : g === "fore" ? { most: 55 } : {});
+    }
   }
   // ---- swimming ----
   // in the water or out of it, each frame: your tools put away while you swim (and back in your hands on the shore),
@@ -1650,6 +1716,8 @@ function viewModel(dt, p, third) {
   // the bite: the blade stops dead in what it struck, and it jars your arms
   const im = Math.max(0, (p.impactT || 0) - G.time);
   if (im > 0) { const k = im / 0.18; camera.rotation.x += Math.sin(G.time * 70) * 0.006 * k; vm.position.y += 0.012 * k; vm.position.z += 0.025 * k; }
+  // (a test bench may turn what's in your hands about, to look at it from the side or below: tools/handbench.js)
+  if (window.__vmView) window.__vmView(vm);
 }
 
 // ---------------------------------------------------------------------------

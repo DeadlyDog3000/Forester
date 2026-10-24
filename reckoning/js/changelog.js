@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.119", date: "24 October 2026", title: "Real hands",
+    items: [
+      "Your arms, first person, are real arms now: one skin each from the shoulder to the fingertips — the coat's sleeve, the shirt's linen cuff at the wrist, the wrist, the hand — on a skeleton with every joint of every finger (MakeHuman's body, CC0). No more sleeve tube, wrist tube and sculpted fist stuck end to end: nothing to come apart.",
+      "Each arm reaches for what its hand holds, the elbow bending and the forearm turning with the hand; and the fingers close joint by joint until each lies on the thing — round an axe's haft, a sword's hilt, a spear, a pick, the saw's handle, the bow's grip — never through it, never short of it. The thumb comes round the outside.",
+      "The pistol is held as a pistol is: the palm on the back of the grip, the fingers round its front under the guard, the thumb along the left under the cock, and the forefinger hooked through the guard onto the trigger.",
+      "The musket's fore-end lies in your open left hand, the fingers up its side; your left hand comes back to where a man's arm reaches, not out at the far end of the stock. Loading, the right hand closes on the ramrod (thin) or the flask (small) as it really does, and the gun stands lower so your arm doesn't sweep across your face.",
+      "The crossbow has hands again — the right round the wrist of the stock, the left under the fore-end — and a dagger is held in the one hand.",
+    ],
+  },
+  {
     v: "1.99.118", date: "24 October 2026", title: "Every shot heard",
     items: [
       "Other men's muskets are heard again when you aren't carrying one. In a crowded fight the far shots were the first sounds dropped to keep the sound from overloading — so the field went quiet unless you fired yourself. Now a shot within a long musket range is always heard, and further ones come before footsteps and cries.",
