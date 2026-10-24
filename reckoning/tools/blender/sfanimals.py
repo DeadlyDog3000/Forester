@@ -35,6 +35,11 @@ ANIMALS = {
     # (the draught horse: its rigged body only — the file also carries the unrigged sculpt it was made from, 350,000
     #  vertices, which goes)
     "horse": ("draft_horse/scene.gltf", 1.97, {"Idle": REST, "Walk": WALK, "Run": GALLOP}),
+    # the beasts of the wider world
+    "elephant": ("elephant_y/scene.gltf", 5.6, {"Idle": "idle", "Look": "idle trumpet", "Eat": "eating", "Walk": "walk", "Run": "run", "Die": "death"}),
+    "giraffe": ("giraffe/scene.gltf", 3.0, {"Idle": "Idle", "Look": "Drink", "Eat": "Eat", "Walk": "Walk_Forward", "Run": "Run_Forward"}),
+    "camel": ("camel/scene.gltf", 3.0, {"Idle": "Animation", "Walk": WALK, "Run": GALLOP}),
+    "polarbear": ("polar/scene.gltf", 2.3, {"Idle": "idleSmell", "Run": "polarbearrun"}),
 }
 SKINNED_ONLY = {"horse"}
 # (stray pieces some files carry, well away from the animal: gone)
@@ -47,6 +52,8 @@ LEGS = {
              "BL": ["LegBL1_049", "LegBL2_050", "LegBL3_051"], "BR": ["LegBR1_054", "LegBR2_055", "LegBR3_056"], "head": "Head_09"},
     "horse": {"FL": ["Bone.044_Armature", "Bone.046_Armature", "Bone.048_Armature"], "FR": ["Bone.043_Armature", "Bone.045_Armature", "Bone.047_Armature"],
               "BL": ["Bone.034_Armature", "Bone.036_Armature", "Bone.038_Armature"], "BR": ["Bone.033_Armature", "Bone.035_Armature", "Bone.037_Armature"], "head": "Bone.016_Armature"},
+    "camel": {"FL": ["FrontLeg.L_9", "FrontUpLeg.L_8", "FrontLowLeg.L_7"], "FR": ["FrontLeg.R_3", "FrontUpLeg.R_2", "FrontLowLeg.R_1"],
+              "BL": ["BackLeg.L_12", "BackUpLeg.L_11", "BackLowLeg.L_10"], "BR": ["BackLeg.R_6", "BackUpLeg.R_5", "BackLowLeg.R_4"], "head": "Head_14"},
     "fox": {"FL": ["Fox_ L UpperArm_00", "Fox_ L Forearm_019", "Fox_ L Hand_020"], "FR": ["Fox_ R UpperArm_023", "Fox_ R Forearm_024", "Fox_ R Hand_025"],
             "BL": ["Fox_ L Thigh_03", "Fox_ L Calf_04", "Fox_ L HorseLink_05"], "BR": ["Fox_ R Thigh_07", "Fox_ R Calf_08", "Fox_ R HorseLink_09"], "head": "Fox_ Head_016"},
 }
@@ -199,7 +206,16 @@ def build(name):
     head = next((b for b in arm.pose.bones if "head" in b.name.lower()), None)
     if name in LEGS:
         lg = LEGS[name]; B = arm.data.bones
-        up = (W @ (B[lg["BL"][0]].head_local - B[lg["BL"][-1]].tail_local)).normalized()
+        # (up from all four legs, top over foot, together: a hind leg alone slants, and stood the animal on a tilt)
+        up = (W @ sum((B[lg[k][0]].head_local - B[lg[k][-1]].tail_local for k in ("FL", "FR", "BL", "BR")), Vector())).normalized()
+        # (and better still, square to the line along the four feet, nose to tail)
+        ff = (B[lg["FL"][-1]].tail_local + B[lg["FR"][-1]].tail_local) / 2; bf = (B[lg["BL"][-1]].tail_local + B[lg["BR"][-1]].tail_local) / 2
+        sideA = W @ (B[lg["FL"][-1]].tail_local + B[lg["BL"][-1]].tail_local - B[lg["FR"][-1]].tail_local - B[lg["BR"][-1]].tail_local)
+        along = W @ (ff - bf)
+        n = along.cross(sideA)
+        if n.length > 1e-6:
+            n.normalize()
+            up = n if n.dot(up) > 0 else -n
         fwd = W @ (B[lg["head"]].head_local - (B[lg["BL"][0]].head_local + B[lg["BR"][0]].head_local) / 2)
     else:
         up = Vector((0, 0, 1))

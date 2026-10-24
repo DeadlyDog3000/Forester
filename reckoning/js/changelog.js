@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.110", date: "23 October 2026", title: "Elephant, giraffe, camel and polar bear",
+    items: [
+      "The wider world's beasts, real: the elephant — wrinkled grey hide, tusks and trunk — that stands swaying, trumpets, feeds, walks and charges, and goes down when it falls; the giraffe, dappled and long-necked, grazing, drinking, walking and galloping; the camel, a dromedary with its one hump, standing chewing and walking and running on its own long legs; and the polar bear, white and heavy, sniffing the wind and running.",
+      "The horse, the wolf and the fox stood on a tilt — set level by one hind leg, which slants; they're set by all four feet now, and stand square.",
+      "A cart horse wears a cart horse's harness now: the stuffed leather collar on its shoulders, the wooden hames along it, the traces back along its sides.",
+      "Models by Rukh3D, Nyilonelycompany, kenchoo and planeta-elefante (CC BY 4.0), credited in the credits.",
+    ],
+  },
+  {
     v: "1.99.109", date: "23 October 2026", title: "Bear, wolf, boar, fox and horse",
     items: [
       "The wild boar is a real boar now — coarse black bristles, a long snout and tusks — walking the woods as boars walk; shot, it goes over onto its side.",

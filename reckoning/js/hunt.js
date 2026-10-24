@@ -52,7 +52,8 @@ const CLIPS = {
   walk: ["Walk", "Running"], run: ["Run", "Running"], die: ["Die.000", "Die.001", "Dying.000", "Die"],
 };
 // (the pace each clip was made for, at full size, in metres a second: played faster or slower to match the ground covered)
-const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 }, bear: { walk: 1.1, run: 7 }, boar: { walk: 1.0, run: 1.0 }, wolf: { walk: 0.5, run: 3 }, fox: { walk: 0.3, run: 1.8 } };
+const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 }, bear: { walk: 1.1, run: 7 }, boar: { walk: 1.0, run: 1.0 }, wolf: { walk: 0.5, run: 3 }, fox: { walk: 0.3, run: 1.8 },
+  elephant: { walk: 0.9, run: 3.5 }, giraffe: { walk: 1.5, run: 4 }, camel: { walk: 1.0, run: 4 }, polarbear: { walk: 5, run: 5 } };
 class Animal {
   constructor(hunt, kind, x, z, opts = {}) {
     this.hunt = hunt; this.kind = kind; this.K = KINDS[kind];
@@ -78,7 +79,7 @@ class Animal {
       }
       // (what a model hasn't got, it borrows: a run from its walk, a look and a graze from its standing; and standing,
       //  from its walk held still at the step's start, if that's all it has)
-      this.acts.run ??= this.acts.walk; this.acts.look ??= this.acts.idle; this.acts.eat ??= this.acts.idle;
+      this.acts.run ??= this.acts.walk; this.acts.walk ??= this.acts.run; this.acts.look ??= this.acts.idle; this.acts.eat ??= this.acts.idle;
       if (!this.acts.idle && this.acts.walk) { const c = this.acts.walk.getClip(); this.acts.idle = this.mix.clipAction(THREE.AnimationUtils.subclip(c, "still", 0, 1, 30)); }
       this.acts.look ??= this.acts.idle; this.acts.eat ??= this.acts.idle;
       if (this.acts.die) { this.acts.die.setLoop(THREE.LoopOnce); this.acts.die.clampWhenFinished = true; }

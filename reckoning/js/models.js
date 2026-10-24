@@ -552,7 +552,7 @@ async function fetchModel(k, url) {
       // (a quarry's and a mine's stone is the rock of the hill, broken — not a mason's wall)
       if (n === "stone" && /quarry|mine/.test(k)) m.userData.surface = "rock";
       // (a real animal's fur and eyes are painted in its own textures: no grain laid over them)
-      if (/^(deer|doe|hare|bear|boar|wolf|fox|horse)$/.test(k)) {
+      if (/^(deer|doe|hare|bear|boar|wolf|fox|horse|elephant|giraffe|camel|polarbear)$/.test(k)) {
         m.userData.surface = "none";
         // (fur and hide are matte: a soft sheen at most, never the gloss of wet paint the files came with)
         m.roughness = Math.max(m.roughness ?? 1, 0.88); m.metalness = 0; if (m.roughnessMap) m.roughnessMap = null; if (m.metalnessMap) m.metalnessMap = null;
@@ -2220,7 +2220,7 @@ const G_T = () => performance.now() / 1000;
 // built one's workings kept underneath it (its gaits, its rearing, the lift of the saddle, the beat of its hooves for
 // the sounds), unseen; else the built one, as it always was
 // (the top of its back where the saddle goes, measured on the model: its height, and how far back of its middle)
-const HORSE_BACK = 1.44, HORSE_SADDLE_Z = -0.12;
+const HORSE_BACK = 1.44, HORSE_SADDLE_Z = -0.12, HORSE_COLLAR_Z = 0.33;
 const GREY_MAPS = new WeakMap();
 function greyMap(t) {
   if (GREY_MAPS.has(t)) return GREY_MAPS.get(t);
@@ -2252,6 +2252,17 @@ export function makeHorse(coat = 0x6a4428, seed = 1, opts = {}) {
     const seat = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2), lm); seat.scale.set(0.95, 0.38, 1.35); seat.position.set(0, HORSE_BACK - 0.03, HORSE_SADDLE_Z); tack.add(seat);
     for (const z of [0.24, -0.25]) { const r = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6), lm); r.scale.set(1.6, 0.8, 0.6); r.position.set(0, HORSE_BACK + 0.04, HORSE_SADDLE_Z + z); tack.add(r); }
     for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.4, 0.03), lm); st.position.set(sd * 0.27, HORSE_BACK - 0.27, HORSE_SADDLE_Z + 0.05); st.rotation.z = sd * 0.12; tack.add(st); }
+    tack.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    bod.add(tack);
+  } else {
+    // (a cart horse's harness: the stuffed leather collar round the base of its neck, the wooden hames along it, and the
+    //  traces from the hames back along its sides to the cart)
+    const tack = new THREE.Group(), lm = mat(0x3a2416, { surface: "none", roughness: 0.75 }), wm = mat(0x6a4a2a, { surface: "wood" });
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.065, 10, 22), lm); collar.scale.set(1, 1.35, 1); collar.position.set(0, HORSE_BACK - 0.02, HORSE_COLLAR_Z); collar.rotation.x = -0.8; tack.add(collar);
+    for (const sd of [-1, 1]) {
+      const hame = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.022, 0.7, 6), wm); hame.position.set(sd * 0.27, HORSE_BACK - 0.02, HORSE_COLLAR_Z + 0.03); hame.rotation.x = -0.8; tack.add(hame);
+      const trace = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.045, 1.5), lm); trace.position.set(sd * 0.3, HORSE_BACK - 0.33, HORSE_COLLAR_Z - 0.78); trace.rotation.x = -0.05; tack.add(trace);
+    }
     tack.traverse(o => { if (o.isMesh) o.castShadow = true; });
     bod.add(tack);
   }
