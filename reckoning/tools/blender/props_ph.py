@@ -33,10 +33,14 @@ PROPS = {
     "crate": ("wooden_crate_02", 0.46, 0),
     "crate_s": ("wooden_crate_01", 0.35, 0),
     "plate": ("carved_wooden_plate", 0.03, 0),
+    "goblet": ("brass_goblets", 0.2, 0),
+    "bed": ("GothicBed_01", 1.45, 0),
 }
 
 
-CUT = {"candlestick": 1500, "chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000, "crate": 2500, "crate_s": 2500, "plate": 1200}
+CUT = {"candlestick": 1500, "chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000, "crate": 2500, "crate_s": 2500, "plate": 1200, "goblet": 1500, "bed": 6000}
+# (a file of several, one of them taken alone: its object's name)
+ONLY = {"goblet": "brass_goblet_01"}
 
 
 def build(name):
@@ -47,6 +51,9 @@ def build(name):
     for o in list(bpy.data.objects):
         if o.type != "MESH":
             bpy.data.objects.remove(o, do_unlink=True)
+    if name in ONLY:
+        for o in list(bpy.data.objects):
+            if o.name != ONLY[name]: bpy.data.objects.remove(o, do_unlink=True)
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
     R = Matrix.Rotation(rz * 3.14159265 / 180, 4, "Z")
     for o in meshes:

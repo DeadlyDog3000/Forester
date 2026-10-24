@@ -497,8 +497,12 @@ export class Hamburg extends WorldBase {
     this.col.addRect(9.1, -12.2, 0.4, 1.4, 2.2); this.col.addRect(12.6, -14.45, 1.6, 0.4, 2.2);
     this.col.addRect(9.9, -10.3, 1.3, 1.2, 0.6);
     // the bedroom
-    P.bed(props, 14.9, -12.8, 0); P.bed(props, 16.9, -12.8, 0);
-    this.col.addRect(14.9, -12.8, 1, 2.1, 0.6); this.col.addRect(16.9, -12.8, 1, 2.1, 0.6);
+    // (a merchant's beds: carved and posted, the linen white — scanned (Poly Haven, CC0), where they're loaded)
+    for (const x of [14.9, 16.9]) {
+      const m = modelCopy("prop_bed");
+      if (m) { props.object(m.scene, x, 0, -12.8, 0, 1); m.scene.scale.set(0.82, 1, 1.02); } else P.bed(props, x, -12.8, 0);
+      this.col.addRect(x, -12.8, 1.15, 2.1, 0.6);
+    }
     props.box(0.5, 0.5, 0.4, 17.3, 0.25, -9.6, 0x5a3e28);
     // ---- windows, from inside: small leaded panes in deep frames, the day showing through them (or the dark) ----
     // (old glass: the sky bright at the top of the pane, the yard's walls and roofs darker below, a little uneven)
@@ -523,8 +527,15 @@ export class Hamburg extends WorldBase {
     // ---- what a merchant's house has in it ----
     // the hall: a dresser of pewter on the east wall, a candlestick on it
     props.box(0.5, 0.95, 1.5, 17.42, 0.475, -6.4, 0x5a3e28, 0, 0.04); props.box(0.32, 0.95, 1.5, 17.5, 1.42, -6.4, 0x5a3e28, 0, 0.03);
-    for (const y of [1.2, 1.6]) { props.box(0.34, 0.03, 1.46, 17.48, y - 0.21, -6.4, 0x4a3220); for (let i = 0; i < 4; i++) props.add(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 12), 0x9a9c98, 17.38, y - 0.04, -6.95 + i * 0.36, 0, 0, Math.PI / 2 - 0.25); }
-    props.add(new THREE.CylinderGeometry(0.035, 0.05, 0.22, 8), 0x9a9c98, 17.3, 1.06, -6.0);
+    for (const y of [1.2, 1.6]) { props.box(0.34, 0.03, 1.46, 17.48, y - 0.21, -6.4, 0x4a3220); for (let i = 0; i < 4; i++) {
+      // (the carved wooden plates stood on edge along it, leaning back on the boards (Poly Haven, CC0), or pewter)
+      const m = modelCopy("prop_plate");
+      if (m) { props.object(m.scene, 17.29, y - 0.195 + 0.13, -6.95 + i * 0.36, 0, 1.25); m.scene.rotation.set(0, 0, Math.PI / 2 - 0.22); }
+      else props.add(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 12), 0x9a9c98, 17.38, y - 0.04, -6.95 + i * 0.36, 0, 0, Math.PI / 2 - 0.25);
+    } }
+    // (brass goblets on it, scanned (Poly Haven, CC0), where they're loaded; a pewter flagon where not)
+    if (modelCopy("prop_goblet")) for (const [z, ry] of [[-6.08, 0.4], [-5.8, 2.1]]) props.object(modelCopy("prop_goblet").scene, 17.2, 0.95, z, ry, 1);
+    else props.add(new THREE.CylinderGeometry(0.035, 0.05, 0.22, 8), 0x9a9c98, 17.3, 1.06, -6.0);
     this.col.addRect(17.42, -6.4, 0.5, 1.5, 1.9);
     // the counting room: an iron-bound strongbox, and the map of the Elbe pinned up on the west wall
     if (!P.chest(props, 13.3, -10.5, 0, 0.8)) {
@@ -546,15 +557,18 @@ export class Hamburg extends WorldBase {
     props.add(new THREE.CylinderGeometry(0.06, 0.08, 0.24, 10), 0xc8c0b0, 17.62, 0.95, -9.82);
     this.col.addRect(17.55, -10.0, 0.42, 0.5, 0.8);
     props.box(0.06, 0.42, 0.04, 15.9, 2.55, -9.12, 0x3a2a1c); props.box(0.28, 0.06, 0.04, 15.9, 2.62, -9.12, 0x3a2a1c);
-    // a clothes chest at the foot of each bed, iron-cornered, with a folded blanket on one
+    // a clothes chest at the foot of each bed, iron-cornered
+    // (the real chest's lid is domed: the blanket only on the old flat one)
+    let flat = false;
     for (const x of [14.9, 16.9]) {
       if (P.chest(props, x, -11.57, 0, 0.86)) continue;
+      flat = true;
       props.box(0.86, 0.46, 0.38, x, 0.23, -11.57, 0x5e4028, 0, 0.03); props.box(0.9, 0.06, 0.42, x, 0.48, -11.57, 0x4e3420);
       for (const sx of [-0.4, 0.4]) props.box(0.05, 0.47, 0.39, x + sx, 0.235, -11.57, 0x2a2622);
       props.box(0.1, 0.12, 0.03, x, 0.38, -11.37, 0x2a2622);
       this.col.addRect(x, -11.57, 0.86, 0.38, 0.5);
     }
-    props.box(0.7, 0.12, 0.32, 14.9, 0.57, -11.57, 0x8a6a4a); props.box(0.7, 0.02, 0.32, 14.9, 0.64, -11.57, 0x6a4a3a);
+    if (flat) { props.box(0.7, 0.12, 0.32, 14.9, 0.57, -11.57, 0x8a6a4a); props.box(0.7, 0.02, 0.32, 14.9, 0.64, -11.57, 0x6a4a3a); }
     // a peg rail on the partition wall: Father's old coat that came down to you, and a cap
     const wx = 14.12;
     props.box(0.05, 0.1, 1.6, wx, 1.75, -10.6, 0x4e3420);

@@ -1,4 +1,4 @@
-"""The country's own things, scanned: rocks, stumps, fallen trunks, ferns, shrubs, nettles and the fire's ring of stones
+"""The country's own things, scanned: rocks, stumps, fallen trunks, dry branches, ferns, shrubs, nettles and the fire's ring of stones
 — Poly Haven's photographed models (CC0, polyhaven.com), cut down to what a game can draw by the hundred.
 
 Each is joined into one mesh with one material ("<name>_pbr": the game leaves it as photographed), its triangles
@@ -29,7 +29,12 @@ NATURE = {
     "fern": ("fern_02", 4000, 1.0, True),
     "nettle": ("nettle_plant", 6000, 1.0, True),
     "firepit": ("stone_fire_pit", 3900, 1.0, False),
+    "branch_a": ("dry_branches_medium_01", 900, 1.0, False),
+    "branch_b": ("dry_branches_medium_01", 700, 1.0, False),
+    "branch_c": ("dry_branches_medium_01", 700, 1.0, False),
 }
+# (a file of several laid side by side, one of them taken alone: its object's name)
+ONLY = {"branch_a": "dry_branches_medium_01_a", "branch_b": "dry_branches_medium_01_b", "branch_c": "dry_branches_medium_01_c"}
 TEX = 512
 
 
@@ -41,6 +46,9 @@ def build(name):
     for o in list(bpy.data.objects):
         if o.type != "MESH":
             bpy.data.objects.remove(o, do_unlink=True)
+    if name in ONLY:
+        for o in list(bpy.data.objects):
+            if o.name != ONLY[name]: bpy.data.objects.remove(o, do_unlink=True)
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
     for o in meshes:
         o.data.transform(o.matrix_world); o.matrix_world = Matrix.Identity(4); o.parent = None

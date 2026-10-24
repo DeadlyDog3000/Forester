@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.134", date: "24 October 2026", title: "The merchant's house, furnished",
+    items: [
+      "The bedroom in the Hamburg house has two carved, posted beds made up in white linen, scanned (Poly Haven, CC0), instead of log frames.",
+      "The hall dresser shows its carved wooden plates stood on edge along the shelves (before, they were sunk into the boards and showed as slits), with two brass goblets on the counter.",
+      "The folded blanket no longer hovers over the domed lid of the clothes chest.",
+    ],
+  },
+  {
     v: "1.99.133", date: "24 October 2026", title: "Crates, a cast barrel, sacks and plates",
     items: [
       "Cargo crates are real: Hamburg's quay and street barricades stack scanned wooden crates, two by two, where there were plain boxes (Poly Haven, CC0).",
