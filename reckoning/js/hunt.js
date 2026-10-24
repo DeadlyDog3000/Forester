@@ -34,6 +34,11 @@ const KINDS = {
 // (and the beasts of the wider world: Frontier's maps, the Earth)
 for (const [k, v] of Object.entries(SPECIES)) if (!KINDS[k]) KINDS[k] = { ...v, meatKind: "meat" };
 const GRAVITY = 9.8;
+// (the range your own bow and crossbow are sighted for: where the shot crosses the line you aimed along)
+const ZERO_AT = 20;
+// how fast an arrow leaves: a hunting bow at full draw about 55 m/s, half drawn much less; a spanned crossbow's bolt
+// about 65 — for anyone's shot, and for anyone aiming one (they allow for its drop by it)
+export const arrowSpeed = (power, bolt) => bolt ? 65 : 14 + 41 * Math.min(1, power);
 
 // feeding: how far the neck goes down (and the body leans onto the forelegs) to bring the mouth to the grass, and to a
 // bush's leaves — measured on the models, so the muzzle meets the ground rather than stopping short in the air
@@ -542,11 +547,18 @@ export class Hunt {
     // (a crossbow's bolt: half the length of an arrow, and stouter)
     if (bolt) mesh.scale.set(1.5, 1.5, 0.5);
     this.w.root.add(mesh);
-    const ar = { mesh, pos: from.clone(), from: from.clone(), vel: dir.clone().multiplyScalar(14 + 32 * power), power, t: 0, stuck: false, npc, atYou, bolt };
+    // (how fast it leaves: a hunting bow at full draw about 55 m/s, half drawn much less; a spanned crossbow's bolt about 65)
+    const speed = arrowSpeed(power, bolt);
+    // (yours goes where you aimed it at twenty paces: an archer allows for the drop, and so does a crossbow's sight — it
+    //  rises a little over the line and comes down onto it there; nearer it's a hand high, further it falls short.
+    //  Sent straight down the crosshair, everything at a hunting range landed a foot or two low)
+    const d = dir.clone();
+    if (!npc && !atYou) { const lift = GRAVITY * ZERO_AT / (2 * speed * speed); d.y += lift * Math.hypot(d.x, d.z); d.normalize(); }
+    const ar = { mesh, pos: from.clone(), from: from.clone(), vel: d.multiplyScalar(speed), power, t: 0, stuck: false, npc, atYou, bolt };
     this.arrows.push(ar);
     this.orient(ar);
     // (yours: told to whoever else should see it fly)
-    if (!npc && !atYou && G.onLoose) G.onLoose(from, dir, power, bolt);
+    if (!npc && !atYou && G.onLoose) G.onLoose(from, d.clone().normalize(), power, bolt);
   }
   // a musket ball: no arrow to see, it's there at once — along the line from the muzzle until it meets something: a man
   // (anywhere on him, the head counting double), a beast, a tree or a wall, or the ground. Everything for sixty metres

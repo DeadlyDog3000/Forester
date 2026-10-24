@@ -764,7 +764,8 @@ export class Player {
     } else if ((this.breathHeld || 0) >= 3.5) steady = 1.8;
     this.shake = this.draw >= 1 ? Math.min(1, 0.15 + (this.heldFull || 0) / 3) * aimSteady(G.body) * steady : 0;
     // the aim drifts as you hold it: a slow wander, a little more the harder the pull and the more tired the arms
-    const t = G.time, amp = this.draw > 0 ? (0.004 + 0.006 * this.draw + 0.018 * this.shake) * steady : 0;
+    // (steady at first — a quarter of a degree of wander, drawn — and worse as the arms tire: the shake)
+    const t = G.time, amp = this.draw > 0 ? (0.002 + 0.003 * this.draw + 0.018 * this.shake) * steady : 0;
     this.swX = (Math.sin(t * 0.83) * 0.6 + Math.sin(t * 1.71 + 1.3) * 0.4) * amp + Math.sin(t * 17) * 0.004 * this.shake;
     this.swY = (Math.sin(t * 1.17 + 0.4) * 0.6 + Math.sin(t * 2.3) * 0.4) * amp * 0.8 + Math.sin(t * 13) * 0.004 * this.shake;
     this.bowPose(this.draw);

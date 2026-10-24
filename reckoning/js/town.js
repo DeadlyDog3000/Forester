@@ -22,6 +22,7 @@ import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { makeStump, modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, bowHold, SWAY, addSway, swayGeo } from "./models.js";
+import { arrowSpeed } from "./hunt.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { Smoke, Breath, chimneyMark } from "./smoke.js";
 import { ARMS, ARM_KINDS } from "./raid.js";
@@ -2829,7 +2830,7 @@ export class Town {
             a.faceTo(q.pos.x, q.pos.z); a.person.setPose("idle"); a.person.aimWant = true; a.doing = `drawing on a ${q.K.name}`;
             await sleep(1.4); alive();
             if (H && q.alive) {
-              const from = new THREE.Vector3(a.pos.x, a.pos.y + 1.45, a.pos.z), to = q.centre(), d = from.distanceTo(to), v = 14 + 32 * 0.9;
+              const from = new THREE.Vector3(a.pos.x, a.pos.y + 1.45, a.pos.z), to = q.centre(), d = from.distanceTo(to), v = arrowSpeed(0.9, false);
               to.y += 4.9 * (d / v) ** 2;                    // (aimed up a little, for the drop)
               const dir = to.sub(from).normalize(), wob = 0.07 - skill * 0.05;
               dir.x += (Math.random() - 0.5) * wob; dir.y += (Math.random() - 0.5) * wob * 0.6; dir.z += (Math.random() - 0.5) * wob; dir.normalize();

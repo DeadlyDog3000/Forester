@@ -17,7 +17,7 @@ import { FOLEY } from "./foley.js";
 import { pool, sever, heal, clearGore } from "./gore.js";
 import { full, gate } from "./licence.js";
 import { Woods, HUNT } from "./woods.js";
-import { Hunt } from "./hunt.js";
+import { Hunt, arrowSpeed } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst, killMark, chestOf } from "./fight.js";
 import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, bowHold, makeHorse, mergeRig, makeLadder } from "./models.js";
 import { resetForMode } from "./story.js";
@@ -3112,7 +3112,7 @@ class Bot extends Fighter {
     if (k === "bow" || k === "crossbow") {
       this.ammo--;
       // the arrow loosed, as a man would: up a little for the drop, ahead of him if he's running
-      const power = k === "bow" ? 0.95 : 1.75, v = 14 + 32 * power;
+      const power = k === "bow" ? 0.95 : 1.75, v = arrowSpeed(power, k === "crossbow");
       const to = new THREE.Vector3(tp.x, tp.y + (low ? 0.95 : 1.25), tp.z), flight = from.distanceTo(to) / v;
       if (tv) to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), flight * (0.4 + s * 0.6));
       to.y += 4.9 * flight * flight;

@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.121", date: "24 October 2026", title: "True arrows",
+    items: [
+      "Your arrows and bolts go where you aim them. Both were sent straight down the crosshair and dropped under their own weight — an arrow at full draw landed nearly a metre low at twenty paces, a bolt nearly half a metre — so shots that looked dead on went under the deer. Now your bow and your crossbow are sighted in at twenty metres, as an archer allows for the drop: on the crosshair there, a hand high nearer, falling short further off.",
+      "They fly as fast as the real ones: an arrow from a hunting bow at full draw about 55 metres a second (it was 46), a crossbow bolt about 65.",
+      "The bow is steadier in the hand: drawn, its aim wanders a quarter of a degree, half what it did — until your arms tire and it begins to shake, as before.",
+      "The soldiers and hunters who shoot at you allow for the same flight, so their aim stays as true as it was.",
+    ],
+  },
+  {
     v: "1.99.120", date: "24 October 2026", title: "The archer's draw, and swimming arms",
     items: [
       "The bowstring is drawn as an archer draws it: three fingers hooked on the string — the forefinger above the arrow, two below — the back of the hand out to the side, the little finger and the thumb tucked away. (It was a fist round the string, thumb up.)",
