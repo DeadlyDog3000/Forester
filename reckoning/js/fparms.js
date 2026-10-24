@@ -191,6 +191,17 @@ export function gripAt(arms, A, at, along, out, r = 0.017, pole = null) {
   return short;
 }
 
+// a hand laid open where it's wanted — the wrist at W, the fingers along F, the palm facing P (root's frame) — and the
+// arm to it: a swimmer's stroke, a hand held out
+export function handAt(arms, A, W, F, P, pole = null) {
+  const { yL, tL, pL } = A.frame, h = new THREE.Vector3().crossVectors(tL, yL).dot(pL) > 0 ? 1 : -1;
+  const f = F.clone().normalize(), p = P.clone().addScaledVector(f, -P.dot(f)).normalize();
+  const t = new THREE.Vector3().crossVectors(f, p).multiplyScalar(h);
+  _m1.makeBasis(tL, yL, pL); _m2.makeBasis(t, f, p);
+  _qh.setFromRotationMatrix(_m2.multiply(_m1.transpose()));
+  return reach(arms, A, W, _qh, pole);
+}
+
 // the arm to a wrist at W with the hand turned to qh (both in the root's frame)
 const _S = new THREE.Vector3(), _E = new THREE.Vector3(), _d = new THREE.Vector3(), _pl = new THREE.Vector3(), _y = new THREE.Vector3(0, 1, 0);
 const _qu = new THREE.Quaternion(), _ql = new THREE.Quaternion(), _qp = new THREE.Quaternion(), _qa = new THREE.Quaternion();

@@ -12,7 +12,7 @@ import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
-import { makeFPArms, gripAt, wrapHand, restArm } from "./fparms.js";
+import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { makePerson, makeAxe, makeArm, makeSaw, makeHammer, makeKnife, makeFood, makeSpade, makeLadle, makeSpatula, makeSickle, modelCopy, setToolSource, makeOwnArm , makeHorse, ensureModel } from "./models.js";
@@ -49,7 +49,7 @@ const ARMS_M = { get fpSkin() { return this._fps ??= this.skin.clone(); }, get f
 const SHOULDER_DROP = new THREE.Vector3(0, -0.14, 0.04);
 // (where the one-skin arms stand in the view model: their shoulders a little below and behind your eye)
 const FP_ROOT = new THREE.Vector3(0, -1.72, 0.14);
-const _fpInv = new THREE.Matrix4(), _fpQ = new THREE.Quaternion(), _fpQ2 = new THREE.Quaternion(), _fpP = new THREE.Vector3(), _fpA = new THREE.Vector3(), _fpO = new THREE.Vector3();
+const _fpBox = new THREE.Box3(), _fpSph = new THREE.Sphere(), _fpInv = new THREE.Matrix4(), _fpQ = new THREE.Quaternion(), _fpQ2 = new THREE.Quaternion(), _fpP = new THREE.Vector3(), _fpA = new THREE.Vector3(), _fpO = new THREE.Vector3();
 const inside = (o, p) => { for (; o; o = o.parent) if (o === p) return true; return false; };
 // (and each hand turned a little further round what it holds than straight on from its wrist, so from your eyes you see
 //  the fingers wrapped round the front of it, not only the back of the hand)
@@ -673,6 +673,9 @@ export class Player {
       const fist = (parent, side) => { const h = new THREE.Group(); h.add(gripMesh(side)); parent.add(h); return h; };
       const grip = fist(g, "L"); grip.position.set(0, 0, 0.02);
       this.nockHand = fist(g, "R");
+      // (the string hand: three fingers hooked on the string — the forefinger above the arrow, two below — the back of
+      //  the hand out to the right, the little finger and the thumb curled out of the way)
+      this.nockHand.userData.fp = { along: new THREE.Vector3(0, 1, 0), out: new THREE.Vector3(0, 0, -1), r: 0.003, hook: true };
       this.hands = [this.nockHand, grip];
       this.arms = this.hands.map((h, i) => {
         const arm = new THREE.Group();
@@ -944,6 +947,8 @@ export class Player {
         // (and a saw's teeth down, into the cut)
         if (kind === "saw") tool.rotation.y = Math.PI;
         hand.add(tool);
+        // (food is held round itself, not as a handle: the arms measure it — fpUpdate)
+        if (kind === "eat" || kind === "food") hand.userData.food = tool;
         // the sleeve runs from the right shoulder to the hand, wherever the hand goes (as the axe's do)
         const arm = new THREE.Group(); g.add(arm);
         const sleeve = new THREE.Mesh(sleeveGeo(0.048, 0.056), ARMS_M.sleeve); arm.add(sleeve);
@@ -1374,6 +1379,15 @@ export class Player {
     }
     const A = this.fpa, root = A.root, want = {};
     vm.updateMatrixWorld(true);
+    // (swimming: both hands open, flat, palms down and turned out as they sweep — the breaststroke worked out in swimArms)
+    if (this.swimOn && this.swimFP && this.swimFP.length) {
+      root.visible = true;
+      for (const t of this.swimFP) {
+        const W = _fpP.copy(t.h).sub(FP_ROOT).add(_fpA.set(0, 0, 0.06)), F = _fpA.set(0, -0.12, -1), P = _fpO.set(Math.sin(t.roll), -Math.cos(t.roll), 0);
+        handAt(A, A[t.side], W, F, P); closeHand(A[t.side], "open", 0.2);
+      }
+      return;
+    }
     const shown = o => { for (; o && o !== vm; o = o.parent) if (!o.visible) return false; return !!o; };
     vm.traverse(o => {
       if (o === root || (this.swimRig && o === this.swimRig)) return;
@@ -1393,6 +1407,9 @@ export class Player {
       const along = _fpA.set(0, 1, 0).applyQuaternion(gq), out = _fpO.set(1, 0, 0).applyQuaternion(gq);
       // (a hold that says how the hand lies on it, in its own frame — the crossbow's)
       const fp = gm.parent && gm.parent.userData.fp;
+      // (a loaf, an apple, a piece of meat: the hand round the middle of it, as big as it is)
+      const food = gm.parent && gm.parent.userData.food;
+      if (food) { const bs = (_fpBox.setFromObject(food)).getBoundingSphere(_fpSph); at.copy(bs.center).applyMatrix4(inv); food.r = Math.min(0.045, bs.radius * 0.75); }
       if (fp) { const pq = gm.parent.getWorldQuaternion(_fpQ2).premultiply(rq); along.copy(fp.along).applyQuaternion(pq); out.copy(fp.out).applyQuaternion(pq); }
       // (a pistol's grip: its own line, from the butt up to the lock, the palm on its back and the fingers round its
       //  front — the sculpted fist's frame lay across it)
@@ -1406,10 +1423,13 @@ export class Player {
       const g = this.gun ? (this.gunIs === "pistol" ? (s === "R" ? "pistol" : "stock") : s === "R" ? "stock" : "fore") : "haft";
       // (the hand that loads holds the rod, thin; or a flask, a charge, the ball — a small round thing)
       const loading = this.gun && this.loadHand && ((this.gunIs === "pistol") === (s === "L"));
-      const r = fp ? fp.r : loading ? (this.loadHand === "rod" ? 0.006 : 0.012) : g === "stock" ? 0.022 : g === "fore" ? 0.02 : 0.017;
+      const r = food ? food.r : fp ? fp.r : loading ? (this.loadHand === "rod" ? 0.006 : 0.012) : g === "stock" ? 0.022 : g === "fore" ? 0.02 : 0.017;
       arm.short = gripAt(A, arm, at, along, out, r); arm.at = at.clone(); arm.along = along.clone(); arm.r = r;
       // (the fingers closed till each lies on it; under a fore-end only half closed, the gun lying in the palm)
-      wrapHand(A, arm, at, along, r, g === "pistol" && arm.trigger ? { aim: { index: { to: arm.trigger, hook: [62, 48] } } } : g === "fore" ? { most: 55 } : {});
+      // (food: the hand cupped round it — the fingers bent less the bigger it is)
+      if (food) { const c = Math.max(0.45, Math.min(1, 0.03 / r)); wrapHand(A, arm, at, along, r, { fixed: { index: [30 * c + 15, 45 * c + 15, 30 * c + 10], middle: [32 * c + 15, 48 * c + 15, 30 * c + 10], ring: [34 * c + 15, 50 * c + 15, 30 * c + 10], pinky: [38 * c + 15, 52 * c + 15, 30 * c + 10], thumb: [-15, 20, 25] } }); }
+      else if (fp && fp.hook) wrapHand(A, arm, at, along, r, { fixed: { index: [8, 72, 48], middle: [8, 74, 48], ring: [10, 74, 46], pinky: [55, 85, 55], thumb: [25, 35, 25] } });
+      else wrapHand(A, arm, at, along, r, g === "pistol" && arm.trigger ? { aim: { index: { to: arm.trigger, hook: [62, 48] } } } : g === "fore" ? { most: 55 } : {});
     }
   }
   // ---- swimming ----
@@ -1476,6 +1496,7 @@ export class Player {
   // your two arms on the screen, in the water: out together in front, apart in a wide sweep, and drawn back in to the
   // chest — a breaststroke, slower when you only tread water
   swimArms(dt, on, moving) {
+    this.swimOn = on;
     if (!on) { if (this.swimRig) this.swimRig.visible = false; return; }
     if (!this.swimRig) {
       const g = this.swimRig = new THREE.Group(); vm.add(g);
@@ -1487,7 +1508,9 @@ export class Player {
         g.add(arm, hand); return { side, arm, sleeve, cuff, hand };
       });
     }
-    this.swimRig.visible = true;
+    // (the one-skin arms do the stroke, when they're here: fpUpdate, from what's worked out below)
+    this.swimRig.visible = !this.fpa;
+    this.swimFP = [];
     // (the cycle: 0 hands together at the chest .. 0.3 reached out in front .. 0.65 swept wide .. 1 drawn back in)
     const ph = (this.swimT * 0.55) % 1, e = x => x * x * (3 - 2 * x);
     const key = [[0, 0.09, -0.27, -0.42], [0.3, 0.07, -0.16, -0.85], [0.65, 0.5, -0.19, -0.62], [1, 0.09, -0.27, -0.42]];
@@ -1498,6 +1521,7 @@ export class Player {
     for (const L of this.swimLimbs) {
       const h = new THREE.Vector3(hx * L.side, hy, hz), sh = new THREE.Vector3(0.24 * L.side, -0.5, 0.08);
       L.hand.position.copy(h); L.hand.rotation.set(-0.15, 0, L.side * (0.25 + sweep * 0.9));
+      this.swimFP.push({ side: L.side > 0 ? "R" : "L", h: h.clone(), roll: L.side * (0.25 + sweep * 0.9) });
       const d = new THREE.Vector3().subVectors(h, sh), len = d.length();
       L.arm.position.copy(sh); L.arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
       L.sleeve.scale.set(1, Math.max(0.05, len - 0.08), 1); L.cuff.position.y = Math.max(0.05, len - 0.11);

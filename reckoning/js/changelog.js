@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.120", date: "24 October 2026", title: "The archer's draw, and swimming arms",
+    items: [
+      "The bowstring is drawn as an archer draws it: three fingers hooked on the string — the forefinger above the arrow, two below — the back of the hand out to the side, the little finger and the thumb tucked away. (It was a fist round the string, thumb up.)",
+      "Swimming, your own arms do the breaststroke — reaching out together, the palms turning out as they sweep wide, drawn back in — the same arms as on land, not the old sleeves and flat paddles.",
+      "Food is held round itself — a loaf, an apple, a piece of meat cupped in the hand, the fingers bent to its size — not clutched like a tool handle with the fingers sunk into it.",
+    ],
+  },
+  {
     v: "1.99.119", date: "24 October 2026", title: "Real hands",
     items: [
       "Your arms, first person, are real arms now: one skin each from the shoulder to the fingertips — the coat's sleeve, the shirt's linen cuff at the wrist, the wrist, the hand — on a skeleton with every joint of every finger (MakeHuman's body, CC0). No more sleeve tube, wrist tube and sculpted fist stuck end to end: nothing to come apart.",

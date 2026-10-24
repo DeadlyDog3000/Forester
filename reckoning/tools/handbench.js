@@ -37,6 +37,11 @@ const ITEMS = {
   // (in motion, held still at a moment: the stroke half way, a gun at the eye)
   axe_swing: [() => { P.wield("axe"); P.swingT = 0.26; window.__benchHold = () => { P.swingT = 0.26; }; }, "R"],
   pick_swing: [() => { P.wield("pick"); P.swingT = 0.2; window.__benchHold = () => { P.swingT = 0.2; }; }, "L"],
+  swim: [() => { const o = P.swimArms; P.swimArms = (dt) => { P.swimT = 0.3 / 0.55; o.call(P, dt, true, true); }; window.__benchUndo = () => { P.swimArms = o; o.call(P, 0, false); }; }, "R"],
+  swim_sweep: [() => { const o = P.swimArms; P.swimArms = (dt) => { P.swimT = 0.6 / 0.55; o.call(P, dt, true, true); }; window.__benchUndo = () => { P.swimArms = o; o.call(P, 0, false); }; }, "R"],
+  eat: [() => { G.working = { kind: "eat", until: G.time + 60, food: "bread" }; }, "R"],
+  eat_apple: [() => { G.working = { kind: "eat", until: G.time + 60, food: "apple" }; }, "R"],
+  bow_draw: [() => { P.showBow(true); window.__benchHold = () => { P.draw = 1; }; }, "R"],
   musket_aim: [() => { P.gunKind = "musket"; P.showGun(true); window.__benchHold = () => { input.rdown = true; P.gunAim = 1; }; }, "L"],
   pistol_aim: [() => { P.gunKind = "pistol"; P.showGun(true); window.__benchHold = () => { input.rdown = true; P.gunAim = 1; }; }, "R"],
 };
@@ -80,7 +85,7 @@ for (const [name, [take, side]] of Object.entries(ITEMS)) {
     };
     await wait(200); await snap(name + "_" + vn);
   }
-  window.__vmView = null; clearInterval(keep); window.__benchHold = null; input.rdown = false;
+  window.__vmView = null; clearInterval(keep); window.__benchHold = null; input.rdown = false; if (window.__benchUndo) { window.__benchUndo(); window.__benchUndo = null; }
 }
 clear();
 return JSON.stringify({ errs: errs.slice(0, 10), out });
