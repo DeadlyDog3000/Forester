@@ -619,6 +619,7 @@ export function ensureModel(key) {
 }
 let _clone = null;
 // a fresh copy of a loaded model, shadows on, or null if there is none
+let SACK = null, SACK_CORD = null;
 export function modelCopy(key) {
   const g = MODELS[key]; if (!g) return null;
   const scene = _clone ? _clone(g.scene) : g.scene.clone(true);
@@ -1866,6 +1867,22 @@ export function forestInstances(list, far = false) {
 // ---------------------------------------------------------------------------
 export const P = {
   crate(b, x, z, s = 1, y = 0, ry = 0) {
+    // (real ones, scanned: a cargo lot of two long crates side by side, two high — the size of the old box; a small one
+    //  alone where it's small)
+    if (b.object) {
+      const big = s >= 0.75, g = new THREE.Group();
+      const parts = big ? [[-0.265, 0, 0.02], [0.265, 0, -0.03], [-0.25, 0.46, -0.02], [0.27, 0.46, 0.03]] : [[0, 0, 0]];
+      let ok = true, k = 0;
+      for (const [px, py, pz] of parts) {
+        const m = modelCopy(big ? "prop_crate" : "prop_crate_s"); if (!m) { ok = false; break; }
+        m.scene.position.set(px, py, pz); m.scene.rotation.y = (((x * 13.7 + z * 5.3 + k++ * 2.9) % 1) - 0.5) * 0.08; g.add(m.scene);
+      }
+      if (ok) {
+        b.object(g, x, y, z, ry, 1);
+        if (big) g.scale.set(s / 1.06, s / 0.92, s / 1.16); else g.scale.setScalar(s / 0.83);
+        return;
+      }
+    }
     b.box(1 * s, 1 * s, 1 * s, x, y + 0.5 * s, z, 0x8a6a45, ry, 0.08);
     b.box(1.02 * s, 0.1 * s, 1.02 * s, x, y + 0.9 * s, z, 0x6a4f32, ry);
     b.box(1.02 * s, 0.1 * s, 1.02 * s, x, y + 0.1 * s, z, 0x6a4f32, ry);
@@ -1879,7 +1896,25 @@ export const P = {
   },
   // (a chest bound with iron, scanned — the size asked for)
   chest(b, x, z, ry = 0, w = 0.9) { const m = b.object && modelCopy("prop_chest"); if (!m) return false; b.object(m.scene, x, 0, z, ry, w / 0.93); return true; },
-  sack(b, x, z, y = 0, ry = 0) { b.add(new THREE.SphereGeometry(0.32, 8, 6), 0xc8b48a, x, y + 0.26, z, 0, ry, 0, 1, 0.8, 0.8, 0.1); },
+  sack(b, x, z, y = 0, ry = 0) {
+    // (a grain sack: full and sagging at the bottom, slumped a little to one side, gathered at the neck and tied with
+    //  cord, the tuft of its mouth above — hemp, its colour by where it stands)
+    if (!SACK) {
+      const prof = [[0, 0], [0.2, 0.005], [0.27, 0.04], [0.3, 0.12], [0.29, 0.3], [0.26, 0.42], [0.18, 0.52], [0.075, 0.585], [0.06, 0.6], [0.07, 0.63], [0.1, 0.68], [0.06, 0.7], [0, 0.69]];
+      const g = new THREE.LatheGeometry(prof.map(([r, h]) => new THREE.Vector2(r, h)), 14), P = g.attributes.position;
+      for (let i = 0; i < P.count; i++) {
+        const px = P.getX(i), py = P.getY(i), pz = P.getZ(i), a = Math.atan2(pz, px), k = 1 + 0.07 * Math.sin(a * 3 + py * 7) + 0.04 * Math.sin(a * 5 - py * 11);
+        P.setXYZ(i, px * k * 1.08 + py * py * 0.12, py * (1 - 0.05 * Math.cos(a)), pz * k * 0.9);
+      }
+      g.computeVertexNormals(); SACK = g;
+      SACK_CORD = new THREE.TorusGeometry(0.068, 0.01, 4, 10).rotateX(Math.PI / 2);
+    }
+    const hue = (Math.abs(Math.sin(x * 12.9 + z * 78.2)) * 0.16), c = new THREE.Color(0x9c8660).offsetHSL(0, 0, hue - 0.08);
+    const sc = 0.9 + hue;
+    b.add(SACK, c.getHex(), x, y, z, 0, ry, 0, sc, sc * 0.92, sc, 0.04);
+    const cx = Math.cos(ry), sx = Math.sin(ry), off = 0.6 * 0.6 * 0.12 * sc;
+    b.add(SACK_CORD, 0x5a4a32, x + cx * off, y + 0.6 * sc * 0.92, z - sx * off, 0, ry, 0, sc, sc, sc);
+  },
   table(b, x, z, w = 2, d = 0.9, ry = 0) {
     // (a real trestle table where a long one stands, the length asked for)
     { const m = w >= 1.6 && b.object && modelCopy("prop_table"); if (m) { b.object(m.scene, x, 0, z, ry, 1); m.scene.scale.set(w / 2.56, 1, d / 0.93); return; } }

@@ -14,6 +14,7 @@ import { G, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { mat } from "./core.js";
+import { modelCopy } from "./models.js";
 import { shake, kickFov } from "./fight.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 
@@ -86,6 +87,12 @@ export function makeCannon() {
   const pan = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.012, 10), bronze); pan.position.set(0, 0.162, 0.6); barrel.add(pan);
   const vent = new THREE.Mesh(new THREE.CircleGeometry(0.008, 8), dark); vent.rotation.x = -Math.PI / 2; vent.position.set(0, 0.169, 0.6); barrel.add(vent);
   const muzzle = new THREE.Object3D(); muzzle.position.z = -1.36; barrel.add(muzzle);
+  // (a real barrel where it's loaded: cast iron, scanned (Poly Haven, CC0), on its trunnions in the cheeks — the turned
+  //  one's parts put away)
+  { const m = modelCopy("cannon_barrel"); if (m) {
+    for (const o of [...barrel.children]) if (o !== muzzle) barrel.remove(o);
+    m.scene.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } }); barrel.add(m.scene); muzzle.position.z = -1.2;
+  } }
   // the rammer and the sponge, laid along the left cheek, down its slope, on iron hooks
   const SL = 0.425, along = (t, x) => [x, 0.47 + (0.6 - t) * Math.tan(SL) * 0.0 + (0.6 - t) * 0.453, t];
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 1.9, 6).rotateX(Math.PI / 2), oakD);

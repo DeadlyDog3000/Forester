@@ -30,10 +30,13 @@ PROPS = {
     "chest": ("treasure_chest", 0.6, 0),
     "candlestick": ("wooden_candlestick", 0.24, 0),
     "bowl": ("wooden_bowl_01", 0.05, 0),
+    "crate": ("wooden_crate_02", 0.46, 0),
+    "crate_s": ("wooden_crate_01", 0.35, 0),
+    "plate": ("carved_wooden_plate", 0.03, 0),
 }
 
 
-CUT = {"candlestick": 1500, "chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000}
+CUT = {"candlestick": 1500, "chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000, "crate": 2500, "crate_s": 2500, "plate": 1200}
 
 
 def build(name):

@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.133", date: "24 October 2026", title: "Crates, a cast barrel, sacks and plates",
+    items: [
+      "Cargo crates are real: Hamburg's quay and street barricades stack scanned wooden crates, two by two, where there were plain boxes (Poly Haven, CC0).",
+      "Every gun — field guns in battle, the settlement's cannon — now carries a real cast-iron barrel, scanned, on its oak field carriage (Poly Haven, CC0).",
+      "Grain sacks look like sacks: full at the bottom, slumped, gathered at the neck and tied with cord, instead of a round ball.",
+      "Supper in the merchant's house is laid with carved wooden plates and a real loaf on its board (Poly Haven, ambientCG, CC0).",
+    ],
+  },
+  {
     v: "1.99.132", date: "24 October 2026", title: "Pinnace, lantern and candlestick",
     items: [
       "A third real ship: a pinnace — small, quick and lightly gunned, scanned rope by rope and plank by plank (Poly Haven, CC0). She sails as the sloop in sea battles (the middling Dutch ship is the frigate now, the large one the ship of the line), and lies at Hamburg's quay beside the Dutch ships.",

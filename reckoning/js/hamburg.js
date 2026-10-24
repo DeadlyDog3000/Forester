@@ -476,8 +476,11 @@ export class Hamburg extends WorldBase {
     // a round rye loaf on its board, at the end of the table (out of the line between your seat and Father's), and a
     // pewter plate at each place
     props.add(new THREE.CylinderGeometry(0.2, 0.2, 0.025, 14), 0x8a5e36, 13.55, 0.84, -6.45);
-    props.add(new THREE.SphereGeometry(0.15, 16, 10, 0, TAU, 0, Math.PI / 2), 0x7a4a26, 13.55, 0.85, -6.45, 0, 0.3, 0, 1.15, 0.62, 0.95);
+    { const m = modelCopy("food_bread"); if (m) props.object(m.scene, 13.55, 0.8525, -6.45, 0.3, 1.9);
+      else props.add(new THREE.SphereGeometry(0.15, 16, 10, 0, TAU, 0, Math.PI / 2), 0x7a4a26, 13.55, 0.85, -6.45, 0, 0.3, 0, 1.15, 0.62, 0.95); }
+    // (a turned and carved wooden plate, scanned (Poly Haven, CC0), where it's loaded; the pewter where not)
     for (const [x, z] of [[12.0, -5.85], [13.4, -5.85], [12.7, -6.6]]) {
+      { const m = modelCopy("prop_plate"); if (m) { props.object(m.scene, x, 0.826, z, x * 3.1, 1.05); continue; } }
       props.add(new THREE.CylinderGeometry(0.115, 0.09, 0.018, 16), 0x9c9a90, x, 0.835, z);
       props.add(new THREE.CylinderGeometry(0.07, 0.07, 0.004, 16), 0xb4b2a8, x, 0.845, z);
     }
