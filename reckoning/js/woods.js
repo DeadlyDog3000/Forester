@@ -7,7 +7,7 @@
 
 import { THREE, rockGeo, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs } from "./core.js";
 import { WorldBase, G } from "./engine.js";
-import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway } from "./models.js";
+import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway, realPart, realMany } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon, relief } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear, fitsRoom } from "./furnish.js";
@@ -266,7 +266,7 @@ export class Woods extends WorldBase {
 
     // undergrowth: bushes, ferns, stones. The bushes and the clumps of fern are each their own, so a stroke of the
     // axe (or a blade) cuts one down — and it stays down; the stones are fixed
-    const ub = new Builder(), shrubs = [];
+    const ub = new Builder(), shrubs = [], stones = [];
     for (let i = 0; i < 900; i++) {
       const t = this.road[Math.floor(r() * this.road.length)];
       const a = r() * TAU, rad = 3.5 + r() * 45;
@@ -280,19 +280,48 @@ export class Woods extends WorldBase {
       const k = r();
       if (k < 0.45) shrubs.push({ kind: "bush", x, z, y, col: r.pick([0x3e5a2e, 0x4a6a34, 0x55703a]), ry: r() * 3, sx: r.range(0.6, 1.3), sy: r.range(0.4, 0.8), sz: r.range(0.6, 1.3) });
       else if (k < 0.8) { const f = { kind: "fern", x, z, y, fronds: [] }; for (let j = 0; j < 5; j++) f.fronds.push([x + r.range(-0.4, 0.4), z + r.range(-0.4, 0.4), r.range(-0.5, 0.5), r.range(-0.5, 0.5)]); shrubs.push(f); }
-      else ub.add(rockGeo(0.5), 0x7a7870, x, y + 0.1, z, r(), r(), r(), r.range(0.5, 1.4), r.range(0.3, 0.7), r.range(0.5, 1.2), 0.08);
+      else stones.push({ x, y, z, a: r(), b: r(), c: r(), sx: r.range(0.5, 1.4), sy: r.range(0.3, 0.7), sz: r.range(0.5, 1.2), v: r() });
     }
+    // (the stones: real ones, scanned — a boulder or a smaller stone, half sunk — or the built ones if those can't be had)
+    if (realPart("rock_b") && realPart("rock_c")) {
+      const A = stones.filter(q => q.v < 0.45), Bs = stones.filter(q => q.v >= 0.45), pl = (q, k) => ({ x: q.x, y: q.y - 0.12 * k, z: q.z, ry: q.a * 6.28, rx: (q.b - 0.5) * 0.3, s: q.sx * k, sy: q.sy * k * 1.6, sz: q.sz * k });
+      for (const m of [realMany("rock_b", A.map(q => pl(q, 0.9))), realMany("rock_c", Bs.map(q => pl(q, 0.7)))]) if (m) root.add(m);
+    } else for (const q of stones) ub.add(rockGeo(0.5), 0x7a7870, q.x, q.y + 0.1, q.z, q.a, q.b, q.c, q.sx, q.sy, q.sz, 0.08);
     root.add(ub.build(MAT.rough, { shadow: false }));
+    // (old deadwood in among the trees: stumps gone grey and mossy, trunks long fallen, and nettles and small herbs about
+    //  them — real ones, scanned)
+    { const old = [], logs = [], herbs = [], herbs2 = [];
+      for (let i = 0; i < 260; i++) {
+        const t = this.road[Math.floor(r() * this.road.length)], a = r() * TAU, rad = 6 + r() * 50, x = t.x + Math.cos(a) * rad, z = t.z + Math.sin(a) * rad;
+        if (this.anyRoadDist(x, z).d < 3.5 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 2 || pondK(x, z) < 1.4) continue;
+        { const bq = this.brookAt(x, z); if (bq && bq.d < bq.w + 1) continue; }
+        const y = this.heightAt(x, z), k = r();
+        if (k < 0.12) old.push({ x, y: y - 0.06, z, ry: r() * 6.28, s: 0.7 + r() * 0.6, v: r() });
+        else if (k < 0.2) logs.push({ x, y: y - 0.12, z, ry: r() * 6.28, s: 0.55 + r() * 0.4 });
+        else if (k < 0.6) herbs.push({ x, y: y - 0.01, z, ry: r() * 6.28, s: 1.4 + r() * 1.8 });
+        else herbs2.push({ x, y: y - 0.01, z, ry: r() * 6.28, s: 1.6 + r() * 1.6 });
+      }
+      for (const m of [realMany("stump_a", old.filter(q => q.v < 0.5), { shadow: true }), realMany("stump_b", old.filter(q => q.v >= 0.5), { shadow: true }), realMany("log_a", logs, { shadow: true }), realMany("nettle", herbs), realMany("nettle", herbs2.map(q => ({ ...q, s: q.s * 0.7 })))]) if (m) root.add(m);
+      // (and you can't walk through a fallen trunk or a stump)
+      for (const q of old) this.col.addCircle(q.x, q.z, 0.4 * q.s, q.y + 0.6);
+      for (const q of logs) { const L = 2 * q.s, cx = Math.cos(q.ry), sz = -Math.sin(q.ry); for (let k = -1; k <= 1; k++) this.col.addCircle(q.x + cx * L * k * 0.66, q.z + sz * L * k * 0.66, 0.5 * q.s, q.y + 1); }
+    }
     {
       const leafM = this.shrubLeaf = new THREE.MeshStandardMaterial({ roughness: 1, map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide }); addDetail(leafM, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles", rim: false, cards: true }); addSway(leafM);
       const bushes = shrubs.filter(q => q.kind === "bush"), ferns = shrubs.filter(q => q.kind === "fern");
-      const bm = new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length), fm = new THREE.InstancedMesh(swayGeo(TREE.coneSolid, ferns.length * 5), leafM, ferns.length * 5);
+      // (real ones, scanned: a bush of the woods, a fern — or the built clumps if those can't be had)
+      // (Poly Haven's shrubs are the dry country's — sparse and twiggy, out of South Africa — not a European wood's dense
+      //  green bushes: those stay as they're built)
+      const RB = null, RF = realPart("fern", true);
+      const bm = RB ? new THREE.InstancedMesh(swayGeo(RB.geo, bushes.length), RB.mat, bushes.length) : new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length);
+      const fm = RF ? new THREE.InstancedMesh(swayGeo(RF.geo, ferns.length), RF.mat, ferns.length) : new THREE.InstancedMesh(swayGeo(TREE.coneSolid, ferns.length * 5), leafM, ferns.length * 5);
       // (a bush stirs in the wind, and a fern frond more)
       const sw = (m, i, q, h) => m.geometry.attributes.aSway.array.set([q.y - 0.05, h, (q.x * 0.71 + q.z * 0.43) % 6.283], i * 3);
       const d = new THREE.Object3D(), c = new THREE.Color();
-      bushes.forEach((q, n) => { sw(bm, n, q, 1.6); d.position.set(q.x, q.y + 0.3, q.z); d.rotation.set(0, q.ry, 0); d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); bm.setMatrixAt(n, d.matrix); bm.setColorAt(n, c.set(q.col)); q.slots = [[bm, n]]; });
+      bushes.forEach((q, n) => { sw(bm, n, q, 1.6); d.position.set(q.x, RB ? q.y - 0.05 : q.y + 0.3, q.z); d.rotation.set(0, q.ry, 0); if (RB) d.scale.set(q.sx * 0.65, q.sy * 1.2, q.sz * 0.65); else d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); bm.setMatrixAt(n, d.matrix); bm.setColorAt(n, RB ? c.setHSL(0.25 + (q.sx - 1) * 0.05, 0.25, 0.42 + (q.sy - 0.6) * 0.3) : c.set(q.col)); q.slots = [[bm, n]]; });
       let fi = 0;
-      for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { sw(fm, fi, q, 1.2); d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
+      if (RF) ferns.forEach((q, n) => { sw(fm, n, q, 1.2); d.position.set(q.x, q.y - 0.02, q.z); d.rotation.set(0, (q.x * 1.7 + q.z) % 6.28, 0); d.scale.setScalar(1.7 + ((q.x * 3.1 + q.z * 1.3) % 1 + 1) % 1 * 1.1); d.updateMatrix(); fm.setMatrixAt(n, d.matrix); fm.setColorAt(n, c.setHSL(0.27, 0.32, 0.62)); q.slots = [[fm, n]]; });
+      else for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { sw(fm, fi, q, 1.2); d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
       for (const m of [bm, fm]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; root.add(m); }
       this.shrubs = shrubs;
       // (those already cut, in this save)
@@ -955,7 +984,9 @@ export class Woods extends WorldBase {
 
     // ---- a fire ring ----
     const fr = new Builder();
-    for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; fr.add(rockGeo(0.2), 0x6a6660, FIRE.x + Math.cos(a) * 0.65, 0.1, FIRE.z + Math.sin(a) * 0.65, i, i, 0, 1, 0.8, 1, 0.1); }
+    // (the stones round it: a real ring of fire-blackened stones, scanned — or built ones if it can't be had)
+    { const pit = realMany("firepit", [{ x: FIRE.x, y: this.heightAt(FIRE.x, FIRE.z) - 0.06, z: FIRE.z, ry: 0.4, s: 1.0 }], { shadow: true });
+      if (pit) root.add(pit); else for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; fr.add(rockGeo(0.2), 0x6a6660, FIRE.x + Math.cos(a) * 0.65, 0.1, FIRE.z + Math.sin(a) * 0.65, i, i, 0, 1, 0.8, 1, 0.1); } }
     for (let i = 0; i < 4; i++) fr.add(new THREE.CylinderGeometry(0.06, 0.06, 0.9, 5), 0x3a2a20, FIRE.x, 0.12, FIRE.z, Math.PI / 2, i * 0.8, 0.2);
     // logs to sit on
     fr.add(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 8), 0x7a5634, FIRE.x - 1.9, 0.2, FIRE.z + 0.3, Math.PI / 2, 0.3, 0);

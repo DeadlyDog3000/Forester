@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.130", date: "24 October 2026", title: "The woods, scanned",
+    items: [
+      "The woods' floor is real: ferns photographed and scanned frond by frond, stones and boulders half sunk in the ground, nettles about the trees, old stumps gone grey and mossy, and trunks long fallen across the forest floor (Poly Haven, CC0) — in place of the built ones. (The bushes stay as they were: Poly Haven's shrubs are the dry South African country's, sparse and twiggy, not a European wood's.)",
+      "The camp fire burns in a real ring of fire-blackened stones.",
+      "Indoors and about the place: a real iron-bound chest, a worn painted settle for the bench, and a real wooden bucket at the well — scanned (Poly Haven, CC0).",
+    ],
+  },
+  {
     v: "1.99.129", date: "24 October 2026", title: "Blood as it lies",
     items: [
       "Blood on the ground looks like blood: a ragged edge where it's soaked into the earth and grass, near black where it's pooled thick, a darker drying rim, droplets and tails flung out round it the way they flew — a pool under the fallen wet and catching the light. They were soft round blots of flat red.",

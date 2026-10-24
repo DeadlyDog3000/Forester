@@ -32,6 +32,9 @@ PROPS = {
 }
 
 
+CUT = {"chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000}
+
+
 def build(name):
     asset, height, rz = PROPS[name]
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -46,6 +49,19 @@ def build(name):
         o.data.transform(R @ o.matrix_world)
         o.matrix_world = Matrix.Identity(4)
         o.parent = None
+    # (a scan too fine for a game — the chest is a hundred thousand triangles — cut down to its budget)
+    want = CUT.get(name)
+    if want:
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in meshes: o.select_set(True)
+        bpy.context.view_layer.objects.active = meshes[0]
+        if len(meshes) > 1: bpy.ops.object.join()
+        ob = bpy.context.view_layer.objects.active; meshes = [ob]
+        for _ in range(3):
+            now = sum(len(p.vertices) - 2 for p in ob.data.polygons)
+            if now <= want * 1.1: break
+            md = ob.modifiers.new("cut", "DECIMATE"); md.ratio = want / now; bpy.ops.object.modifier_apply(modifier=md.name)
+        print(name, "cut to", sum(len(p.vertices) - 2 for p in ob.data.polygons), "triangles")
     pts = [v.co for o in meshes for v in o.data.vertices]
     lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
     hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))

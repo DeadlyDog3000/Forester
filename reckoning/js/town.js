@@ -113,6 +113,8 @@ export const UPGRADES = {
 let _bucketG = null;
 function bucketMesh() {
   const g = new THREE.Group();
+  // (a real one, scanned — staves, iron hoops, a rope handle — water in it)
+  { const m = modelCopy("prop_bucket"); if (m) { m.scene.position.y = -0.32; m.scene.scale.setScalar(0.75); g.add(m.scene); const w = new THREE.Mesh(new THREE.CircleGeometry(0.1, 12), mat(0x3a5a6a, { roughness: 0.15, surface: "none" })); w.rotation.x = -Math.PI / 2; w.position.y = -0.12; g.add(w); return g; } }
   if (!_bucketG) _bucketG = { b: new THREE.CylinderGeometry(0.13, 0.1, 0.24, 10, 1, true), w: new THREE.CircleGeometry(0.12, 10), h: new THREE.TorusGeometry(0.12, 0.008, 4, 10, Math.PI) };
   const b = new THREE.Mesh(_bucketG.b, mat(0x7a5634, { surface: "wood", side: THREE.DoubleSide })); b.position.y = -0.2; g.add(b);
   const w = new THREE.Mesh(_bucketG.w, mat(0x3a5a6a, { roughness: 0.15, surface: "none" })); w.rotation.x = -Math.PI / 2; w.position.y = -0.1; g.add(w);

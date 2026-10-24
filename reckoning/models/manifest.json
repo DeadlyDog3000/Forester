@@ -58,5 +58,19 @@
   "fparms": "fparms.glb",
   "prop_bowl": "prop_bowl.glb",
   "spoon": "spoon.glb",
-  "food_bread": "food_bread.glb"
+  "food_bread": "food_bread.glb",
+  "rock_b": "rock_b.glb",
+  "rock_c": "rock_c.glb",
+  "stump_a": "stump_a.glb",
+  "stump_b": "stump_b.glb",
+  "log_a": "log_a.glb",
+  "fern": "fern.glb",
+  "nettle": "nettle.glb",
+  "firepit": "firepit.glb",
+  "prop_bench": "prop_bench.glb",
+  "prop_stool": "prop_stool.glb",
+  "prop_bucket": "prop_bucket.glb",
+  "prop_basket": "prop_basket.glb",
+  "prop_lantern": "prop_lantern.glb",
+  "prop_chest": "prop_chest.glb"
 }

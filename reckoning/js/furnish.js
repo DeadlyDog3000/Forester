@@ -30,6 +30,7 @@ export const FURNITURE = {
     build(b, x, z, ry) { P.bench(b, x, z, 1.4, ry); } },
   chest: { name: "Chest", note: "For the key, and the things worth keeping.", logs: 3, w: 0.9, d: 0.5, h: 0.6,
     build(b, x, z, ry) {
+      if (P.chest(b, x, z, ry, 0.9)) return;
       b.box(0.9, 0.5, 0.5, x, 0.25, z, 0x6a4a2e, ry, 0.08);
       b.box(0.94, 0.08, 0.54, x, 0.53, z, 0x5a3e24, ry);
       const c = Math.cos(ry), s = Math.sin(ry);

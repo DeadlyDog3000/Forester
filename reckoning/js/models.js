@@ -1646,6 +1646,23 @@ export function addSway(material) {
   return material;
 }
 // the same shape, with a sway for each of n instances (the shape's own buffers shared, not copied)
+// a real model's one mesh, to be drawn many times over (an InstancedMesh): its shape and its material — swaying in the
+// wind, if asked (a fern, a bush) — or null, if it isn't to be had
+export function realPart(key, sway = false) {
+  const M = MODELS[key]; if (!M) return null; let mesh = null; M.scene.traverse(o => { if (!mesh && o.isMesh) mesh = o; });
+  if (!mesh) return null;
+  // (a plant: its leaves cut out of their cards by the texture's own alpha, both faces drawn, stirring in the wind)
+  if (sway && !mesh.material.userData.swayed) { const m = mesh.material; m.userData.swayed = true; m.side = THREE.DoubleSide; m.alphaTest = 0.45; m.transparent = false; m.depthWrite = true; addSway(m); }
+  return { geo: mesh.geometry, mat: mesh.material };
+}
+// many of one real thing, set down where `list` says ([{x, y, z, ry, s, sy?}]): one draw for all of them
+export function realMany(key, list, { shadow = false } = {}) {
+  const P = realPart(key); if (!P || !list.length) return null;
+  const m = new THREE.InstancedMesh(P.geo, P.mat, list.length), d = new THREE.Object3D();
+  list.forEach((q, i) => { d.position.set(q.x, q.y, q.z); d.rotation.set(q.rx || 0, q.ry || 0, q.rz || 0); d.scale.set(q.s, q.sy ?? q.s, q.sz ?? q.s); d.updateMatrix(); m.setMatrixAt(i, d.matrix); });
+  m.castShadow = shadow; m.receiveShadow = true; m.computeBoundingSphere();
+  return m;
+}
 export function swayGeo(geo, n) {
   const g = new THREE.BufferGeometry();
   g.index = geo.index; for (const k in geo.attributes) g.setAttribute(k, geo.attributes[k]);
@@ -1854,6 +1871,8 @@ export const P = {
     b.add(new THREE.CylinderGeometry(0.355, 0.355, 0.05, 10), 0x3a3a3a, x, y + 0.2, z);
     b.add(new THREE.CylinderGeometry(0.355, 0.355, 0.05, 10), 0x3a3a3a, x, y + 0.75, z);
   },
+  // (a chest bound with iron, scanned — the size asked for)
+  chest(b, x, z, ry = 0, w = 0.9) { const m = b.object && modelCopy("prop_chest"); if (!m) return false; b.object(m.scene, x, 0, z, ry, w / 0.93); return true; },
   sack(b, x, z, y = 0, ry = 0) { b.add(new THREE.SphereGeometry(0.32, 8, 6), 0xc8b48a, x, y + 0.26, z, 0, ry, 0, 1, 0.8, 0.8, 0.1); },
   table(b, x, z, w = 2, d = 0.9, ry = 0) {
     // (a real trestle table where a long one stands, the length asked for)
@@ -1866,6 +1885,8 @@ export const P = {
     }
   },
   bench(b, x, z, w = 1.8, ry = 0) {
+    // (a real one, scanned: a settle of worn painted boards with its back, the length asked for)
+    { const m = b.object && modelCopy("prop_bench"); if (m) { b.object(m.scene, x, 0, z, ry, 1); m.scene.scale.set(w / 1.18, 1, 1); return; } }
     b.box(w, 0.06, 0.32, x, 0.46, z, 0x6b4a2e, ry);
     const c = Math.cos(ry), s = Math.sin(ry);
     for (const lx of [-1, 1]) { const ox = lx * (w / 2 - 0.12); b.box(0.06, 0.44, 0.28, x + ox * c, 0.22, z - ox * s, 0x4f3620, ry); }
