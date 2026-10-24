@@ -72,5 +72,7 @@
   "prop_bucket": "prop_bucket.glb",
   "prop_basket": "prop_basket.glb",
   "prop_lantern": "prop_lantern.glb",
-  "prop_chest": "prop_chest.glb"
+  "prop_chest": "prop_chest.glb",
+  "ship_pinnace": "ship_pinnace.glb",
+  "prop_candlestick": "prop_candlestick.glb"
 }

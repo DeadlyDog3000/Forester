@@ -553,7 +553,7 @@ async function fetchModel(k, url) {
       if (n === "stone" && /quarry|mine/.test(k)) m.userData.surface = "rock";
       // (a real animal's fur and eyes are painted in its own textures: no grain laid over them)
       // (the real ships' hulls and rigging as photographed: no grain over them; their sails, cloth)
-      if (/^ship_dutch/.test(k)) { m.userData.surface = n === "sail" ? "cloth" : "none"; if (n === "sail") m.side = THREE.DoubleSide; }
+      if (/^ship_(dutch|pinnace)/.test(k)) { m.userData.surface = n === "sail" ? "cloth" : "none"; if (n === "sail") m.side = THREE.DoubleSide; }
       if (/^(deer|doe|hare|bear|boar|wolf|fox|horse|elephant|giraffe|camel|polarbear)$/.test(k)) {
         m.userData.surface = "none";
         // (fur and hide are matte: a soft sheen at most, never the gloss of wet paint the files came with)
@@ -823,6 +823,12 @@ export function makeTorch(light = true) {
 }
 export function makeLantern(light = true) {
   const g = new THREE.Group();
+  // (a real one, scanned: a wooden lantern, its horn panes and its ring — hung from its top, as it's carried)
+  { const m = modelCopy("prop_lantern"); if (m) {
+    m.scene.position.y = -0.37; g.add(m.scene);
+    m.scene.traverse(o => { if (o.isMesh && /glass/.test((o.material && o.material.name) || "")) { o.material = o.material.clone(); o.material.emissive = new THREE.Color(0xffb060); o.material.emissiveIntensity = 1.2; } });
+    if (light) { const L = new THREE.PointLight(0xffc27a, 5, 12, 1.6); L.position.y = -0.2; g.add(L); g.userData.light = L; }
+    return g; } }
   const frame = mat(0x2b2622, { metalness: 0.5, roughness: 0.5 });
   const top = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.08, 4), frame); top.position.y = 0.02; top.rotation.y = Math.PI / 4; g.add(top);
   const glass = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.15, 0.11), new THREE.MeshBasicMaterial({ color: 0xffd08a }));

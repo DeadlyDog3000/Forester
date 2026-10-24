@@ -240,7 +240,7 @@ export class Hamburg extends WorldBase {
     this.ships = [];
     for (const [x, len, s] of [[-34, 22, 4], [4, 18, 7], [44, 26, 9]]) {
       // (the real ships of the age where they're loaded — Dutch-built, as half of Hamburg's were — a large and a middling)
-      const sm = modelCopy(len >= 22 ? "ship_dutch" : "ship_dutch_m") || modelCopy("ship");
+      const sm = modelCopy(len >= 26 ? "ship_dutch" : len >= 22 ? "ship_dutch_m" : "ship_pinnace") || modelCopy(len >= 22 ? "ship_dutch" : "ship_dutch_m") || modelCopy("ship");
       const sh = sm ? (() => { const g = new THREE.Group(); sm.scene.scale.setScalar(len / 20); g.add(sm.scene); g.userData.bob = s; return g; })() : makeShip(len, s);
       sh.position.set(x, -1.3, -53.5); sh.rotation.y = Math.PI / 2 + (r() - 0.5) * 0.04;
       root.add(sh); this.ships.push(sh);
@@ -348,6 +348,8 @@ export class Hamburg extends WorldBase {
     // ---- candles: a holder, the wax, and (added below) the flame ----
     this.candleSpots = [[10.3, 0.82, -13.6], [11.75, 0.82, -6.4], [13.0, 0.82, -6.15], [8.75, 1.32, -5.65], [8.75, 1.32, -6.75], [14.3, 1.55, -3.52]];
     for (const [x, y, z] of this.candleSpots) {
+      // (a real turned candlestick, scanned, where it's loaded)
+      const cm = modelCopy("prop_candlestick"); if (cm) { props.object(cm.scene, x, y, z, (x * 3.7) % 6.28, 0.85); continue; }
       props.add(new THREE.CylinderGeometry(0.055, 0.065, 0.03, 10), 0xb08a3a, x, y + 0.015, z);
       props.add(new THREE.CylinderGeometry(0.024, 0.024, 0.17, 8), 0xf0e6cc, x, y + 0.115, z);
     }
@@ -522,9 +524,11 @@ export class Hamburg extends WorldBase {
     props.add(new THREE.CylinderGeometry(0.035, 0.05, 0.22, 8), 0x9a9c98, 17.3, 1.06, -6.0);
     this.col.addRect(17.42, -6.4, 0.5, 1.5, 1.9);
     // the counting room: an iron-bound strongbox, and the map of the Elbe pinned up on the west wall
-    props.box(0.8, 0.5, 0.5, 13.3, 0.25, -10.5, 0x4a3420, 0, 0.03);
-    for (const x of [13.05, 13.55]) props.box(0.06, 0.52, 0.52, x, 0.25, -10.5, 0x2a2724);
-    props.box(0.12, 0.1, 0.03, 13.3, 0.36, -10.24, 0x3a3632);
+    if (!P.chest(props, 13.3, -10.5, 0, 0.8)) {
+      props.box(0.8, 0.5, 0.5, 13.3, 0.25, -10.5, 0x4a3420, 0, 0.03);
+      for (const x of [13.05, 13.55]) props.box(0.06, 0.52, 0.52, x, 0.25, -10.5, 0x2a2724);
+      props.box(0.12, 0.1, 0.03, 13.3, 0.36, -10.24, 0x3a3632);
+    }
     this.col.addRect(13.3, -10.5, 0.8, 0.5, 0.6);
     props.box(0.02, 0.85, 1.15, H.x0 + 0.33, 1.85, -13.2, 0xd8c8a0);
     props.box(0.03, 0.9, 1.2, H.x0 + 0.32, 1.85, -13.2, 0x4a3626);
@@ -532,7 +536,7 @@ export class Hamburg extends WorldBase {
     // the bedroom: a rag rug between the beds, a stool and a candle at their heads, a washstand, a cross over the door
     props.box(1.0, 0.012, 1.7, 15.9, 0.016, -11.6, 0x7a3a2e);
     for (let i = 0; i < 4; i++) props.box(1.0, 0.013, 0.08, 15.9, 0.017, -12.2 + i * 0.4, 0x5a4a3a);
-    props.add(new THREE.CylinderGeometry(0.18, 0.16, 0.45, 8), 0x6a4a30, 15.9, 0.225, -13.6);
+    { const st = modelCopy("prop_stool"); if (st) props.object(st.scene, 15.9, 0, -13.6, 0.3, 0.9); else props.add(new THREE.CylinderGeometry(0.18, 0.16, 0.45, 8), 0x6a4a30, 15.9, 0.225, -13.6); }
     props.add(new THREE.CylinderGeometry(0.03, 0.035, 0.12, 6), 0xe8e0c8, 15.9, 0.51, -13.6);
     props.box(0.5, 0.75, 0.42, 17.55, 0.375, -10.0, 0x5a3e28, Math.PI / 2, 0.03);
     props.add(new THREE.CylinderGeometry(0.17, 0.11, 0.09, 12), 0xd8d4c8, 17.55, 0.8, -10.0);
@@ -541,6 +545,7 @@ export class Hamburg extends WorldBase {
     props.box(0.06, 0.42, 0.04, 15.9, 2.55, -9.12, 0x3a2a1c); props.box(0.28, 0.06, 0.04, 15.9, 2.62, -9.12, 0x3a2a1c);
     // a clothes chest at the foot of each bed, iron-cornered, with a folded blanket on one
     for (const x of [14.9, 16.9]) {
+      if (P.chest(props, x, -11.57, 0, 0.86)) continue;
       props.box(0.86, 0.46, 0.38, x, 0.23, -11.57, 0x5e4028, 0, 0.03); props.box(0.9, 0.06, 0.42, x, 0.48, -11.57, 0x4e3420);
       for (const sx of [-0.4, 0.4]) props.box(0.05, 0.47, 0.39, x + sx, 0.235, -11.57, 0x2a2622);
       props.box(0.1, 0.12, 0.03, x, 0.38, -11.37, 0x2a2622);

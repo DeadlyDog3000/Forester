@@ -28,11 +28,12 @@ PROPS = {
     "basket": ("wicker_basket_01", 0.24, 0),
     "lantern": ("wooden_lantern_01", 0.36, 0),
     "chest": ("treasure_chest", 0.6, 0),
+    "candlestick": ("wooden_candlestick", 0.24, 0),
     "bowl": ("wooden_bowl_01", 0.05, 0),
 }
 
 
-CUT = {"chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000}
+CUT = {"candlestick": 1500, "chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000}
 
 
 def build(name):
@@ -71,7 +72,7 @@ def build(name):
         o.data.transform(M)
         for m in o.data.materials:
             if m:
-                m.name = f"prop{name}_pbr"
+                m.name = f"prop{name}_glass" if "glass" in m.name.lower() else f"prop{name}_pbr"
     d = (hi - lo) * k
     print(name, "from", asset, "size", tuple(round(v, 2) for v in d))
     # (textures no bigger than a thing this size wants)

@@ -7,9 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.132", date: "24 October 2026", title: "Pinnace, lantern and candlestick",
+    items: [
+      "A third real ship: a pinnace — small, quick and lightly gunned, scanned rope by rope and plank by plank (Poly Haven, CC0). She sails as the sloop in sea battles (the middling Dutch ship is the frigate now, the large one the ship of the line), and lies at Hamburg's quay beside the Dutch ships.",
+      "Lanterns are real: a wooden lantern with its horn panes glowing, carried by its ring.",
+      "In the merchant's house: real turned candlesticks, iron-bound chests at the beds' feet and for the strongbox, and a real stool by the beds (Poly Haven, CC0).",
+    ],
+  },
+  {
     v: "1.99.131", date: "24 October 2026", title: "Woven cloth",
     items: [
-      "Coats, skirts, aprons and shirts show a real weave, photographed (ambientCG, CC0): every surface in the game — timber, plaster, stone, brick, roof tiles, bark, needles, cloth, mud, cobbles and the forest floor — is now laid over with a photograph of the real stuff.",
+      "Coats, skirts, aprons and shirts show a real weave, photographed (ambientCG, CC0): timber, plaster, stone, brick, roof tiles, bark, needles, cloth, mud, cobbles and the forest floor are all now laid over with a photograph of the real stuff (the meadow grass is still painted).",
     ],
   },
   {

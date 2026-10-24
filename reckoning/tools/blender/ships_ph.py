@@ -19,7 +19,11 @@ SRC = os.path.join(HERE, "assets", "ph")
 MODELS = os.path.normpath(os.path.join(HERE, "..", "..", "models"))
 
 # name: (Poly Haven asset, overall length, how far of her hull's height is below the water)
-SHIPS = {"ship_dutch": ("dutch_ship_large_01", 26.2, 0.33), "ship_dutch_m": ("dutch_ship_medium", 26.2, 0.33)}
+SHIPS = {"ship_dutch": ("dutch_ship_large_01", 26.2, 0.33), "ship_dutch_m": ("dutch_ship_medium", 26.2, 0.33),
+         # (a pinnace: a small, fast, lightly gunned ship — a sloop at sea, a coaster at the quay)
+         "ship_pinnace": ("ship_pinnace", 26.2, 0.3)}
+# (triangles each may keep, at most: the scans are finer than a ship far off needs)
+CUT = {"ship_pinnace": 40000}
 TEX = 512
 
 
@@ -34,6 +38,16 @@ def build(name):
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
     for o in meshes:
         o.data.transform(o.matrix_world); o.matrix_world = Matrix.Identity(4); o.parent = None
+    want = CUT.get(name)
+    if want:
+        total = sum(len(p.vertices) - 2 for o in meshes for p in o.data.polygons)
+        if total > want:
+            for o in meshes:
+                n = sum(len(p.vertices) - 2 for p in o.data.polygons)
+                if n > 500 and "rigging" not in o.name:
+                    md = o.modifiers.new("cut", "DECIMATE"); md.ratio = max(0.08, want / total)
+                    bpy.context.view_layer.objects.active = o; bpy.ops.object.modifier_apply(modifier=md.name)
+            print(name, "cut", total, "->", sum(len(p.vertices) - 2 for o in meshes for p in o.data.polygons))
     hull = next(o for o in meshes if "hull" in o.name)
     allp = [v.co for o in meshes for v in o.data.vertices]
     hp = [v.co for v in hull.data.vertices]
