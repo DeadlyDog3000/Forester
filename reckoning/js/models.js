@@ -534,7 +534,7 @@ function loaderReady() {
 // what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
 const SURF_BY_NAME = { steel: "none", brass: "none", rod: "wood", fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "log", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",
   // (a tree's bark and needles; a ship's hull; the oven's clay; a candle's wax; a burned house's char and ash; the far city's water and roofs)
-  bark: "bark", needles: "needles", hull: "wood", clay: "plaster", wax: "none", char: "wood", ash: "none", water: "none", copper: "none", earth: "none", house: "plaster" };
+  bark: "bark", needles: "needles", pbr: "none", hull: "wood", clay: "plaster", wax: "none", char: "wood", ash: "none", water: "none", copper: "none", earth: "none", house: "plaster" };
 const _loading = {};
 const BUILDING = k => /^town\//.test(k) || ["home_2", "cabin", "cabin_burned", "woodshed", "well"].includes(k);
 async function fetchModel(k, url) {
@@ -890,8 +890,13 @@ const wrap = (g, y, h, r, m = CORD()) => mesh(tgeo(`wrap${h}|${r}`, () => new TH
 const AXE_SHAPE = [[-0.032, 0.668], [-0.034, 0.588], [0.0, 0.578, 0.045, 0.584], [0.098, 0.588, 0.128, 0.506], [0.188, 0.548, 0.19, 0.612], [0.188, 0.676, 0.158, 0.712], [0.1, 0.672, 0.04, 0.672], [0.004, 0.676, -0.032, 0.668]];
 const AXE_EDGE = [[0.124, 0.512], [0.186, 0.55, 0.19, 0.612], [0.188, 0.676, 0.156, 0.708], [0.16, 0.68, 0.17, 0.612], [0.168, 0.556, 0.124, 0.512]];
 const axeTaper = (z) => 1 - 0.8 * Math.max(0, Math.min(1, (z - 0.03) / 0.15));
+// (a real one in your hands where there is one — scanned worn wood and forged iron, from Poly Haven — for the iron and
+//  the steel; the copper and the bronze heads are the built ones, their own colour)
+const realTool = k => { const m = modelCopy(k); if (!m) return null; const g = new THREE.Group(); g.add(m.scene); return g; };
 export function makeAxe(tier) {
-  const t = tier >= 3 && tier <= 5 ? tier : 0, g = new THREE.Group();
+  const t = tier >= 3 && tier <= 5 ? tier : 0;
+  if (t === 0 || t === 5) { const r = realTool("axe"); if (r) return r; }
+  const g = new THREE.Group();
   mesh(haftGeo(0.8, 0.0175, 0.016, 8, -0.1, 0.03), WOOD(), g);
   mesh(tgeo("axeKnob", () => new THREE.CylinderGeometry(0.02, 0.024, 0.04, 8)), WOOD(), g, 0, -0.085);
   mesh(plateGeo("axeHead", AXE_SHAPE, 0.034, 0.004, axeTaper), STUFF(t), g);
@@ -1015,6 +1020,7 @@ export function makeSickle() {
 }
 // a saw: a tapered blade with its teeth along the edge, and a handle with a grip cut through it
 export function makeSaw() {
+  { const r = realTool("saw"); if (r) return r; }
   const g = new THREE.Group(), teeth = [];
   for (let i = 0; i <= 24; i++) teeth.push([-0.055 - (i % 2 ? 0.012 : 0), 0.06 + 0.6 * i / 24]);
   mesh(plateGeo("sawBlade", [[0.05, 0.06], [0.03, 0.68], ...teeth.reverse().map(([z, y]) => [z * (1 - 0.35 * (y - 0.06) / 0.62), y])], 0.003, 0), STUFF(5), g, 0, 0, 0.005);
@@ -1027,6 +1033,7 @@ export function makeSaw() {
 }
 // a hammer by its making: a wooden mallet, a stone lashed to a haft, or a forged head with a face and a peen
 export function makeHammer(tier = (G_TOOLS() || {}).hammer || 5) {
+  if (tier >= 3) { const r = realTool("hammer"); if (r) return r; }
   const g = new THREE.Group();
   mesh(haftGeo(0.38, 0.016, 0.014, 7, -0.05), WOOD(), g);
   if (tier <= 1) mesh(tgeo("mallet", () => { const c = new THREE.CylinderGeometry(0.045, 0.045, 0.15, 8); c.rotateX(Math.PI / 2); return c; }), WOOD_DARK(), g, 0, 0.3);
@@ -1054,7 +1061,9 @@ export function makeSpatula() {
 // a spade, gripped at the origin, pointing +Y: a long haft with a T at the end, an iron socket, and the blade: square at
 // the shoulders where the foot goes, rounded to the cutting edge
 export function makeSpade(tier = (G_TOOLS() || {}).spade || 2) {
-  const t = tier >= 3 ? tier : 0, g = new THREE.Group();
+  const t = tier >= 3 ? tier : 0;
+  if (t === 0 || t === 5) { const r = realTool("spade"); if (r) return r; }
+  const g = new THREE.Group();
   mesh(haftGeo(0.86, 0.019, 0.017, 7, -0.12), WOOD(), g);
   mesh(tgeo("spadeT", () => { const c = new THREE.CylinderGeometry(0.016, 0.016, 0.13, 6); c.rotateX(Math.PI / 2); return c; }), WOOD(), g, 0, -0.12);
   mesh(tgeo("spadeSocket", () => new THREE.CylinderGeometry(0.02, 0.028, 0.1, 7)), STUFF(t), g, 0, 0.76);
@@ -1127,6 +1136,8 @@ export function makeSack() {
 // a pickaxe by its making: a wooden point (fire-hardened), two wedges of stone lashed either side, or a forged crescent
 const PICK_SHAPE = [[-0.27, -0.075], [-0.13, 0.045, 0, 0.05], [0.13, 0.045, 0.27, -0.075], [0.12, -0.005, 0, -0.012], [-0.12, -0.005, -0.27, -0.075]];
 export function makePick(tier = 1) {
+  // (the real one for every pick: the built wooden and stone ones were crude beside it)
+  { const r = realTool("pick"); if (r) return r; }
   const g = new THREE.Group();
   mesh(haftGeo(0.78, 0.023, 0.019, 7, -0.08), WOOD(), g);
   wrap(g, 0.04, 0.16, 0.026, LEATHER());

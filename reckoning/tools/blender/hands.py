@@ -79,6 +79,47 @@ def grip_hand():
     return bm
 
 
+def occlude(b):
+    """The hand's own shadow, baked in as a vertex colour: between the fingers, in the curl of the fist, under the
+    thumb and in the creases of the knuckles it's darker, as skin is where the light can't reach — so from any side the
+    hand reads as fingers and not as a smooth lump of skin."""
+    from mathutils.bvhtree import BVHTree
+    import random
+    b.normal_update()
+    tree = BVHTree.FromBMesh(b)
+    rng = random.Random(7)
+    dirs = []
+    while len(dirs) < 48:
+        v = Vector((rng.uniform(-1, 1), rng.uniform(-1, 1), rng.uniform(-1, 1)))
+        if 0.05 < v.length <= 1:
+            dirs.append(v.normalized())
+    # (the only colour it carries: any the source had, gone, so the game reads this one)
+    for L in list(b.loops.layers.color):
+        b.loops.layers.color.remove(L)
+    for L in list(b.verts.layers.float_color) + list(b.verts.layers.color if hasattr(b.verts.layers, "color") else []):
+        try:
+            b.verts.layers.float_color.remove(L)
+        except Exception:
+            pass
+    lay = b.loops.layers.color.new("Col")
+    ao = {}
+    for v in b.verts:
+        n = v.normal; o = v.co + n * 0.0015; hit = tot = 0
+        for d in dirs:
+            c = d.dot(n)
+            if c <= 0.05:
+                continue
+            tot += c
+            if tree.ray_cast(o, d, 0.05)[0] is not None:
+                hit += c
+        a = 1 - (hit / tot if tot else 0)
+        ao[v.index] = 0.42 + 0.58 * a ** 1.4
+    for f in b.faces:
+        for l in f.loops:
+            k = ao[l.vert.index]
+            l[lay] = (k, k * 0.97, k * 0.95, 1)
+
+
 def main():
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
@@ -94,6 +135,7 @@ def main():
             bmesh.ops.scale(b, verts=b.verts, vec=(-1, 1, 1))
             bmesh.ops.reverse_faces(b, faces=b.faces)
         bmesh.ops.recalc_face_normals(b, faces=b.faces)
+        occlude(b)
         # (haft along x here; the file's up is Blender's z: turned so the haft runs up)
         bmesh.ops.rotate(b, verts=b.verts, cent=(0, 0, 0), matrix=Matrix.Rotation(-math.pi / 2, 3, "Y"))
         me = bpy.data.meshes.new(f"hand_{side}")
@@ -108,7 +150,7 @@ def main():
     out = os.path.join(MODELS, "hand_grip.glb")
     for o in bpy.context.scene.objects:
         o.select_set(o in made)
-    bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", use_selection=True, export_apply=True)
+    bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", use_selection=True, export_apply=True, export_vertex_color="ACTIVE")
     print("wrote", out)
 
 

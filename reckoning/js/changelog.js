@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.111", date: "23 October 2026", title: "Real tools",
+    items: [
+      "The tools and blades in your hands are real ones now — photographed and scanned, worn wood and pitted iron: the felling axe, the pick (whatever your pick, no more crude wooden one), the spade, the hammer, the saw, a long-bladed sword with its swept guard, and the dagger. From Poly Haven, given to everyone (CC0).",
+      "Your hands, first person, all of them: each closes round what it holds now — the axe's haft ran beside the fist, not through it (the new curved haft had been centred on its knob); the pistol's grip is held as a pistol's is, the hand turned down the slope of the butt, not round the line of the barrel; the musket's fore-hand cradles the fore-stock under the barrel instead of hanging beside the gun.",
+      "And the hands themselves have their own shadow worked into them — dark between the fingers, in the curl of the fist and the creases of the knuckles — so they read as fingers round a haft, not a smooth lump of skin.",
+    ],
+  },
+  {
     v: "1.99.110", date: "23 October 2026", title: "Elephant, giraffe, camel and polar bear",
     items: [
       "The wider world's beasts, real: the elephant — wrinkled grey hide, tusks and trunk — that stands swaying, trumpets, feeds, walks and charges, and goes down when it falls; the giraffe, dappled and long-necked, grazing, drinking, walking and galloping; the camel, a dromedary with its one hump, standing chewing and walking and running on its own long legs; and the polar bear, white and heavy, sniffing the wind and running.",

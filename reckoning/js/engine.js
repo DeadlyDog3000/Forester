@@ -39,12 +39,15 @@ function gripMesh(side) {
 }
 // (skin, not plastic: a soft reddish glow where the light grazes it, as light comes back out of real skin; the coat a
 //  wool, dull and soft at its edges; the shirt's linen thin enough to see both sides of)
-const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshPhysicalMaterial({ color: 0xe8c4a0, roughness: 0.55, sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0xff8f70) }), sleeve: new THREE.MeshPhysicalMaterial({ color: 0x4d5a3c, roughness: 0.95, sheen: 0.5, sheenRoughness: 0.8, sheenColor: new THREE.Color(0x9a9a8a), side: THREE.DoubleSide }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95, side: THREE.DoubleSide }) };
+const ARMS_M = { get gripSkin() { const m = this._grip ??= this.skin.clone(); m.side = THREE.DoubleSide; m.vertexColors = true; m.color.copy(this.skin.color); return m; }, skin: new THREE.MeshPhysicalMaterial({ color: 0xe8c4a0, roughness: 0.55, sheen: 0.7, sheenRoughness: 0.45, sheenColor: new THREE.Color(0xff8f70) }), sleeve: new THREE.MeshPhysicalMaterial({ color: 0x4d5a3c, roughness: 0.95, sheen: 0.5, sheenRoughness: 0.8, sheenColor: new THREE.Color(0x9a9a8a), side: THREE.DoubleSide }), cuff: new THREE.MeshStandardMaterial({ color: 0xd9d2c3, roughness: 0.95, side: THREE.DoubleSide }) };
 // a coat's sleeve, base at the shoulder, one long: round and full, with the soft creases of wool along it
 const SHOULDER_DROP = new THREE.Vector3(0, -0.14, 0.04);
 // (and each hand turned a little further round what it holds than straight on from its wrist, so from your eyes you see
 //  the fingers wrapped round the front of it, not only the back of the hand)
 const GRIP_TWIST = 0;
+const PISTOL_TILT = -0.7;
+// (the musket's fore-hand round its fore-stock, below the barrel: it closed round the barrel's top line, and hung beside the gun)
+const MUSKET_FORE_Z = 0.022;
 function sleeveGeo(r0, r1) {
   const g = new THREE.CylinderGeometry(r0 * 0.84, r1, 1, 28, 8, true).translate(0, 0.5, 0), p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -419,7 +422,9 @@ export class Player {
       const cuffM = ARMS_M.cuff;
       const fist = (y, z, side) => { const h = new THREE.Group(); h.add(gripMesh(side)); h.position.set(0, y, z); m.add(h); return h; };
       // (a pistol is held in the one hand, at the grip)
-      this.hands = pis ? [fist(-0.06, -0.068, "R"), fist(0.1, -0.03, "L")] : [fist(-0.065, -0.024, "R"), fist(0.46, -0.016, "L")];
+      this.hands = pis ? [fist(-0.06, -0.068, "R"), fist(0.1, -0.03, "L")] : [fist(-0.065, -0.024, "R"), fist(0.46, MUSKET_FORE_Z, "L")];
+      // (a pistol's butt drops away from the line of its barrel: the hand closed round that, turned to its slope)
+      if (pis) { const h = this.hands[0]; h.rotation.x = PISTOL_TILT; h.position.set(0, -0.07, -0.075); }
       // (the ramrod, for loading: drawn out of its pipes and down the barrel)
       const rodL = pis ? 0.27 : 0.92;
       this.gunRod = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 1, 6), new THREE.MeshStandardMaterial({ color: 0x5a3a20, roughness: 0.6 }));
