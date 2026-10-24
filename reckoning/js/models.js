@@ -1049,6 +1049,7 @@ export function makeHammer(tier = (G_TOOLS() || {}).hammer || 5) {
 }
 // kitchen tools, gripped at the origin, pointing +Y: a wooden ladle, and a flat wooden spatula for turning
 export function makeLadle() {
+  { const r = realTool("spoon"); if (r) return r; }
   const g = new THREE.Group(), wood = mat(0x9a7448, { surface: "wood" });
   const h = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.36, 6), wood); h.position.y = 0.16; g.add(h);
   const b = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 5, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), wood); b.position.y = 0.34; b.rotation.x = Math.PI / 2; g.add(b);
@@ -1085,7 +1086,9 @@ export function makeFood(kind) {
     return g;
   }
   if (kind === "dish") {
-    // a wooden bowl with something hot in it
+    // a wooden bowl with something hot in it (the bowl a real one, turned and worn: Poly Haven's)
+    const rb = modelCopy("prop_bowl");
+    if (rb) { g.add(rb.scene); const stew = new THREE.Mesh(new THREE.CircleGeometry(0.068, 16), mat(0x6a3a22, { surface: "none", roughness: 0.35 })); stew.rotation.x = -Math.PI / 2; stew.position.y = 0.036; g.add(stew); return g; }
     const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.045, 0.045, 10), mat(0x8a6440, { surface: "wood" })); bowl.position.y = 0.02; g.add(bowl);
     const stew = new THREE.Mesh(new THREE.CircleGeometry(0.062, 10), mat(0x6a3a22, { surface: "none", roughness: 0.35 })); stew.rotation.x = -Math.PI / 2; stew.position.y = 0.04; g.add(stew);
     return g;

@@ -1,5 +1,6 @@
 """Real furniture and goods for the world, from Poly Haven's scanned models (CC0, polyhaven.com): prop_barrel.glb,
-prop_table.glb, prop_bench.glb, prop_stool.glb, prop_bucket.glb, prop_basket.glb, prop_lantern.glb, prop_chest.glb.
+prop_table.glb, prop_bench.glb, prop_stool.glb, prop_bucket.glb, prop_basket.glb, prop_lantern.glb, prop_chest.glb,
+prop_bowl.glb.
 
 Each is stood on the ground at the origin, centred on its footprint, and sized to the game's built one it stands in
 for — by its height, the same all round, so a barrel stays a barrel's shape. Its material is "<name>_pbr", which the
@@ -27,6 +28,7 @@ PROPS = {
     "basket": ("wicker_basket_01", 0.24, 0),
     "lantern": ("wooden_lantern_01", 0.36, 0),
     "chest": ("treasure_chest", 0.6, 0),
+    "bowl": ("wooden_bowl_01", 0.05, 0),
 }
 
 

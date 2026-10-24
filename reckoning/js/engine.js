@@ -1427,6 +1427,15 @@ export class Player {
       const r = food ? food.r : fp ? fp.r : loading ? (this.loadHand === "rod" ? 0.006 : 0.012) : g === "stock" ? 0.022 : g === "fore" ? 0.02 : 0.017;
       arm.short = gripAt(A, arm, at, along, out, r); arm.at = at.clone(); arm.along = along.clone(); arm.r = r;
       // (the fingers closed till each lies on it; under a fore-end only half closed, the gun lying in the palm)
+      // (a bowl: borne on the open hand underneath it, the fingers spread under its foot, the thumb on its rim)
+      if (food && G.working && G.working.food === "dish") {
+        const up = _fpA.set(0, 1, 0).transformDirection(food.matrixWorld).applyQuaternion(rq).normalize(), fw = _fpO.set(0, 0, -1).applyQuaternion(rq.clone().invert().invert());
+        food.getWorldPosition(_fpP).applyMatrix4(inv);
+        const fwd = new THREE.Vector3(0, 0, -1).transformDirection(vm.matrixWorld).applyQuaternion(rq); fwd.addScaledVector(up, -fwd.dot(up)).normalize();
+        const W = _fpP.clone().addScaledVector(up, -0.03).addScaledVector(fwd, -0.075);
+        handAt(A, arm, W, fwd, up); closeHand(arm, { f: [12, 10, 6], fi: [8, 8, 4], th: [-25, 5, 5] });
+        continue;
+      }
       // (food: the hand cupped round it — the fingers bent less the bigger it is)
       if (food) { const c = Math.max(0.45, Math.min(1, 0.03 / r)); wrapHand(A, arm, at, along, r, { fixed: { index: [30 * c + 15, 45 * c + 15, 30 * c + 10], middle: [32 * c + 15, 48 * c + 15, 30 * c + 10], ring: [34 * c + 15, 50 * c + 15, 30 * c + 10], pinky: [38 * c + 15, 52 * c + 15, 30 * c + 10], thumb: [-15, 20, 25] } }); }
       else if (fp && fp.hook) wrapHand(A, arm, at, along, r, { fixed: { index: [8, 72, 48], middle: [8, 74, 48], ring: [10, 74, 46], pinky: [55, 85, 55], thumb: [25, 35, 25] } });

@@ -1,4 +1,4 @@
-"""The things in your hands as real things: axe.glb, pick.glb, spade.glb, sword.glb, dagger.glb — from Poly Haven's
+"""The things in your hands as real things: axe.glb, pick.glb, spade.glb, sword.glb, dagger.glb, spoon.glb (a cook's wooden spoon, for the stirring) — from Poly Haven's
 photographed, scanned models (CC0, polyhaven.com), with their own textures of worn wood and pitted iron.
 
 Each is turned to the way the game holds it (the haft or grip up +Z here, +Y in the game; what cuts or digs forward,
@@ -31,6 +31,7 @@ ITEMS = {
     "dagger": ("ornate_medieval_dagger", (0, 0), 0.38, -0.03, ("ornate_medieval_dagger_scabbard",)),
     "hammer": ("wooden_hammer_01", (0, 90), 0.34, -0.05, ()),
     "saw": ("handsaw_wood", (-90, 0), 0.66, -0.06, ()),
+    "spoon": ("wooden_spoon", (-90, 0), 0.32, -0.04, ()),
 }
 
 # where on each the hands close (fractions of its length from the foot): the two bands whose middles fix the haft's line

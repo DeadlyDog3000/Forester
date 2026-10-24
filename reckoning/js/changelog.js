@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.122", date: "24 October 2026", title: "A bowl on the hand",
+    items: [
+      "A hot dish comes in a real turned wooden bowl, worn with use (Poly Haven, CC0), borne on your open hand underneath it as a bowl is carried — not clutched by the rim.",
+      "Stirring the pot, you hold a real cook's wooden spoon, carved and worn (Poly Haven, CC0), in place of the built ladle.",
+    ],
+  },
+  {
     v: "1.99.121", date: "24 October 2026", title: "True arrows",
     items: [
       "Your arrows and bolts go where you aim them. Both were sent straight down the crosshair and dropped under their own weight — an arrow at full draw landed nearly a metre low at twenty paces, a bolt nearly half a metre — so shots that looked dead on went under the deer. Now your bow and your crossbow are sighted in at twenty metres, as an archer allows for the drop: on the crosshair there, a hand high nearer, falling short further off.",
