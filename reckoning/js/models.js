@@ -1576,13 +1576,18 @@ function spruceTierCards(N = 16) {
   const core = spruceTierGeo(Math.max(6, N / 2)); core.scale(0.62, 0.95, 0.62);
   const r = rng(23), cards = [], V = THREE.Vector3;
   for (let k = 0; k < N; k++) {
-    const a = k / N * TAU + r() * 0.2, ca = Math.cos(a), sa = Math.sin(a), tx = -sa, tz = ca;
-    const y0 = 0.62 + r() * 0.12, r1 = 0.98 + r() * 0.12, y1 = -0.02 - r() * 0.1, w = 0.24 + r() * 0.06;
-    // (the bough's root at the trunk, its tip out and down, the spray lying flat-ish and turned a little)
-    const tilt = (r() - 0.5) * 0.5;
-    const p0 = new V(ca * 0.05, y0, sa * 0.05), p1 = new V(ca * r1, y1, sa * r1);
-    const side = new V(tx * w, tilt * w, tz * w);
-    cards.push([[p0.clone().sub(side), [0, 0], 0.75], [p1.clone().sub(side), [1, 0], 1.05], [p1.clone().add(side), [1, 1], 1.05], [p0.clone().add(side), [0, 1], 0.75]]);
+    const a = k / N * TAU + r() * 0.35, ca = Math.cos(a), sa = Math.sin(a), tx = -sa, tz = ca;
+    // (each bough out from the trunk at its own height, longer or shorter, so a tier's edge is ragged and the tiers run
+    //  into one another — not a shelf with a lit rim, one over another)
+    const y0 = 0.48 + r() * 0.32, r1 = 0.82 + r() * 0.28, y1 = -0.06 - r() * 0.22, w = 0.22 + r() * 0.08;
+    // (drooping as a spruce's do: down from the trunk, sagging through the middle, the tip turned up a little)
+    const tilt = (r() - 0.5) * 0.5, sag = 0.08 + r() * 0.1;
+    const p0 = new V(ca * 0.05, y0, sa * 0.05), pm = new V(ca * r1 * 0.58, y0 + (y1 - y0) * 0.78 - sag, sa * r1 * 0.58), p1 = new V(ca * r1, y1 + 0.05, sa * r1);
+    const side = new V(tx * w, tilt * w, tz * w), sideM = side.clone().multiplyScalar(1.08), sideT = side.clone().multiplyScalar(0.8);
+    // (shaded darker toward the trunk, the tips only a little lighter, each bough its own — no bright rim all round)
+    const kk = 0.9 + r() * 0.2, k0 = 0.68 * kk, km = 0.84 * kk, k1 = 0.94 * kk;
+    cards.push([[p0.clone().sub(side), [0, 0], k0], [pm.clone().sub(sideM), [0.58, 0], km], [pm.clone().add(sideM), [0.58, 1], km], [p0.clone().add(side), [0, 1], k0]]);
+    cards.push([[pm.clone().sub(sideM), [0.58, 0], km], [p1.clone().sub(sideT), [1, 0], k1], [p1.clone().add(sideT), [1, 1], k1], [pm.clone().add(sideM), [0.58, 1], km]]);
   }
   return cardsGeo(core, cards);
 }

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.124", date: "24 October 2026", title: "Spruces, not shelves",
+    items: [
+      "The spruces read as spruces: each bough comes out from the trunk at its own height and length, sags through its middle and turns up at its tip, and the tiers run into one another. They were rings of flat boughs, each with a pale lit rim and a dark band under it — a stack of shelves.",
+    ],
+  },
+  {
     v: "1.99.123", date: "24 October 2026", title: "A real loaf",
     items: [
       "Bread is a real country loaf, scanned with its floured crust (ambientCG, CC0) in your hand — not a brown half-ball.",
