@@ -1652,6 +1652,9 @@ export class Woods extends WorldBase {
     box(IW * 0.45, 0.035, 0.035, CX - IW * 0.18, 0.98, ZB + 0.28, 0x2a2826);
     box(0.015, 0.22, 0.015, CX + 0.02, 0.86, ZB + 0.3, 0x2a2826);
     const g = b.build(MAT.rough); g.castShadow = true; g.receiveShadow = true;
+    // a copper pan hung on the wall beside it by the ring in its handle, its turned wooden grip up (scanned: Poly Haven,
+    //  CC0)
+    { const m = modelCopy("prop_pan"); if (m) { const [px, pz] = this.cabinToWorld(CX + OW / 2 + 0.28, ZB + 0.03); m.scene.position.set(px, Y + 1.3, pz); m.scene.rotation.set(Math.PI / 2, ry, 0, "YXZ"); g.add(m.scene); } }
     // the kettle: black iron, round-bellied
     const [kx, kz] = this.cabinToWorld(CX + 0.02, ZB + 0.3);
     const kettle = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), mat(0x1e1d1c, { metalness: 0.5, roughness: 0.6 })); kettle.scale.set(1, 0.85, 1); kettle.position.set(kx, Y + 0.66, kz); g.add(kettle);

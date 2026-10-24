@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.136", date: "24 October 2026", title: "A pan by the fire",
+    items: [
+      "A copper pan hangs on the wall beside the cabin's hearth by the ring in its turned wooden handle, scanned (Poly Haven, CC0).",
+    ],
+  },
+  {
     v: "1.99.135", date: "24 October 2026", title: "Deadwood underfoot",
     items: [
       "The forest floor is littered with fallen branches, real ones, scanned with their bark and twigs (Poly Haven, CC0): several hundred along the tracks' edges and in among the trees.",
