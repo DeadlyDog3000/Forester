@@ -3164,9 +3164,9 @@ class Bot extends Fighter {
     const to = new THREE.Vector3(tp.x, tp.y + (low ? 0.95 : 1.25), tp.z), flight = from.distanceTo(to) / sp;
     if (tv) to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), flight * (0.3 + s * 0.7));
     to.y += 4.9 * flight * flight;
-    // (in a pitched battle, wider: a line firing by volleys into the smoke at the word, not a man picking his mark — one
-    //  ball in ten finding a man at fifty paces, as the drill-books of the time reckoned, and the firefight lasting)
-    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 1.6 : 1);
+    // (in a pitched battle: two balls in five finding their man at fifty paces, from a soldier of middling skill — a
+    //  steadier hand than in the duel, the line's men standing to their work)
+    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 0.6 : 1);
     const dir = to.sub(from).normalize(), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(), up = new THREE.Vector3().crossVectors(side, dir);
     dir.addScaledVector(side, randn() * sigma).addScaledVector(up, randn() * sigma).normalize();
     AUDIO.gunshot && AUDIO.gunshot(pis ? 0.75 : 0.95, a.pos);

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.126", date: "24 October 2026", title: "Two in five",
+    items: [
+      "In a pitched battle a soldier's musket finds its man two shots in five at fifty paces (a middling soldier; a good one more, a raw one less) — up from one in ten. Firefights are short and bloody: stand in the open in front of a loaded line at your peril.",
+    ],
+  },
+  {
     v: "1.99.125", date: "24 October 2026", title: "Lines of battle",
     items: [
       "The two armies form up a hundred paces apart, not seventy-five: a long musket shot and more of open ground to cross under fire.",
