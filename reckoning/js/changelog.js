@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.135", date: "24 October 2026", title: "Deadwood underfoot",
+    items: [
+      "The forest floor is littered with fallen branches, real ones, scanned with their bark and twigs (Poly Haven, CC0): several hundred along the tracks' edges and in among the trees.",
+    ],
+  },
+  {
     v: "1.99.134", date: "24 October 2026", title: "The merchant's house, furnished",
     items: [
       "The bedroom in the Hamburg house has two carved, posted beds made up in white linen, scanned (Poly Haven, CC0), instead of log frames.",

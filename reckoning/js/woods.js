@@ -211,7 +211,7 @@ export class Woods extends WorldBase {
       { const t = list[list.length - 1]; t.col = this.col.addCircle(x, z, kind === "birch" ? 0.2 : 0.3, t.y + 12); }
     }
     // and the woods close round the charcoal burner's clearing too
-    for (let i = 0; i < 900; i++) {
+    for (let i = 0; i < 800; i++) {
       const a = r() * TAU, rad = 17 + Math.pow(r(), 0.8) * 45;
       const x = burnerAt.x + Math.cos(a) * rad, z = burnerAt.z + Math.sin(a) * rad;
       if (this.anyRoadDist(x, z).d < 4.5) continue;
@@ -267,7 +267,7 @@ export class Woods extends WorldBase {
     // undergrowth: bushes, ferns, stones. The bushes and the clumps of fern are each their own, so a stroke of the
     // axe (or a blade) cuts one down — and it stays down; the stones are fixed
     const ub = new Builder(), shrubs = [], stones = [];
-    for (let i = 0; i < 900; i++) {
+    for (let i = 0; i < 800; i++) {
       const t = this.road[Math.floor(r() * this.road.length)];
       const a = r() * TAU, rad = 3.5 + r() * 45;
       const x = t.x + Math.cos(a) * rad, z = t.z + Math.sin(a) * rad;
@@ -302,6 +302,16 @@ export class Woods extends WorldBase {
         else herbs2.push({ x, y: y - 0.01, z, ry: r() * 6.28, s: 1.6 + r() * 1.6 });
       }
       for (const m of [realMany("stump_a", old.filter(q => q.v < 0.5), { shadow: true }), realMany("stump_b", old.filter(q => q.v >= 0.5), { shadow: true }), realMany("log_a", logs, { shadow: true }), realMany("nettle", herbs), realMany("nettle", herbs2.map(q => ({ ...q, s: q.s * 0.7 })))]) if (m) root.add(m);
+      // (dry branches down among the trees and along the tracks' edges, grey and barked — scanned; their own draw, so
+      //  the rest of the wood's places stay where they were)
+      { const rb = rng(9137), BR = [[], [], []];
+        for (let i = 0; i < 800; i++) {
+          const t = this.road[Math.floor(rb() * this.road.length)], a = rb() * TAU, rad = 2.6 + rb() * 40, x = t.x + Math.cos(a) * rad, z = t.z + Math.sin(a) * rad;
+          if (this.anyRoadDist(x, z).d < 2.2 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r || pondK(x, z) < 1.2) continue;
+          { const bq = this.brookAt(x, z); if (bq && bq.d < bq.w + 0.5) continue; }
+          BR[Math.floor(rb() * 3)].push({ x, y: this.heightAt(x, z) - 0.03, z, ry: rb() * 6.28, rz: (rb() - 0.5) * 0.12, s: 1.0 + rb() * 0.8 });
+        }
+        for (const [k, list] of [["branch_a", BR[0]], ["branch_b", BR[1]], ["branch_c", BR[2]]]) { const m = realMany(k, list); if (m) root.add(m); } }
       // (and you can't walk through a fallen trunk or a stump)
       for (const q of old) this.col.addCircle(q.x, q.z, 0.4 * q.s, q.y + 0.6);
       for (const q of logs) { const L = 2 * q.s, cx = Math.cos(q.ry), sz = -Math.sin(q.ry); for (let k = -1; k <= 1; k++) this.col.addCircle(q.x + cx * L * k * 0.66, q.z + sz * L * k * 0.66, 0.5 * q.s, q.y + 1); }

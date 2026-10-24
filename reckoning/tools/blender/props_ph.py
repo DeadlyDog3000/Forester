@@ -35,10 +35,11 @@ PROPS = {
     "plate": ("carved_wooden_plate", 0.03, 0),
     "goblet": ("brass_goblets", 0.2, 0),
     "bed": ("GothicBed_01", 1.45, 0),
+    "pan": ("brass_pan_01", 0.053, 0),
 }
 
 
-CUT = {"candlestick": 1500, "chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000, "crate": 2500, "crate_s": 2500, "plate": 1200, "goblet": 1500, "bed": 6000}
+CUT = {"candlestick": 1500, "chest": 3500, "basket": 4000, "stool": 3000, "barrel": 4000, "lantern": 3000, "crate": 2500, "crate_s": 2500, "plate": 1200, "goblet": 1500, "bed": 6000, "pan": 1500}
 # (a file of several, one of them taken alone: its object's name)
 ONLY = {"goblet": "brass_goblet_01"}
 

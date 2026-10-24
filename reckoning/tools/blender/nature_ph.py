@@ -29,9 +29,9 @@ NATURE = {
     "fern": ("fern_02", 4000, 1.0, True),
     "nettle": ("nettle_plant", 6000, 1.0, True),
     "firepit": ("stone_fire_pit", 3900, 1.0, False),
-    "branch_a": ("dry_branches_medium_01", 900, 1.0, False),
-    "branch_b": ("dry_branches_medium_01", 700, 1.0, False),
-    "branch_c": ("dry_branches_medium_01", 700, 1.0, False),
+    "branch_a": ("dry_branches_medium_01", 320, 1.0, False),
+    "branch_b": ("dry_branches_medium_01", 260, 1.0, False),
+    "branch_c": ("dry_branches_medium_01", 260, 1.0, False),
 }
 # (a file of several laid side by side, one of them taken alone: its object's name)
 ONLY = {"branch_a": "dry_branches_medium_01_a", "branch_b": "dry_branches_medium_01_b", "branch_c": "dry_branches_medium_01_c"}
