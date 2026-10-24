@@ -1104,8 +1104,13 @@ export class Orders {
   slot(i, n, anchor, face) {
     const fx = Math.sin(face), fz = Math.cos(face), rx = Math.cos(face), rz = -Math.sin(face);
     let a = 0, b = 0;                                     // (across, and forward)
-    // (a line of more than fourteen is two ranks, the second a pace behind the first, covering its gaps)
-    if (this.form === "line") { const per = n > 14 ? Math.ceil(n / 2) : n, rk = Math.floor(i / per), j = i % per, m = rk ? n - per : per; a = (j - (m - 1) / 2) * 1.6 + rk * 0.8; b = -rk * 1.4; }
+    // (a line as the foot of the 1680s stood it: shoulder to shoulder, a yard to a man; two ranks deep once there are
+    //  thirteen of them, three only past thirty-six — a line wider than it is deep — each rank a pace and a half behind
+    //  the one before, standing in its gaps so it can fire past them)
+    if (this.form === "line") {
+      const R = n > 36 ? 3 : n > 12 ? 2 : 1, per = Math.ceil(n / R), rk = Math.floor(i / per), j = i % per, m = rk < R - 1 ? per : n - per * (R - 1);
+      a = (j - (m - 1) / 2) * 1.05 + (rk % 2) * 0.52; b = -rk * 1.5;
+    }
     else if (this.form === "column") { a = (i % 2 - 0.5) * 1.2; b = -Math.floor(i / 2) * 1.5; }
     else if (this.form === "square") { const per = Math.max(1, Math.ceil(n / 4)), sideI = i % 4, k = Math.floor(i / 4), half = per * 0.8 + 0.8, t = (k - (per - 1) / 2) * 1.6; [a, b] = [[t, half], [half, -t], [-t, -half], [-half, t]][sideI]; }
     else { const h = Math.sin(i * 12.9898) * 43758.5453 % 1; a = (i - (n - 1) / 2) * 3.8; b = (h - 0.5) * 4; }

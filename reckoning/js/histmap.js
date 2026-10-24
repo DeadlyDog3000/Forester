@@ -29,6 +29,34 @@ const hsh = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.545
 export function townPlan(rank) {
   return { wallU: 8, Hr: rank >= 3 ? 3.4 : 2.9, top: 6, inner: 8 + 6 + 7, gate: 3, W: rank >= 3 ? 66 : rank === 2 ? 58 : 48, tower: 30, guns: [-15, 15, -42, 42] };
 }
+// AN ORDINARY BATTLE'S FIELD: no two alike, as no two fields were — made from the battle's own seed, so both players of
+// a battle online, and its replay, stand on the same ground. Its lines stand at u = ∓dx.
+//   the ground often higher at one end — one side holding the rise, the other to come up at it;
+//   a knoll or two out on the flanks, now and then a low crest between the lines to hide behind and fight over;
+//   a brook across the field, to be forded under fire, or a stream down one flank;
+//   a hamlet on one flank — cottages, maybe a chapel — that will be fought for; a mill; a vineyard on a slope.
+export function fieldMap(seed, dx) {
+  let s = (seed | 0) ^ 0x5bd1e995 || 9;
+  const r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
+  const side = () => (r() < 0.5 ? -1 : 1);
+  const M = { hills: [], rivers: [], things: [], r1: dx * 2.4, r2: dx * 4 };
+  if (r() < 0.7) { const h = 4 + r() * 5; M.ramp = side() < 0 ? [-dx - 15, h, dx * 0.25, 0] : [-dx * 0.25, 0, dx + 15, h]; }
+  const nk = 1 + Math.floor(r() * 3);
+  for (let i = 0; i < nk; i++) M.hills.push({ u: (r() * 2 - 1) * dx * 0.95, v: side() * (26 + r() * 40), r: 18 + r() * 24, h: 4 + r() * 7 });
+  if (r() < 0.4) M.hills.push({ u: (r() - 0.5) * dx * 0.5, v: (r() - 0.5) * 30, r: 24 + r() * 14, h: 2 + r() * 2.5 });
+  const brook = r();
+  if (brook < 0.3) M.rivers.push({ u: (r() - 0.5) * dx * 0.7, w: 4 + r() * 3, d: 0.6, bank: 3 });
+  else if (brook < 0.5) M.rivers.push({ v: side() * (58 + r() * 15), w: 7 + r() * 5, d: 1.1, bank: 4 });
+  if (r() < 0.6) {
+    const sv = side(), u0 = (r() - 0.5) * dx * 0.9, v0 = sv * (46 + r() * 16), n = 2 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i++) M.things.push(["house", u0 + (i - (n - 1) / 2) * (10 + r() * 4) + (r() - 0.5) * 3, v0 + (r() - 0.5) * 9 + (i % 2) * sv * 8, (r() - 0.5) * 0.5, 6 + r() * 2.5, 4.5 + r() * 1.5, r() < 0.3 ? "tile" : "thatch"]);
+    if (r() < 0.45) M.things.push(["church", u0 + (r() - 0.5) * 20, v0 + sv * (18 + r() * 6), (r() - 0.5) * 0.4, 14 + r() * 6, 6 + r() * 6]);
+  }
+  if (r() < 0.25) M.things.push(["mill", side() * dx * (0.3 + r() * 0.6), side() * (60 + r() * 15)]);
+  if (r() < 0.2) { const u0 = (r() - 0.5) * dx, v0 = side() * (40 + r() * 20); M.things.push(["vines", u0 - 14, u0 + 14, v0 - 10, v0 + 10]); }
+  return M;
+}
+
 // the ground reshaped: called before any of it is built (the terrain's chunks, its trees, the field's works)
 export function shapeField(w, C, b, flip) {
   const M = b.map || {}, L = w.land; if (!L.setSculpt) return;

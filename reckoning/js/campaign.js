@@ -13,6 +13,7 @@
 // them. A town is a province: taking one takes the country round it.
 
 import { FOLEY } from "./foley.js";
+import { fieldMap } from "./histmap.js";
 import { G } from "./engine.js";
 import { NATIONS, NATION_FAITH, CITIES, buildGrid, buildGridRO, cityOwner, gridOf, llOf, drawEurope, cityAt, nationAt, relWord, the, The, MAP_ASPECT, MG_W, MG_H, useSheet, PEOPLES, peopleAt } from "./europe.js";
 import { EuropeView3D } from "./europe3d.js";
@@ -1037,7 +1038,9 @@ function fight(o) {
       { name: NATIONS[C.me].name, lead: "you", hold: o.attack ? undefined : 999, cos: [{ uni: UNI_OF[C.me], muster: { ...o.pick.men }, guns: fieldCap(myTech, o.pick.guns | 0), brave: braveMul(g), tech: myTech }, ...(ally && !o.walls ? [{ uni: UNI_OF[ally], muster: muster(ally, 14), guns: 1 }] : [])] },
       { name: NATIONS[o.foe].name, lead: "their officers", hold: o.attack ? 999 : undefined, cos: [{ uni: UNI_OF[o.foe] === UNI_OF[C.me] ? (UNI_OF[C.me] === "imperial" ? "bavarian" : "imperial") : UNI_OF[o.foe], muster: theirMuster, tech: foeTech, guns: o.convoy ? 0 : fieldCap(foeTech, Math.min(3, foeGuns, Math.ceil(theirs / 15))), brave: theirBrave }] },
     ],
-    map: { snow: s === 3, things },
+    // (a battle in the open field: ground of its own — a rise one side holds, knolls, maybe a brook to ford or a hamlet
+    //  on a flank — the same for both crowns of a campaign played together, from where and when it's fought)
+    map: o.field ? { ...fieldMap(Math.round(ct[1] * 777 + ct[2] * 91 + C.year * 13 + s), 52), snow: s === 3 } : { snow: s === 3, things },
   };
   if (!C.mp || (mp && mp.host)) { C.pending = { ...o, ct: o.ct[0], ar: C.ar | 0 }; persist(); }
   b.skillAdd = dif().skill;

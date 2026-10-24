@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.125", date: "24 October 2026", title: "Lines of battle",
+    items: [
+      "The two armies form up a hundred paces apart, not seventy-five: a long musket shot and more of open ground to cross under fire.",
+      "A company stands as the foot of the 1680s did: shoulder to shoulder, a yard to a man, two ranks deep (three in a big one), the rear rank in the front rank's gaps — the pikes a block in the middle, the muskets out either side of them, the horse on the wings. It was one thin rank at arm's length, in the order the men were mustered.",
+      "Men keep their ranks. A soldier with an empty musket loads where he stands, as he was drilled to, instead of running off to find cover of his own (unless the company is told to take cover, or is in loose order); a line on the march keeps its place and fires when it halts and is given the word, instead of each man stopping to shoot.",
+      "The other side fights a firefight before it fights with the steel: it marches up in line, halts at forty-five to sixty paces and trades volleys, and closes for the charge only once the firing has gone its way for a while, your line is broken or has just fired, or the exchange has dragged on. It was in among you within a minute.",
+      "Volley fire is as deadly as it was, not more: in a pitched battle about one ball in ten finds a man at fifty paces, so a firefight lasts and can be won or lost — not a third of a company down in one volley.",
+      "Every battlefield is its own ground now: often one side holds a rise and the other must come up at it; a knoll or two on the flanks, sometimes a low crest between the lines to fight over; a brook to ford under fire, or a stream down a flank; a hamlet of cottages, perhaps a chapel, on a flank to fight round; a mill; a vineyard. The same field for both players online and in the replay. Campaign battles in the open field get it too.",
+    ],
+  },
+  {
     v: "1.99.124", date: "24 October 2026", title: "Spruces, not shelves",
     items: [
       "The spruces read as spruces: each bough comes out from the trunk at its own height and length, sags through its middle and turns up at its tip, and the tiers run into one another. They were rings of flat boughs, each with a pale lit rim and a dark band under it — a stack of shelves.",
