@@ -737,6 +737,28 @@ function weatheredSkin(m) {
 }
 // ---- hair, not a painted cap: fine strands running down it, darker toward the roots, a greasy sheen caught along them
 // here and there (nobody washed it much), and never quite even ----
+// ---- a wound in the cloth (and the skin): blood soaking out from where the blow went in, spreading for some seconds,
+// running further down than up, near black and wet at the middle. Up to four on a man; their places in the model's own
+// space, so they move with him ----
+const WOUND_T = { get value() { return performance.now() / 1000; } };
+function woundHook(P) {
+  return sh => {
+    sh.uniforms.uWound = P.woundU; sh.uniforms.uWoundR = P.woundR; sh.uniforms.uWT = WOUND_T;
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWdP;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvWdP = position;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vWdP; uniform vec4 uWound[4]; uniform float uWoundR[4]; uniform float uWT;")
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        float wB = 0.0;
+        for (int i = 0; i < 4; i++) {
+          float R = uWoundR[i]; if (R <= 0.0) continue;
+          vec4 w = uWound[i]; float age = max(0.0, uWT - w.w), r = min(R, 0.02 + age * 0.03);
+          vec3 dv = vWdP - w.xyz; dv.y *= dv.y < 0.0 ? 0.45 : 1.6;
+          float n = fract(sin(dot(floor(vWdP * 140.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          wB = max(wB, smoothstep(r, r * 0.35, length(dv) + (n - 0.5) * 0.025));
+        }
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.17, 0.012, 0.01) * (0.7 + 0.3 * wB), wB * 0.92);`)
+      .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.32, wB * 0.75);");
+  };
+}
 function strandHair(m) {
   m.userData.strands = true;
   m.roughness = 0.62;
@@ -813,6 +835,14 @@ function useModel(P, key, colors = {}) {
     if (!own.skin.userData.weathered) weatheredSkin(own.skin);
     o.material = own.skin;
   });
+  // (blood where he's hit, soaking out from the wound: see woundHook and gore.js)
+  P.woundU = { value: Array.from({ length: 4 }, () => new THREE.Vector4(0, -10, 0, 0)) }; P.woundR = { value: [0, 0, 0, 0] }; P.woundN = 0;
+  { const done = new Set(); m.scene.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material) || done.has(o.material)) return;
+    const part = o.material.userData.part; if (!(WORN_PARTS.has(part) || part === "skin")) return;
+    if (!own[part] || own[part] !== o.material) return;
+    done.add(o.material); addHook(o.material, woundHook(P), "wound");
+  }); }
   // (hair as hair: see strandHair)
   m.scene.traverse(o => {
     if (!o.isMesh || !o.material || Array.isArray(o.material)) return;

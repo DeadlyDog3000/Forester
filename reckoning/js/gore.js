@@ -146,13 +146,50 @@ function stainMerged(sk, amt) {
   col.needsUpdate = true;
 }
 const BLOOD_RGB = [BLOOD.r, BLOOD.g, BLOOD.b];
+// a wound's place, in the model's own space: the struck point taken back through the nearest bone to where it was when
+// the model was made — so the stain stays on the coat where the ball went in, however he moves or falls
+const _M = new THREE.Matrix4(), _I = new THREE.Matrix4();
+function bindPoint(P, at) {
+  let sk = null, bm = null; P.modelScene.traverse(o => { if (!sk && o.isSkinnedMesh && o.skeleton) { sk = o.skeleton; bm = o.bindMatrix; } });
+  if (!sk || !at) return null;
+  let best = -1, bd = 1e9; const w = new THREE.Vector3();
+  sk.bones.forEach((b, i) => { b.getWorldPosition(w); const d = w.distanceToSquared(at); if (d < bd) { bd = d; best = i; } });
+  if (best < 0) return null;
+  const b = sk.bones[best]; b.updateWorldMatrix(true, false);
+  _M.copy(b.matrixWorld).invert(); _I.copy(sk.boneInverses[best]).invert();
+  return at.clone().applyMatrix4(_M).applyMatrix4(_I).applyMatrix4(new THREE.Matrix4().copy(bm).invert());
+}
+// the wound marked: on his own clothes (the shader soaks it out from there), or — a man of a battle's crowd, made one —
+// baked into the colours of his one mesh round the place
+function mark(P, at, down) {
+  if (!P || !P.modelScene) return;
+  const v = bindPoint(P, at); if (!v) return stain(P, down ? 0.2 : 0.12);
+  const M = P.root && P.root.userData.merged;
+  if (M && P.unmerge) { for (const sk of M) soakMerged(sk, v, down ? 0.17 : 0.11); return; }
+  if (!P.woundU) return stain(P, down ? 0.2 : 0.12);
+  const i = P.woundN++ % 4;
+  P.woundU.value[i].set(v.x, v.y, v.z, performance.now() / 1000); P.woundR.value[i] = down ? 0.17 : 0.11;
+}
+function soakMerged(sk, v, R) {
+  const U = sk.userData, col = sk.geometry.attributes.color, pos = sk.geometry.attributes.position; if (!U.parts || !col) return;
+  for (const p of U.parts) {
+    if (!p.part || !(SOAKS.has(p.part) || p.part === "skin")) continue;
+    for (let j = p.start, e = p.start + p.count; j < e; j++) {
+      const dx = pos.getX(j) - v.x, dy0 = pos.getY(j) - v.y, dz = pos.getZ(j) - v.z, dy = dy0 * (dy0 < 0 ? 0.45 : 1.6), d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const t = Math.max(0, Math.min(1, (R - d) / (R * 0.65))), k = t * t * (3 - 2 * t) * 0.9;
+      if (k <= 0) continue;
+      for (let q = 0; q < 3; q++) { const i = j * 3 + q; col.array[i] += (BLOOD_RGB[q] * 0.8 - col.array[i]) * k; }
+    }
+  }
+  col.needsUpdate = true;
+}
 // a blow landed on a man (an Actor: a.pos, a.person): kind "hit" or "down"; dir the way it went
 export function wound(a, kind, dir, at) {
   if (G.settings && G.settings.gore === false) return;
   const down = kind === "down", d = dir || new THREE.Vector3(0, 0, 1);
   mist(at, d, down ? 1 : 0.7);
   burst(at, d, "blood", down ? 14 : 8);   // (more drops still, over the ones blowLands threw)
-  stain(a.person, down ? 0.2 : 0.12);
+  mark(a.person, at, down);
   // (thrown out behind him the way the blow went, and spattered where he stands)
   const n = down ? 4 : 2;
   for (let i = 0; i < n; i++) { const r = rnd(0.5, down ? 2.4 : 1.6); splat(a.pos.x + d.x * r + rnd(-0.3, 0.3), a.pos.z + d.z * r + rnd(-0.3, 0.3), rnd(0.25, 0.6)); }
@@ -249,6 +286,7 @@ export function sever(a, from, push) {
 export function heal(P) {
   if (P && P.bones) for (const b of Object.values(P.bones)) if (b.scale.x < 0.01) b.scale.setScalar(1);
   P && P.modelScene && P.modelScene.traverse(o => { const u = o.isMesh && o.material && o.material.userData; if (u && u.base0) { o.material.color.copy(u.base0); u.blood = 0; } });
+  if (P && P.woundR) { P.woundR.value.fill(0); P.woundN = 0; }
   // (a man made one: his own colours back in the one piece)
   for (const sk of (P && P.root && P.root.userData.merged) || []) { const U = sk.userData, col = sk.geometry.attributes.color; if (U.base && col) { col.array.set(U.base); col.needsUpdate = true; U.blood = {}; } }
 }

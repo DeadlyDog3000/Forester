@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.151", date: "25 October 2026", title: "Blood where it goes in",
+    items: [
+      "A wound bleeds where it is: the blood soaks out through the coat or shirt from the place the ball or the blade went in, spreading for some seconds, running further down than up, near black and wet at the middle; on the face and hands too. Before, the whole garment darkened at once. In a battle's ranks as well.",
+    ],
+  },
+  {
     v: "1.99.150", date: "25 October 2026", title: "Hair",
     items: [
       "Hair, beards and moustaches have strands: fine lines running down them, lighter ones catching the light, darker at the roots and uneven in clumps, with an unwashed sheen here and there instead of a painted cap.",
