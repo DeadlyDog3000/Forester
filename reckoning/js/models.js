@@ -735,6 +735,34 @@ function weatheredSkin(m) {
           normal = normalize(abs(det) * normal - grad * 0.0025 * (1.0 - smoothstep(0.04, 0.12, fw))); }`);
   }, "skin");
 }
+// ---- hair, not a painted cap: fine strands running down it, darker toward the roots, a greasy sheen caught along them
+// here and there (nobody washed it much), and never quite even ----
+function strandHair(m) {
+  m.userData.strands = true;
+  m.roughness = 0.62;
+  addHook(m, sh => {
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vHrP;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvHrP = position;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+      varying vec3 vHrP;
+      float hrH(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+      float hrN(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(hrH(i), hrH(i + vec3(1,0,0)), f.x), mix(hrH(i + vec3(0,1,0)), hrH(i + vec3(1,1,0)), f.x), f.y),
+                   mix(mix(hrH(i + vec3(0,0,1)), hrH(i + vec3(1,0,1)), f.x), mix(hrH(i + vec3(0,1,1)), hrH(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        float hrS;
+        { vec3 p = vHrP;
+          // (strands: fine across, long down)
+          hrS = hrN(vec3(p.x * 520.0, p.y * 22.0, p.z * 520.0)) * 0.6 + hrN(vec3(p.x * 180.0, p.y * 9.0, p.z * 180.0)) * 0.4;
+          diffuseColor.rgb *= 0.72 + hrS * 0.5;
+          // (the lighter strands catching the light, lifting even black hair off a solid cap)
+          diffuseColor.rgb += (diffuseColor.rgb * 1.4 + vec3(0.025, 0.02, 0.015)) * smoothstep(0.62, 0.95, hrS);
+          // (darker toward the crown and the roots, uneven in clumps)
+          diffuseColor.rgb *= 0.85 + hrN(p * 18.0) * 0.25;
+        }`)
+      .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
+        roughnessFactor = clamp(mix(0.85, 0.42, smoothstep(0.55, 0.85, hrS)), 0.3, 1.0);`);
+  }, "hair");
+}
 function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
   P.root.traverse(o => { if (o.isMesh) o.visible = false; });
@@ -784,6 +812,14 @@ function useModel(P, key, colors = {}) {
     if (!own.skin) { own.skin = o.material.clone(); own.skin.userData.part = "skin"; }
     if (!own.skin.userData.weathered) weatheredSkin(own.skin);
     o.material = own.skin;
+  });
+  // (hair as hair: see strandHair)
+  m.scene.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+    const part = o.material.userData.part; if (part !== "hair" && part !== "beard" && part !== "tash") return;
+    if (!own[part]) { own[part] = o.material.clone(); own[part].userData.part = part; if (o.material.userData.detail) addDetail(own[part], o.material.userData.detail); }
+    if (!own[part].userData.strands) strandHair(own[part]);
+    o.material = own[part];
   });
   // (skirts, aprons and coat-tails that swing: see cloth.js)
   try { attachCloth(P, m.scene); } catch (e) { console.error("cloth", e); }

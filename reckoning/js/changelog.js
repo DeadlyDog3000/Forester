@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.150", date: "25 October 2026", title: "Hair",
+    items: [
+      "Hair, beards and moustaches have strands: fine lines running down them, lighter ones catching the light, darker at the roots and uneven in clumps, with an unwashed sheen here and there instead of a painted cap.",
+    ],
+  },
+  {
     v: "1.99.149", date: "25 October 2026", title: "A dirty town",
     items: [
       "Walls carry the street's dirt at their feet: splashed mud and rising damp, darker and browner, ragged at its upper edge; and the rain streaks down the plaster show plainer.",
