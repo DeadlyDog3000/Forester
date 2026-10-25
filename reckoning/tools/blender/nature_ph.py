@@ -1,10 +1,10 @@
-"""The country's own things, scanned: rocks, stumps, fallen trunks, dry branches, ferns, shrubs, nettles and the fire's ring of stones
+"""The country's own things, scanned: rocks, fallen trunks, dry branches, ferns, shrubs, nettles and the fire's ring of stones
 — Poly Haven's photographed models (CC0, polyhaven.com), cut down to what a game can draw by the hundred.
 
 Each is joined into one mesh with one material ("<name>_pbr": the game leaves it as photographed), its triangles
 brought down to its budget (the scan's own normal map keeps the surface's detail), its textures to 512, and set down
 on the ground at the origin, centred on its footprint. Sized as the game wants it:
-    rocks and stumps  "unit": its largest width 1 (the game scales each one placed)
+    rocks             "unit": its largest width 1 (the game scales each one placed)
     the rest          as it is in the world, in metres
 
     blender -b --factory-startup -P reckoning/tools/blender/nature_ph.py [-- rock_a fern ...]
@@ -23,8 +23,6 @@ MODELS = os.path.normpath(os.path.join(HERE, "..", "..", "models"))
 NATURE = {
     "rock_b": ("namaqualand_boulder_02", 1400, "unit", False),
     "rock_c": ("rock_07", 700, "unit", False),
-    "stump_a": ("tree_stump_01", 1800, "unit", False),
-    "stump_b": ("tree_stump_02", 1800, "unit", False),
     "log_a": ("dead_tree_trunk_02", 2400, 1.0, False),
     "fern": ("fern_02", 4000, 1.0, True),
     "nettle": ("nettle_plant", 6000, 1.0, True),

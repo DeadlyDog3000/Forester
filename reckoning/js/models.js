@@ -1707,13 +1707,28 @@ for (const k of ["trunk", "cone", "blob", "frond"]) TREE[k]._shared = true;
 //  relief — wrapped round the trunk a whole number of times, so it meets itself, and laid on in metres up it, however
 //  tall the tree; under the grain, the snow and the axe's notches as before)
 let _barkTex = null;
-export function addBark(material) {
+// (a birch's: no photograph of one to be had free, so painted — white, its lenticels the short dark dashes running across
+//  the trunk, here and there the black diamond scar of a branch long gone, and the bark's papery sheen uneven)
+let _birchTex = null;
+function birchBarkTex() {
+  if (_birchTex) return _birchTex;
+  const r = rng(131), t = paint(512, (g, S) => {
+    g.fillStyle = "#f1eee6"; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < 260; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "200,195,182" : "255,255,252"},${0.2 + r() * 0.3})`; g.fillRect(r() * S, r() * S, 20 + r() * 80, 2 + r() * 6); }
+    for (let i = 0; i < 480; i++) { const x = r() * S, y = r() * S, w = 8 + r() * (r() < 0.18 ? 70 : 26), h = 1.6 + r() * 3.4; g.fillStyle = `rgba(30,27,24,${0.55 + r() * 0.4})`; g.fillRect(x, y, w, h); if (x + w > S) g.fillRect(x - S, y, w, h); }
+    for (let i = 0; i < 9; i++) { const x = r() * S, y = r() * S, w = 10 + r() * 18; g.fillStyle = "rgba(26,23,21,0.9)"; g.beginPath(); g.moveTo(x - w, y); g.lineTo(x, y - w * 0.45); g.lineTo(x + w, y); g.lineTo(x, y + w * 0.45); g.fill(); }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.userData.shared = true;
+  return (_birchTex = t);
+}
+export function addBark(material, birch = false) {
   if (typeof document === "undefined") return material;
   _barkTex ??= ["log_bark", "log_bark_n"].map((n, i) => { const t = new THREE.TextureLoader().load("art/tex/" + n + ".jpg"); if (!i) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.userData.shared = true; return t; });
   const prev = material.onBeforeCompile, key = material.customProgramCacheKey;
   material.onBeforeCompile = (sh, r) => {
     if (prev) prev(sh, r);
-    sh.uniforms.uBark = { value: _barkTex[0] }; sh.uniforms.uBarkN = { value: _barkTex[1] };
+    sh.uniforms.uBark = { value: birch ? birchBarkTex() : _barkTex[0] }; sh.uniforms.uBarkN = { value: _barkTex[1] };
+    if (birch) sh.defines = { ...(sh.defines || {}), BARK_BIRCH: "" };
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vBLocal; varying vec2 vBS;")
       .replace("#include <begin_vertex>", `#include <begin_vertex>
@@ -1734,7 +1749,14 @@ export function addBark(material) {
         vec2 bDa = (abs(bD1.x) + abs(bD1.y) < abs(bD2.x) + abs(bD2.y) ? bD1 : bD2) * bN / 6.2832;
         vec2 bGx = vec2(bDa.x, dFdx(bUv.y)), bGy = vec2(bDa.y, dFdy(bUv.y));
         vec3 bC = textureGrad(uBark, bUv, bGx, bGy).rgb;
-        diffuseColor.rgb *= mix(vec3(1.0), bC / vec3(0.377, 0.324, 0.272), 0.9);`)
+        #ifdef BARK_BIRCH
+          diffuseColor.rgb *= bC * 1.06;
+          // (and at its foot the white gives way to the old tree's dark, cracked bark, ragged at its upper edge)
+          float bH = vBLocal.y * vBS.y;
+          diffuseColor.rgb *= mix(vec3(0.3, 0.27, 0.24), vec3(1.0), smoothstep(0.2, 0.9 + 0.35 * sin(bA * 3.0 + 1.0) + 0.2 * sin(bA * 7.0), bH));
+        #else
+          diffuseColor.rgb *= mix(vec3(1.0), bC / vec3(0.377, 0.324, 0.272), 0.9);
+        #endif`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
         {
           vec3 bq0 = dFdx(-vViewPosition), bq1 = dFdy(-vViewPosition); vec2 bs0 = bGx, bs1 = bGy;
@@ -1742,14 +1764,17 @@ export function addBark(material) {
           vec3 bT = bq1p * bs0.x + bq0p * bs1.x, bB = bq1p * bs0.y + bq0p * bs1.y;
           float bDet = max(dot(bT, bT), dot(bB, bB)), bSc = bDet == 0.0 ? 0.0 : inversesqrt(bDet);
           vec3 bMap = textureGrad(uBarkN, bUv, bGx, bGy).xyz * 2.0 - 1.0; bMap.xy *= 1.3 * faceDirection;
+          #ifdef BARK_BIRCH
+            bMap.xy *= 0.25;   // (a birch's bark is smooth: only a little of the pine's relief, for its papery unevenness)
+          #endif
           normal = normalize(mat3(bT * bSc, bB * bSc, normal) * bMap);
         }`);
   };
-  material.customProgramCacheKey = () => (key ? key.call(material) : "") + "bark";
+  material.customProgramCacheKey = () => (key ? key.call(material) : "") + (birch ? "birch" : "bark");
   material.needsUpdate = true;
   return material;
 }
-addBark(TREE.trunkMat);
+addBark(TREE.trunkMat); addBark(TREE.birchMat, true);
 for (const k of ["trunkMat", "birchMat", "spruceMat", "pineMat", "leafMat", "oakMat", "acaciaMat", "jungleMat", "scrubMat", "palmMat", "palmTrunkMat"]) addSway(TREE[k]);
 // a palm's frond: a long leaf arched up and over and drooping at its tip, its leaflets a narrow blade either side
 function frondGeo() {
@@ -2253,7 +2278,7 @@ const TRUNK_SHAPE = { spruce: [1.1, 0.55], pine: [1.0, 0.9], birch: [0.5, 0.78],
 const _stumpBark = {};
 function stumpBark(kind) {
   const src = kind === "birch" ? TREE.birchMat : kind === "palm" ? TREE.palmTrunkMat : TREE.trunkMat;
-  return _stumpBark[kind] ??= (m => src === TREE.trunkMat ? addBark(m) : m)(addDetail(new THREE.MeshStandardMaterial({ color: src.color.clone(), roughness: src.roughness, vertexColors: true }), { ...src.userData.detail }));
+  return _stumpBark[kind] ??= (m => src === TREE.trunkMat ? addBark(m) : src === TREE.birchMat ? addBark(m, true) : m)(addDetail(new THREE.MeshStandardMaterial({ color: src.color.clone(), roughness: src.roughness, vertexColors: true }), { ...src.userData.detail }));
 }
 // (the trunk's shading: darker at its foot, as the tree's own vertex colours have it)
 function trunkShade(geo, y0, span) {
@@ -2273,7 +2298,9 @@ export function makeStump(t, kind = "spruce") {
   const r = at(h), rb = at(0);
   const g = new THREE.Group();
   const bark = TS ? stumpBark(kind) : new THREE.MeshStandardMaterial({ map: barkTex(kind, Math.floor(rnd() * 4)), roughness: 0.95 });
-  const face = new THREE.MeshStandardMaterial({ map: ringTex(Math.floor(rnd() * 6), kind), roughness: 0.95 });
+  // (a pine's, a spruce's or an oak's cut face as photographed, the same sawn rounds as the logs' ends; the others painted)
+  const fv = Math.floor(rnd() * 6), real = (kind === "spruce" || kind === "pine" || kind === "oak") && logReal();
+  const face = real ? real[fv & 1][1] : new THREE.MeshStandardMaterial({ map: ringTex(fv, kind), roughness: 0.95 });
   const geo = new THREE.CylinderGeometry(r, rb * (TS ? 1.04 : 1.25), h, TS ? 9 : 12, 1);
   if (TS) trunkShade(geo, h / 2 + 0.18, span);
   // (the top cut on a slant, which way at random)
@@ -2311,11 +2338,13 @@ export function makeStump(t, kind = "spruce") {
   const rootM = bark;
   for (let k = 0, n = K.roots[0] + Math.floor(rnd() * (K.roots[1] - K.roots[0] + 1)); k < n; k++) {
     const a = k / n * Math.PI * 2 + rnd() * 0.8, L = r * (0.8 + rnd() * 0.7) * K.rootK;
-    const rgeo = new THREE.ConeGeometry(r * (0.42 + rnd() * 0.18) * K.rootK, L, 6); if (TS) trunkShade(rgeo, -1, 1);
+    // (rounded, not a spike: blunt where it dives into the ground, smooth-sided, drawn as the bark is)
+    const rgeo = new THREE.CylinderGeometry(r * 0.07 * K.rootK, r * (0.42 + rnd() * 0.18) * K.rootK, L, 12, 3); if (TS) trunkShade(rgeo, -1, 1);
+    { const rp = rgeo.attributes.position; for (let i = 0; i < rp.count; i++) { const y = rp.getY(i) / L + 0.5, k = 1 - 0.35 * y * (1 - y) * 4 * 0.5; rp.setX(i, rp.getX(i) * k); rp.setZ(i, rp.getZ(i) * k); } rgeo.computeVertexNormals(); }
     const rt = new THREE.Mesh(rgeo, rootM);
     // (the cone's tip turned out along the ground and a little down into it, its thick end against the trunk)
-    rt.rotation.order = "YXZ"; rt.rotation.y = -a; rt.rotation.z = -(Math.PI / 2 + 0.18 + rnd() * 0.15); rt.scale.set(1, 1, 0.75);
-    rt.position.set(Math.cos(a) * (r * 0.75 + L * 0.45), 0.07, Math.sin(a) * (r * 0.75 + L * 0.45)); rt.castShadow = true; g.add(rt);
+    rt.rotation.order = "YXZ"; rt.rotation.y = -a; rt.rotation.z = -(Math.PI / 2 + 0.18 + rnd() * 0.15); rt.scale.set(0.55, 1, 0.95);   // (flattened: a root spreads, it doesn't stand)
+    rt.position.set(Math.cos(a) * (r * 0.7 + L * 0.45), 0.0, Math.sin(a) * (r * 0.7 + L * 0.45)); rt.castShadow = true; g.add(rt);
   }
   // (and, now and then, moss on the low side of a spruce or a pine)
   if (kind !== "birch" && rnd() < 0.4) { const ms = new THREE.Mesh(new THREE.SphereGeometry(r * 0.5, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x4a6a2a, { surface: "needles" })); ms.scale.set(1.3, 0.35, 1); ms.position.set(-Math.cos(dirA) * r * 0.9, 0.04, -Math.sin(dirA) * r * 0.9); g.add(ms); }

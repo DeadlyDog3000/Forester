@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.138", date: "25 October 2026", title: "Birches and stumps",
+    items: [
+      "Birches are no longer plain white poles: their bark is marked with the short dark lenticels running across the trunk, the black diamond scars of old branches, a papery unevenness, and at the foot the old tree's dark, cracked bark giving way raggedly to the white. Their stumps match.",
+      "A felled pine's, spruce's or oak's stump shows a real sawn face, rings, checks and its rim of bark (ambientCG, CC0), and its roots are rounded flares spreading into the ground instead of dark spikes standing out of it.",
+    ],
+  },
+  {
     v: "1.99.137", date: "25 October 2026", title: "Real logs and bark",
     items: [
       "Logs look like logs: real pine bark round them, photographed with its plates and furrows (Poly Haven, CC0), and real sawn ends, growth rings, checks and the ring of bark at the edge (ambientCG, CC0), two kinds mixed through every pile.",

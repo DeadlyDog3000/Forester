@@ -288,7 +288,7 @@ export class Woods extends WorldBase {
       for (const m of [realMany("rock_b", A.map(q => pl(q, 0.9))), realMany("rock_c", Bs.map(q => pl(q, 0.7)))]) if (m) root.add(m);
     } else for (const q of stones) ub.add(rockGeo(0.5), 0x7a7870, q.x, q.y + 0.1, q.z, q.a, q.b, q.c, q.sx, q.sy, q.sz, 0.08);
     root.add(ub.build(MAT.rough, { shadow: false }));
-    // (old deadwood in among the trees: stumps gone grey and mossy, trunks long fallen, and nettles and small herbs about
+    // (old deadwood in among the trees: trunks long fallen, and nettles and small herbs about
     //  them — real ones, scanned)
     { const old = [], logs = [], herbs = [], herbs2 = [];
       for (let i = 0; i < 260; i++) {
@@ -301,7 +301,8 @@ export class Woods extends WorldBase {
         else if (k < 0.6) herbs.push({ x, y: y - 0.01, z, ry: r() * 6.28, s: 1.4 + r() * 1.8 });
         else herbs2.push({ x, y: y - 0.01, z, ry: r() * 6.28, s: 1.6 + r() * 1.6 });
       }
-      for (const m of [realMany("stump_a", old.filter(q => q.v < 0.5), { shadow: true }), realMany("stump_b", old.filter(q => q.v >= 0.5), { shadow: true }), realMany("log_a", logs, { shadow: true }), realMany("nettle", herbs), realMany("nettle", herbs2.map(q => ({ ...q, s: q.s * 0.7 })))]) if (m) root.add(m);
+      // (no stumps: the user wants none anywhere in the game)
+      for (const m of [realMany("log_a", logs, { shadow: true }), realMany("nettle", herbs), realMany("nettle", herbs2.map(q => ({ ...q, s: q.s * 0.7 })))]) if (m) root.add(m);
       // (dry branches down among the trees and along the tracks' edges, grey and barked — scanned; their own draw, so
       //  the rest of the wood's places stay where they were)
       { const rb = rng(9137), BR = [[], [], []];
@@ -313,7 +314,6 @@ export class Woods extends WorldBase {
         }
         for (const [k, list] of [["branch_a", BR[0]], ["branch_b", BR[1]], ["branch_c", BR[2]]]) { const m = realMany(k, list); if (m) root.add(m); } }
       // (and you can't walk through a fallen trunk or a stump)
-      for (const q of old) this.col.addCircle(q.x, q.z, 0.4 * q.s, q.y + 0.6);
       for (const q of logs) { const L = 2 * q.s, cx = Math.cos(q.ry), sz = -Math.sin(q.ry); for (let k = -1; k <= 1; k++) this.col.addCircle(q.x + cx * L * k * 0.66, q.z + sz * L * k * 0.66, 0.5 * q.s, q.y + 1); }
     }
     {

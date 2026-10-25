@@ -16,7 +16,7 @@ import { AUDIO } from "./audio.js";
 import { makeCannon, cloud, segDist } from "./cannon.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { shake } from "./fight.js";
-import { P, makeLogs, makeStump, makeSheaf, makeSack } from "./models.js";
+import { P, makeLogs, makeSheaf, makeSack } from "./models.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -660,7 +660,7 @@ export class Field {
     { const c = this.at(x, z, ry, 0.5, -D / 2 - 0.9), lp = P.logPile(0, 0, 10, 0); lp.position.set(c.x, this.y(c.x, c.z), c.z); lp.rotation.y = ry + Math.PI / 2; this.root.add(lp); this.solid(c.x, c.z, 2.3, 1.4, ry, 0.9, null); }
     { const c = this.at(x, z, ry, -1.4, D / 2 + 1.3); this.barrels(c.x, c.z); }
   }
-  // where a woodcutter was at work: the stumps of what he felled, two trunks lying limbed where they came down, and his
+  // where a woodcutter was at work: two trunks lying limbed where they came down, and his
   // stack of cut logs
   felled(x, z, ry) {
     const r = this.r;
@@ -668,9 +668,6 @@ export class Field {
       const L = 6 + r() * 3, R = 0.28 + r() * 0.1, c = this.at(x, z, ry, (r() - 0.5) * 1.5, (i ? 1 : -1) * (1.3 + r() * 0.8)), a = ry + (r() - 0.5) * 0.5;
       const m = makeLogs([{ x: 0, y: R, z: 0, len: L, r: R, dir: "x" }], (x * 7 + z * 3 + i) | 0); m.position.set(c.x, this.y(c.x, c.z), c.z); m.rotation.y = a; this.root.add(m);
       this.solid(c.x, c.z, L, R * 2 + 0.1, a, R * 2 + 0.05, null);
-      // (its stump, where it stood: at the butt end)
-      const s = this.at(c.x, c.z, a, -L / 2 - 0.6, 0), st = makeStump({ x: s.x, z: s.z, h: 12 }, "spruce"); st.position.set(s.x, this.y(s.x, s.z), s.z); st.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true; } }); this.root.add(st);
-      this.cols.push(this.w.col.addCircle(s.x, s.z, 0.32, this.y(s.x, s.z) + 0.55));
     }
     { const c = this.at(x, z, ry, 2.4, 0), lp = P.logPile(0, 0, 13, 0); lp.position.set(c.x, this.y(c.x, c.z), c.z); lp.rotation.y = ry; this.root.add(lp); this.solid(c.x, c.z, 1.5, 2.3, ry, 1.05, null); }
   }
