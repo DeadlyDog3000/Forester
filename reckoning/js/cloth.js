@@ -185,8 +185,9 @@ function step(C, frame) {
     q.copy(p); p.add(_a).addScaledVector(G_, dt * dt * 0.35);
     // (and drawn back toward how it hangs: cloth has a shape of its own, more so a coat's wool than a linen apron —
     //  while its wearer stands. Fallen, or bent far over, it has no shape but what its weight gives it: it drops and lies)
-    if (up > 0.2) p.lerp(T[s], (1 - Math.pow(0.22, dt)) * up * up);
-    p.addScaledVector(G_, dt * dt * 0.65 * (1 - up));
+    const keep = Math.max(0, (up - 0.55) / 0.45);
+    if (keep > 0) p.lerp(T[s], (1 - Math.pow(0.22, dt)) * keep * keep);
+    p.addScaledVector(G_, dt * dt * 1.6 * (1 - keep));
     // (and never through the ground)
     if (gy != null) { const gh = gy(p.x, p.z) + 0.03; if (p.y < gh) { p.y = gh; q.lerp(p, 0.5); } }
     // (pushed aside by the legs: the cloth from the waist down to this point of the hem kept outside each thigh and
@@ -204,7 +205,7 @@ function step(C, frame) {
   }
   // (each piece: how far its hem is from where the bones alone would put it, in the piece's own space)
   for (const part of C.parts) {
-    const o = part.o; o.updateWorldMatrix(true, false); part.uni.lie.value = 1 - up;
+    const o = part.o; o.updateWorldMatrix(true, false); part.uni.lie.value = 1 - Math.max(0, (up - 0.55) / 0.45);
     _n3.setFromMatrix4(_m.copy(o.matrixWorld).invert());
     for (let s = 0; s < K; s++) {
       // (the sectors are centred: shift to the vertex's 0..1 round so sector s sits at s/K)

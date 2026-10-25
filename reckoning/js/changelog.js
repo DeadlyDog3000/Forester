@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.146", date: "25 October 2026", title: "Hats off",
+    items: [
+      "A man who falls loses his hat: always when he's struck in the head, most often anyway. It flies off with the blow, tumbles, and comes to rest on its brim in the grass, or now and then upside down. In a battle's ranks too.",
+      "Fallen, a coat's skirts and a woman's skirt give in to their weight sooner: they lie down over the body instead of standing up off it.",
+    ],
+  },
+  {
     v: "1.99.145", date: "25 October 2026", title: "Cloth's shadows",
     items: [
       "The shadow of a skirt or a coat swings with it: cast from where the cloth has moved to, not where it would hang if it were stiff.",

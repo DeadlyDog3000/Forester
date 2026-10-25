@@ -101,6 +101,33 @@ class Ragdoll {
       }
       o.geometry = g; this.skirts.push([o, g0, g]);
     });
+    // (and the hat knocked off: always by a blow to the head, most often anyway — it goes flying, tumbles, and comes
+    //  to rest on its brim, or upside down)
+    this.hats = [];
+    // (a battle's man made one mesh, see mergeRig: his hat's own piece is kept hidden — copied from that, and the hat
+    //  taken out of the one mesh by folding its corners to a point, put back if he's set on his feet again)
+    const merged = P.root.userData.merged, hidden = new Set(merged ? merged.hidden || [] : []);
+    this.mergedHat = [];
+    if (B.head && (at === "head" || Math.random() < 0.7)) P.root.traverse(o => {
+      if (!o.isSkinnedMesh || !(o.visible || hidden.has(o)) || !(o.name === "worn_hat" || /_hat$/.test(o.name) || (o.material && o.material.userData && o.material.userData.part === "hat"))) return;
+      if (hidden.has(o)) for (const mm of merged) for (const pt of mm.userData.parts || []) if (pt.part === "hat") {
+        const pa = mm.geometry.attributes.position, keep = pa.array.slice(pt.start * 3, (pt.start + pt.count) * 3);
+        for (let i = 0; i < pt.count; i++) pa.setXYZ(pt.start + i, keep[0], keep[1], keep[2]);
+        pa.needsUpdate = true; this.mergedHat.push([pa, pt.start, keep]);
+      }
+      const sk = o.skeleton, hi = sk.bones.indexOf(B.head); if (hi < 0) return;
+      const g = o.geometry.clone(); g.deleteAttribute("skinIndex"); g.deleteAttribute("skinWeight"); if (g.attributes.aCloth) g.deleteAttribute("aCloth");
+      g.computeBoundingBox(); const c = g.boundingBox.getCenter(new THREE.Vector3()); g.translate(-c.x, -c.y, -c.z);
+      B.head.updateWorldMatrix(true, false);
+      const M = new THREE.Matrix4().multiplyMatrices(B.head.matrixWorld, sk.boneInverses[hi]).multiply(o.bindMatrix);
+      const h = new THREE.Mesh(g, o.material); h.castShadow = true; h.receiveShadow = true;
+      const pos = new THREE.Vector3(), q = new THREE.Quaternion(), sc = new THREE.Vector3(); M.decompose(pos, q, sc);
+      h.position.copy(c.clone().applyMatrix4(M)); h.quaternion.copy(q); h.scale.copy(sc);
+      G.scene.add(h); if (!hidden.has(o)) o.visible = false;
+      const v = (push ? push.clone().multiplyScalar(0.45) : new THREE.Vector3()).add(new THREE.Vector3((Math.random() - 0.5) * 1.2, 1.4 + Math.random() * 1.2, (Math.random() - 0.5) * 1.2));
+      dropThing(h, v, { flat: true, lift: (g.boundingBox.max.y - g.boundingBox.min.y) * sc.y * 0.5 });
+      this.hats.push([o, h]);
+    });
     this.t = 0; P.rag = this; live.add(this); ensureTick();
   }
   step(dt) {
@@ -168,6 +195,10 @@ class Ragdoll {
     for (const [b, q, pos] of this.saved) { b.quaternion.copy(q); b.position.copy(pos); }
     for (const [o, g0, g] of this.skirts || []) { o.geometry = g0; g.dispose(); }
     this.skirts = [];
+    for (const [o, h] of this.hats || []) { if (h.parent) h.parent.remove(h); h.geometry.dispose(); if (!(this.P.root.userData.merged || {}).hidden?.includes(o)) o.visible = true; }
+    this.hats = [];
+    for (const [pa, start, keep] of this.mergedHat || []) { pa.array.set(keep, start * 3); pa.needsUpdate = true; }
+    this.mergedHat = [];
     if (this.P.rag === this) this.P.rag = null;
   }
 }
@@ -181,10 +212,10 @@ export function ragdoll(P, push, at) {
 
 // ---- what falls from the hands: tumbling, bouncing once or twice, lying still ----
 const things = new Set();
-export function dropThing(obj, v) {
+export function dropThing(obj, v, o = {}) {
   if (!obj || !obj.parent) return;
   G.scene.attach(obj);
-  things.add({ obj, v: v ? v.clone() : new THREE.Vector3((Math.random() - 0.5) * 1.5, 1.2, (Math.random() - 0.5) * 1.5), w: new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 8), t: 0 });
+  things.add({ flat: !!o.flat, lift: o.lift || 0, obj, v: v ? v.clone() : new THREE.Vector3((Math.random() - 0.5) * 1.5, 1.2, (Math.random() - 0.5) * 1.5), w: new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 8), t: 0 });
   ensureTick();
 }
 function stepThing(t, dt) {
@@ -194,10 +225,16 @@ function stepThing(t, dt) {
   t.v.y -= GRAV * dt;
   t.obj.position.addScaledVector(t.v, dt);
   t.obj.rotation.x += t.w.x * dt; t.obj.rotation.y += t.w.y * dt; t.obj.rotation.z += t.w.z * dt;
-  const w = G.world, gy = (w && w.heightAt ? w.heightAt(t.obj.position.x, t.obj.position.z) : 0) + 0.03;
+  const w = G.world, gy = (w && w.heightAt ? w.heightAt(t.obj.position.x, t.obj.position.z) : 0) + 0.03 + (t.lift || 0);
   if (t.obj.position.y < gy) {
     t.obj.position.y = gy;
-    if (Math.abs(t.v.y) < 1.2) { t.rest = true; t.obj.rotation.x = Math.PI / 2 * Math.sign(Math.sin(t.obj.rotation.x) || 1); return; }
+    if (Math.abs(t.v.y) < 1.2) {
+      t.rest = true;
+      // (a hat comes to rest on its brim, or now and then upside down on its crown; anything else on its side)
+      if (t.flat) { const up = new THREE.Vector3(0, 1, 0).applyQuaternion(t.obj.quaternion).y; const yaw = t.obj.rotation.y; t.obj.rotation.set(up >= -0.2 ? 0 : Math.PI, yaw, 0); }
+      else t.obj.rotation.x = Math.PI / 2 * Math.sign(Math.sin(t.obj.rotation.x) || 1);
+      return;
+    }
     t.v.y = -t.v.y * 0.3; t.v.x *= 0.5; t.v.z *= 0.5; t.w.multiplyScalar(0.4);
   }
 }
