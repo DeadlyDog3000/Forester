@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.143", date: "25 October 2026", title: "Cloth that moves, clothes that are worn",
+    items: [
+      "Skirts, aprons and the skirts of coats are cloth now: they hang from the waist and swing with their own weight, trail as their wearer walks, sway on when she stops or turns, and are pushed aside by the legs at every stride, the knee and calf levering the hem out, instead of being glued to the thighs like boards.",
+      "Clothes look lived in: every dye faded and dulled, the whites the grey-cream of unbleached linen washed in cold water, mud splashed up the hems, the stockings and the shoes, stains and grime worked into the cloth. In the big battles' crowds too.",
+    ],
+  },
+  {
     v: "1.99.142", date: "25 October 2026", title: "Under the spruces",
     items: [
       "Standing under a spruce you look up into its boughs, needles against the sky, instead of at the flat dark underside of a solid cone: each tier's solid heart is much narrower and hollowed up beneath, and the drooping boughs make the tree.",

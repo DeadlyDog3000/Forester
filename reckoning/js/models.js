@@ -8,6 +8,7 @@
 import { loadPose, rodEnds, ROD_GEO } from "./reload.js";
 import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow, ownGrainAll } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
+import { attachCloth } from "./cloth.js";
 
 // ---------------------------------------------------------------------------
 //  people
@@ -636,6 +637,58 @@ function paintedMean(geo) {
   for (let i = 0; i < n; i++) { m[0] += c.getX(i); m[1] += c.getY(i); m[2] += c.getZ(i); }
   return geo.userData.mean = m.map(v => v / (n || 1));
 }
+// ---- clothes as they were worn: no dye stayed bright for long, nothing was white for long. Every colour faded and
+// dulled; a linen apron or shirt the grey-cream of unbleached cloth that's been washed in cold water; and on all of it
+// the dirt — mud splashed up from the ground, heaviest at the hems, the shoes and stockings, blotches and stains, and
+// grime worked into the creases ----
+const WORN_PARTS = new Set(["coat", "cuff", "legs", "stockings", "linen", "vest", "skirt", "apron", "hat", "sash", "cloth"]);
+export function wornColour(c) {
+  // (worked in sRGB, as the eye sees it: in three's linear space a white's "lightness" was already low, and halving it
+  //  left an apron that still read as white)
+  const S = THREE.SRGBColorSpace, h = {}; c.getHSL(h, S);
+  let l = h.l * 0.72, sat = h.s * 0.4;
+  // (white and near-white: unbleached, greyed, a little yellow-brown)
+  if (h.l > 0.7) { l = 0.5 + (h.l - 0.7) * 0.3; sat = Math.min(Math.max(sat, 0.1), 0.18); c.setHSL(0.09, sat, l, S); return c; }
+  c.setHSL(h.h, sat, l, S); return c;
+}
+function wornCloth(m, part) {
+  m.userData.worn = true;
+  if (m.color) {
+    // (a colour painted in the model's vertices was divided out of the tint, see above: worn as it stands, the tint's
+    //  own brightness kept relative)
+    const vc = m.userData.vcMean; if (vc) m.color.multiply(new THREE.Color(vc[0], vc[1], vc[2]));
+    wornColour(m.color);
+    if (vc) { m.color.r /= Math.max(0.04, vc[0]); m.color.g /= Math.max(0.04, vc[1]); m.color.b /= Math.max(0.04, vc[2]); }
+  }
+  m.roughness = Math.max(m.roughness ?? 0.9, 0.9);
+  const prev = m.onBeforeCompile, key = m.customProgramCacheKey;
+  m.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWornP;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvWornP = position;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+      varying vec3 vWornP;
+      float wH(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+      float wN(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(wH(i), wH(i + vec3(1,0,0)), f.x), mix(wH(i + vec3(0,1,0)), wH(i + vec3(1,1,0)), f.x), f.y),
+                   mix(mix(wH(i + vec3(0,0,1)), wH(i + vec3(1,0,1)), f.x), mix(wH(i + vec3(0,1,1)), wH(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        {
+          vec3 wp = vWornP;
+          float n1 = wN(wp * 7.0), n2 = wN(wp * 23.0 + 4.0), n3 = wN(wp * 2.3 + 9.0);
+          // (mud from the ground: up the hem and the stockings, ragged at its upper edge)
+          float mud = 1.0 - smoothstep(0.1, 0.75 + (n1 - 0.5) * 0.35, wp.y);
+          vec3 mudC = vec3(0.24, 0.19, 0.13);
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.45 + mudC * 0.45, clamp(mud * (0.7 + n2 * 0.6), 0.0, 0.92));
+          // (stains: broad blotches, darker and browner)
+          float st = smoothstep(0.5, 0.75, n3 * 0.7 + n1 * 0.3);
+          diffuseColor.rgb *= mix(vec3(1.0), vec3(0.62, 0.56, 0.47), st);
+          // (and the fine grime ground into the weave, never even)
+          diffuseColor.rgb *= 0.8 + n2 * 0.2;
+        }`);
+  };
+  m.customProgramCacheKey = () => (key ? key.call(m) : "") + "worn";
+  m.needsUpdate = true;
+}
 function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
   P.root.traverse(o => { if (o.isMesh) o.visible = false; });
@@ -670,6 +723,17 @@ function useModel(P, key, colors = {}) {
     }
     o.material = own[part];
   });
+  // (the clothes as worn, not as dyed: see wornCloth)
+  m.scene.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+    const part = o.material.userData.part;
+    if (!WORN_PARTS.has(part)) return;
+    if (!own[part]) { own[part] = o.material.clone(); addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface }); own[part].userData.part = part; }
+    if (!own[part].userData.worn) wornCloth(own[part], part);
+    o.material = own[part];
+  });
+  // (skirts, aprons and coat-tails that swing: see cloth.js)
+  try { attachCloth(P, m.scene); } catch (e) { console.error("cloth", e); }
   const mixer = new THREE.AnimationMixer(m.scene);
   const clip0 = name => m.animations.find(a => a.name.toLowerCase() === name) || m.animations.find(a => a.name.toLowerCase().includes(name));
   // (a felling stroke from the arms and shoulders: the trunk turned only a little with it, not wrung round at the waist)
@@ -2916,13 +2980,16 @@ export function mergeRig(root) {
     for (const o of list) {
       // (where each piece's colours lie in the whole: so a wound can darken his coat without making him many again)
       parts.push({ part: o.material.userData && o.material.userData.part, start: v0, count: o.geometry.attributes.position.count });
-      const g = o.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
+      // (a piece made to flow — see cloth.js — merged as the model made it, hung from the legs: a crowd has no cloth worked out)
+      const g = o.geometry.userData.clothSrc || o.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
       for (let k = 0; k < P.count; k++) {
         const j = v0 + k;
         pos[j * 3] = P.getX(k); pos[j * 3 + 1] = P.getY(k); pos[j * 3 + 2] = P.getZ(k);
         if (N) { nor[j * 3] = N.getX(k); nor[j * 3 + 1] = N.getY(k); nor[j * 3 + 2] = N.getZ(k); }
         const r = C && o.material.vertexColors ? C.getX(k) : 1, gg = C && o.material.vertexColors ? C.getY(k) : 1, b = C && o.material.vertexColors ? C.getZ(k) : 1;
         col[j * 3] = r * m.r; col[j * 3 + 1] = gg * m.g; col[j * 3 + 2] = b * m.b;
+        // (the mud up a worn piece's hem baked in: a crowd's merged pieces have no shader of their own for it)
+        if (o.material.userData && o.material.userData.worn) { const y = P.getY(k), u = Math.max(0, Math.min(1, (y - 0.08) / 0.54)), mud = 1 - u * u * (3 - 2 * u), k2 = 1 - mud * 0.45; col[j * 3] = col[j * 3] * k2 + mud * 0.07; col[j * 3 + 1] = col[j * 3 + 1] * k2 + mud * 0.055; col[j * 3 + 2] = col[j * 3 + 2] * k2 + mud * 0.035; }
         for (let q = 0; q < 4; q++) { si[j * 4 + q] = SI.getComponent(k, q); sw[j * 4 + q] = SW.getComponent(k, q); }
       }
       if (g.index) for (let k = 0; k < g.index.count; k++) idx[i0 + k] = g.index.getX(k) + v0;
@@ -2934,7 +3001,7 @@ export function mergeRig(root) {
     geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
     geo.computeBoundingSphere(); geo.computeBoundingBox();
     // (the material: the first piece's own — its finish and its grain — white, so the baked colours show as they were)
-    const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = M0.material.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
+    const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = (M0.material.userData.clothSrc || M0.material).clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
     if (!metal) { mat.metalness = 0; mat.roughness = Math.max(0.7, mat.roughness ?? 0.85); }
     const sk = new THREE.SkinnedMesh(geo, mat); sk.name = "merged_" + (metal ? "metal" : "cloth");
     sk.userData.parts = parts; sk.userData.base = col.slice();
