@@ -8,7 +8,7 @@
 // the houses along them are generated, from a fixed seed, so it is the same
 // city every time.
 
-import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture, SNOW, camera, addDetail } from "./core.js";
+import { THREE, Builder, Collision, MAT, mat, rng, gableGeo, makeFlame, TAU, groundTexture, SNOW, camera, addDetail, addHook } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, makeShip, makeScroll, modelCopy } from "./models.js";
 import { AUDIO } from "./audio.js";
@@ -213,6 +213,24 @@ export class Hamburg extends WorldBase {
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 201), new THREE.MeshStandardMaterial({ map: cob, roughness: 0.92, color: 0xc8c2b8 }));
     ground.rotation.x = -Math.PI / 2; ground.position.set(0, 0, -45.6 + 100.5);
     ground.receiveShadow = true;
+    // (a street of the 1680s is no clean one: mud trodden into the joints and lying in broad dark patches, puddles
+    //  standing in the low places with the sky in them, straw and dung along the gutters)
+    addHook(ground.material, sh => {
+      sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vStW;").replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\nvStW = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+      sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+        varying vec3 vStW;
+        float stH(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+        float stN(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(stH(i), stH(i + vec2(1, 0)), f.x), mix(stH(i + vec2(0, 1)), stH(i + vec2(1, 1)), f.x), f.y); }
+        float stF(vec2 p) { return stN(p) * 0.5 + stN(p * 2.1 + 3.0) * 0.3 + stN(p * 4.3 + 7.0) * 0.2; }`)
+        .replace("#include <color_fragment>", `#include <color_fragment>
+          float stMud = smoothstep(0.42, 0.7, stF(vStW.xz * 0.18)), stPud = smoothstep(0.66, 0.74, stF(vStW.xz * 0.11 + 13.0));
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.5, 0.44, 0.36) + vec3(0.03, 0.025, 0.015), stMud * 0.75);
+          diffuseColor.rgb *= 1.0 - stPud * 0.35;
+          float stStraw = smoothstep(0.83, 0.9, stN(vStW.xz * 3.1)) * smoothstep(0.5, 0.75, stF(vStW.xz * 0.25 + 5.0));
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.36, 0.2), stStraw * 0.6);`)
+        .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
+          roughnessFactor = mix(roughnessFactor, 0.12, stPud * 0.9);`);
+    }, "street");
     root.add(ground);
     // the marsh, outside the wall
     const marsh = new THREE.Mesh(new THREE.PlaneGeometry(400, 200), new THREE.MeshStandardMaterial({ map: groundTexture("meadow", 1), roughness: 1, color: 0xb8bca8 }));

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.149", date: "25 October 2026", title: "A dirty town",
+    items: [
+      "Walls carry the street's dirt at their feet: splashed mud and rising damp, darker and browner, ragged at its upper edge; and the rain streaks down the plaster show plainer.",
+      "Hamburg's cobbles are a real street of the 1680s: mud trodden into broad dark patches, puddles standing in the low places, straw and dung along the way.",
+    ],
+  },
+  {
     v: "1.99.148", date: "25 October 2026", title: "Real cloth",
     items: [
       "Skirts, aprons and coat-skirts are true cloth now: a net from waist to hem, sewn at the waist, every point falling under its own weight, held to its neighbours so it can't stretch but can bunch and fold, kept out of the legs, the body and the ground. Walking, it swings and trails; when its wearer falls, it crumples, folds over the legs and spreads on the ground as a skirt does.",

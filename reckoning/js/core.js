@@ -363,7 +363,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
               diffuseColor.rgb *= 1.0 + pa * 0.05;
               // plaster: rain streaks run down the walls from the eaves and the sills, and it greys toward the ground
               float st = dNoise(vec3(vDWorld.x * 5.0, vDWorld.y * 0.35, vDWorld.z * 5.0)) * dNoise(vDWorld * 0.6 + 3.1);
-              diffuseColor.rgb *= 1.0 - smoothstep(0.25, 0.6, st) * 0.16 * side;
+              diffuseColor.rgb *= 1.0 - smoothstep(0.22, 0.6, st) * 0.3 * side;
             }
             if (dWeather > 0.5 && (s == 2 || s == 3 || s == 7 || s == 8)) {
               // stone, brick and tile: moss and lichen on what faces the sky and the wet low courses
@@ -379,6 +379,13 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           // grime gathers low on walls and in the undersides
           float low = 1.0 - smoothstep(0.0, 1.4, vDWorld.y - dGround);
           diffuseColor.rgb *= 1.0 - low * 0.12 * (1.0 - an.y) - max(-vDNormal.y, 0.0) * 0.12;
+          // (and on a wall's foot the street's own dirt: splashed mud and the damp rising, darker and browner, its upper
+          //  edge ragged, heaviest at the very bottom)
+          if (dWeather > 0.5) {
+            float edge = 0.55 + (dFbm(vDWorld * vec3(1.7, 0.4, 1.7) + 2.0) - 0.5) * 0.7;
+            float foot = (1.0 - smoothstep(0.0, edge, vDWorld.y - dGround)) * (1.0 - an.y) * (1.0 - dSnow * 0.7);
+            diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.55, 0.5, 0.42), foot * 0.65);
+          }
           // snow lies on whatever faces the sky, thinner where the noise says so
           if (dSnow > 0.0) {
             // (dSnowK: how much of it lies here — a trodden path keeps only a thin, broken cover)
