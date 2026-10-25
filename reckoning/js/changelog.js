@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.148", date: "25 October 2026", title: "Real cloth",
+    items: [
+      "Skirts, aprons and coat-skirts are true cloth now: a net from waist to hem, sewn at the waist, every point falling under its own weight, held to its neighbours so it can't stretch but can bunch and fold, kept out of the legs, the body and the ground. Walking, it swings and trails; when its wearer falls, it crumples, folds over the legs and spreads on the ground as a skirt does.",
+      "Fixed: the worn and muddied look of clothes, the cloth itself in some places, and the bark on felled trunks could be silently lost when a material was copied (for snow, or for things that move); every copy now keeps all of it.",
+      "Faces and hands are weathered: a little sun-darkened, uneven in colour, ruddy at the cheeks, nose and ears, a matt skin with a sheen only on the brow and nose, and the day's grime smudged on them.",
+    ],
+  },
+  {
     v: "1.99.147", date: "25 October 2026", title: "Wind in the skirts",
     items: [
       "The wind the trees bend to catches clothes too: skirts, aprons and coat-tails lean downwind, stir harder as each gust rolls across, and flutter at the hem.",

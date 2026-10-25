@@ -225,6 +225,32 @@ export const RIM = { value: new THREE.Color(0, 0, 0) };   // (the graphics setti
 // (limbs: a tree's own branches — whatever of its bark stands further than this from its axis, in its own space — thin
 //  away right up against the eye, as its needles do: stood at the trunk with an axe, you'd otherwise be looking out
 //  through a cage of bare poles)
+// ---- more for a material's shader than its grain: a hook added to it is run after the grain's own, every time the
+// material is made — and goes with it when it's copied (for snow, for its own grain, for limbs thinning: noSnow,
+// ownGrain, fadeLimbs), which once made a fresh copy with the grain alone and lost the rest without a word ----
+const HOOKS = new WeakMap(), HOOKED = new WeakSet();
+function runHooks(m, sh, r) { const L = HOOKS.get(m); if (L) for (const [f] of L) f(sh, r); }
+function hookKey(m) { const L = HOOKS.get(m); return L ? L.map(h => h[1]).join("") : ""; }
+export function addHook(m, fn, key) {
+  if (!m) return m;
+  let L = HOOKS.get(m); if (!L) HOOKS.set(m, (L = []));
+  if (key && L.some(h => h[1] === key)) return m;
+  L.push([fn, key || ""]);
+  // (a material with no grain of its own: the hooks put on it directly, once)
+  if (!m.userData.detail && !HOOKED.has(m)) {
+    HOOKED.add(m);
+    const prev = m.onBeforeCompile, pk = m.customProgramCacheKey;
+    m.onBeforeCompile = (sh, r) => { if (prev) prev.call(m, sh, r); runHooks(m, sh, r); };
+    m.customProgramCacheKey = () => (pk ? pk.call(m) : "") + hookKey(m);
+  }
+  m.needsUpdate = true;
+  return m;
+}
+export function inheritHooks(from, to) {
+  const L = HOOKS.get(from); if (!L || from === to) return to;
+  for (const [f, k] of L) addHook(to, f, k);
+  return to;
+}
 export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false, limbs = 0, rim = true, cards = false } = {}) {
   const surf = SURFACE[surface] ?? -1;
   material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local, limbs };
@@ -373,7 +399,9 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
         roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
   };
-  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w") + (local ? "l" : "") + (rim ? "" : "r") + (cards ? "c" : "");
+  // (and whatever else has been laid on this material — cloth, wear, weathered skin, bark: see addHook)
+  { const dc = material.onBeforeCompile; material.onBeforeCompile = (sh, r) => { dc(sh, r); runHooks(material, sh, r); }; }
+  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w") + (local ? "l" : "") + (rim ? "" : "r") + (cards ? "c" : "") + hookKey(material);
   material.needsUpdate = true;
   return material;
 }
@@ -384,7 +412,7 @@ const OWN_GRAIN = new Map();
 export function ownGrain(m) {
   if (!m || !m.userData || !m.userData.detail || m.userData.detail.local) return m;
   let c = OWN_GRAIN.get(m);
-  if (!c) { c = m.clone(); c.color = m.color; if (m.emissive) c.emissive = m.emissive; addDetail(c, { ...m.userData.detail, local: true, snow: false }); OWN_GRAIN.set(m, c); }
+  if (!c) { c = m.clone(); c.color = m.color; if (m.emissive) c.emissive = m.emissive; addDetail(c, { ...m.userData.detail, local: true, snow: false }); inheritHooks(m, c); OWN_GRAIN.set(m, c); }
   return c;
 }
 // a tree's branches let go of close up (its bark, own-grained, copied once more with its limbs to thin away)
@@ -394,7 +422,7 @@ export function fadeLimbs(obj, r = 0.27) {
     const m = o.isMesh && o.material, d = m && m.userData && m.userData.detail;
     if (!d || d.surface !== "bark" || !d.local || d.limbs) return;
     let c = LIMBS.get(m);
-    if (!c) { c = m.clone(); c.color = m.color; addDetail(c, { ...d, limbs: r }); LIMBS.set(m, c); }
+    if (!c) { c = m.clone(); c.color = m.color; addDetail(c, { ...d, limbs: r }); inheritHooks(m, c); LIMBS.set(m, c); }
     o.material = c;
   });
 }
@@ -450,7 +478,7 @@ export function noSnow(obj) {
     const one = m => {
       if (!m || !m.userData || !m.userData.detail || m.userData.detail.snow === false) return m;
       let c = _noSnow.get(m);
-      if (!c) { c = m.clone(); addDetail(c, { ...m.userData.detail, snow: false }); _noSnow.set(m, c); }
+      if (!c) { c = m.clone(); addDetail(c, { ...m.userData.detail, snow: false }); inheritHooks(m, c); _noSnow.set(m, c); }
       return c;
     };
     o.material = Array.isArray(o.material) ? o.material.map(one) : one(o.material);

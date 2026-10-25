@@ -6,9 +6,9 @@
 // load, the way the first Forester built its sounds instead of loading them.
 
 import { loadPose, rodEnds, ROD_GEO } from "./reload.js";
-import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow, ownGrainAll } from "./core.js";
+import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, addHook, noSnow, ownGrainAll } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
-import { attachCloth, clothMerged } from "./cloth.js";
+import { attachCloth, clothMerged, clothSrcOf, clothSimOf } from "./cloth.js";
 
 // ---------------------------------------------------------------------------
 //  people
@@ -661,9 +661,7 @@ function wornCloth(m, part) {
     if (vc) { m.color.r /= Math.max(0.04, vc[0]); m.color.g /= Math.max(0.04, vc[1]); m.color.b /= Math.max(0.04, vc[2]); }
   }
   m.roughness = Math.max(m.roughness ?? 0.9, 0.9);
-  const prev = m.onBeforeCompile, key = m.customProgramCacheKey;
-  m.onBeforeCompile = (sh, r) => {
-    if (prev) prev(sh, r);
+  addHook(m, sh => {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWornP;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvWornP = position;");
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
       varying vec3 vWornP;
@@ -685,9 +683,57 @@ function wornCloth(m, part) {
           // (and the fine grime ground into the weave, never even)
           diffuseColor.rgb *= 0.8 + n2 * 0.2;
         }`);
-  };
-  m.customProgramCacheKey = () => (key ? key.call(m) : "") + "worn";
-  m.needsUpdate = true;
+  }, "worn");
+}
+// ---- skin as it was lived in: weathered by sun and wind, a little tanned, ruddy in the cheeks, the nose and the ears,
+// never one even colour; its pores and fine creases catching the light; less shine than a doll's, an oily sheen only on
+// the nose and brow; and the day's grime on it, smudged on the face and worked into the hands ----
+function weatheredSkin(m) {
+  m.userData.weathered = true;
+  m.roughness = 0.68;
+  addHook(m, sh => {
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vSkP;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvSkP = position;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", `#include <common>
+      varying vec3 vSkP;
+      float skH(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+      float skN(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(mix(skH(i), skH(i + vec3(1,0,0)), f.x), mix(skH(i + vec3(0,1,0)), skH(i + vec3(1,1,0)), f.x), f.y),
+                   mix(mix(skH(i + vec3(0,0,1)), skH(i + vec3(1,0,1)), f.x), mix(skH(i + vec3(0,1,1)), skH(i + vec3(1,1,1)), f.x), f.y), f.z); }`)
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        float skFace = 0.0;
+        {
+          vec3 p = vSkP;
+          // (sun and wind: a touch darker and warmer all over)
+          diffuseColor.rgb *= vec3(0.93, 0.86, 0.8);
+          // (the face: ruddy cheeks, nose and ears, by where they lie on the head)
+          float head = smoothstep(1.4, 1.46, p.y);
+          float cheek = exp(-pow((abs(p.x) - 0.042) / 0.022, 2.0) - pow((p.y - 1.585) / 0.03, 2.0)) * smoothstep(0.03, 0.08, p.z);
+          float nose = exp(-pow(p.x / 0.016, 2.0) - pow((p.y - 1.6) / 0.03, 2.0)) * smoothstep(0.08, 0.11, p.z);
+          float ear = exp(-pow((abs(p.x) - 0.075) / 0.012, 2.0) - pow((p.y - 1.6) / 0.03, 2.0));
+          float red = clamp(cheek * 0.8 + nose * 0.9 + ear * 0.7, 0.0, 1.0) * head;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.08, 0.78, 0.74), red * 0.75);
+          // (blotchy, uneven: no skin is one colour)
+          float bl = skN(p * 30.0), bl2 = skN(p * 55.0 + 3.0);
+          diffuseColor.rgb *= 0.93 + bl * 0.1;
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.05, 0.88, 0.85), smoothstep(0.62, 0.85, bl2) * 0.25);
+          // (grime: smudges on the face, worked into the hands)
+          float hands = 1.0 - head;
+          float sm = smoothstep(0.55, 0.85, skN(p * 24.0 + 7.0)) * (0.45 + hands * 0.4);
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.55, 0.48), sm);
+          skFace = head;
+        }`)
+      .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
+        // (the shine of the nose and brow, matt elsewhere; rough and dry on hands)
+        { vec3 p = vSkP; float tz = exp(-pow(p.x / 0.03, 2.0) - pow((p.y - 1.64) / 0.06, 2.0)) * skFace;
+          roughnessFactor = mix(0.74, 0.52, tz) + (skN(p * 40.0) - 0.5) * 0.08 + (1.0 - skFace) * 0.08; }`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+        // (pores and fine creases: a fine bump in the light)
+        { float hgt = skN(vSkP * 140.0); vec2 dh = vec2(dFdx(hgt), dFdy(hgt));
+          float fw = abs(dh.x) + abs(dh.y);
+          vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition), r1 = cross(sy, normal), r2 = cross(normal, sx);
+          float det = dot(sx, r1); vec3 grad = sign(det) * (dh.x * r1 + dh.y * r2);
+          normal = normalize(abs(det) * normal - grad * 0.0025 * (1.0 - smoothstep(0.04, 0.12, fw))); }`);
+  }, "skin");
 }
 function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
@@ -731,6 +777,13 @@ function useModel(P, key, colors = {}) {
     if (!own[part]) { own[part] = o.material.clone(); addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface }); own[part].userData.part = part; }
     if (!own[part].userData.worn) wornCloth(own[part], part);
     o.material = own[part];
+  });
+  // (skin as it was in the 1680s, out of doors: see weatheredSkin)
+  m.scene.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material) || o.material.userData.part !== "skin") return;
+    if (!own.skin) { own.skin = o.material.clone(); own.skin.userData.part = "skin"; }
+    if (!own.skin.userData.weathered) weatheredSkin(own.skin);
+    o.material = own.skin;
   });
   // (skirts, aprons and coat-tails that swing: see cloth.js)
   try { attachCloth(P, m.scene); } catch (e) { console.error("cloth", e); }
@@ -1794,9 +1847,7 @@ function birchBarkTex() {
 export function addBark(material, birch = false) {
   if (typeof document === "undefined") return material;
   _barkTex ??= ["log_bark", "log_bark_n"].map((n, i) => { const t = new THREE.TextureLoader().load("art/tex/" + n + ".jpg"); if (!i) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.userData.shared = true; return t; });
-  const prev = material.onBeforeCompile, key = material.customProgramCacheKey;
-  material.onBeforeCompile = (sh, r) => {
-    if (prev) prev(sh, r);
+  addHook(material, sh => {
     sh.uniforms.uBark = { value: birch ? birchBarkTex() : _barkTex[0] }; sh.uniforms.uBarkN = { value: _barkTex[1] };
     if (birch) sh.defines = { ...(sh.defines || {}), BARK_BIRCH: "" };
     sh.vertexShader = sh.vertexShader
@@ -1839,8 +1890,7 @@ export function addBark(material, birch = false) {
           #endif
           normal = normalize(mat3(bT * bSc, bB * bSc, normal) * bMap);
         }`);
-  };
-  material.customProgramCacheKey = () => (key ? key.call(material) : "") + (birch ? "birch" : "bark");
+  }, birch ? "birch" : "bark");
   material.needsUpdate = true;
   return material;
 }
@@ -2981,7 +3031,7 @@ export function mergeRig(root) {
     for (const o of list) {
       // (where each piece's colours lie in the whole: so a wound can darken his coat without making him many again)
       parts.push({ part: o.material.userData && o.material.userData.part, start: v0, count: o.geometry.attributes.position.count });
-      if (o.userData.clothSim) sim = o.userData.clothSim;
+      if (clothSimOf(o)) sim = clothSimOf(o);
       // (a piece made to flow — see cloth.js — merged as it flows: the merged mesh swings with the same hem)
       const g = o.geometry, AC = g.attributes.aCloth, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
       for (let k = 0; k < P.count; k++) {
@@ -3004,7 +3054,7 @@ export function mergeRig(root) {
     geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
     geo.computeBoundingSphere(); geo.computeBoundingBox();
     // (the material: the first piece's own — its finish and its grain — white, so the baked colours show as they were)
-    const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = (M0.material.userData.clothSrc || M0.material).clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
+    const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = (clothSrcOf(M0.material) || M0.material).clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
     if (!metal) { mat.metalness = 0; mat.roughness = Math.max(0.7, mat.roughness ?? 0.85); }
     const sk = new THREE.SkinnedMesh(geo, mat); sk.name = "merged_" + (metal ? "metal" : "cloth");
     sk.userData.parts = parts; sk.userData.base = col.slice();
