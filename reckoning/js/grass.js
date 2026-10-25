@@ -15,19 +15,31 @@ import { CLEARING, CABIN, FIRE, STACK, BLOCK, pondK } from "./woods.js";
 import { BUILDINGS } from "./town.js";
 
 const R = 26, STEP = 0.38, MAX = 16000;
-// a tuft: five blades leaning out from the middle, dark at the foot and paler toward the tips
+// a tuft: a dozen narrow blades from one root, each its own height and lean, curving over as it rises, dark at the foot
+// and paler toward the tip — a few of them gone dry and straw-coloured, as a real sward always has. One face each,
+// drawn from both sides (the material's), so a tuft costs no more than the old seven broad ones did
 function tuftGeo() {
   const pos = [], col = [], idx = [];
-  for (let b = 0; b < 7; b++) {
-    const a = b / 7 * Math.PI * 2 + b * 0.7, lean = 0.1 + (b % 3) * 0.08, h = 0.6 + (b % 4) * 0.16;
-    const dx = Math.cos(a), dz = Math.sin(a), px = -dz * 0.045, pz = dx * 0.045;
-    const ox = dx * 0.04 * (b % 2), oz = dz * 0.04 * (b % 2);
+  let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  const N = 12;
+  for (let b = 0; b < N; b++) {
+    const a = b / N * Math.PI * 2 + rnd() * 0.9, lean = 0.08 + rnd() * 0.3, h = 0.5 + rnd() * 0.7, w = 0.016 + rnd() * 0.012;
+    const dx = Math.cos(a), dz = Math.sin(a), px = -dz * w, pz = dx * w, tw = (rnd() - 0.5) * 0.8;
+    // (rooted across a hand's breadth or more, not all from one point: next to the next tuft's, they make one sward)
+    const ra = rnd() * 6.283, rr = Math.sqrt(rnd()) * 0.34, ox = Math.cos(ra) * rr, oz = Math.sin(ra) * rr;
+    const dry = rnd() < 0.16, shade = 0.9 + rnd() * 0.2;
+    const tint = dry ? [1.35, 1.15, 0.62] : [1, 1, 1];
     const i0 = pos.length / 3;
-    // (a blade: two corners at the foot, a narrower pair halfway, and a point, bending outward as it rises)
-    pos.push(ox - px, 0, oz - pz, ox + px, 0, oz + pz, ox - px * 0.6 + dx * lean * 0.4, h * 0.55, oz - pz * 0.6 + dz * lean * 0.4, ox + px * 0.6 + dx * lean * 0.4, h * 0.55, oz + pz * 0.6 + dz * lean * 0.4, ox + dx * lean, h, oz + dz * lean);
-    for (const k of [0.78, 0.78, 0.95, 0.95, 1.12]) col.push(k, k, k);
-    // (both faces, wound each way, both lit from above: a back face shaded as the underside came out black)
-    idx.push(i0, i0 + 1, i0 + 3, i0, i0 + 3, i0 + 2, i0 + 2, i0 + 3, i0 + 4, i0, i0 + 3, i0 + 1, i0, i0 + 2, i0 + 3, i0 + 2, i0 + 4, i0 + 3);
+    // (four rings up it — the foot, two between, a point — bending over more the higher it goes, and twisting a little)
+    for (const [t, wk] of [[0, 1], [0.38, 0.85], [0.72, 0.55]]) {
+      const bend = lean * t * t * (1 + lean), tx = Math.cos(tw * t) * px - Math.sin(tw * t) * dx * w * 0.3, tz = Math.cos(tw * t) * pz - Math.sin(tw * t) * dz * w * 0.3;
+      const y = h * t * (1 - lean * t * 0.35);
+      pos.push(ox + dx * bend - tx * wk, y, oz + dz * bend - tz * wk, ox + dx * bend + tx * wk, y, oz + dz * bend + tz * wk);
+      const k = (0.5 + t * 0.6) * shade;
+      for (let q = 0; q < 2; q++) col.push(k * tint[0], k * tint[1], k * tint[2]);
+    }
+    { const bend = lean * (1 + lean); pos.push(ox + dx * bend, h * (1 - lean * 0.35), oz + dz * bend); const k = 1.18 * shade; col.push(k * tint[0], k * tint[1], k * tint[2]); }
+    idx.push(i0, i0 + 1, i0 + 3, i0, i0 + 3, i0 + 2, i0 + 2, i0 + 3, i0 + 5, i0 + 2, i0 + 5, i0 + 4, i0 + 4, i0 + 5, i0 + 6);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -42,7 +54,9 @@ const hash = (i, j, k) => { const h = Math.sin(i * 127.1 + j * 311.7 + k * 74.7)
 export class Grass {
   constructor(w) {
     this.w = w;
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
+    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, side: THREE.DoubleSide });
+    // (both faces lit as the top one: a blade's back isn't its underside, and flipped it came out black)
+    mat.onBeforeCompile = sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", "")); };
     addSway(mat);
     this.mesh = new THREE.InstancedMesh(swayGeo(tuftGeo(), MAX), mat, MAX);
     this.mesh.frustumCulled = false; this.mesh.receiveShadow = true; this.mesh.castShadow = false;

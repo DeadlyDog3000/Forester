@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.140", date: "25 October 2026", title: "A real sward",
+    items: [
+      "The grass is grass: each tuft a dozen narrow blades, every one its own height and lean, curving over toward the tip, dark at the foot and paler above, with a few dry straw-coloured blades among them. They root across a hand's breadth, so the tufts run together into one sward instead of standing in rows of green spikes.",
+    ],
+  },
+  {
     v: "1.99.139", date: "25 October 2026", title: "No stumps",
     items: [
       "Stumps are gone again, everywhere: the old mossy ones scattered through the woods and the one by the fallen trunks on the battlefield are removed. Felled trees still leave clear ground.",
