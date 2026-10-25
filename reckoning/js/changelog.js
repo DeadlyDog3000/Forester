@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.144", date: "25 October 2026", title: "Cloth everywhere, and when they fall",
+    items: [
+      "The soldiers of a battle's companies wear the same swinging cloth now: their coat-tails hang, trail and kick with their stride, as the townsfolk's do.",
+      "When someone falls, their skirt or coat no longer stands up off them like a tent: as the body tips over, the cloth's own shape gives way to its weight, it drops, drapes over the legs and lies on the ground instead of through it.",
+    ],
+  },
+  {
     v: "1.99.143", date: "25 October 2026", title: "Cloth that moves, clothes that are worn",
     items: [
       "Skirts, aprons and the skirts of coats are cloth now: they hang from the waist and swing with their own weight, trail as their wearer walks, sway on when she stops or turns, and are pushed aside by the legs at every stride, the knee and calf levering the hem out, instead of being glued to the thighs like boards.",

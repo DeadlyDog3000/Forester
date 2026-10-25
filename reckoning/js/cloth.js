@@ -62,12 +62,12 @@ function clothMaterial(src, uni) {
   m.userData = { ...src.userData, clothSrc: src };
   m.onBeforeCompile = (sh, r) => {
     if (prev) prev(sh, r);
-    sh.uniforms.uClothD = uni;
+    sh.uniforms.uClothD = uni; sh.uniforms.uClothU = uni.lie;
     sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", `#include <common>\nattribute vec2 aCloth; uniform vec3 uClothD[${K}];`)
+      .replace("#include <common>", `#include <common>\nattribute vec2 aCloth; uniform vec3 uClothD[${K}]; uniform float uClothU;`)
       .replace("#include <skinning_vertex>", `#include <skinning_vertex>
         { float f = aCloth.x * ${K}.0; int i0 = int(floor(f)) % ${K}, i1 = (i0 + 1) % ${K};
-          transformed += mix(uClothD[i0], uClothD[i1], fract(f)) * aCloth.y; }`);
+          transformed += mix(uClothD[i0], uClothD[i1], fract(f)) * mix(aCloth.y, sqrt(aCloth.y), uClothU); }`);
   };
   m.customProgramCacheKey = () => (key ? key.call(src) : "") + "cloth";
   return m;
@@ -101,8 +101,10 @@ export function attachCloth(P, scene) {
     const info = prepare(g, hipRest.y, hipRest.x, hipRest.z); info.at = g.attributes.aCloth.array;
     reweight(info, hipI, legSet);
     const uni = { value: Array.from({ length: K }, () => new THREE.Vector3()) };
+    // (lying, more of the cloth goes with the hem, not just its lowest part: the skirt falls in over the legs)
+    uni.lie = { value: 0 };
     o.material = clothMaterial(o.material, uni);
-    C.parts.push({ o, info, uni });
+    C.parts.push({ o, info, uni }); o.userData.clothSim = C;
     o.onBeforeRender = renderer => step(C, renderer.info.render.frame);
   }
   if (!C.parts.length) return null;
@@ -113,6 +115,14 @@ export function attachCloth(P, scene) {
   return C;
 }
 
+// a person's pieces made one (a battle's crowd, see mergeRig): the one mesh swings with the same hem as the pieces did
+export function clothMerged(C, sk) {
+  const uni = { value: Array.from({ length: K }, () => new THREE.Vector3()) }; uni.lie = { value: 0 };
+  sk.material = clothMaterial(sk.material, uni);
+  const part = { o: sk, uni }; C.parts.push(part);
+  sk.onBeforeRender = renderer => step(C, renderer.info.render.frame);
+  return () => { const i = C.parts.indexOf(part); if (i >= 0) C.parts.splice(i, 1); };
+}
 // the nearest points of two segments a→b and c→d: { p on the first, q on the second, s and t along them, d apart }
 const _u = new THREE.Vector3(), _w = new THREE.Vector3(), _r = new THREE.Vector3(), _P = new THREE.Vector3(), _Q = new THREE.Vector3();
 function segSeg(a, b, c, d) {
@@ -150,14 +160,21 @@ function step(C, frame) {
   const T = rest.map(p => p.clone().applyMatrix4(W)), A = waist.map(p => p.clone().applyMatrix4(W));
   if (!C.pts || C.t > 0 && T[0].distanceTo(C.pts[0]) > 3) { C.pts = T.map(p => p.clone()); C.prev = T.map(p => p.clone()); }
   C.t += dt;
+  // (how upright the hips are: 1 standing, 0 lying)
+  const up = Math.max(0, _c.set(0, 1, 0).applyMatrix3(_n3.setFromMatrix4(HW)).normalize().y);
+  const Gw = typeof window !== "undefined" && window.G, gy = Gw && Gw.world && Gw.world.heightAt ? (x, z) => Gw.world.heightAt(x, z) : null;
   const legs = C.legs.map(([a, b]) => [a.getWorldPosition(new THREE.Vector3()), b.getWorldPosition(new THREE.Vector3())]);
   const LR = 0.1 * scale;
   for (let s = 0; s < K; s++) {
     const p = C.pts[s], q = C.prev[s];
     _a.subVectors(p, q).multiplyScalar(0.9);            // (its momentum, some of it lost to the air: so it trails as he walks)
     q.copy(p); p.add(_a).addScaledVector(G_, dt * dt * 0.35);
-    // (and drawn back toward how it hangs: cloth has a shape of its own, more so a coat's wool than a linen apron)
-    p.lerp(T[s], 1 - Math.pow(0.22, dt));
+    // (and drawn back toward how it hangs: cloth has a shape of its own, more so a coat's wool than a linen apron —
+    //  while its wearer stands. Fallen, or bent far over, it has no shape but what its weight gives it: it drops and lies)
+    if (up > 0.2) p.lerp(T[s], (1 - Math.pow(0.22, dt)) * up * up);
+    p.addScaledVector(G_, dt * dt * 0.65 * (1 - up));
+    // (and never through the ground)
+    if (gy != null) { const gh = gy(p.x, p.z) + 0.03; if (p.y < gh) { p.y = gh; q.lerp(p, 0.5); } }
     // (pushed aside by the legs: the cloth from the waist down to this point of the hem kept outside each thigh and
     //  shin — where a knee or a calf presses into it partway down, the hem below is levered out the further)
     for (const [l0, l1] of legs) {
@@ -173,7 +190,7 @@ function step(C, frame) {
   }
   // (each piece: how far its hem is from where the bones alone would put it, in the piece's own space)
   for (const part of C.parts) {
-    const o = part.o; o.updateWorldMatrix(true, false);
+    const o = part.o; o.updateWorldMatrix(true, false); part.uni.lie.value = 1 - up;
     _n3.setFromMatrix4(_m.copy(o.matrixWorld).invert());
     for (let s = 0; s < K; s++) {
       // (the sectors are centred: shift to the vertex's 0..1 round so sector s sits at s/K)

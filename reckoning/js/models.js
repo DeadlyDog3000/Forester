@@ -8,7 +8,7 @@
 import { loadPose, rodEnds, ROD_GEO } from "./reload.js";
 import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, noSnow, ownGrainAll } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
-import { attachCloth } from "./cloth.js";
+import { attachCloth, clothMerged } from "./cloth.js";
 
 // ---------------------------------------------------------------------------
 //  people
@@ -2974,14 +2974,16 @@ export function mergeRig(root) {
   for (const [metal, list] of buckets) {
     if (list.length < 2) continue;
     let nv = 0, ni = 0; for (const o of list) { nv += o.geometry.attributes.position.count; ni += o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count; }
-    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), si = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni);
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), si = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni), acl = new Float32Array(nv * 2);
+    let sim = null;
     let v0 = 0, i0 = 0;
     const c = new THREE.Color(), parts = [];
     for (const o of list) {
       // (where each piece's colours lie in the whole: so a wound can darken his coat without making him many again)
       parts.push({ part: o.material.userData && o.material.userData.part, start: v0, count: o.geometry.attributes.position.count });
-      // (a piece made to flow — see cloth.js — merged as the model made it, hung from the legs: a crowd has no cloth worked out)
-      const g = o.geometry.userData.clothSrc || o.geometry, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
+      if (o.userData.clothSim) sim = o.userData.clothSim;
+      // (a piece made to flow — see cloth.js — merged as it flows: the merged mesh swings with the same hem)
+      const g = o.geometry, AC = g.attributes.aCloth, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
       for (let k = 0; k < P.count; k++) {
         const j = v0 + k;
         pos[j * 3] = P.getX(k); pos[j * 3 + 1] = P.getY(k); pos[j * 3 + 2] = P.getZ(k);
@@ -2991,6 +2993,7 @@ export function mergeRig(root) {
         // (the mud up a worn piece's hem baked in: a crowd's merged pieces have no shader of their own for it)
         if (o.material.userData && o.material.userData.worn) { const y = P.getY(k), u = Math.max(0, Math.min(1, (y - 0.08) / 0.54)), mud = 1 - u * u * (3 - 2 * u), k2 = 1 - mud * 0.45; col[j * 3] = col[j * 3] * k2 + mud * 0.07; col[j * 3 + 1] = col[j * 3 + 1] * k2 + mud * 0.055; col[j * 3 + 2] = col[j * 3 + 2] * k2 + mud * 0.035; }
         for (let q = 0; q < 4; q++) { si[j * 4 + q] = SI.getComponent(k, q); sw[j * 4 + q] = SW.getComponent(k, q); }
+        if (AC) { acl[j * 2] = AC.getX(k); acl[j * 2 + 1] = AC.getY(k); }
       }
       if (g.index) for (let k = 0; k < g.index.count; k++) idx[i0 + k] = g.index.getX(k) + v0;
       else for (let k = 0; k < P.count; k++) idx[i0 + k] = k + v0;
@@ -3007,11 +3010,12 @@ export function mergeRig(root) {
     sk.userData.parts = parts; sk.userData.base = col.slice();
     sk.castShadow = true; sk.receiveShadow = true; sk.frustumCulled = false;
     list[0].parent.add(sk); sk.bind(list[0].skeleton, bind);
+    if (sim) { geo.setAttribute("aCloth", new THREE.BufferAttribute(acl, 2)); sk.userData.unCloth = clothMerged(sim, sk); }
     for (const o of list) o.visible = false;
     made.push(sk); made.hidden = (made.hidden || []).concat(list);
   }
   if (!made.length) return null;
   root.userData.merged = made;
   // (and made many again, if anything ever needs the pieces themselves)
-  return () => { root.userData.merged = null; for (const m of made) { m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) o.visible = true; };
+  return () => { root.userData.merged = null; for (const m of made) { if (m.userData.unCloth) m.userData.unCloth(); m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) o.visible = true; };
 }
