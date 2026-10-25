@@ -7,10 +7,15 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.138", date: "25 October 2026", title: "Birches and stumps",
+    v: "1.99.139", date: "25 October 2026", title: "No stumps",
     items: [
-      "Birches are no longer plain white poles: their bark is marked with the short dark lenticels running across the trunk, the black diamond scars of old branches, a papery unevenness, and at the foot the old tree's dark, cracked bark giving way raggedly to the white. Their stumps match.",
-      "A felled pine's, spruce's or oak's stump shows a real sawn face, rings, checks and its rim of bark (ambientCG, CC0), and its roots are rounded flares spreading into the ground instead of dark spikes standing out of it.",
+      "Stumps are gone again, everywhere: the old mossy ones scattered through the woods and the one by the fallen trunks on the battlefield are removed. Felled trees still leave clear ground.",
+    ],
+  },
+  {
+    v: "1.99.138", date: "25 October 2026", title: "Birches",
+    items: [
+      "Birches are no longer plain white poles: their bark is marked with the short dark lenticels running across the trunk, the black diamond scars of old branches, a papery unevenness, and at the foot the old tree's dark, cracked bark giving way raggedly to the white.",
     ],
   },
   {
@@ -18,7 +23,7 @@ export const CHANGELOG = [
     items: [
       "Logs look like logs: real pine bark round them, photographed with its plates and furrows (Poly Haven, CC0), and real sawn ends, growth rings, checks and the ring of bark at the edge (ambientCG, CC0), two kinds mixed through every pile.",
       "No log is a turned post any more: each has a gentle sweep along it, as a trunk grows. Woodpiles, the logs where a tree fell, woodsheds, barricades and palisades all show it.",
-      "The standing pines and spruces wear the same real bark, plates and furrows in relief, wrapped round each trunk and laid on metre by metre up it; their stumps too. Trunks are a shade lighter, so the bark shows in the shade of the wood.",
+      "The standing pines and spruces wear the same real bark, plates and furrows in relief, wrapped round each trunk and laid on metre by metre up it. Trunks are a shade lighter, so the bark shows in the shade of the wood.",
     ],
   },
   {
