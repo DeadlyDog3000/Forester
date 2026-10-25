@@ -1469,7 +1469,7 @@ export function makeHalberd() {
 // tips, dark in the hollows and undersides, multiplied by each material's hue.
 
 // one tier of spruce boughs: a cone whose skirt is ragged and droops at the tips
-function spruceTierGeo(N = 16) {
+function spruceTierGeo(N = 16, underY = 0.3) {
   const r = rng(11);
   const pos = [], col = [], idx = [];
   const v = (x, y, z, c) => { pos.push(x, y, z); col.push(c, c, c); return pos.length / 3 - 1; };
@@ -1482,7 +1482,7 @@ function spruceTierGeo(N = 16) {
     const rr = tip ? 1.0 + r() * 0.08 : 0.74 + r() * 0.06;
     rim.push(v(Math.cos(a) * rr, tip ? -0.04 - r() * 0.05 : 0.1, Math.sin(a) * rr, tip ? 1.05 : 0.6));
   }
-  const under = v(0, 0.3, 0, 0.35);
+  const under = v(0, underY, 0, 0.35);
   for (let i = 0; i < N; i++) {
     const j = (i + 1) % N;
     idx.push(apex, mid[j], mid[i]);
@@ -1580,7 +1580,9 @@ function cardsGeo(core, cards) {
 }
 // a spruce's tier: a dark heart, and boughs drooping out all round it, each a spray of needles
 function spruceTierCards(N = 16) {
-  const core = spruceTierGeo(Math.max(6, N / 2)); core.scale(0.62, 0.95, 0.62);
+  // (the solid heart of the tier narrower, and hollowed up underneath almost to its top: from below, standing under a
+  //  spruce, you see its boughs against the sky and not the flat dark lid of a cone)
+  const core = spruceTierGeo(Math.max(6, N / 2), 0.6); core.scale(0.3, 0.95, 0.3);
   const r = rng(23), cards = [], V = THREE.Vector3;
   for (let k = 0; k < N; k++) {
     const a = k / N * TAU + r() * 0.35, ca = Math.cos(a), sa = Math.sin(a), tx = -sa, tz = ca;

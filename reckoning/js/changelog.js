@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.142", date: "25 October 2026", title: "Under the spruces",
+    items: [
+      "Standing under a spruce you look up into its boughs, needles against the sky, instead of at the flat dark underside of a solid cone: each tier's solid heart is much narrower and hollowed up beneath, and the drooping boughs make the tree.",
+    ],
+  },
+  {
     v: "1.99.141", date: "25 October 2026", title: "Pine limbs",
     items: [
       "A Scots pine's flat clouds of needles no longer hang in the air beside its trunk: each is borne out on its own crooked limb, in the trunk's bark, rising from a little below it.",
