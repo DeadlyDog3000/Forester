@@ -968,19 +968,22 @@ export class Woods extends WorldBase {
 
     // ---- the chopping block, with an axe left in it ----
     const blk = new Builder();
-    blk.add(new THREE.CylinderGeometry(0.42, 0.48, 0.6, 10), 0x6a4a30, BLOCK.x, 0.3, BLOCK.z);
-    blk.add(new THREE.CylinderGeometry(0.4, 0.4, 0.02, 10), 0xb89a70, BLOCK.x, 0.61, BLOCK.z);
+    // (a squared timber, hewn flat on its four sides with the adze, the end grain on top scored with old cuts — no round
+    //  of trunk that could be taken for a stump)
+    blk.box(0.66, 0.52, 0.56, BLOCK.x, 0.26, BLOCK.z, 0x5e4229, 0.25, 0.05);
+    blk.box(0.64, 0.02, 0.54, BLOCK.x, 0.53, BLOCK.z, 0xa88a62, 0.25);
+    for (let k = 0; k < 4; k++) blk.box(0.5, 0.012, 0.012, BLOCK.x + (k - 1.5) * 0.08, 0.541, BLOCK.z, 0x6a4f34, 0.25 + 0.6 + k * 0.3);
     // a sawhorse beside it
     for (const s of [-0.7, 0.7]) { blk.box(0.08, 0.9, 0.08, BLOCK.x + 1.3 + s, 0.45, BLOCK.z + 0.35, 0x5a4030); blk.box(0.08, 0.9, 0.08, BLOCK.x + 1.3 + s, 0.45, BLOCK.z - 0.35, 0x5a4030); }
     blk.box(1.8, 0.1, 0.12, BLOCK.x + 1.3, 0.9, BLOCK.z, 0x6a4a30);
     const bm2 = blk.build(); bm2.position.y = y0; root.add(bm2);
     // (collider tops are heights in the world, and the clearing stands well above nought)
-    this.col.addCircle(BLOCK.x, BLOCK.z, 0.5, this.heightAt(BLOCK.x, BLOCK.z) + 0.6);
+    this.col.addCircle(BLOCK.x, BLOCK.z, 0.45, this.heightAt(BLOCK.x, BLOCK.z) + 0.55);
     this.col.addRect(BLOCK.x + 1.3, BLOCK.z, 1.8, 0.8, this.heightAt(BLOCK.x + 1.3, BLOCK.z) + 0.9);
     this.blockAxe = new THREE.Group();
     const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.024, 0.75, 6), mat(0x6a4a30)); haft.position.y = 0.3; this.blockAxe.add(haft);
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.12, 0.17), mat(0x4d4f52, { metalness: 0.7, roughness: 0.6 })); head.position.set(0, -0.05, 0.05); this.blockAxe.add(head);
-    this.blockAxe.position.set(BLOCK.x, y0 + 0.72, BLOCK.z); this.blockAxe.rotation.set(0.5, 0.8, 0.15);
+    this.blockAxe.position.set(BLOCK.x, y0 + 0.64, BLOCK.z); this.blockAxe.rotation.set(0.5, 0.8, 0.15);
     root.add(this.blockAxe);
     // a door, once one is hewn, leans on the sawhorse
     this.doorProp = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.1, 0.12), mat(0x7a5634));

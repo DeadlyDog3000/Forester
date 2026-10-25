@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.153", date: "25 October 2026", title: "A hewn block",
+    items: [
+      "The chopping block in the clearing is a squared timber, adzed flat on its four sides with old cuts scored in its top, instead of a round of trunk that looked like a stump.",
+    ],
+  },
+  {
     v: "1.99.152", date: "25 October 2026", title: "Hands at their sides",
     items: [
       "People's empty hands hang as hands do, in line with the forearm and turned a little in toward the thigh, standing, walking and running, instead of cocked at the wrist with the fingers pointing out away from the body.",
