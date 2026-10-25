@@ -981,6 +981,7 @@ function useModel(P, key, colors = {}) {
     // (last frame's stroke taken off first, as the head's turn is: a bone the clip doesn't move would keep it, and add to it)
     if (this._swimBack) { for (const [b, q] of this._swimBack) b.quaternion.copy(q); this._swimBack = null; }
     if (this._aimBack) { for (const [b, q] of this._aimBack) b.quaternion.copy(q); this._aimBack = null; }
+    if (this._handBack) { for (const [b, q] of this._handBack) b.quaternion.copy(q); this._handBack = null; }
     mixer.update(dt);
     aimPlace(this, dt);
     // swimming: laid along the water (as the code-built body is), the arms and legs in their stroke over the clip
@@ -990,7 +991,34 @@ function useModel(P, key, colors = {}) {
     // the neck, eased in and out
     this.lookS = (this.lookS || 0) + ((this.look || 0) - (this.lookS || 0)) * Math.min(1, dt * 5);
     if (Math.abs(this.lookS) > 0.002) { if (headB) headB.rotateY(this.lookS * 0.65); if (neckB) neckB.rotateY(this.lookS * 0.3); this.lookApplied = this.lookS; }
+    // (an empty hand hangs as a hand does, in line with the forearm and turned a little in toward the thigh: the clips
+    //  had the wrists cocked outward, the fingers pointing away from the body)
+    if (cur === acts.idle || cur === acts.walk || cur === acts.run || cur === acts.talk || cur === acts.walkLegs || cur === acts.runLegs) relaxHands(this);
   };
+}
+// the empty hands straightened (see above): each turned so it carries on the line of its forearm, a touch in toward the
+// body, and put back next frame before the clip moves it again
+const _rhF = new THREE.Vector3(), _rhH = new THREE.Vector3(), _rhC = new THREE.Vector3(), _rhV = new THREE.Vector3(), _rhQ = new THREE.Quaternion(), _rhW = new THREE.Quaternion(), _rhP = new THREE.Quaternion(), _rhI = new THREE.Quaternion();
+function relaxHands(P) {
+  if (P.rag || (P.swimK || 0) > 0.02 || !P.bones) return;
+  const hips = P.bones.hips; if (!hips) return;
+  hips.getWorldPosition(_rhC);
+  for (const s of ["L", "R"]) {
+    if (s === "L" ? P._gripL : P._gripR) continue;
+    const f = P.bones["forearm." + s], h = P.bones["hand." + s]; if (!f || !h) continue;
+    h.updateWorldMatrix(true, false);
+    f.getWorldPosition(_rhF); h.getWorldPosition(_rhH);
+    const dir = _rhV.subVectors(_rhH, _rhF).normalize();
+    // (a touch in toward the thigh, across the body's own line)
+    const inw = new THREE.Vector3(_rhC.x - _rhH.x, 0, _rhC.z - _rhH.z); if (inw.lengthSq() > 1e-6) dir.addScaledVector(inw.normalize(), 0.12).normalize();
+    h.getWorldQuaternion(_rhW);
+    const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(_rhW);
+    _rhQ.setFromUnitVectors(axis, dir); _rhQ.slerp(_rhI, 0.15);
+    (P._handBack ||= []).push([h, h.quaternion.clone()]);
+    f.getWorldQuaternion(_rhP);
+    h.quaternion.copy(_rhP.invert().multiply(_rhQ.multiply(_rhW)));
+    h.updateMatrixWorld(true);
+  }
 }
 
 // things for hands

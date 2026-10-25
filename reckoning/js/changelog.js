@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.152", date: "25 October 2026", title: "Hands at their sides",
+    items: [
+      "People's empty hands hang as hands do, in line with the forearm and turned a little in toward the thigh, standing, walking and running, instead of cocked at the wrist with the fingers pointing out away from the body.",
+    ],
+  },
+  {
     v: "1.99.151", date: "25 October 2026", title: "Blood where it goes in",
     items: [
       "A wound bleeds where it is: the blood soaks out through the coat or shirt from the place the ball or the blade went in, spreading for some seconds, running further down than up, near black and wet at the middle; on the face and hands too. Before, the whole garment darkened at once. In a battle's ranks as well.",
