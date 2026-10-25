@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.141", date: "25 October 2026", title: "Pine limbs",
+    items: [
+      "A Scots pine's flat clouds of needles no longer hang in the air beside its trunk: each is borne out on its own crooked limb, in the trunk's bark, rising from a little below it.",
+    ],
+  },
+  {
     v: "1.99.140", date: "25 October 2026", title: "A real sward",
     items: [
       "The grass is grass: each tuft a dozen narrow blades, every one its own height and lean, curving over toward the tip, dark at the foot and paler above, with a few dry straw-coloured blades among them. They root across a hand's breadth, so the tufts run together into one sward instead of standing in rows of green spikes.",

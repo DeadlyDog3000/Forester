@@ -1680,6 +1680,10 @@ export function swayGeo(geo, n) {
 }
 export const TREE = {
   trunk: trunkGeo(),
+  // (a pine's limb: a tapering pole from its foot at the origin up the y axis, a unit long, a little crooked)
+  limb: (() => { const g = new THREE.CylinderGeometry(0.55, 1, 1, 6, 3).translate(0, 0.5, 0), p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) { const y = p.getY(i); p.setX(i, p.getX(i) + Math.sin(y * 4) * 0.6); }
+    g.computeVertexNormals(); const c = new Float32Array(p.count * 3).fill(0.9); g.setAttribute("color", new THREE.BufferAttribute(c, 3)); return g; })(),
   cone: spruceTierCards(16),
   blob: leafClumpCards(22, 1),
   // (far off, the same trees with fewer boughs and sprays: nobody can count them at a hundred metres)
@@ -1702,7 +1706,7 @@ export const TREE = {
   palmMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x4f8030, roughness: 0.8, side: THREE.DoubleSide }), { scale: 2.5, amount: 0.18, grain: 0.5, surface: "needles", seeThrough: 3.6 }),
   palmTrunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x8a7a62, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
 };
-for (const k of ["trunk", "cone", "blob", "frond"]) TREE[k]._shared = true;
+for (const k of ["trunk", "limb", "cone", "blob", "frond"]) TREE[k]._shared = true;
 // (a pine's and a spruce's trunk in its real bark — the same photographed pine bark as the logs, its colour and its
 //  relief — wrapped round the trunk a whole number of times, so it meets itself, and laid on in metres up it, however
 //  tall the tree; under the grain, the snow and the axe's notches as before)
@@ -1853,7 +1857,10 @@ export function forestInstances(list, far = false) {
   // (the crown the top third of it: a flat-topped head, and boughs standing out from the trunk under it, each its own
   //  flat cloud of needles — not one blob on a stick)
   const PN = 7, pineB = new THREE.InstancedMesh(swayGeo(BLOB, kinds.pine.length * PN), TREE.pineMat, Math.max(1, kinds.pine.length * PN));
-  let pi = 0;
+  // (and each of those clouds borne on its own limb out of the trunk, in the trunk's bark: they hung in the air beside it)
+  const pineL = new THREE.InstancedMesh(swayGeo(TREE.limb, kinds.pine.length * (PN - 1)), TREE.trunkMat, Math.max(1, kinds.pine.length * (PN - 1)));
+  const _ld = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+  let pi = 0, pl = 0;
   for (const t of kinds.pine) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(Math.sin(t.rot * 4.1) * 0.04, t.rot, 0); dummy.scale.set(1.0, t.h * 0.9, 1.0); dummy.updateMatrix();
     sway(trunks, ti, t); trunks.setMatrixAt(ti++, dummy.matrix); (t.slots ??= []).push([trunks, ti - 1]);
@@ -1866,6 +1873,14 @@ export function forestInstances(list, far = false) {
       dummy.scale.set(w, w * 0.42, w * 0.85); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
       sway(pineB, pi, t); pineB.setMatrixAt(pi, dummy.matrix); t.slots.push([pineB, pi]);
       tint(pineB, pi++, 0, seed);
+      if (i > 0) {
+        // (from the trunk a little below the cloud, rising out to its middle; thinner the higher up the tree)
+        const y0 = t.y + t.h * hy - w * 0.35, ex = Math.cos(a) * rad * 0.92, ez = Math.sin(a) * rad * 0.92, ey = w * 0.3;
+        _ld.set(ex, ey, ez); const L = _ld.length(); _ld.normalize();
+        dummy.position.set(t.x, y0, t.z); dummy.quaternion.setFromUnitVectors(_up, _ld);
+        const th = 0.09 + t.h * 0.006 * (1.1 - hy); dummy.scale.set(th, L, th); dummy.updateMatrix();
+        sway(pineL, pl, t); pineL.setMatrixAt(pl, dummy.matrix); t.slots.push([pineL, pl++]);
+      }
     }
   }
   // birch: a pale trunk and a loose, many-clumped crown
@@ -1930,7 +1945,7 @@ export function forestInstances(list, far = false) {
     }
   }
   palmTr.count = pti; fronds.count = fi;
-  for (const m of [trunks, birchTr, spruceC, pineB, leaves, oakC, acaC, junC, scrC, palmTr, fronds]) { m.userData.far = far; m.castShadow = !far && m !== trunks && m !== birchTr && m !== palmTr; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
+  for (const m of [trunks, birchTr, spruceC, pineB, pineL, leaves, oakC, acaC, junC, scrC, palmTr, fronds]) { m.userData.far = far; m.castShadow = !far && m !== trunks && m !== birchTr && m !== palmTr && m !== pineL; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
   return out;
 }
 
