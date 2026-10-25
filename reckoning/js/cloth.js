@@ -73,6 +73,20 @@ function clothMaterial(src, uni) {
   return m;
 }
 
+// its shadow: cast from the cloth where it has swung to, not where the bones alone would have left it
+function clothDepth(uni) {
+  const d = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
+  d.onBeforeCompile = sh => {
+    sh.uniforms.uClothD = uni; sh.uniforms.uClothU = uni.lie;
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", `#include <common>\nattribute vec2 aCloth; uniform vec3 uClothD[${K}]; uniform float uClothU;`)
+      .replace("#include <skinning_vertex>", `#include <skinning_vertex>
+        { float f = aCloth.x * ${K}.0; int i0 = int(floor(f)) % ${K}, i1 = (i0 + 1) % ${K};
+          transformed += mix(uClothD[i0], uClothD[i1], fract(f)) * mix(aCloth.y, sqrt(aCloth.y), uClothU); }`);
+  };
+  d.customProgramCacheKey = () => "clothdepth";
+  return d;
+}
 // put cloth on a person: their model's scene, as made for them (see useModel)
 export function attachCloth(P, scene) {
   const meshes = [];
@@ -103,7 +117,7 @@ export function attachCloth(P, scene) {
     const uni = { value: Array.from({ length: K }, () => new THREE.Vector3()) };
     // (lying, more of the cloth goes with the hem, not just its lowest part: the skirt falls in over the legs)
     uni.lie = { value: 0 };
-    o.material = clothMaterial(o.material, uni);
+    o.material = clothMaterial(o.material, uni); o.customDepthMaterial = clothDepth(uni);
     C.parts.push({ o, info, uni }); o.userData.clothSim = C;
     o.onBeforeRender = renderer => step(C, renderer.info.render.frame);
   }
@@ -118,7 +132,7 @@ export function attachCloth(P, scene) {
 // a person's pieces made one (a battle's crowd, see mergeRig): the one mesh swings with the same hem as the pieces did
 export function clothMerged(C, sk) {
   const uni = { value: Array.from({ length: K }, () => new THREE.Vector3()) }; uni.lie = { value: 0 };
-  sk.material = clothMaterial(sk.material, uni);
+  sk.material = clothMaterial(sk.material, uni); sk.customDepthMaterial = clothDepth(uni);
   const part = { o: sk, uni }; C.parts.push(part);
   sk.onBeforeRender = renderer => step(C, renderer.info.render.frame);
   return () => { const i = C.parts.indexOf(part); if (i >= 0) C.parts.splice(i, 1); };

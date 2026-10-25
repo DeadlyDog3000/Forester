@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.145", date: "25 October 2026", title: "Cloth's shadows",
+    items: [
+      "The shadow of a skirt or a coat swings with it: cast from where the cloth has moved to, not where it would hang if it were stiff.",
+    ],
+  },
+  {
     v: "1.99.144", date: "25 October 2026", title: "Cloth everywhere, and when they fall",
     items: [
       "The soldiers of a battle's companies wear the same swinging cloth now: their coat-tails hang, trail and kick with their stride, as the townsfolk's do.",
