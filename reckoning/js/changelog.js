@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.137", date: "25 October 2026", title: "Real logs and bark",
+    items: [
+      "Logs look like logs: real pine bark round them, photographed with its plates and furrows (Poly Haven, CC0), and real sawn ends, growth rings, checks and the ring of bark at the edge (ambientCG, CC0), two kinds mixed through every pile.",
+      "No log is a turned post any more: each has a gentle sweep along it, as a trunk grows. Woodpiles, the logs where a tree fell, woodsheds, barricades and palisades all show it.",
+      "The standing pines and spruces wear the same real bark, plates and furrows in relief, wrapped round each trunk and laid on metre by metre up it; their stumps too. Trunks are a shade lighter, so the bark shows in the shade of the wood.",
+    ],
+  },
+  {
     v: "1.99.136", date: "24 October 2026", title: "A pan by the fire",
     items: [
       "A copper pan hangs on the wall beside the cabin's hearth by the ring in its turned wooden handle, scanned (Poly Haven, CC0).",

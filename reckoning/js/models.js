@@ -1688,7 +1688,7 @@ export const TREE = {
   // (the old solid shapes, for what is drawn without a cut-out leaf — ferns' fronds and hedges built into one mesh)
   coneSolid: spruceTierGeo(),
   blobSolid: leafClumpGeo(2, 0.22),
-  trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x5a4332, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
+  trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6a4e3a, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
   birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3, surface: "bark" }),
   spruceMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
   pineMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
@@ -1703,6 +1703,53 @@ export const TREE = {
   palmTrunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x8a7a62, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
 };
 for (const k of ["trunk", "cone", "blob", "frond"]) TREE[k]._shared = true;
+// (a pine's and a spruce's trunk in its real bark — the same photographed pine bark as the logs, its colour and its
+//  relief — wrapped round the trunk a whole number of times, so it meets itself, and laid on in metres up it, however
+//  tall the tree; under the grain, the snow and the axe's notches as before)
+let _barkTex = null;
+export function addBark(material) {
+  if (typeof document === "undefined") return material;
+  _barkTex ??= ["log_bark", "log_bark_n"].map((n, i) => { const t = new THREE.TextureLoader().load("art/tex/" + n + ".jpg"); if (!i) t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.userData.shared = true; return t; });
+  const prev = material.onBeforeCompile, key = material.customProgramCacheKey;
+  material.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.uniforms.uBark = { value: _barkTex[0] }; sh.uniforms.uBarkN = { value: _barkTex[1] };
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vBLocal; varying vec2 vBS;")
+      .replace("#include <begin_vertex>", `#include <begin_vertex>
+        vBLocal = position; vBS = vec2(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz));
+        #ifdef USE_INSTANCING
+          vBS *= vec2(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz));
+        #endif`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vBLocal; varying vec2 vBS; uniform sampler2D uBark, uBarkN;")
+      .replace("#include <color_fragment>", `#include <color_fragment>
+        // (round it: as many times as its girth at the foot holds a hand-span of bark plates, at least twice)
+        float bN = max(2.0, floor(6.2832 * 0.3 * vBS.x / 0.55 + 0.5));
+        float bA = atan(vBLocal.z, vBLocal.x), bA2 = atan(-vBLocal.z, -vBLocal.x);
+        vec2 bUv = vec2(bA / 6.2832 * bN, vBLocal.y * vBS.y / 0.75);
+        // (the slope of the angle across the pixel, from whichever of two angles has no seam here: where the wrap meets
+        //  itself, one jumps a whole turn and would blur the bark to a grey line)
+        vec2 bD1 = vec2(dFdx(bA), dFdy(bA)), bD2 = vec2(dFdx(bA2), dFdy(bA2));
+        vec2 bDa = (abs(bD1.x) + abs(bD1.y) < abs(bD2.x) + abs(bD2.y) ? bD1 : bD2) * bN / 6.2832;
+        vec2 bGx = vec2(bDa.x, dFdx(bUv.y)), bGy = vec2(bDa.y, dFdy(bUv.y));
+        vec3 bC = textureGrad(uBark, bUv, bGx, bGy).rgb;
+        diffuseColor.rgb *= mix(vec3(1.0), bC / vec3(0.377, 0.324, 0.272), 0.9);`)
+      .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
+        {
+          vec3 bq0 = dFdx(-vViewPosition), bq1 = dFdy(-vViewPosition); vec2 bs0 = bGx, bs1 = bGy;
+          vec3 bq1p = cross(bq1, normal), bq0p = cross(normal, bq0);
+          vec3 bT = bq1p * bs0.x + bq0p * bs1.x, bB = bq1p * bs0.y + bq0p * bs1.y;
+          float bDet = max(dot(bT, bT), dot(bB, bB)), bSc = bDet == 0.0 ? 0.0 : inversesqrt(bDet);
+          vec3 bMap = textureGrad(uBarkN, bUv, bGx, bGy).xyz * 2.0 - 1.0; bMap.xy *= 1.3 * faceDirection;
+          normal = normalize(mat3(bT * bSc, bB * bSc, normal) * bMap);
+        }`);
+  };
+  material.customProgramCacheKey = () => (key ? key.call(material) : "") + "bark";
+  material.needsUpdate = true;
+  return material;
+}
+addBark(TREE.trunkMat);
 for (const k of ["trunkMat", "birchMat", "spruceMat", "pineMat", "leafMat", "oakMat", "acaciaMat", "jungleMat", "scrubMat", "palmMat", "palmTrunkMat"]) addSway(TREE[k]);
 // a palm's frond: a long leaf arched up and over and drooping at its tip, its leaflets a narrow blade either side
 function frondGeo() {
@@ -2030,8 +2077,27 @@ let _logMats = null;
 function paint(size, fn) { const c = document.createElement("canvas"); c.width = c.height = size; fn(c.getContext("2d"), size); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
 // (a birch's logs are white: their own bark and their own pale ends)
 const _logMatsK = {};
-export function logMats(kind) {
+// (the logs as photographed, CC0: Poly Haven's pine bark round the sides — its colour, its normal map and its roughness
+//  — and ambientCG's sawn rounds for the ends, two of them, each with its ring of bark; see tools/make_logtex.py. A log's
+//  ends are one round or the other, by the log)
+let _logReal = null;
+function logTex(name, srgb = true, wrap = false) {
+  const t = new THREE.TextureLoader().load("art/tex/" + name + ".jpg");
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  if (wrap) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 1.6); }
+  t.userData.shared = true; return t;
+}
+function logReal() {
+  if (_logReal) return _logReal;
+  if (typeof document === "undefined") return null;
+  const side = new THREE.MeshStandardMaterial({ map: logTex("log_bark", true, true), normalMap: logTex("log_bark_n", false, true), roughnessMap: logTex("log_bark_r", false, true), roughness: 1, normalScale: new THREE.Vector2(1.4, 1.4) });
+  side.userData.surface = "none";
+  const caps = ["a", "b"].map(k => { const m = new THREE.MeshStandardMaterial({ map: logTex("log_end_" + k), normalMap: logTex("log_end_" + k + "_n", false), roughness: 0.82 }); m.userData.surface = "none"; return [side, m, m]; });
+  return (_logReal = caps);
+}
+export function logMats(kind, v = 0) {
   if (kind === "birch") return _logMatsK.birch || (_logMatsK.birch = birchLogMats());
+  { const R = logReal(); if (R) return R[v & 1]; }
   if (_logMats) return _logMats;
   const r = rng(77);
   const bark = paint(256, (g, S) => {
@@ -2094,13 +2160,14 @@ function birchLogMats() {
 // (a log as a log is: not a turned post, but thicker at its butt end, uneven in its girth, swelling at a knot or two;
 //  the cut ends follow its outline. The bark and end-grain textures lie on it as before)
 const LOG_GEO = (() => {
-  const g = new THREE.CylinderGeometry(1, 1, 1, 20, 8), p = g.attributes.position;
+  const g = new THREE.CylinderGeometry(1, 1, 1, 20, 12), p = g.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i), a = Math.atan2(z, x);
     let k = 1 + 0.035 * Math.sin(3 * a + y * 4) + 0.022 * Math.sin(5 * a - y * 9 + 1) + 0.012 * Math.sin(9 * a + 2);
     k += 0.05 * Math.exp(-((y - 0.18) ** 2) * 160) * Math.max(0, Math.cos(a - 1.2)) + 0.04 * Math.exp(-((y + 0.27) ** 2) * 200) * Math.max(0, Math.cos(a + 2));
     k *= 1.05 - (y + 0.5) * 0.1;
-    p.setXYZ(i, x * k, y, z * k);
+    // (and no trunk grows quite straight: a gentle sweep along it, the sawn ends left square)
+    p.setXYZ(i, x * k + 0.22 * (1 - 4 * y * y) + 0.06 * Math.sin(y * 9), y, z * k);
   }
   g.computeVertexNormals(); g._shared = true; return g;
 })();
@@ -2186,7 +2253,7 @@ const TRUNK_SHAPE = { spruce: [1.1, 0.55], pine: [1.0, 0.9], birch: [0.5, 0.78],
 const _stumpBark = {};
 function stumpBark(kind) {
   const src = kind === "birch" ? TREE.birchMat : kind === "palm" ? TREE.palmTrunkMat : TREE.trunkMat;
-  return _stumpBark[kind] ??= addDetail(new THREE.MeshStandardMaterial({ color: src.color.clone(), roughness: src.roughness, vertexColors: true }), { ...src.userData.detail });
+  return _stumpBark[kind] ??= (m => src === TREE.trunkMat ? addBark(m) : m)(addDetail(new THREE.MeshStandardMaterial({ color: src.color.clone(), roughness: src.roughness, vertexColors: true }), { ...src.userData.detail }));
 }
 // (the trunk's shading: darker at its foot, as the tree's own vertex colours have it)
 function trunkShade(geo, y0, span) {
@@ -2257,19 +2324,26 @@ export function makeStump(t, kind = "spruce") {
   return g;
 }
 export function makeLogs(list, seed = 1, kind = null) {
-  const r = rng(seed), m = new THREE.InstancedMesh(LOG_GEO, logMats(kind), list.length);
-  const o = new THREE.Object3D();
-  list.forEach((l, i) => {
+  const r = rng(seed), o = new THREE.Object3D();
+  // (each log's place worked out first, and which of the two sawn ends it has; then a draw for each)
+  const M = list.map(l => {
     o.position.set(l.x, l.y, l.z);
     // (a log lies along x or z, or stands up: "y")
     o.rotation.set(l.dir === "z" ? Math.PI / 2 : 0, l.ry || 0, l.dir === "x" ? Math.PI / 2 : 0);
     o.rotateY(r() * Math.PI * 2);   // (each turned about its own length)
     const rr = l.r * (0.88 + r() * 0.24);
     o.scale.set(rr, l.len * (0.94 + r() * 0.1), rr);
-    o.updateMatrix(); m.setMatrixAt(i, o.matrix);
+    o.updateMatrix(); return { m: o.matrix.clone(), v: r() < 0.5 ? 0 : 1 };
   });
-  m.castShadow = true; m.receiveShadow = true;
-  return m;
+  const two = kind !== "birch" && logReal();
+  const draw = sub => {
+    const m = new THREE.InstancedMesh(LOG_GEO, logMats(kind, sub.length ? sub[0].v : 0), sub.length);
+    sub.forEach((q, i) => m.setMatrixAt(i, q.m)); m.castShadow = true; m.receiveShadow = true; return m;
+  };
+  if (!two) return draw(M);
+  const g = new THREE.Group();
+  for (const v of [0, 1]) { const sub = M.filter(q => q.v === v); if (sub.length) g.add(draw(sub)); }
+  return g;
 }
 
 // ---------------------------------------------------------------------------
