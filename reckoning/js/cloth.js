@@ -12,6 +12,7 @@
 // are its own copies.
 
 import { THREE } from "./core.js";
+import { SWAY } from "./models.js";
 
 const K = 8;                       // (points round the hem)
 const PARTS = /_(skirt|apron|coat)$/;
@@ -188,6 +189,13 @@ function step(C, frame) {
     const keep = Math.max(0, (up - 0.55) / 0.45);
     if (keep > 0) p.lerp(T[s], (1 - Math.pow(0.22, dt)) * keep * keep);
     p.addScaledVector(G_, dt * dt * 1.6 * (1 - keep));
+    // (the wind the trees bend to, in it too: a steady lean of the hem downwind, stronger in the gusts as they roll
+    //  across the ground, and a flutter on top)
+    if (SWAY && SWAY.dir) {
+      const T = SWAY.t.value, d = SWAY.dir.value, gust = 0.55 + 0.45 * Math.sin(T * 0.55 - (p.x * d.x + p.z * d.y) * 0.07);
+      const a = (0.8 + 5 * SWAY.k.value) * gust * (1 + 0.45 * Math.sin(T * 6.3 + s * 1.7 + p.x)) * dt * dt;
+      p.x += d.x * a; p.z += d.y * a;
+    }
     // (and never through the ground)
     if (gy != null) { const gh = gy(p.x, p.z) + 0.03; if (p.y < gh) { p.y = gh; q.lerp(p, 0.5); } }
     // (pushed aside by the legs: the cloth from the waist down to this point of the hem kept outside each thigh and

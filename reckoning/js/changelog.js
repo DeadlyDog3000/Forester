@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.147", date: "25 October 2026", title: "Wind in the skirts",
+    items: [
+      "The wind the trees bend to catches clothes too: skirts, aprons and coat-tails lean downwind, stir harder as each gust rolls across, and flutter at the hem.",
+    ],
+  },
+  {
     v: "1.99.146", date: "25 October 2026", title: "Hats off",
     items: [
       "A man who falls loses his hat: always when he's struck in the head, most often anyway. It flies off with the blow, tumbles, and comes to rest on its brim in the grass, or now and then upside down. In a battle's ranks too.",
