@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.163", date: "25 October 2026", title: "Ferns",
+    items: [
+      "The ferns round the clearing are ferns: each frond cut out leaflet by leaflet, instead of solid dark blades that made every clump look like a giant black spider or an agave from the desert. The nettles in the woods likewise.",
+    ],
+  },
+  {
     v: "1.99.162", date: "25 October 2026", title: "The whole guide",
     items: [
       "The guide (H) holds every page from the start: what you've already met comes first, and the rest follows, paler, under \"Not met yet\", so you can read ahead — or find your feet in a chapter begun from the chapter list, where the book used to be empty.",

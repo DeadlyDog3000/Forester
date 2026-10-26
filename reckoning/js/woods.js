@@ -333,7 +333,7 @@ export class Woods extends WorldBase {
       const d = new THREE.Object3D(), c = new THREE.Color();
       bushes.forEach((q, n) => { sw(bm, n, q, 1.6); d.position.set(q.x, RB ? q.y - 0.05 : q.y + 0.3, q.z); d.rotation.set(0, q.ry, 0); if (RB) d.scale.set(q.sx * 0.65, q.sy * 1.2, q.sz * 0.65); else d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); bm.setMatrixAt(n, d.matrix); bm.setColorAt(n, RB ? c.setHSL(0.25 + (q.sx - 1) * 0.05, 0.25, 0.42 + (q.sy - 0.6) * 0.3) : c.set(q.col)); q.slots = [[bm, n]]; });
       let fi = 0;
-      if (RF) ferns.forEach((q, n) => { sw(fm, n, q, 1.2); d.position.set(q.x, q.y - 0.02, q.z); d.rotation.set(0, (q.x * 1.7 + q.z) % 6.28, 0); d.scale.setScalar(1.7 + ((q.x * 3.1 + q.z * 1.3) % 1 + 1) % 1 * 1.1); d.updateMatrix(); fm.setMatrixAt(n, d.matrix); fm.setColorAt(n, c.setHSL(0.27, 0.32, 0.62)); q.slots = [[fm, n]]; });
+      if (RF) ferns.forEach((q, n) => { sw(fm, n, q, 1.2); d.position.set(q.x, q.y - 0.02, q.z); d.rotation.set(0, (q.x * 1.7 + q.z) % 6.28, 0); d.scale.setScalar(1.7 + ((q.x * 3.1 + q.z * 1.3) % 1 + 1) % 1 * 1.1); d.updateMatrix(); fm.setMatrixAt(n, d.matrix); fm.setColorAt(n, c.setHSL(0.25, 0.3, 0.92)); q.slots = [[fm, n]]; });
       else for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { sw(fm, fi, q, 1.2); d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
       for (const m of [bm, fm]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; root.add(m); }
       this.shrubs = shrubs;
