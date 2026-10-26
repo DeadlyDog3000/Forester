@@ -1592,8 +1592,9 @@ export class Woods extends WorldBase {
     for (const c of this.burnedCols) c.disabled = true;
     if (this.cabinUp) return;
     this.cabinUp = true;
-    // no snow under the roof
-    ROOFED.value.set(CABIN.x, CABIN.z, CABIN.ry, 1); ROOFSIZE.value.z = this.cabinY + 2.7;
+    // no snow under the roof (the room itself: the walls stand inside the log ends that cross at the corners, and a box
+    //  out to those ends left a bright green strip of summer grass round the cabin in the snow)
+    ROOFED.value.set(CABIN.x, CABIN.z, CABIN.ry, 1); ROOFSIZE.value.set(2.54, 3.09, this.cabinY + 2.7);
     // walls of logs you can walk between: the doorway is the only way in
     const circle = (lx, lz, r, h = 3) => { const [x, z] = this.cabinToWorld(lx, lz); return this.col.addCircle(x, z, r, this.cabinY + h); };
     const wall = (lx0, lz0, lx1, lz1) => {

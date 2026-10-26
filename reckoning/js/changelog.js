@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.164", date: "25 October 2026", title: "Snow to the walls",
+    items: [
+      "In winter the snow lies right up to the cabin's walls, and along the tops of its logs outside, instead of leaving a bright green strip of summer grass round the cabin. Inside it stays dry, as before.",
+    ],
+  },
+  {
     v: "1.99.163", date: "25 October 2026", title: "Ferns",
     items: [
       "The ferns round the clearing are ferns: each frond cut out leaflet by leaflet, instead of solid dark blades that made every clump look like a giant black spider or an agave from the desert. The nettles in the woods likewise.",
