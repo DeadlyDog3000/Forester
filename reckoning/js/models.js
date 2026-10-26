@@ -2261,7 +2261,8 @@ export const P = {
       g.computeVertexNormals(); SACK = g;
       SACK_CORD = new THREE.TorusGeometry(0.068, 0.01, 4, 10).rotateX(Math.PI / 2);
     }
-    const hue = (Math.abs(Math.sin(x * 12.9 + z * 78.2)) * 0.16), c = new THREE.Color(0x9c8660).offsetHSL(0, 0, hue - 0.08);
+    // (old hemp, greyed and grubby from the quay and the cart: tan, it read in the low sun as a shining gold bag)
+    const hue = (Math.abs(Math.sin(x * 12.9 + z * 78.2)) * 0.16), c = new THREE.Color(0x7a6e5c).offsetHSL(0, 0, (hue - 0.08) * 0.6);
     const sc = 0.9 + hue;
     b.add(SACK, c.getHex(), x, y, z, 0, ry, 0, sc, sc * 0.92, sc, 0.04);
     const cx = Math.cos(ry), sx = Math.sin(ry), off = 0.6 * 0.6 * 0.12 * sc;

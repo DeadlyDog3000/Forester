@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET } from "./core.js";
 import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 import { reflectWater } from "./water.js";
@@ -2125,7 +2125,7 @@ function firstPersonBones(m, fp) {
   // (and a stock over where the neck was: looking down, you see your collar, not the inside of a neck)
   const nb = m._fp.find(b => b.isBone && /^neck$/i.test(b.name));
   if (nb && nb.parent && !m._cap) {
-    m._cap = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 6), new THREE.MeshStandardMaterial({ color: 0xe6e0d4, roughness: 0.9 }));
+    m._cap = new THREE.Mesh(new THREE.SphereGeometry(0.075, 18, 10), new THREE.MeshStandardMaterial({ color: 0x8e8574, roughness: 1 }));   // (worn linen, as grimy as the rest)
     m._cap.scale.set(1.05, 0.55, 0.95); m._cap.position.copy(nb.position); nb.parent.add(m._cap);
   }
   if (m._cap) m._cap.visible = fp;
@@ -2915,6 +2915,8 @@ export function frame(dt, skipRender) {
     { const p = G.player.pos, inn = (w.insideCabin && w.insideCabin(p.x, p.z)) || (w.inHome && w.inHome(p.x, p.z)) || (w.cave && w.cave.inside) || (w.floorIn && w.floorIn(p.x, p.z, p.y) !== null);
       const k0 = G.indoorK ?? 0; G.indoorK = k0 + ((inn ? 1 : 0) - k0) * Math.min(1, dt * 3);
       if (Math.abs(G.indoorK - k0) > 1e-4 && G.atmoNow) setEnvK(); }
+    // (the world wet in the rain, drying slowly after; not seen from indoors, where everything round you is dry)
+    { const want = (w.rainK || 0) * (1 - (G.indoorK || 0)); WET.value += (want - WET.value) * Math.min(1, dt * (want > WET.value ? 0.4 : 0.05)); }
     G.bugs.update(dt, G.player, () => AUDIO.buzz());
     // triggers
     for (const t of w.triggers.slice()) {

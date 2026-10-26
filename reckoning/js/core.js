@@ -211,6 +211,8 @@ const RELIEF_GLSL = `
 `;
 
 export const SNOW = { value: 0 };
+// (rain: how wet the world out under the sky is, 0 to 1 — eased toward the rain in the engine's frame)
+export const WET = { value: 0 };
 // the axe's notches in standing trunks (up to four at once): for each, the world taken into the notch's own frame —
 // x out toward the side it was cut from, y up from the floor of the cut, z across — and (trunk radius, depth, height
 // of the sloped face, on). Bark inside the wedge is not drawn: the notch's own faces (engine.js) show through it.
@@ -274,7 +276,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
   const detailCompile = sh => {
     sh.uniforms.dScale = { value: scale }; sh.uniforms.dAmount = { value: amount }; sh.uniforms.dNear = { value: seeThrough };
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
-    sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
+    sh.uniforms.dWet = WET; sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
     sh.uniforms.dRim = RIM;
     if (surface === "bark") { sh.uniforms.dNotchM = NOTCH_M; sh.uniforms.dNotchP = NOTCH_P; }
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] }; sh.uniforms.dTexCol = { value: colourTex };
@@ -297,9 +299,9 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         vDReal = (modelMatrix * dwp).xyz;
         ${local ? "vDWorld = dwp.xyz * 2.0; vDNormal = normalize(dn);" : "vDWorld = vDReal; vDNormal = normalize(mat3(modelMatrix) * dn);"}`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; varying vec3 vDTrunk; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + (surface === "bark" ? "uniform mat4 dNotchM[4]; uniform vec4 dNotchP[4];" : "") + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; varying vec3 vDTrunk; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear, dWet; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + (surface === "bark" ? "uniform mat4 dNotchM[4]; uniform vec4 dNotchP[4];" : "") + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
-        float dHgt = 0.0, dHk = 0.0;
+        float dHgt = 0.0, dHk = 0.0, dWetK = 0.0;
         ${surface === "bark" ? `for (int i = 0; i < 4; i++) if (dNotchP[i].w > 0.5) {
           vec3 q = (dNotchM[i] * vec4(vDReal, 1.0)).xyz; vec4 np = dNotchP[i];
           if (q.y > -0.004 && length(q.xz) < np.x * 1.6 && q.x - (np.x - np.y) >= q.y * np.y / np.z) discard;
@@ -389,6 +391,15 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
             float foot = (1.0 - smoothstep(0.0, edge, vDWorld.y - dGround)) * (1.0 - an.y) * (1.0 - dSnow * 0.7);
             diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.55, 0.5, 0.42), foot * 0.65);
           }
+          // rain: whatever is out under the sky darker for being wet, and what faces up sheened with it (not under the
+          //  cabin's roof)
+          if (dWet > 0.0 && dWeather > 0.5) {
+            float roofed = 0.0;
+            if (dRoof.w > 0.5 && vDWorld.y < dRoofSize.z) { vec2 wd = vDWorld.xz - dRoof.xy; float wc = cos(dRoof.z), ws = sin(dRoof.z); vec2 wl = vec2(wd.x * wc - wd.y * ws, wd.x * ws + wd.y * wc); if (abs(wl.x) < dRoofSize.x && abs(wl.y) < dRoofSize.y) roofed = 1.0; }
+            float wk = dWet * (1.0 - roofed);
+            diffuseColor.rgb *= 1.0 - 0.24 * wk;
+            dWetK = wk * smoothstep(0.35, 0.9, vDNormal.y) * (0.55 + 0.45 * dNoise(vDWorld * 0.7));
+          }
           // snow lies on whatever faces the sky, thinner where the noise says so
           if (dSnow > 0.0) {
             // (dSnowK: how much of it lies here — a trodden path keeps only a thin, broken cover)
@@ -407,7 +418,8 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         { vec2 dhh = vec2(dFdx(dHgt), dFdy(dHgt)); float fw = abs(dhh.x) + abs(dhh.y);
           if (dHk > 0.0) normal = dPerturb(-vViewPosition, normal, dhh * dHk * (1.0 - smoothstep(0.04, 0.16, fw)), faceDirection); }`)
       .replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);`);
+        roughnessFactor = clamp(roughnessFactor + (dNoise(vDWorld * dScale * 2.0) - 0.5) * 0.25, 0.04, 1.0);
+        roughnessFactor = mix(roughnessFactor, 0.32, dWetK);`);
   };
   // (and whatever else has been laid on this material — cloth, wear, weathered skin, bark: see addHook)
   { const dc = material.onBeforeCompile; material.onBeforeCompile = (sh, r) => { dc(sh, r); runHooks(material, sh, r); }; }

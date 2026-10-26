@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.167", date: "25 October 2026", title: "Wet",
+    items: [
+      "Rain wets the world: the ground, the logs, the cabin and the trees darken as it comes on, and the ground takes a wet sheen that catches the firelight. It dries off slowly once the rain stops. Under the cabin's roof it stays dry.",
+      "Grain sacks are old grey-brown hemp, not shining gold bags.",
+      "Looking down at yourself, the stock round your neck is worn linen rather than a bright white ball.",
+    ],
+  },
+  {
     v: "1.99.166", date: "25 October 2026", title: "Faces in the line",
     items: [
       "Soldiers in a battle line have weathered, sun-browned faces and hands, as one man on his own does, instead of chalk-white ones; where a piece of clothing or skin has a painted picture, the crowd keeps its colours too.",
