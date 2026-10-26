@@ -2105,7 +2105,9 @@ export function addBark(material, birch = false) {
           float bH = vBLocal.y * vBS.y;
           diffuseColor.rgb *= mix(vec3(0.3, 0.27, 0.24), vec3(1.0), smoothstep(0.2, 0.9 + 0.35 * sin(bA * 3.0 + 1.0) + 0.2 * sin(bA * 7.0), bH));
         #else
-          diffuseColor.rgb *= mix(vec3(1.0), bC / vec3(0.377, 0.324, 0.272), 0.9);
+          // (as a change about the bark's own mean — its linear mean, as the sample is: divided by the mean as stored, in
+          //  sRGB, every trunk came out a third as bright as it should, and blue: navy-black pines and spruces)
+          diffuseColor.rgb *= mix(vec3(1.0), bC / vec3(0.121, 0.088, 0.063), 0.9);
         #endif`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
         {

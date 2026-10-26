@@ -281,6 +281,8 @@ export class Woods extends WorldBase {
         root.add(g, gf); gf.visible = false;
       } }
     this.forest = list;
+    // (where the trees stand thick: a grid of ten-metre cells, for how deep in the wood a place is — see canopyAt)
+    this.treeGrid = new Map(); for (const t of list) { const k = Math.floor(t.x / 10) + "," + Math.floor(t.z / 10); let c = this.treeGrid.get(k); if (!c) this.treeGrid.set(k, c = []); c.push(t); }
     this.mapTrees = list.map((t, i) => (t._mi = i, { x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;
 
@@ -1899,6 +1901,15 @@ export class Woods extends WorldBase {
     const cut = this.shrubs.filter(q => q.gone).map(q => q.id);
     G.saveCut && G.saveCut(cut);
     return true;
+  }
+  // how deep in the wood (x, z) is: 0 in the open, 1 with a dozen trees standing round within nine metres (felled ones
+  // don't count; nor, round the clearing, the ring you fell, while it stands — those are counted with the rest)
+  canopyAt(x, z) {
+    if (!this.treeGrid) return 0;
+    const cx = Math.floor(x / 10), cz = Math.floor(z / 10); let n = 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) { const c = this.treeGrid.get((cx + i) + "," + (cz + j)); if (c) for (const t of c) if (!t.gone && (t.x - x) ** 2 + (t.z - z) ** 2 < 81) n++; }
+    for (const t of this.fellable || []) if (t.state === "up" && (t.x - x) ** 2 + (t.z - z) ** 2 < 81) n++;
+    return Math.max(0, Math.min(1, (n - 2) / 10));
   }
   makeBerryBushes() {
     // (bare in the winter: the settlement's winter, or snow lying in a chapter that has no settlement to say so)

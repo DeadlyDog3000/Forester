@@ -258,6 +258,19 @@ function weathered(a) {
 // (what metal shows: the sky by the hour; indoors, a dim warm room)
 const envBase = new THREE.Color(), ENV_IN = new THREE.Color(0.07, 0.055, 0.045);
 function setEnvK() { ENVK.value.copy(envBase).lerp(ENV_IN, G.indoorK || 0); }
+// (under the trees the sky's light comes down through the needles, green and less of it; and back off the floor of the
+//  wood, brown: lit by the open blue sky, every trunk in the woods stood navy-black and the forest floor went lavender.
+//  G.canopyK, from the world: 0 in the open, 1 deep in the wood)
+const hemiBase = { s: new THREE.Color(), g: new THREE.Color(), i: 1 }, CANOPY_S = new THREE.Color(0x8a9c78), CANOPY_G = new THREE.Color(0x4e4630);
+let canopyNow = -1;
+function canopyTint() {
+  const k = G.canopyK || 0; canopyNow = k;
+  hemi.color.copy(hemiBase.s); hemi.groundColor.copy(hemiBase.g); hemi.intensity = hemiBase.i;
+  if (k <= 0) return;
+  const l = hemiBase.s.r * 0.3 + hemiBase.s.g * 0.55 + hemiBase.s.b * 0.15;
+  hemi.color.lerp(CANOPY_S.clone().multiplyScalar(l / 0.8), k * 0.6);
+  hemi.groundColor.lerp(CANOPY_G.clone().multiplyScalar(Math.max(0.3, l / 0.8)), k * 0.5);
+}
 function applyAtmo(a00) {
   G.atmoNow = a00;
   const a0 = weathered(a00);
@@ -266,6 +279,7 @@ function applyAtmo(a00) {
   sun.color.copy(a.sunC); sun.intensity = a.sunI;
   G.sunDir = a.sun.clone ? a.sun.clone().normalize() : new THREE.Vector3(...a.sun).normalize();
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;
+  hemiBase.s.copy(hemi.color); hemiBase.g.copy(hemi.groundColor); hemiBase.i = hemi.intensity; canopyTint();
   fill.intensity = a.fill ?? 0.1;
   RIM.value.copy(a.hemiS).multiplyScalar(0.55 * a.hemiI);
   envBase.copy(a.hemiS).multiplyScalar(0.75 * a.hemiI); setEnvK();
@@ -2923,6 +2937,7 @@ export function frame(dt, skipRender) {
       if (Math.abs(G.indoorK - k0) > 1e-4 && G.atmoNow) setEnvK(); }
     // (the world wet in the rain, drying slowly after; not seen from indoors, where everything round you is dry)
     { const want = (w.rainK || 0) * (1 - (G.indoorK || 0)); WET.value += (want - WET.value) * Math.min(1, dt * (want > WET.value ? 0.4 : 0.05)); }
+    { const want = w.canopyAt ? w.canopyAt(G.player.pos.x, G.player.pos.z) * (1 - (G.indoorK || 0)) : 0; G.canopyK = (G.canopyK || 0) + (want - (G.canopyK || 0)) * Math.min(1, dt * 0.8); if (Math.abs(G.canopyK - canopyNow) > 0.01) canopyTint(); }
     G.bugs.update(dt, G.player, () => AUDIO.buzz());
     // triggers
     for (const t of w.triggers.slice()) {

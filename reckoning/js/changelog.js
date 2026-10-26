@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.177", date: "26 October 2026", title: "Bark",
+    items: [
+      "The pines' and spruces' trunks are brown bark, the pines' a warm red-brown, instead of navy-black: their photographed bark had been drawn at a third of its brightness and turned blue.",
+      "Deep in the wood the light under the trees is greener and browner, as it comes down through the needles and back off the forest floor, instead of the open sky's blue.",
+    ],
+  },
+  {
     v: "1.99.176", date: "26 October 2026", title: "Light through the leaves",
     items: [
       "Needles and leaves let the light through, as real ones do: the woods are green under the trees instead of black, and a crown with the sun behind it glows.",
