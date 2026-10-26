@@ -1166,6 +1166,9 @@ body:has(#bigmap:not(.hidden)) #mpTop { visibility: hidden; }
 /* the cold and the heat: a snowflake filling blue, or a sun filling orange; full, it hurts */
 #vitals #temp { margin-right: 26px; display: flex; align-items: center; gap: 7px; }
 #temp.hidden { display: none !important; }
+/* (neither cold nor hot: the bar stands back, and comes forward as the weather starts to tell on you) */
+#vitals #temp { transition: opacity 0.8s ease; }
+#temp.calm { opacity: 0.35; }
 #temp svg { order: 2; width: 19px; height: 19px; fill: none; stroke-width: 1.9; stroke-linecap: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7)); }
 #temp .tp-snow { stroke: #cfe6f8; }
 #temp .tp-sun { stroke: #f2b04a; fill: rgba(242, 176, 74, 0.35); display: none; }

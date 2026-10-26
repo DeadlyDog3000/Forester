@@ -231,7 +231,7 @@ const SIB_HINTS = [
   [/Plan a cabin|Plan /, "Press B for the plans, pick a cabin and put it where the ground's clear."],
   [/Raise .*cabin/, "The haulers carry logs to the site — nobody else does. Help them, and hold F at the site when it's ready."],
   [/Reap the rye/, "Reap the rye in the field — hold F on it."],
-  [/Build a well|Build a woodshed|Dig a second field/, "B for the plans. It all needs logs — keep felling."],
+  [/Build a well|Build a woodshed|second field/, "B for the plans. It all needs logs — keep felling."],
   [/new work/, "Walk up to someone and press F — you can give them work."],
   [/Furnish/, "Go inside the cabin and press B there."],
   [/Bring everyone to the fire/, "Go to each of them — F — and ask them to come."],
@@ -2362,7 +2362,8 @@ async function ch11(w) {
     if (!n.well) parts.push("Build a well");
     if (!n.shed) parts.push("Build a woodshed");
     if (!n.cabin) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); parts.push(!site ? "Plan a cabin for Tomas and Grete (B)" : site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Tomas and Grete's cabin" : doorObj(S, "Tomas and Grete's cabin")) : `Raise Tomas and Grete's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`); }
-    if (!n.field) parts.push("Dig a second field");
+    // (none planned yet: say where it begins — there's no site for the marker to point at)
+    if (!n.field) parts.push(S.buildings.some(b => b.type === "field" && !b.done) ? "Dig the second field" : "Plan a second field (B, then Field) and dig it");
     if (!n.store) parts.push("Build a store chest for the settlement (B)");
     if (!n.pick) parts.push("Make a wooden pickaxe at the chopping block (2 logs)");
     else if (!n.stone) parts.push(`Break the grey rocks for stone — ${Math.min(T.stone, 3)} of 3`);

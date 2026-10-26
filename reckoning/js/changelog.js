@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.172", date: "25 October 2026", title: "Plain words",
+    items: [
+      "In Forester, when the second field hasn't been planned yet, the goal says how it begins: plan it (B, then Field), then dig it — there was no site yet for the marker to point at.",
+      "The warmth bar stands back, faint, while you're neither cold nor hot, and comes forward as the weather starts to tell on you.",
+      "The tab under the map reads \"K · map key\".",
+    ],
+  },
+  {
     v: "1.99.171", date: "25 October 2026", title: "The battle's opening",
     items: [
       "The opening shots of a battle name each side over a soft shadow, so the companies and their numbers can be read against a pale field or a bright sky.",
