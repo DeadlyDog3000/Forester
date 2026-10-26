@@ -2304,19 +2304,20 @@ export const P = {
     // the quilt over the lower part, hanging down the sides, a band at its top turned back, and a darker check woven in
     { const [px, pz] = at(0, 0.36); cl.add(RBOX, 0x8e3d32, px, 0.47, pz, 0, ry, 0, 0.98, 0.2, 1.22); }
     for (const lz of [0.06, 0.46, 0.86]) { const [px, pz] = at(0, lz); cl.box(0.86, 0.203, 0.07, px, 0.47, pz, 0x6e2c24, ry); }
-    { const [px, pz] = at(0, -0.24); cl.add(CYL8, 0xe9e1cc, px, 0.56, pz, 0, ry, Math.PI / 2, 0.11, 0.97, 0.09); }
+    { const [px, pz] = at(0, -0.24); cl.add(CYL8, 0xb4aa94, px, 0.56, pz, 0, ry, Math.PI / 2, 0.11, 0.97, 0.09); }
     // the pillow, plump, against the headboard
-    { const [px, pz] = at(0, -0.72); cl.add(BALL, 0xf1ebdc, px, 0.58, pz, 0, ry, 0, 0.62, 0.17, 0.34); }
+    { const [px, pz] = at(0, -0.72); cl.add(BALL, 0xb8ae98, px, 0.58, pz, 0, ry, 0, 0.62, 0.17, 0.34); }
   },
   // a straw pallet on the floor: a fat tick of straw, a grey-brown wool blanket with a stripe at its ends, a sack of a pillow
+  // (the linen greyed and yellowed, slept in a winter: bright white, it glowed in a dark cabin)
   pallet(b, x, z, ry = 0) {
     const c = Math.cos(ry), s = Math.sin(ry), at = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c], cl = b.cloth || b;
-    { const [px, pz] = at(0, 0); cl.add(RBOX, 0xc2aa72, px, 0.09, pz, 0, ry, 0, 0.9, 0.18, 1.9); }
+    { const [px, pz] = at(0, 0); cl.add(RBOX, 0xa8925e, px, 0.09, pz, 0, ry, 0, 0.9, 0.18, 1.9); }
     // (a few straws sticking out of the ticking at the foot)
     for (const lx of [-0.3, -0.05, 0.22]) { const [px, pz] = at(lx, 0.94); b.add(CYL8, 0xd8c07a, px, 0.1, pz, 1.2, ry + lx, 0, 0.012, 0.16, 0.012); }
     { const [px, pz] = at(0, 0.32); cl.add(RBOX, 0x6e5e4c, px, 0.15, pz, 0, ry, 0, 0.94, 0.14, 1.22); }
     for (const lz of [-0.22, 0.86]) { const [px, pz] = at(0, lz); cl.box(0.86, 0.143, 0.08, px, 0.15, pz, 0x9a3a2c, ry); }
-    { const [px, pz] = at(0, -0.68); cl.add(BALL, 0xe2d8c0, px, 0.22, pz, 0, ry, 0, 0.56, 0.14, 0.32); }
+    { const [px, pz] = at(0, -0.68); cl.add(BALL, 0xa89e88, px, 0.22, pz, 0, ry, 0, 0.56, 0.14, 0.32); }
   },
   shelf(b, x, z, w = 1.6, ry = 0) {
     // an open case: sides, a back, four boards, and on them books, ledgers and boxes, each its own size and colour

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.170", date: "25 October 2026", title: "Linen and charcoal",
+    items: [
+      "The pillows and sheets on the beds and pallets are greyed, slept-in linen, and the straw ticks a duller straw, rather than glowing white in a dark cabin.",
+      "The charcoal burner's sacks are black with the charcoal's dust.",
+    ],
+  },
+  {
     v: "1.99.169", date: "25 October 2026", title: "The charcoal burner's smoke",
     items: [
       "The charcoal burner's column of smoke darkens with the evening, and by night is only a faint grey drift against the stars, rather than a pale column standing up into the dark.",

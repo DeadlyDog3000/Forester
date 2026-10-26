@@ -1348,8 +1348,8 @@ export class Woods extends WorldBase {
     // (sacks of it, in coarse cloth, tied at the neck: not wood)
     { const cloth = new Builder();
       for (let i = 0; i < 3; i++) { const [sx, sz] = at(1.4, -3.4 - i * 0.65), sy = H(sx, sz), sr = r() * 3;
-        cloth.add(new THREE.SphereGeometry(0.3, 10, 8), r.pick([0x8a7a5a, 0x7a6c4e, 0x938466]), sx, sy + 0.3, sz, 0, sr, 0, 0.95, 1.15, 0.8, 0.05);
-        cloth.add(new THREE.CylinderGeometry(0.06, 0.1, 0.14, 8), 0x7a6c4e, sx, sy + 0.66, sz);
+        cloth.add(new THREE.SphereGeometry(0.3, 10, 8), r.pick([0x4c4438, 0x564c3e, 0x40392f]), sx, sy + 0.3, sz, 0, sr, 0, 0.95, 1.15, 0.8, 0.05);   // (black with the charcoal's dust)
+        cloth.add(new THREE.CylinderGeometry(0.06, 0.1, 0.14, 8), 0x4c4438, sx, sy + 0.66, sz);
         cloth.add(new THREE.TorusGeometry(0.065, 0.016, 4, 10), 0x4a3a28, sx, sy + 0.64, sz, Math.PI / 2, 0, 0); }
       root.add(cloth.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: false }))); }
     // a stack of split wood waiting to be burned, a chopping block with an axe in it, a rake and a shovel
