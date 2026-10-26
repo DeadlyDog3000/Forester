@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.187", date: "26 October 2026", title: "Morions",
+    items: [
+      "The watch's steel hats are morions: a tall round crown with a comb along the top and a narrow brim swept up to a point before and behind, instead of a broad flat saucer like a sombrero.",
+      "Aprons cover the front of the skirt, with the skirt showing at the sides, instead of wrapping two-thirds of the way round like a pale sack.",
+    ],
+  },
+  {
     v: "1.99.186", date: "26 October 2026", title: "Iron hats",
     items: [
       "The watch's steel hats are dull dark iron, worn by use and weather, instead of glossy pale grey that looked like plastic.",

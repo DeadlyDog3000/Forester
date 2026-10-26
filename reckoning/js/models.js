@@ -643,10 +643,61 @@ function spruceCards(mesh) {
   mesh.geometry = out;
   mesh.material = TREE.spruceMat;
 }
+// the watch's steel hat as a morion: a tall round crown with a comb along its top, and a narrow brim swept up to a point
+// before and behind. (The model's was a broad saucer, a brim a quarter of a metre out with the crown hardly above it: a
+// sombrero.) Built where the model's sat on the head, and hung from the same bone.
+function morionGeo(old) {
+  const P = old.attributes.position, SI = old.attributes.skinIndex, SW = old.attributes.skinWeight;
+  let y0 = 9, cx = 0, cz = 0, mnx = 9, mxx = -9, mnz = 9, mxz = -9;
+  for (let i = 0; i < P.count; i++) { y0 = Math.min(y0, P.getY(i)); mnx = Math.min(mnx, P.getX(i)); mxx = Math.max(mxx, P.getX(i)); mnz = Math.min(mnz, P.getZ(i)); mxz = Math.max(mxz, P.getZ(i)); }
+  cx = (mnx + mxx) / 2; cz = (mnz + mxz) / 2; y0 += 0.02;
+  let bone = 0, bw = -1; for (let q = 0; q < 4; q++) if (SW.getComponent(0, q) > bw) { bw = SW.getComponent(0, q); bone = SI.getComponent(0, q); }
+  const pos = [], uv = [], idx = [];
+  const grid = (nu, nv, f) => { const b = pos.length / 3; for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const p = f(i / nu, j / nv); pos.push(p[0] + cx, p[1], p[2] + cz); uv.push(i / nu, j / nv); }
+    for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = b + j * (nu + 1) + i, c = a + nu + 1; idx.push(a, c, a + 1, a + 1, c, c + 1); } };
+  const RX = 0.118, RZ = 0.136, H = 0.2;
+  // (the crown: straight up a little, then rounded over)
+  const crownR = v => { const t = Math.max(0, (v - 0.22) / 0.78); return Math.sqrt(Math.max(0, 1 - t * t)) * (1 + 0.04 * Math.sin(Math.min(1, v / 0.3) * Math.PI / 2)); };
+  grid(32, 14, (u, v) => { const a = u * TAU, r = crownR(v); return [Math.sin(a) * RX * r, y0 + H * v, Math.cos(a) * RZ * r]; });
+  // (the comb: a thin plate front to back over the top)
+  const topAt = z => { const t = Math.min(1, Math.abs(z) / (RZ * 1.04)); const v = 0.22 + 0.78 * Math.sqrt(Math.max(0, 1 - t * t)); return y0 + H * v; };
+  grid(20, 2, (u, v) => { const z = (u * 2 - 1) * RZ * 0.92, h = 0.06 * Math.sqrt(Math.max(0, 1 - (u * 2 - 1) ** 2)); return [0, topAt(z) - 0.01 + (h + 0.01) * v, z]; });
+  // (the brim: out from the crown's foot, rising to its points fore and aft, a little down at the sides)
+  grid(40, 4, (u, w) => { const a = u * TAU, c = Math.cos(a), rx = RX + (0.165 - RX) * w, rz = RZ + (0.235 - RZ) * w;
+    return [Math.sin(a) * rx, y0 + 0.004 + 0.075 * Math.pow(Math.abs(c), 4) * Math.pow(w, 1.4) - 0.008 * w * (1 - Math.abs(c)), Math.cos(a) * rz]; });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+  g.computeVertexNormals();
+  const n = pos.length / 3, si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
+  for (let i = 0; i < n; i++) { si[i * 4] = bone; sw[i * 4] = 1; }
+  g.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4)); g.setAttribute("skinWeight", new THREE.Float32BufferAttribute(sw, 4));
+  if (old.attributes.color) { const c = new Float32Array(n * 3).fill(1); g.setAttribute("color", new THREE.Float32BufferAttribute(c, 3)); }
+  g.userData.morion = true; g.computeBoundingBox(); g.computeBoundingSphere();
+  return g;
+}
+function narrowApron(g) {
+  g.userData.narrowed = true;
+  const P = g.attributes.position, N = g.attributes.normal, n = new THREE.Vector3();
+  for (let i = 0; i < P.count; i++) {
+    const x = P.getX(i), y = P.getY(i), z = P.getZ(i);
+    if (y > 0.95) continue;
+    const r = Math.hypot(x, z), a = Math.atan2(x, z); if (Math.abs(a) > 1.9) continue;
+    // (more at the hem, where it had spread widest; none at the waist)
+    const k = 1 - 0.24 * Math.min(1, (0.95 - y) / 0.3), a2 = a * k, d = a2 - a;
+    P.setXYZ(i, Math.sin(a2) * r, y, Math.cos(a2) * r);
+    if (N) { n.fromBufferAttribute(N, i).applyAxisAngle(_Y_AXIS, d); N.setXYZ(i, n.x, n.y, n.z); }
+  }
+  P.needsUpdate = true; if (N) N.needsUpdate = true; g.computeBoundingBox(); g.computeBoundingSphere();
+}
+const _Y_AXIS = new THREE.Vector3(0, 1, 0);
 async function fetchModel(k, url) {
   try {
     MODELS[k] = await _loader.loadAsync(url);
     if (k === "bear" || k === "wolf") mendBeast(k, MODELS[k]);
+    // (an apron covers the front of the skirt: the models' wrapped two-thirds of the way round to the sides, and over the
+    //  dark skirt it stood like a pale sack. Drawn in toward the front by the angle round the body — the same distance
+    //  out, so it still lies on the skirt — below the waistband, which goes all the way round)
+    MODELS[k].scene.traverse(o => { if (o.isMesh && /_apron$/.test(o.material.name || "") && !o.geometry.userData.narrowed) narrowApron(o.geometry); });
     if (k === "spruce") MODELS[k].scene.traverse(o => { if (o.isMesh && /needles/.test(o.material.name || "")) spruceCards(o); });
     // the same grain and weathering as everything built in code; a person's materials are named for
     // what they are, so cloth gets the weave and skin gets nothing
@@ -691,7 +742,8 @@ async function fetchModel(k, url) {
       // (a hat of steel — the watch's morion — is polished metal, not felt: no weave on it, and bright, since with no
       // reflection to show a metal goes dark)
       // (a steel helmet: dark polished iron with the sun's sheen on it — it was a pale grey that read as white in daylight)
-      if (n === "hat" && m.metalness > 0.2) { m.userData.part = "helmet"; m.userData.surface = "none"; m.metalness = 0.55; m.roughness = 0.42; m.color.set(0x5e6064); m.emissive.set(0x050506); }
+      if (n === "hat" && m.metalness > 0.2 && o.isSkinnedMesh && !o.geometry.userData.morion) o.geometry = morionGeo(o.geometry);
+      if (n === "hat" && m.metalness > 0.2) { m.userData.part = "helmet"; m.side = THREE.DoubleSide; m.userData.surface = "none"; m.metalness = 0.55; m.roughness = 0.42; m.color.set(0x5e6064); m.emissive.set(0x050506); }
       // (iron worn dull with use and weather: polished pale grey and glossy, it read as a plastic dome)
       // a building is solid, closed shapes: drawn from the outside only (both sides drawn, the back of one face fights
       // the face behind it — a gable built of two, a frame against its wall — and flickers); and its trim — timber,
