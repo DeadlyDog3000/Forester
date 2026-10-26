@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.168", date: "25 October 2026", title: "Smoke by night",
+    items: [
+      "Smoke is seen by the light there is: grey over a fire by day, and by night only faint and dark against the stars, lit from below where it leaves the flames — no more pale puffs glowing over a night fire.",
+      "Looking down at yourself, less of your right sleeve hangs beside you where the arm is folded away.",
+    ],
+  },
+  {
     v: "1.99.167", date: "25 October 2026", title: "Wet",
     items: [
       "Rain wets the world: the ground, the logs, the cabin and the trees darken as it comes on, and the ground takes a wet sheen that catches the firelight. It dries off slowly once the rain stops. Under the cabin's roof it stays dry.",

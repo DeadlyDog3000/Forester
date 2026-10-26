@@ -270,6 +270,7 @@ function applyAtmo(a00) {
   RIM.value.copy(a.hemiS).multiplyScalar(0.55 * a.hemiI);
   envBase.copy(a.hemiS).multiplyScalar(0.75 * a.hemiI); setEnvK();
   FIREDAY.k = clamp(1.3 - a.sunI * 0.33, 0.35, 1);
+  FIREDAY.sky = clamp(a.sunI * 0.32 + a.hemiI * 0.2, 0.1, 1);
   // (the sun for the post pass's shafts: where, how strong, what colour)
   post.sunDir = G.sunDir; post.sunI = a.sunI; (post.sunC ||= new THREE.Color()).copy(a.sunC);
   // (the draw distance booster pulls the fog in, and the camera stops drawing just beyond it)
@@ -2121,7 +2122,12 @@ function firstPersonBones(m, fp) {
     // (the body built in code, if the model never came: its neck group carries the head and hat)
     if (!m._fp.length) m._fp = [m.neck, m.armR].filter(Boolean);
   }
-  for (const b of m._fp) b.scale.setScalar(fp ? 0.001 : 1);
+  for (const b of m._fp) {
+    b.scale.setScalar(fp ? 0.001 : 1);
+    // (the right arm folded away into the chest, not at the shoulder: what of the sleeve the shoulder only half carries
+    //  stretched from there to the body, a grey flap beside you whenever you looked down)
+    if (b.isBone && /^shoulderR$/i.test(b.name)) { b.userData.fpHome ??= b.position.clone(); b.position.copy(b.userData.fpHome).multiplyScalar(fp ? 0.15 : 1); }
+  }
   // (and a stock over where the neck was: looking down, you see your collar, not the inside of a neck)
   const nb = m._fp.find(b => b.isBone && /^neck$/i.test(b.name));
   if (nb && nb.parent && !m._cap) {

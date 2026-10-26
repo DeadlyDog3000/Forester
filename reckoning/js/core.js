@@ -1078,7 +1078,7 @@ export function makeFlame(size = 1, light = null) {
   // (and a thinner, darker trail off a torch's pitch or a small fire)
   if (size >= 1.2) for (let i = 0, ns = size >= 2 ? 7 : 4; i < ns; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: F.smokeTex, color: size >= 2 ? 0x9a948a : 0x5a5650, transparent: true, depthWrite: false, opacity: 0, fog: true }));
-    m.userData = { t: i / ns, rot: (Math.random() - 0.5) * 0.6 }; m.renderOrder = 1; g.add(m); smoke.push(m);
+    m.userData = { t: i / ns, rot: (Math.random() - 0.5) * 0.6, col: m.material.color.clone() }; m.renderOrder = 1; g.add(m); smoke.push(m);
   }
   g.userData.flame = { faces, glow, sparks, smoke, coals, size, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
   if (light) { light.position.y = 0.25 * size; g.add(light); }
@@ -1086,7 +1086,7 @@ export function makeFlame(size = 1, light = null) {
 }
 // (a fire under the open sky by day: the sun drowns its light, and the grass round it isn't washed yellow — set from the
 //  sun's strength in applyAtmo; a flame marked dayDim takes it, a hearth indoors doesn't)
-export const FIREDAY = { k: 1 };
+export const FIREDAY = { k: 1, sky: 1 };   // (sky: how much daylight there is to see smoke by)
 export function flicker(g, dt) {
   const f = g.userData.flame; if (!f) return;
   f.t += dt;
@@ -1121,6 +1121,8 @@ export function flicker(g, dt) {
     m.scale.setScalar((0.25 + t * 0.9) * s);
     m.material.opacity = Math.sin(Math.min(1, t * 1.3) * Math.PI) * 0.22;
     m.material.rotation = u.rot * t * 3;
+    // (smoke is seen by the light there is: grey by day, near black by night but where the fire under it lights it)
+    if (u.col) m.material.color.copy(u.col).multiplyScalar(Math.max(FIREDAY.sky, (1 - t) * (lit ? 0.5 : 0)));
   }
   if (f.light) f.light.intensity = f.base * (0.8 + (k - 0.85) * 2.5) * (f.dayDim ? FIREDAY.k : 1);
 }
