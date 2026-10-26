@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.173", date: "25 October 2026", title: "Coats",
+    items: [
+      "A long coat's open front hangs down against the legs again, instead of standing out from the pockets like a board (a side effect of last hour's straighter skirts, which keep their fall).",
+      "\"Build a well\" and \"Build a woodshed\" say (B) until they're planned, so it's plain where they begin.",
+    ],
+  },
+  {
     v: "1.99.172", date: "25 October 2026", title: "Plain words",
     items: [
       "In Forester, when the second field hasn't been planned yet, the goal says how it begins: plan it (B, then Field), then dig it — there was no site yet for the marker to point at.",

@@ -79,12 +79,15 @@ function restNet(pieces, top, lo, hipX, hipZ) {
 
 function hangNet(rest, hx, hz) {
   const pts = rest.map(p => p.clone());
+  // (each ring no narrower than the one above it — but pushed out a few centimetres at most: a coat's pockets stand out
+  //  at the hip, and held to them, its open front below stood out from the legs like a board)
   for (let s = 0; s < S; s++) {
     let m = 0;
     for (let r = 0; r <= R; r++) {
       const p = pts[id(r, s)], dx = p.x - hx, dz = p.z - hz, d = Math.hypot(dx, dz);
-      if (r > 1 && d < m && d > 1e-4) { p.x = hx + dx / d * m; p.z = hz + dz / d * m; }
-      m = Math.max(m, d);
+      let k = d;
+      if (r > 1 && d < m && d > 1e-4) { k = Math.min(m, d + 0.04); p.x = hx + dx / d * k; p.z = hz + dz / d * k; }
+      m = k;
     }
   }
   return pts;

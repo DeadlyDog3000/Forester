@@ -2359,8 +2359,9 @@ async function ch11(w) {
   const obj = onFrame(() => {
     const n = need(), parts = [];
     if (!n.reap) parts.push("Reap the rye");
-    if (!n.well) parts.push("Build a well");
-    if (!n.shed) parts.push("Build a woodshed");
+    const planned = t => S.buildings.some(b => b.type === t && !b.done);
+    if (!n.well) parts.push(planned("well") ? "Build a well" : "Build a well (B)");
+    if (!n.shed) parts.push(planned("woodshed") ? "Build a woodshed" : "Build a woodshed (B)");
     if (!n.cabin) { const site = S.buildings.find(b => b.type === "cabin" && !b.done); parts.push(!site ? "Plan a cabin for Tomas and Grete (B)" : site.logs >= BUILDINGS.cabin.cost && !site.door ? ((S.doors || 0) > 0 ? "Hang the door on Tomas and Grete's cabin" : doorObj(S, "Tomas and Grete's cabin")) : `Raise Tomas and Grete's cabin — ${site.logs} of ${BUILDINGS.cabin.cost} logs`); }
     // (none planned yet: say where it begins — there's no site for the marker to point at)
     if (!n.field) parts.push(S.buildings.some(b => b.type === "field" && !b.done) ? "Dig the second field" : "Plan a second field (B, then Field) and dig it");
