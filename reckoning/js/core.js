@@ -414,6 +414,9 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           if (dSnow > 0.0) {
             // (dSnowK: how much of it lies here — a trodden path keeps only a thin, broken cover)
             float lie = smoothstep(0.25, 0.75, vDNormal.y + (dNoise(vDWorld * 1.7) - 0.5) * 0.5) * dSnow * dSnowK;
+            ${cards ? `// (on leaves and needles — cards whose light is bent up and out, every one of them \"facing the sky\" — only
+            //  in clumps along the boughs' tops, the green showing under and between, not a tree turned to sugar)
+            lie = smoothstep(0.5, 0.75, dNoise(vDWorld * 2.3 + 4.0) + vDNormal.y * 0.35 - 0.12) * 0.82 * dSnow * dSnowK;` : ""}
             if (dRoof.w > 0.5 && vDWorld.y < dRoofSize.z) {
               vec2 dd = vDWorld.xz - dRoof.xy; float rc = cos(dRoof.z), rs = sin(dRoof.z);
               vec2 lp = vec2(dd.x * rc - dd.y * rs, dd.x * rs + dd.y * rc);
@@ -442,7 +445,9 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
 // not the world's, or the grain would slide over it as it moves. (The same stuff, a copy of its material once.)
 const OWN_GRAIN = new Map();
 export function ownGrain(m) {
-  if (!m || !m.userData || !m.userData.detail || m.userData.detail.local) return m;
+  // (leaves and needles on cards keep the shared one: their grain is too fine to swim as a tree falls, and a copy, with no
+  //  snow on it, left the clearing's spruces green all winter while the wood behind them was white)
+  if (!m || !m.userData || !m.userData.detail || m.userData.detail.local || m.userData.detail.cards) return m;
   let c = OWN_GRAIN.get(m);
   if (!c) { c = m.clone(); c.color = m.color; if (m.emissive) c.emissive = m.emissive; addDetail(c, { ...m.userData.detail, local: true, snow: false }); inheritHooks(m, c); OWN_GRAIN.set(m, c); }
   return c;

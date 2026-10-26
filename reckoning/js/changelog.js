@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.180", date: "26 October 2026", title: "Snow on the boughs",
+    items: [
+      "In winter the spruces round the clearing carry snow on their boughs like the rest of the wood, instead of standing green against the white.",
+      "Snow on needles and leaves lies in clumps along the tops of the boughs, with the dark green showing under and between.",
+    ],
+  },
+  {
     v: "1.99.179", date: "26 October 2026", title: "Faces in the ranks",
     items: [
       "Soldiers in the ranks keep the colour of their faces and hands under a low evening sun, instead of the paler ones blowing out chalk-white.",
