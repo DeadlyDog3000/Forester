@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.165", date: "25 October 2026", title: "Rolling ground",
+    items: [
+      "The ground in the woods is lit smooth as it rolls: hills, hollows and the pond's banks no longer show as a mosaic of flat four-metre facets.",
+      "The full game's page counts the story's chapters right — fifteen, and free play after — rather than counting free play as a sixteenth.",
+    ],
+  },
+  {
     v: "1.99.164", date: "25 October 2026", title: "Snow to the walls",
     items: [
       "In winter the snow lies right up to the cabin's walls, and along the tops of its logs outside, instead of leaving a bright green strip of summer grass round the cabin. Inside it stays dry, as before.",

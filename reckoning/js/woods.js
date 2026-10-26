@@ -70,6 +70,22 @@ const STACK = { x: 28.5, z: -321.5 };
 const BLOCK = { x: 41.5, z: -316 };
 const FIRE = { x: 33.5, z: -311.5 };
 
+
+// a ground's normals, each corner the average of the facets round it (the ground is drawn facet by facet, every corner
+// its own in each: shared out by where they stand)
+function smoothNormals(geo) {
+  const pos = geo.attributes.position, n = pos.count, acc = new Map(), key = i => Math.round(pos.getX(i) * 8) * 1000003 + Math.round(pos.getZ(i) * 8);
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let t = 0; t < n; t += 3) {
+    a.fromBufferAttribute(pos, t); b.fromBufferAttribute(pos, t + 1).sub(a); c.fromBufferAttribute(pos, t + 2).sub(a); b.cross(c);
+    if (b.y < 0) b.negate();
+    for (let k = 0; k < 3; k++) { const kk = key(t + k); const v = acc.get(kk); if (v) { v[0] += b.x; v[1] += b.y; v[2] += b.z; } else acc.set(kk, [b.x, b.y, b.z]); }
+  }
+  const nor = geo.attributes.normal && geo.attributes.normal.count === n ? geo.attributes.normal : new THREE.BufferAttribute(new Float32Array(n * 3), 3);
+  for (let i = 0; i < n; i++) { const v = acc.get(key(i)), l = Math.hypot(v[0], v[1], v[2]) || 1; nor.setXYZ(i, v[0] / l, v[1] / l, v[2] / l); }
+  geo.setAttribute("normal", nor); nor.needsUpdate = true;
+}
+
 export class Woods extends WorldBase {
   constructor() {
     super(Collision);
@@ -176,9 +192,10 @@ export class Woods extends WorldBase {
       colors[t * 3] = cc[0]; colors[t * 3 + 1] = cc[1]; colors[t * 3 + 2] = cc[2];
     }
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    geo.computeVertexNormals();
+    smoothNormals(geo);
     const tg2 = geo;
-    this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "ground" });
+    // (lit smooth, as the ground rolls: drawn flat, every slope and hollow showed as a mosaic of four-metre facets)
+    this.terrainMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 1, amount: 0.06, grain: 0.15, surface: "ground" });
     const terrain = this.terrain = new THREE.Mesh(tg2, this.terrainMat);
     SNOW.value = 0;
     terrain.receiveShadow = true;
@@ -769,7 +786,7 @@ export class Woods extends WorldBase {
       // (a face dug more than a hand's depth shows the earth)
       if (moved > 0.15) for (let k = 0; k < 3; k++) { c.setRGB(col.getX(t + k), col.getY(t + k), col.getZ(t + k)).lerp(earth, Math.min(0.75, moved * 0.5)); col.setXYZ(t + k, c.r, c.g, c.b); }
     }
-    pos.needsUpdate = true; col.needsUpdate = true; geo.computeVertexNormals(); geo.computeBoundingSphere();
+    pos.needsUpdate = true; col.needsUpdate = true; smoothNormals(geo); geo.computeBoundingSphere();
   }
   // the ground as it lies, before anyone dug into it
   groundAt(x, z) {
