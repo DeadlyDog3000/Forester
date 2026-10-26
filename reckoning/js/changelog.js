@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.178", date: "26 October 2026", title: "Daylight",
+    items: [
+      "The daylight in the shade is a little less blue, so the forest floor in a glade is brown litter again instead of lavender.",
+    ],
+  },
+  {
     v: "1.99.177", date: "26 October 2026", title: "Bark",
     items: [
       "The pines' and spruces' trunks are brown bark, the pines' a warm red-brown, instead of navy-black: their photographed bark had been drawn at a third of its brightness and turned blue.",
