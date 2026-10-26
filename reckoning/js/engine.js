@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET, SKYLIT } from "./core.js";
 import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 import { reflectWater } from "./water.js";
@@ -270,7 +270,7 @@ function applyAtmo(a00) {
   RIM.value.copy(a.hemiS).multiplyScalar(0.55 * a.hemiI);
   envBase.copy(a.hemiS).multiplyScalar(0.75 * a.hemiI); setEnvK();
   FIREDAY.k = clamp(1.3 - a.sunI * 0.33, 0.35, 1);
-  FIREDAY.sky = clamp(a.sunI * 0.32 + a.hemiI * 0.2, 0.1, 1);
+  FIREDAY.sky = clamp(Math.pow(a.sunI / 2.4, 1.5) + 0.04, 0.06, 1); SKYLIT.value = FIREDAY.sky;
   // (the sun for the post pass's shafts: where, how strong, what colour)
   post.sunDir = G.sunDir; post.sunI = a.sunI; (post.sunC ||= new THREE.Color()).copy(a.sunC);
   // (the draw distance booster pulls the fog in, and the camera stops drawing just beyond it)

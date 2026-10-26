@@ -1086,7 +1086,13 @@ export function makeFlame(size = 1, light = null) {
 }
 // (a fire under the open sky by day: the sun drowns its light, and the grass round it isn't washed yellow — set from the
 //  sun's strength in applyAtmo; a flame marked dayDim takes it, a hearth indoors doesn't)
-export const FIREDAY = { k: 1, sky: 1 };   // (sky: how much daylight there is to see smoke by)
+export const FIREDAY = { k: 1, sky: 1 };
+// smoke, steam and dust drawn as sprites take no light of their own: seen by the daylight there is (SKYLIT, set with the
+// hour in applyAtmo), so a battle's powder smoke at night is a dark drift, not a glowing white cloud
+export const SKYLIT = { value: 1 };
+export function skyLit(m) {
+  return addHook(m, sh => { sh.uniforms.uSkyLit = SKYLIT; sh.fragmentShader = "uniform float uSkyLit;\n" + sh.fragmentShader.replace("outgoingLight = diffuseColor.rgb;", "outgoingLight = diffuseColor.rgb * uSkyLit;"); }, "skylit");
+}   // (sky: how much daylight there is to see smoke by)
 export function flicker(g, dt) {
   const f = g.userData.flame; if (!f) return;
   f.t += dt;

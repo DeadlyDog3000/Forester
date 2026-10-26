@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.169", date: "25 October 2026", title: "The charcoal burner's smoke",
+    items: [
+      "The charcoal burner's column of smoke darkens with the evening, and by night is only a faint grey drift against the stars, rather than a pale column standing up into the dark.",
+    ],
+  },
+  {
     v: "1.99.168", date: "25 October 2026", title: "Smoke by night",
     items: [
       "Smoke is seen by the light there is: grey over a fire by day, and by night only faint and dark against the stars, lit from below where it leaves the flames — no more pale puffs glowing over a night fire.",

@@ -5,7 +5,7 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, rockGeo, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs } from "./core.js";
+import { THREE, rockGeo, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs, skyLit } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway, realPart, realMany, makeLogs } from "./models.js";
 import { grassTexture } from "./hamburg.js";
@@ -1370,7 +1370,7 @@ export class Woods extends WorldBase {
     const cv = document.createElement("canvas"); cv.width = cv.height = 64;
     { const x = cv.getContext("2d"), g = x.createRadialGradient(32, 32, 2, 32, 32, 30); g.addColorStop(0, "rgba(255,255,255,0.8)"); g.addColorStop(0.5, "rgba(255,255,255,0.3)"); g.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }
     const ptex = new THREE.CanvasTexture(cv), smoke = [];
-    for (let i = 0; i < 22; i++) { const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: ptex, color: 0xbcb6ac, transparent: true, opacity: 0.25, depthWrite: false })); m.userData.t = i / 22; root.add(m); smoke.push(m); }
+    for (let i = 0; i < 22; i++) { const m = new THREE.Sprite(skyLit(new THREE.SpriteMaterial({ map: ptex, color: 0xbcb6ac, transparent: true, opacity: 0.25, depthWrite: false }))); m.userData.t = i / 22; root.add(m); smoke.push(m); }
     this.burner = { x: hx + Math.sin(Math.atan2(px - hx, pz - hz)) * 2.7, z: hz + Math.cos(Math.atan2(px - hx, pz - hz)) * 2.7, kiln: { x: kx, y: ky + 2.1, z: kz }, smoke, face: ang + Math.PI, camp: { x: px, z: pz } };
   }
   setStack(n) {
