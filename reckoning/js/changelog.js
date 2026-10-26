@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.174", date: "26 October 2026", title: "Wolves, bears and spruces",
+    items: [
+      "Wolves can be seen at last: the game had been judging a wolf by a point fifty metres underground and leaving it out of the picture wherever it stood.",
+      "The brown bear is brown, not a black hole in the shape of a bear; it grazes on all fours instead of rearing up on its hind legs, keeps its place as it walks instead of sliding forward and snapping back, and stands on the ground instead of a foot deep in it. The wolf no longer sinks into the earth when it looks about.",
+      "The spruces round the clearing, the ones you fell, are made of needles: sprays of real photographed needles along every branch, in place of clumps of green facets like cut glass.",
+      "A tree copied for felling no longer turns frosted and pale at a distance.",
+      "The red deer's coat is a deer's brown instead of copper-pink, and the fox's a little less of a flame.",
+      "The stones in the woods are grey northern granite instead of red South African sandstone that looked like chopped wood.",
+    ],
+  },
+  {
     v: "1.99.173", date: "25 October 2026", title: "Coats",
     items: [
       "A long coat's open front hangs down against the legs again, instead of standing out from the pockets like a board (a side effect of last hour's straighter skirts, which keep their fall).",

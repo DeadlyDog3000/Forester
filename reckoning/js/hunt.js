@@ -57,7 +57,7 @@ const CLIPS = {
   walk: ["Walk", "Running"], run: ["Run", "Running"], die: ["Die.000", "Die.001", "Dying.000", "Die"],
 };
 // (the pace each clip was made for, at full size, in metres a second: played faster or slower to match the ground covered)
-const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 }, bear: { walk: 1.1, run: 7 }, boar: { walk: 1.0, run: 1.0 }, wolf: { walk: 0.5, run: 3 }, fox: { walk: 0.3, run: 1.8 },
+const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 }, bear: { walk: 1.1, run: 3.4 }, boar: { walk: 1.0, run: 1.0 }, wolf: { walk: 0.5, run: 3 }, fox: { walk: 0.3, run: 1.8 },
   elephant: { walk: 0.9, run: 3.5 }, giraffe: { walk: 1.5, run: 4 }, camel: { walk: 1.0, run: 4 }, polarbear: { walk: 5, run: 5 } };
 // beasts with no model of their own, drawn as their nearest kin that has one, in their own coat and size: the reindeer
 // and the moose as the red stag (greyer, and bigger), the antelope as the hind (sandier, and slighter)

@@ -258,7 +258,7 @@ export function inheritHooks(from, to) {
 }
 export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, ground = 0, surface = "auto", seeThrough = 0, snow = true, weather = true, local = false, limbs = 0, rim = true, cards = false } = {}) {
   const surf = SURFACE[surface] ?? -1;
-  material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local, limbs };
+  material.userData.detail = { scale, amount, grain, ground, surface, seeThrough, snow, weather, local, limbs, rim, cards };   // (all of it, so a copy — ownGrain, fadeLimbs — is drawn the same: without rim and cards, a copied spruce went frosted)
   const lit = material.isMeshStandardMaterial || material.isMeshLambertMaterial || material.isMeshPhongMaterial;
   material.onBeforeCompile = sh => {
     detailCompile(sh);

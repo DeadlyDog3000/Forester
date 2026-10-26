@@ -580,9 +580,74 @@ function roundLogMat(m) {
       else { float lw = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lw) * vec3(1.0, 0.9, 0.78), 0.38) * 0.9; }`);
   }, "roundlog");
 }
+// (the bought animals' clips, mended. The bear's standing clip reared it up on its hind legs to graze, and its run stood
+//  it on end; its walk and run carried it forward from where it was and snapped it back each stride; and on all fours its
+//  paws were a foot deep in the ground — so it stands as it looks about, runs on its walk (quickened), keeps its place,
+//  and is set on the ground. The wolf's look about (the maker's demo clip) dropped it fifty metres into the ground, or laid it on
+//  its side in the air: it stands as it does standing)
+function mendBeast(k, gltf) {
+  const clips = gltf.animations || [], clip = n => clips.find(c => c.name === n);
+  const same = (to, from) => { if (to && from) { to.tracks = from.tracks.map(t => t.clone()); to.duration = from.duration; } };
+  if (k === "bear") {
+    for (const c of clips) c.tracks = c.tracks.filter(t => !/^Root_\d+\.position$/.test(t.name));
+    same(clip("Idle"), clip("Look")); same(clip("Run"), clip("Walk"));
+    gltf.scene.position.y += 0.54;
+  }
+  if (k === "wolf") same(clip("Look"), clip("Idle"));
+}
+// (the spruce's needles as needles: the model's clumps of facets — the trees round the clearing, the ones you fell —
+//  stood near to like cut green glass, and a picture laid over them didn't save them. Each clump is found (its own piece
+//  of the mesh), and in its place three cards of the photographed spray, crossed along the line of its branch from the
+//  trunk out, its size and its shade: the tree keeps the shape it was built with, every whorl and droop, and is needles)
+function spruceCards(mesh) {
+  const g = mesh.geometry, P = g.attributes.position, C = g.attributes.color, I = g.index, n = P.count;
+  // (its pieces: the corners that stand in the same place are one, and a triangle joins its three)
+  const key = new Map(), id = new Int32Array(n), par = [];
+  for (let i = 0; i < n; i++) { const k = Math.round(P.getX(i) * 1e3) + "," + Math.round(P.getY(i) * 1e3) + "," + Math.round(P.getZ(i) * 1e3); let v = key.get(k); if (v === undefined) { v = par.length; par.push(v); key.set(k, v); } id[i] = v; }
+  const find = x => { while (par[x] !== x) x = par[x] = par[par[x]]; return x; };
+  for (let t = 0; t < I.count; t += 3) { const a = find(id[I.getX(t)]), b = find(id[I.getX(t + 1)]), c = find(id[I.getX(t + 2)]); par[b] = a; par[find(c)] = a; }
+  const comps = new Map();
+  for (let i = 0; i < n; i++) { const r = find(id[i]); let q = comps.get(r); if (!q) comps.set(r, q = []); q.push(i); }
+  const pos = [], uv = [], col = [], nrm = [], idx = [], V = THREE.Vector3, up = new V(0, 1, 0), rnd = rng(77);
+  // (the model's middle green, as a grey of 1: each clump as much darker or lighter as it was painted)
+  let ref = 0; if (C) { for (let i = 0; i < n; i++) ref += 0.299 * C.getX(i) + 0.587 * C.getY(i) + 0.114 * C.getZ(i); ref /= n; } else ref = 1;
+  for (const q of comps.values()) {
+    if (q.length < 6) continue;
+    const c = new V(), cc = [0, 0, 0];
+    for (const i of q) { c.x += P.getX(i); c.y += P.getY(i); c.z += P.getZ(i); if (C) { cc[0] += C.getX(i); cc[1] += C.getY(i); cc[2] += C.getZ(i); } }
+    c.multiplyScalar(1 / q.length);
+    // (out from the trunk; a clump on the trunk itself — the leader — points up)
+    const d = new V(c.x, 0, c.z); const onTrunk = d.length() < 0.12; if (onTrunk) d.set(0, 1, 0); else d.normalize();
+    const t = onTrunk ? new V(1, 0, 0) : new V().crossVectors(up, d).normalize(), u = new V().crossVectors(d, t).normalize();
+    let d0 = 1e9, d1 = -1e9, t0 = 1e9, t1 = -1e9, u0 = 1e9, u1 = -1e9; const w = new V();
+    for (const i of q) { w.set(P.getX(i), P.getY(i), P.getZ(i)).sub(c); const a = w.dot(d), b = w.dot(t), e = w.dot(u); d0 = Math.min(d0, a); d1 = Math.max(d1, a); t0 = Math.min(t0, b); t1 = Math.max(t1, b); u0 = Math.min(u0, e); u1 = Math.max(u1, e); }
+    const L = (d1 - d0) * 1.3 + 0.15, W = Math.max(t1 - t0, u1 - u0) * 1.25 + 0.1, mid = c.clone().addScaledVector(d, (d0 + d1) / 2);
+    const lum = C ? (0.299 * cc[0] + 0.587 * cc[1] + 0.114 * cc[2]) / q.length : ref, k = Math.min(1.3, Math.max(0.5, lum / ref)) * 1.0;
+    // (a little droop to each card, the tip lower than where it leaves the branch)
+    const droop = onTrunk ? 0 : 0.12 + rnd() * 0.18;
+    for (const ang of [0, 1.05, -1.05]) {
+      const ax = new V().copy(t).multiplyScalar(Math.cos(ang + (rnd() - 0.5) * 0.3)).addScaledVector(u, Math.sin(ang + (rnd() - 0.5) * 0.3)).multiplyScalar(W / 2);
+      const base = pos.length / 3;
+      const a0 = mid.clone().addScaledVector(d, -L / 2).addScaledVector(u, L * droop * 0.5), a1 = mid.clone().addScaledVector(d, L / 2).addScaledVector(u, -L * droop * 0.5);
+      for (const [p, uu, vv, kk] of [[a0.clone().sub(ax), 0, 0, 0.78], [a1.clone().sub(ax), 1, 0, 1.06], [a1.clone().add(ax), 1, 1, 1.06], [a0.clone().add(ax), 0, 1, 0.78]]) {
+        pos.push(p.x, p.y, p.z); uv.push(uu, vv); col.push(k * kk, k * kk, k * kk);
+        const nn = new V(p.x, 0, p.z).normalize().multiplyScalar(0.6).add(new V(0, 0.55, 0)).normalize(); nrm.push(nn.x, nn.y, nn.z);
+      }
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+  const out = new THREE.BufferGeometry();
+  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); out.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  out.setAttribute("color", new THREE.Float32BufferAttribute(col, 3)); out.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3)); out.setIndex(idx);
+  out.computeBoundingSphere(); out.computeBoundingBox();
+  mesh.geometry = out;
+  mesh.material = TREE.spruceMat;
+}
 async function fetchModel(k, url) {
   try {
     MODELS[k] = await _loader.loadAsync(url);
+    if (k === "bear" || k === "wolf") mendBeast(k, MODELS[k]);
+    if (k === "spruce") MODELS[k].scene.traverse(o => { if (o.isMesh && /needles/.test(o.material.name || "")) spruceCards(o); });
     // the same grain and weathering as everything built in code; a person's materials are named for
     // what they are, so cloth gets the weave and skin gets nothing
     MODELS[k].scene.traverse(o => {
@@ -599,11 +664,26 @@ async function fetchModel(k, url) {
       if (/^ship_(dutch|pinnace)/.test(k)) { m.userData.surface = n === "sail" ? "cloth" : "none"; if (n === "sail") m.side = THREE.DoubleSide; }
       if (/^(deer|doe|hare|bear|boar|wolf|fox|horse|elephant|giraffe|camel|polarbear)$/.test(k)) {
         m.userData.surface = "none";
+        // (never left out for being "off screen": the wolf's skin hangs under a node fifty metres from where its bones
+        //  put it, and three judged it from there — it was culled wherever it stood, and no wolf was ever seen)
+        if (o.isSkinnedMesh) o.frustumCulled = false;
         // (fur and hide are matte: a soft sheen at most, never the gloss of wet paint the files came with)
         m.roughness = Math.max(m.roughness ?? 1, 0.88); m.metalness = 0; if (m.roughnessMap) m.roughnessMap = null; if (m.metalnessMap) m.metalnessMap = null;
         // (and no baked shadow map: the horse's, laid over the game's own light and shadow, all but blacked it out)
         if (m.aoMap) m.aoMap = null;
         if (m.specularIntensity != null) m.specularIntensity = 0.3;
+        // (the wolf's and the bear's files say their fur bends light a thousand times as glass does, with a black sheen:
+        //  the bear was drawn as a black hole in the shape of a bear, and the wolf not at all)
+        if (m.ior != null && m.ior > 3) m.ior = 1.45;
+        if (m.specularColor && m.specularColor.getHex() === 0) m.specularColor.set(0xffffff);
+        // (and the coats as they are in a northern wood, not as painted: the red deer's had come out a bright copper-pink
+        //  and the fox's a flame orange, louder than anything else in the world; and the brown bear's painted all but black)
+        // (drawn part way toward the brown of the coat's own lightness, not toward grey: greyed, the deer's went mauve)
+        const coat = { deer: [0.5, "1.22, 0.96, 0.7"], doe: [0.5, "1.22, 0.96, 0.7"], fox: [0.7, "1.3, 0.92, 0.6"], bear: [0.15, "2.9, 1.65, 1.2"] }[k];
+        if (coat && !/eye/i.test(m.name || "")) addHook(m, sh => {
+          sh.fragmentShader = sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+            { float fl = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(fl * vec3(${coat[1]}), diffuseColor.rgb, ${coat[0].toFixed(2)}); }`);
+        }, "coat" + k);
       }
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
       // (bright metal — a gun's furniture, a blade — with no reflection to show goes black: kept only a little metal)
