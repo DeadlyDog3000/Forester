@@ -263,7 +263,17 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
   material.onBeforeCompile = sh => {
     detailCompile(sh);
     // (leaves and needles on cards, seen from either side: lit the same from both, not turned to face the ground from behind)
-    if (cards) sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", ""));
+    if (cards) sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", ""))
+      // (and no shine on them: seen from under a spruce against the low sun, every card edge-on glared a pale tan, and
+      //  the boughs overhead looked dead)
+      // (but the light comes through them, as through any leaf held up to it: a little of the sun's on every card,
+      //  facing it or not, and more, green, where it stands behind them)
+      .replace("#include <aomap_fragment>", `reflectedLight.directSpecular *= 0.12; reflectedLight.indirectSpecular *= 0.12;
+        #if NUM_DIR_LIGHTS > 0
+        { float tr = max(dot(-normalize(vViewPosition), directionalLights[0].direction), 0.0);
+          reflectedLight.directDiffuse += diffuseColor.rgb * directionalLights[0].color * (0.24 + 0.55 * tr * tr * tr) * vec3(0.9, 1.05, 0.7); }
+        #endif
+        #include <aomap_fragment>`);
     // (the rim: lit stuff only — a flat-coloured thing has no light to catch)
     // (and not on leaves and needles: cut out on cards facing every way, their edges caught it all and the woods went
     //  frosted blue-white at noon)

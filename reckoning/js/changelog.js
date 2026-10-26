@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.176", date: "26 October 2026", title: "Light through the leaves",
+    items: [
+      "Needles and leaves let the light through, as real ones do: the woods are green under the trees instead of black, and a crown with the sun behind it glows.",
+      "The boughs overhead no longer glare a dead pale tan when you look up at them against a low sun.",
+      "The spruces are a shade greener.",
+    ],
+  },
+  {
     v: "1.99.175", date: "26 October 2026", title: "Brambles and windfalls",
     items: [
       "The brambles round the clearing are tangles of real leaves instead of four lumps of green facets.",

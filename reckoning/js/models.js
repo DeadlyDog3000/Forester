@@ -2042,7 +2042,7 @@ export const TREE = {
   blobSolid: leafClumpGeo(2, 0.22),
   trunkMat: addDetail(new THREE.MeshStandardMaterial({ color: 0x6a4e3a, roughness: 1, vertexColors: true }), { scale: 3, amount: 0.25, grain: 0.9, surface: "bark" }),
   birchMat: addDetail(new THREE.MeshStandardMaterial({ color: 0xe0dccf, roughness: 0.9, vertexColors: true }), { scale: 2.2, amount: 0.5, grain: 0.3, surface: "bark" }),
-  spruceMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x2f5232, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
+  spruceMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x33583a, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
   pineMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.needle, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x3f6334, roughness: 0.95, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
   leafMat: addDetail(new THREE.MeshStandardMaterial({ map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide, color: 0x6a8a40, roughness: 0.9, vertexColors: true }), { scale: 2.5, amount: 0.2, grain: 0.6, surface: "needles", seeThrough: 3.6, rim: false, cards: true }),
   // (the trees of the other biomes: the broadleaf oak, the savanna's acacia, the rain forest's giants, the palm, desert scrub)
