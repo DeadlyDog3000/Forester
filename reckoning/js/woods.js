@@ -162,15 +162,18 @@ export class Woods extends WorldBase {
       const e = 0.8, sx = this.heightAt(x + e, z) - this.heightAt(x - e, z), sz = this.heightAt(x, z + e) - this.heightAt(x, z - e);
       return groundAt(x, z, 1 - 1 / Math.hypot(sx / (2 * e), 1, sz / (2 * e)), out);
     };
-    for (let t = 0; t < pos.count; t += 3) {
-      const x = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, z = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3;
-      // how steep this facet is: stone shows through on the banks
-      const ax = pos.getX(t + 1) - pos.getX(t), ay = pos.getY(t + 1) - pos.getY(t), az = pos.getZ(t + 1) - pos.getZ(t);
-      const bx = pos.getX(t + 2) - pos.getX(t), by = pos.getY(t + 2) - pos.getY(t), bz = pos.getZ(t + 2) - pos.getZ(t);
-      const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, steep = 1 - Math.abs(ny) / (Math.hypot(nx, ny, nz) || 1);
-      groundAt(x, z, steep, c);
-      c.multiplyScalar(0.9 + hash(x * 0.37, z * 0.53) * 0.2);        // each facet a shade apart from its neighbours
-      for (let k = 0; k < 3; k++) { colors[(t + k) * 3] = c.r; colors[(t + k) * 3 + 1] = c.g; colors[(t + k) * 3 + 2] = c.b; }
+    // (the colour taken at each corner of the grid and blended across the facets between: one flat colour to a facet
+    //  laid every track, drift and bank out in ruler-straight polygons four metres across)
+    const cornerCol = new Map();
+    for (let t = 0; t < pos.count; t++) {
+      const x = pos.getX(t), z = pos.getZ(t), key = Math.round(x * 4) * 100003 + Math.round(z * 4);
+      let cc = cornerCol.get(key);
+      if (!cc) {
+        this.groundColour(x, z, c);
+        c.multiplyScalar(0.92 + vn(x * 0.21 + 7, z * 0.21 + 3) * 0.16);     // a little lighter and darker, in drifts
+        cornerCol.set(key, (cc = [c.r, c.g, c.b]));
+      }
+      colors[t * 3] = cc[0]; colors[t * 3 + 1] = cc[1]; colors[t * 3 + 2] = cc[2];
     }
     geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
     geo.computeVertexNormals();

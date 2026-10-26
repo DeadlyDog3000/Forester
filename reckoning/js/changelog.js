@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.161", date: "25 October 2026", title: "The forest floor",
+    items: [
+      "The forest floor round the clearing blends from litter to moss to bare earth to dry grass softly, as ground does, instead of in flat four-metre facets — a track or a drift of leaves no longer shows as a ruler-edged patch.",
+      "Where one kind of ground gives way to another, the edge wanders and frays, as grass thins out onto a path.",
+    ],
+  },
+  {
     v: "1.99.160", date: "25 October 2026", title: "Skirts that hang",
     items: [
       "Skirts and aprons hang straight down from the widest of the hips and knees, or flare a little, as cloth does — not bellied out over the knees and tucked in at the hem like a jar. They still swing as you walk and fall loose when someone goes down.",
