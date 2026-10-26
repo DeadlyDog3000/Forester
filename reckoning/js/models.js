@@ -650,21 +650,21 @@ function morionGeo(old) {
   const P = old.attributes.position, SI = old.attributes.skinIndex, SW = old.attributes.skinWeight;
   let y0 = 9, cx = 0, cz = 0, mnx = 9, mxx = -9, mnz = 9, mxz = -9;
   for (let i = 0; i < P.count; i++) { y0 = Math.min(y0, P.getY(i)); mnx = Math.min(mnx, P.getX(i)); mxx = Math.max(mxx, P.getX(i)); mnz = Math.min(mnz, P.getZ(i)); mxz = Math.max(mxz, P.getZ(i)); }
-  cx = (mnx + mxx) / 2; cz = (mnz + mxz) / 2; y0 += 0.02;
+  cx = (mnx + mxx) / 2; cz = (mnz + mxz) / 2; y0 += 0.005;
   let bone = 0, bw = -1; for (let q = 0; q < 4; q++) if (SW.getComponent(0, q) > bw) { bw = SW.getComponent(0, q); bone = SI.getComponent(0, q); }
   const pos = [], uv = [], idx = [];
   const grid = (nu, nv, f) => { const b = pos.length / 3; for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const p = f(i / nu, j / nv); pos.push(p[0] + cx, p[1], p[2] + cz); uv.push(i / nu, j / nv); }
     for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = b + j * (nu + 1) + i, c = a + nu + 1; idx.push(a, c, a + 1, a + 1, c, c + 1); } };
-  const RX = 0.108, RZ = 0.123, H = 0.155;
+  const RX = 0.1, RZ = 0.113, H = 0.12;
   // (the crown: straight up a little, then rounded over)
   const crownR = v => { const t = Math.max(0, (v - 0.22) / 0.78); return Math.sqrt(Math.max(0, 1 - t * t)) * (1 + 0.04 * Math.sin(Math.min(1, v / 0.3) * Math.PI / 2)); };
   grid(32, 14, (u, v) => { const a = u * TAU, r = crownR(v); return [Math.sin(a) * RX * r, y0 + H * v, Math.cos(a) * RZ * r]; });
   // (the comb: a thin plate front to back over the top)
   const topAt = z => { const t = Math.min(1, Math.abs(z) / (RZ * 1.04)); const v = 0.22 + 0.78 * Math.sqrt(Math.max(0, 1 - t * t)); return y0 + H * v; };
-  grid(20, 2, (u, v) => { const z = (u * 2 - 1) * RZ * 0.92, h = 0.042 * Math.sqrt(Math.max(0, 1 - (u * 2 - 1) ** 2)); return [0, topAt(z) - 0.01 + (h + 0.01) * v, z]; });
+  grid(20, 2, (u, v) => { const z = (u * 2 - 1) * RZ * 0.92, h = 0.03 * Math.sqrt(Math.max(0, 1 - (u * 2 - 1) ** 2)); return [0, topAt(z) - 0.01 + (h + 0.01) * v, z]; });
   // (the brim: out from the crown's foot, rising to its points fore and aft, a little down at the sides)
-  grid(40, 4, (u, w) => { const a = u * TAU, c = Math.cos(a), rx = RX + (0.138 - RX) * w, rz = RZ + (0.19 - RZ) * w;
-    return [Math.sin(a) * rx, y0 + 0.004 + 0.05 * Math.pow(Math.abs(c), 4) * Math.pow(w, 1.4) - 0.008 * w * (1 - Math.abs(c)), Math.cos(a) * rz]; });
+  grid(40, 4, (u, w) => { const a = u * TAU, c = Math.cos(a), rx = RX + (0.118 - RX) * w, rz = RZ + (0.158 - RZ) * w;
+    return [Math.sin(a) * rx, y0 + 0.004 + 0.038 * Math.pow(Math.abs(c), 4) * Math.pow(w, 1.4) - 0.008 * w * (1 - Math.abs(c)), Math.cos(a) * rz]; });
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
   g.computeVertexNormals();

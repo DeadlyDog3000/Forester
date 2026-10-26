@@ -7,9 +7,9 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.188", date: "26 October 2026", title: "A morion that fits",
+    v: "1.99.189", date: "26 October 2026", title: "A morion that fits",
     items: [
-      "The watch's morions fit their heads: a closer crown, a lower dome and comb, and a shorter brim.",
+      "The watch's morions fit their heads: a close crown sitting down on the head, a low dome and comb, and a short brim.",
     ],
   },
   {
