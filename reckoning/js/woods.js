@@ -7,7 +7,7 @@
 
 import { THREE, rockGeo, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs } from "./core.js";
 import { WorldBase, G } from "./engine.js";
-import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway, realPart, realMany } from "./models.js";
+import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway, realPart, realMany, makeLogs } from "./models.js";
 import { grassTexture } from "./hamburg.js";
 import { INK, TREEC, TOWN, tree, road, label, seen, oreIcon, caveIcon, relief } from "./map.js";
 import { FURNITURE, DEFAULT_HOME, DEFAULT_CHEST, ROOM, furnishClear, fitsRoom } from "./furnish.js";
@@ -1000,10 +1000,11 @@ export class Woods extends WorldBase {
     // (the stones round it: a real ring of fire-blackened stones, scanned — or built ones if it can't be had)
     { const pit = realMany("firepit", [{ x: FIRE.x, y: this.heightAt(FIRE.x, FIRE.z) - 0.06, z: FIRE.z, ry: 0.4, s: 1.0 }], { shadow: true });
       if (pit) root.add(pit); else for (let i = 0; i < 10; i++) { const a = i / 10 * TAU; fr.add(rockGeo(0.2), 0x6a6660, FIRE.x + Math.cos(a) * 0.65, 0.1, FIRE.z + Math.sin(a) * 0.65, i, i, 0, 1, 0.8, 1, 0.1); } }
-    for (let i = 0; i < 4; i++) fr.add(new THREE.CylinderGeometry(0.06, 0.06, 0.9, 5), 0x3a2a20, FIRE.x, 0.12, FIRE.z, Math.PI / 2, i * 0.8, 0.2);
-    // logs to sit on
-    fr.add(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 8), 0x7a5634, FIRE.x - 1.9, 0.2, FIRE.z + 0.3, Math.PI / 2, 0.3, 0);
-    fr.add(new THREE.CylinderGeometry(0.2, 0.2, 1.8, 8), 0x7a5634, FIRE.x + 1.9, 0.2, FIRE.z + 0.4, Math.PI / 2, -0.3, 0);
+    // (the wood in the fire: split lengths crossed over the embers, their bark charred black, their ends glowing; and
+    //  the two logs to sit on, real bark and sawn ends, see makeLogs)
+    { const H = Math.PI / 2;
+      const burn = makeLogs([0, 1, 2, 3].map(i => ({ x: FIRE.x, y: 0.1 + i * 0.03, z: FIRE.z, len: 0.85, r: 0.065, dir: "x", ry: i * 0.8 + H })), 31, "char"); burn.position.y = y0; root.add(burn);
+      const seats = makeLogs([{ x: FIRE.x - 1.9, y: 0.2, z: FIRE.z + 0.3, len: 1.8, r: 0.2, dir: "x", ry: 0.3 + H }, { x: FIRE.x + 1.9, y: 0.2, z: FIRE.z + 0.4, len: 1.8, r: 0.2, dir: "x", ry: -0.3 + H }], 37); seats.position.y = y0; root.add(seats); }
     const fm = fr.build(); fm.position.y = y0; root.add(fm);
     this.col.addCircle(FIRE.x, FIRE.z, 0.7, this.heightAt(FIRE.x, FIRE.z) + 0.4);
     this.fire = null;

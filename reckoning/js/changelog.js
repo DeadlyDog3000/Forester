@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.155", date: "25 October 2026", title: "Logs by the fire",
+    items: [
+      "The wood in the campfire is real split wood, its bark charred black and its ends glowing; the two logs to sit on by the fire are real logs, bark and sawn ends, instead of smooth red tubes.",
+    ],
+  },
+  {
     v: "1.99.154", date: "25 October 2026", title: "Seats and eyes",
     items: [
       "Sitting — on a bench, a log, in the saddle — a coat's or a skirt's cloth rests on the seat and falls from its edge, instead of hanging down through it.",

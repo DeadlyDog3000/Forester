@@ -2358,6 +2358,11 @@ function logReal() {
 }
 export function logMats(kind, v = 0) {
   if (kind === "birch") return _logMatsK.birch || (_logMatsK.birch = birchLogMats());
+  // (in the fire: the bark charred black, the cut ends glowing)
+  if (kind === "char") { const R = logReal(); if (R) return _logMatsK.char || (_logMatsK.char = (() => {
+    const side = R[0][0].clone(); side.color = new THREE.Color(0x2c2622); side.roughness = 1;
+    const end = R[0][1].clone(); end.color = new THREE.Color(0x3a2a20); end.emissive = new THREE.Color(0xff5a1a); end.emissiveIntensity = 0.7;
+    return [side, end, end]; })()); }
   { const R = logReal(); if (R) return R[v & 1]; }
   if (_logMats) return _logMats;
   const r = rng(77);
@@ -2600,7 +2605,7 @@ export function makeLogs(list, seed = 1, kind = null) {
     o.scale.set(rr, l.len * (0.94 + r() * 0.1), rr);
     o.updateMatrix(); return { m: o.matrix.clone(), v: r() < 0.5 ? 0 : 1 };
   });
-  const two = kind !== "birch" && logReal();
+  const two = !kind && logReal();
   const draw = sub => {
     const m = new THREE.InstancedMesh(LOG_GEO, logMats(kind, sub.length ? sub[0].v : 0), sub.length);
     sub.forEach((q, i) => m.setMatrixAt(i, q.m)); m.castShadow = true; m.receiveShadow = true; return m;
