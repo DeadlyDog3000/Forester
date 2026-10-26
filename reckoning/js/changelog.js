@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.157", date: "25 October 2026", title: "Torch smoke",
+    items: [
+      "Torches and small fires give off a thin, dark trail of smoke from the burning pitch, as the big fires already did.",
+    ],
+  },
+  {
     v: "1.99.156", date: "25 October 2026", title: "Fire",
     items: [
       "Fire looks like fire: each flame is several tongues from one root, licking up at their own heights and tearing off into loose wisps, with a thin blue at the roots; a big fire burns all along its wood, its flames spread over the bed, lower toward the edge, instead of one tall cone in the middle.",

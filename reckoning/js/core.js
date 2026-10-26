@@ -1017,9 +1017,10 @@ export function makeFlame(size = 1, light = null) {
   }
   // smoke, over a proper fire
   const smoke = [];
-  if (size >= 2) for (let i = 0; i < 7; i++) {
-    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: F.smokeTex, color: 0x9a948a, transparent: true, depthWrite: false, opacity: 0, fog: true }));
-    m.userData = { t: i / 7, rot: (Math.random() - 0.5) * 0.6 }; m.renderOrder = 1; g.add(m); smoke.push(m);
+  // (and a thinner, darker trail off a torch's pitch or a small fire)
+  if (size >= 1.2) for (let i = 0, ns = size >= 2 ? 7 : 4; i < ns; i++) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: F.smokeTex, color: size >= 2 ? 0x9a948a : 0x5a5650, transparent: true, depthWrite: false, opacity: 0, fog: true }));
+    m.userData = { t: i / ns, rot: (Math.random() - 0.5) * 0.6 }; m.renderOrder = 1; g.add(m); smoke.push(m);
   }
   g.userData.flame = { faces, glow, sparks, smoke, coals, size, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
   if (light) { light.position.y = 0.25 * size; g.add(light); }
