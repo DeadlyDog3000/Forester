@@ -257,7 +257,10 @@ function weathered(a) {
 }
 // (what metal shows: the sky by the hour; indoors, a dim warm room)
 const envBase = new THREE.Color(), ENV_IN = new THREE.Color(0.07, 0.055, 0.045);
-function setEnvK() { ENVK.value.copy(envBase).lerp(ENV_IN, G.indoorK || 0); }
+// (and the rim of sky light on things' edges: indoors there's no sky round them — a dark shelf in a candlelit room had a
+//  bright blue rim)
+const rimBase = new THREE.Color();
+function setEnvK() { ENVK.value.copy(envBase).lerp(ENV_IN, G.indoorK || 0); RIM.value.copy(rimBase).multiplyScalar(1 - 0.85 * (G.indoorK || 0)); }
 // (under the trees the sky's light comes down through the needles, green and less of it; and back off the floor of the
 //  wood, brown: lit by the open blue sky, every trunk in the woods stood navy-black and the forest floor went lavender.
 //  G.canopyK, from the world: 0 in the open, 1 deep in the wood)
@@ -266,11 +269,17 @@ let canopyNow = -1;
 function canopyTint() {
   const k = G.canopyK || 0; canopyNow = k;
   hemi.color.copy(hemiBase.s); hemi.groundColor.copy(hemiBase.g); hemi.intensity = hemiBase.i;
-  if (k <= 0) return;
   const l = hemiBase.s.r * 0.3 + hemiBase.s.g * 0.55 + hemiBase.s.b * 0.15;
-  hemi.color.lerp(CANOPY_S.clone().multiplyScalar(l / 0.8), k * 0.6);
-  hemi.groundColor.lerp(CANOPY_G.clone().multiplyScalar(Math.max(0.3, l / 0.8)), k * 0.5);
+  if (k > 0) {
+    hemi.color.lerp(CANOPY_S.clone().multiplyScalar(l / 0.8), k * 0.6);
+    hemi.groundColor.lerp(CANOPY_G.clone().multiplyScalar(Math.max(0.3, l / 0.8)), k * 0.5);
+  }
+  // (and indoors, what daylight there is comes in at the window and off the walls and floor: warm and dim, not the open
+  //  sky's blue on every dark thing in the room)
+  const ik = G.indoorK || 0;
+  if (ik > 0) { hemi.color.lerp(ROOM_S.clone().multiplyScalar(l / 0.8), ik * 0.7); hemi.groundColor.lerp(ROOM_S.clone().multiplyScalar(l / 1.4), ik * 0.5); }
 }
+const ROOM_S = new THREE.Color(0xa08a70);
 function applyAtmo(a00) {
   G.atmoNow = a00;
   const a0 = weathered(a00);
@@ -281,7 +290,7 @@ function applyAtmo(a00) {
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;
   hemiBase.s.copy(hemi.color); hemiBase.g.copy(hemi.groundColor); hemiBase.i = hemi.intensity; canopyTint();
   fill.intensity = a.fill ?? 0.1;
-  RIM.value.copy(a.hemiS).multiplyScalar(0.55 * a.hemiI);
+  rimBase.copy(a.hemiS).multiplyScalar(0.55 * a.hemiI);
   envBase.copy(a.hemiS).multiplyScalar(0.75 * a.hemiI); setEnvK();
   FIREDAY.k = clamp(1.3 - a.sunI * 0.33, 0.35, 1);
   FIREDAY.sky = clamp(Math.pow(a.sunI / 2.4, 1.5) + 0.04, 0.06, 1); SKYLIT.value = FIREDAY.sky;
@@ -2934,7 +2943,7 @@ export function frame(dt, skipRender) {
     // (under a roof, metal shows the dim room and not the sky: eased, so a step through the door doesn't snap it)
     { const p = G.player.pos, inn = (w.insideCabin && w.insideCabin(p.x, p.z)) || (w.inHome && w.inHome(p.x, p.z)) || (w.cave && w.cave.inside) || (w.floorIn && w.floorIn(p.x, p.z, p.y) !== null);
       const k0 = G.indoorK ?? 0; G.indoorK = k0 + ((inn ? 1 : 0) - k0) * Math.min(1, dt * 3);
-      if (Math.abs(G.indoorK - k0) > 1e-4 && G.atmoNow) setEnvK(); }
+      if (Math.abs(G.indoorK - k0) > 1e-4 && G.atmoNow) { setEnvK(); canopyTint(); } }
     // (the world wet in the rain, drying slowly after; not seen from indoors, where everything round you is dry)
     { const want = (w.rainK || 0) * (1 - (G.indoorK || 0)); WET.value += (want - WET.value) * Math.min(1, dt * (want > WET.value ? 0.4 : 0.05)); }
     { const want = w.canopyAt ? w.canopyAt(G.player.pos.x, G.player.pos.z) * (1 - (G.indoorK || 0)) : 0; G.canopyK = (G.canopyK || 0) + (want - (G.canopyK || 0)) * Math.min(1, dt * 0.8); if (Math.abs(G.canopyK - canopyNow) > 0.01) canopyTint(); }

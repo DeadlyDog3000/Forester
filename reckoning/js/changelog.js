@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.183", date: "26 October 2026", title: "Indoor light",
+    items: [
+      "Indoors, the daylight in a room is warm and dim, as it comes off the walls and floor, and dark things no longer catch a bright blue rim of sky round their edges.",
+    ],
+  },
+  {
     v: "1.99.182", date: "26 October 2026", title: "The shelf",
     items: [
       "The shelf in the bedroom at home stands on proper knee brackets instead of two blocks, and its jug is a turned stoneware jug instead of a tapered post.",
