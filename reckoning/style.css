@@ -611,6 +611,8 @@ body.talking #hint { bottom: 298px; }
 .gd-page ol { margin: 0; padding-left: 20px; font: 15px/1.5 var(--sans); }
 .gd-page li { margin: 0 0 7px; }
 .gd-empty { font: italic 15px var(--serif); color: #6b5234; }
+.gd-list button.later { color: rgba(59, 38, 18, 0.55); font-size: 15px; }
+.gd-sub { font: italic 13px var(--serif); color: #6b5234; margin: 10px 8px 2px; border-top: 1px solid rgba(59, 38, 18, 0.25); padding-top: 6px; }
 @media (max-width: 640px) { .gd-grid { grid-template-columns: 1fr; } .gd-list { flex-direction: row; flex-wrap: wrap; } }
 
 /* marking out new ground on the map */

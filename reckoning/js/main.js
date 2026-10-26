@@ -2143,11 +2143,12 @@ function showGuideCard(id) {
   $("guideOk").onclick = done;
 }
 function renderGuide() {
-  const seen = guideSeen(), known = GUIDE_ORDER.filter(id => seen.includes("guide:" + id));
-  if (!known.includes(guidePage)) guidePage = known[known.length - 1] || null;
-  if (!known.length) { $("guideBody").innerHTML = `<div class="gd-grid"><div class="gd-empty">Nothing yet. As you meet each part of the game, how it works is written down here.</div></div>`; return; }
-  const g = GUIDE[guidePage];
-  $("guideBody").innerHTML = `<div class="gd-grid"><div class="gd-list">${known.map(id => `<button data-gd="${id}"${id === guidePage ? ' class="on"' : ""}>${esc(GUIDE[id].title)}</button>`).join("")}</div>
+  // (what you've met first; then the rest, paler, under "not met yet" — still there to read: a story begun from the
+  //  chapters, or a question about what's ahead, found the book empty)
+  const seen = guideSeen(), known = GUIDE_ORDER.filter(id => seen.includes("guide:" + id)), later = GUIDE_ORDER.filter(id => !known.includes(id));
+  if (!GUIDE[guidePage]) guidePage = known[known.length - 1] || GUIDE_ORDER[0];
+  const g = GUIDE[guidePage], btn = (id, cls) => `<button data-gd="${id}" class="${cls}${id === guidePage ? " on" : ""}">${esc(GUIDE[id].title)}</button>`;
+  $("guideBody").innerHTML = `<div class="gd-grid"><div class="gd-list">${known.map(id => btn(id, "")).join("")}${later.length ? `<div class="gd-sub">${known.length ? "Not met yet" : "Nothing met yet — all of it, to read ahead"}</div>${later.map(id => btn(id, "later")).join("")}` : ""}</div>
     <div class="gd-page"><div class="ls-kicker">${esc(g.kicker)}</div><h4>${esc(g.title)}</h4><ol>${guideSteps(g)}</ol></div></div>`;
   for (const b of $("guideBody").querySelectorAll("[data-gd]")) b.onclick = () => { guidePage = b.dataset.gd; renderGuide(); };
 }

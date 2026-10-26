@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.162", date: "25 October 2026", title: "The whole guide",
+    items: [
+      "The guide (H) holds every page from the start: what you've already met comes first, and the rest follows, paler, under \"Not met yet\", so you can read ahead — or find your feet in a chapter begun from the chapter list, where the book used to be empty.",
+    ],
+  },
+  {
     v: "1.99.161", date: "25 October 2026", title: "The forest floor",
     items: [
       "The forest floor round the clearing blends from litter to moss to bare earth to dry grass softly, as ground does, instead of in flat four-metre facets — a track or a drift of leaves no longer shows as a ruler-edged patch.",
