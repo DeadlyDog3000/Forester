@@ -843,6 +843,17 @@ function useModel(P, key, colors = {}) {
     if (!own[part] || own[part] !== o.material) return;
     done.add(o.material); addHook(o.material, woundHook(P), "wound");
   }); }
+  // (eyes as eyes: the whites never white — a little yellowed, veined at the corners — and wet, catching the light)
+  m.scene.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+    const part = o.material.userData.part; if (part !== "eyes" && part !== "iris") return;
+    if (!own[part]) { own[part] = o.material.clone(); own[part].userData.part = part; if (o.material.userData.detail) addDetail(own[part], o.material.userData.detail); }
+    const e = own[part]; if (e.userData.wet) { o.material = e; return; }
+    e.userData.wet = true;
+    if (e.color) e.color.multiply(part === "eyes" ? new THREE.Color(0.8, 0.74, 0.66) : new THREE.Color(0.75, 0.72, 0.7));
+    e.roughness = 0.12; if ("metalness" in e) e.metalness = 0;
+    o.material = e;
+  });
   // (hair as hair: see strandHair)
   m.scene.traverse(o => {
     if (!o.isMesh || !o.material || Array.isArray(o.material)) return;

@@ -198,6 +198,7 @@ function step(C, frame) {
   const Gw = typeof window !== "undefined" && window.G, gy = Gw && Gw.world && Gw.world.heightAt ? (x, z) => Gw.world.heightAt(x, z) : null;
   const legs = C.legs.map(([a, b]) => [a.getWorldPosition(new THREE.Vector3()), b.getWorldPosition(new THREE.Vector3())]);
   const pelvis = hips.getWorldPosition(new THREE.Vector3()), chest = C.spine ? C.spine.getWorldPosition(new THREE.Vector3()) : pelvis.clone();
+  const seat = C.P && C.P.sitting > 0.5 ? pelvis.y - 0.1 * scale : null;
   const LR = 0.095 * scale, BR = 0.13 * scale, pull = (1 - Math.pow(0.3, dt)) * keep * keep;
   const wd = SWAY && SWAY.dir ? SWAY.dir.value : null, wt = SWAY ? SWAY.t.value : 0, wk = SWAY ? SWAY.k.value : 0;
   // move: momentum (a little lost to the air), weight, the wind, and while standing the garment's own hang
@@ -229,6 +230,8 @@ function step(C, frame) {
       const p = P[id(r, s)];
       for (const [a, b] of legs) outOf(p, a, b, LR);
       outOf(p, pelvis, chest, BR);
+      // (sitting — on a bench, a log, in the saddle — the seat under him: cloth over it rests on it and falls from its edge)
+      if (seat && Math.hypot(p.x - pelvis.x, p.z - pelvis.z) < 0.3 * scale && p.y < seat) p.y = seat;
       if (gy) { const g = gy(p.x, p.z) + 0.02; if (p.y < g) { p.y = g; const q = Q[id(r, s)]; q.x = p.x * 0.6 + q.x * 0.4; q.z = p.z * 0.6 + q.z * 0.4; } }
     }
   }

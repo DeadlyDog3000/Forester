@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.154", date: "25 October 2026", title: "Seats and eyes",
+    items: [
+      "Sitting — on a bench, a log, in the saddle — a coat's or a skirt's cloth rests on the seat and falls from its edge, instead of hanging down through it.",
+      "Eyes are less doll-like: the whites a little yellowed, never white, the iris a shade deeper, and wet, catching the light.",
+    ],
+  },
+  {
     v: "1.99.153", date: "25 October 2026", title: "A hewn block",
     items: [
       "The chopping block in the clearing is a squared timber, adzed flat on its four sides with old cuts scored in its top, instead of a round of trunk that looked like a stump.",
