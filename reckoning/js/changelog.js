@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.182", date: "26 October 2026", title: "The shelf",
+    items: [
+      "The shelf in the bedroom at home stands on proper knee brackets instead of two blocks, and its jug is a turned stoneware jug instead of a tapered post.",
+    ],
+  },
+  {
     v: "1.99.181", date: "26 October 2026", title: "Under the spruce",
     items: [
       "Standing at a spruce's trunk with the axe, its lower limbs thin away round you as they were meant to, instead of standing round your head like the spokes of an umbrella.",

@@ -599,9 +599,14 @@ export class Hamburg extends WorldBase {
     // a shelf on the east wall over the washstand's corner, with a book, a box and a jug
     const ex = H.x1 - 0.42;
     props.box(0.22, 0.04, 1.0, ex, 1.55, -11.4, 0x4e3420);
-    props.box(0.18, 0.12, 0.05, ex, 1.49, -11.75, 0x3a2a1c); props.box(0.18, 0.12, 0.05, ex, 1.49, -11.05, 0x3a2a1c);
+    // (on two knee brackets — an upright against the wall and a strut under the board — not two blocks)
+    for (const z of [-11.75, -11.05]) {
+      props.box(0.03, 0.2, 0.04, ex + 0.095, 1.43, z, 0x3a2a1c);
+      props.add(new THREE.BoxGeometry(0.03, 0.22, 0.035), 0x3a2a1c, ex + 0.015, 1.45, z, 0, 0, Math.PI / 4);
+    }
     props.box(0.15, 0.06, 0.2, ex, 1.6, -11.7, 0x5c3a30); props.box(0.1, 0.1, 0.14, ex, 1.62, -11.4, 0x7a5a3a);
-    props.add(new THREE.CylinderGeometry(0.05, 0.065, 0.16, 10), 0x9a7a5a, ex, 1.65, -11.1);
+    // (and the jug a jug: a stoneware belly, a neck and a lip, turned on the wheel)
+    props.add(new THREE.LatheGeometry([[0, 0], [0.048, 0], [0.062, 0.03], [0.068, 0.075], [0.056, 0.115], [0.034, 0.145], [0.03, 0.165], [0.037, 0.178], [0.033, 0.182]].map(([x, y]) => new THREE.Vector2(x, y)), 14), 0x8a6a4a, ex, 1.57, -11.1);
     // skirting boards round the room, where the plaster meets the floor
     props.box(0.03, 0.14, 5.5, 14.11, 0.07, -11.9, 0x3e2c1e); props.box(0.03, 0.14, 5.5, H.x1 - 0.33, 0.07, -11.9, 0x3e2c1e);
     props.box(3.5, 0.14, 0.03, 15.9, 0.07, H.z0 + 0.33, 0x3e2c1e);
