@@ -2240,7 +2240,9 @@ class Arena {
       const e = pl.eyePos(), cy = Math.cos(pl.pitch), look = { x: e.x - Math.sin(pl.yaw) * cy * 10, y: e.y + Math.sin(pl.pitch) * 10, z: e.z - Math.cos(pl.yaw) * cy * 10 };
       const k = ease(u), bx = Math.sin(pl.yaw) * 7, bz = Math.cos(pl.yaw) * 7;
       const from = { x: e.x + bx * (1 - k), y: e.y + (battle ? 6 : 2.5) * (1 - k), z: e.z + bz * (1 - k) };
-      if (u > 0.9) G.forceThird = false;   // (into your own head: the body you see from inside, as you always do)
+      // (into your own head: the body you see from inside, as you always do — once the eye is within a stride of it, or
+      //  it came down through the crown of your own hat, a black blot filling the bottom of the picture)
+      if (u > 0.9 || k > 0.78) G.forceThird = false;
       const want = { x: e.x + (look.x - e.x) * k, y: e.y - 0.25 + (look.y - e.y + 0.25) * k, z: e.z + (look.z - e.z) * k }, fv = (G.settings && G.settings.fov) || 70;
       return sm.go(cam, from, want, fv - (1 - k) * 18, u > 0.75 ? 30 : 7, rdt);
       };

@@ -1476,10 +1476,13 @@ body.dead #crosshair, body.dead #hotbar, body.dead #stance, body.dead #hbName { 
 #film .fm-note { position: absolute; right: 22px; bottom: 10px; font: 600 11px var(--sans); letter-spacing: 0.22em; text-transform: uppercase; color: rgba(246, 236, 208, 0.5); }
 #film .fm-cap { position: absolute; left: 6vw; bottom: calc(11.5vh + 34px); max-width: 70vw; opacity: 0; transform: translateY(8px); transition: opacity 0.7s ease, transform 0.9s ease; text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9), 0 1px 3px #000; }
 #film .fm-cap.show { opacity: 1; transform: none; }
+/* (a soft dark under the words, so a caption reads over a pale field or a bright sky) */
+#film .fm-cap::before { content: ""; position: absolute; left: -5vw; right: -8vw; top: -28px; bottom: -22px; background: radial-gradient(ellipse 60% 70% at 32% 55%, rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0)); z-index: -1; pointer-events: none; }
+#film .fm-cap.big::before { left: 15vw; right: 15vw; background: radial-gradient(ellipse 50% 60% at 50% 55%, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0)); }
 #film .fm-k { font: 600 12px var(--sans); letter-spacing: 0.3em; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
 #film .fm-k:empty { display: none; }
 #film .fm-t { font: 600 34px/1.1 var(--display); letter-spacing: 0.04em; color: var(--ink); }
-#film .fm-s { font: italic 18px/1.4 var(--serif); color: var(--ink-dim); margin-top: 4px; }
+#film .fm-s { font: italic 18px/1.4 var(--serif); color: var(--ink); opacity: 0.88; margin-top: 4px; }
 #film .fm-cap.big { left: 0; right: 0; max-width: none; text-align: center; bottom: 42vh; }
 #film .fm-cap.big .fm-t { font-size: clamp(38px, 5.4vw, 68px); }
 #film .fm-cap.big .fm-s { font-size: 21px; }

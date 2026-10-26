@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.171", date: "25 October 2026", title: "The battle's opening",
+    items: [
+      "The opening shots of a battle name each side over a soft shadow, so the companies and their numbers can be read against a pale field or a bright sky.",
+      "The last opening shot comes down into your own eyes without passing through the crown of your own hat on the way, which had filled the bottom of the picture with a black blot.",
+    ],
+  },
+  {
     v: "1.99.170", date: "25 October 2026", title: "Linen and charcoal",
     items: [
       "The pillows and sheets on the beds and pallets are greyed, slept-in linen, and the straw ticks a duller straw, rather than glowing white in a dark cabin.",
