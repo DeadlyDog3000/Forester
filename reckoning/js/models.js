@@ -538,6 +538,48 @@ const SURF_BY_NAME = { steel: "none", brass: "none", rod: "wood", fur: "none", h
   bark: "bark", needles: "needles", pbr: "none", hull: "wood", clay: "plaster", wax: "none", char: "wood", ash: "none", water: "none", copper: "none", earth: "none", house: "plaster" };
 const _loading = {};
 const BUILDING = k => /^town\//.test(k) || ["home_2", "cabin", "cabin_burned", "woodshed", "well"].includes(k);
+// ---- the logs of a log wall: round, and their ends sawn ----
+// (as the files have them each log is a ten-sided prism with its ends smoothed into its sides, so a wall's corners
+//  showed rows of soft tan blobs. Each log's length gets true round normals, out from its own axis, and each end a flat
+//  face and its place on a sawn round — drawn in roundLogMat with the photographed end of a log)
+function roundLogs(geo) {
+  if (!geo || geo.userData.roundLogs || !geo.index || !geo.attributes.normal) return;
+  geo.userData.roundLogs = true;
+  const P = geo.attributes.position, N = geo.attributes.normal, I = geo.index, n = P.count;
+  const par = new Int32Array(n); for (let i = 0; i < n; i++) par[i] = i;
+  const f = x => { while (par[x] !== x) x = par[x] = par[par[x]]; return x; };
+  for (let t = 0; t < I.count; t += 3) { const a = f(I.getX(t)), b = f(I.getX(t + 1)), c = f(I.getX(t + 2)); par[a] = c; par[b] = c; }
+  const comps = new Map(); for (let i = 0; i < n; i++) { const r = f(i); let L = comps.get(r); if (!L) comps.set(r, (L = [])); L.push(i); }
+  const end = new Float32Array(n * 3);
+  for (const v of comps.values()) {
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (const i of v) { const x = P.getX(i), y = P.getY(i), z = P.getZ(i); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+    const ex = x1 - x0, ey = y1 - y0, ez = z1 - z0, cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+    if (Math.min(ex, ez) < 0.02 && Math.max(ex, ez) < 0.7 && ey < 0.7 && ey > 0.05) {
+      // (an end: flat across the log, facing out along it)
+      const ax = ex < ez ? 0 : 2; let sum = 0; for (const i of v) sum += ax === 0 ? N.getX(i) : N.getZ(i);
+      const sg = sum >= 0 ? 1 : -1, r = Math.max(ey, ax === 0 ? ez : ex) / 2;
+      for (const i of v) { N.setXYZ(i, ax === 0 ? sg : 0, 0, ax === 2 ? sg : 0); end[i * 3] = (ax === 0 ? P.getZ(i) - cz : P.getX(i) - cx) / r * sg; end[i * 3 + 1] = (P.getY(i) - cy) / r; end[i * 3 + 2] = 1; }
+    } else if (Math.max(ex, ez) > 4 * ey && ey > 0.05) {
+      // (a log's length: round, out from its axis)
+      const ax = ex > ez ? 0 : 2;
+      for (const i of v) { const dy = P.getY(i) - cy, dh = ax === 0 ? P.getZ(i) - cz : P.getX(i) - cx, l = Math.hypot(dy, dh) || 1; N.setXYZ(i, ax === 2 ? dh / l : 0, dy / l, ax === 0 ? dh / l : 0); }
+    }
+  }
+  N.needsUpdate = true; geo.setAttribute("aLogEnd", new THREE.BufferAttribute(end, 3));
+}
+// (the logs peeled and weathered: the files' orange pine greyed toward the silver-brown of a wall some winters old;
+//  the ends, a sawn round's rings and checks)
+function roundLogMat(m) {
+  const tex = logTex("log_end_a");
+  return addHook(m, sh => {
+    sh.uniforms.uLogEnd = { value: tex };
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute vec3 aLogEnd; varying vec3 vLogEnd;").replace("#include <begin_vertex>", "#include <begin_vertex>\nvLogEnd = aLogEnd;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec3 vLogEnd; uniform sampler2D uLogEnd;").replace("#include <color_fragment>", `#include <color_fragment>
+      if (vLogEnd.z > 0.5) { diffuseColor.rgb = texture2D(uLogEnd, vLogEnd.xy * 0.46 + 0.5).rgb * vec3(0.86, 0.8, 0.74); }
+      else { float lw = dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15)); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(lw) * vec3(1.0, 0.9, 0.78), 0.38) * 0.9; }`);
+  }, "roundlog");
+}
 async function fetchModel(k, url) {
   try {
     MODELS[k] = await _loader.loadAsync(url);
@@ -574,6 +616,7 @@ async function fetchModel(k, url) {
       // the face behind it — a gable built of two, a frame against its wall — and flickers); and its trim — timber,
       // iron, glass — always drawn in front of the plaster or brick it lies on
       if (BUILDING(k)) {
+        if (n === "log" && o.geometry && !/burned/.test(k)) { roundLogs(o.geometry); if (o.geometry.attributes.aLogEnd) roundLogMat(m); }
         m.side = THREE.FrontSide;
         if (/^(wood|iron|glass|metal|log|roof)$/.test(n)) { m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -2; }
       }

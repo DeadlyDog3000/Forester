@@ -1575,9 +1575,10 @@ export class Woods extends WorldBase {
   insideCabin(x, z) { if (!this.cabinUp) return false; const [lx, lz] = this.worldToCabin(x, z); return Math.abs(lx) < 2.35 && Math.abs(lz) < 2.9; }
   showCabin() {
     this.burned.visible = false; this.cabin.visible = true;
-    // a dark board under the floor, so no grass shows between the planks or at the foot of the walls
+    // a dark board under the floor, so no grass shows between the planks or at the foot of the walls (to the walls'
+    //  middles, under the bottom logs: any wider and it showed outside them as a black ledge round the cabin)
     if (!this.underFloor) {
-      this.underFloor = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.05, 6.8), mat(0x1c1510, { surface: "none" }));
+      this.underFloor = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.05, 6.1), mat(0x241a12, { surface: "none" }));
       this.underFloor.position.set(CABIN.x, this.cabinY - 0.01, CABIN.z); this.underFloor.rotation.y = CABIN.ry; this.root.add(this.underFloor);
     }
     this.underFloor.visible = true;

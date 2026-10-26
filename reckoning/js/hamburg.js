@@ -787,7 +787,7 @@ export class Hamburg extends WorldBase {
   // which props exist depends on the day
   // the street lamps lit, as at night, whatever the chapter
   streetsAtNight(level = 3.2) {
-    this.lampLevel = level; this.glowMat.opacity = 1;
+    this.lampLevel = level; this.glowMat.opacity = 0.18;
     this.lampHeadMat.color.set(0xffd48a);
   }
   setChapter(ch) {
@@ -809,8 +809,10 @@ export class Hamburg extends WorldBase {
     });
     for (let i = 3; i < 6; i++) this.pool[i].intensity = 0;
     // street lamps: lit at dusk and through the night, still burning in the morning mist
-    this.lampLevel = { 1: 1.6, 2: 3.2, 3: 0, 4: 1.8 }[ch] ?? 0;
-    this.glowMat.opacity = { 1: 0.6, 2: 1, 3: 0, 4: 0.7 }[ch] ?? 0;
+    this.lampLevel = { 1: 2.6, 2: 4.2, 3: 0, 4: 3.2 }[ch] ?? 0;
+    // (the pool of light under a lamp only hints: the two nearest lamps' real light does the rest — at full it laid a flat
+    //  beige disc over the cobbles that hid every stone)
+    this.glowMat.opacity = { 1: 0.12, 2: 0.18, 3: 0, 4: 0.14 }[ch] ?? 0;
     this.lampHeadMat.color.set(this.lampLevel > 0 ? 0xffd48a : 0x4a4038);
     for (const i of [7, 8]) this.pool[i].intensity = 0;
     this._lampT = 0;

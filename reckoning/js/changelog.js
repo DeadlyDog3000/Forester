@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.159", date: "25 October 2026", title: "Log walls and lamplight",
+    items: [
+      "The cabin's logs are round, and their ends are sawn: at the corners you see each log's rings and the dark of its bark, not a row of soft tan blobs. The logs themselves are peeled and weathered toward a grey-brown instead of a fresh orange. The woodshed's logs too.",
+      "No black ledge round the foot of the cabin: the dark board under its floor no longer shows outside the walls.",
+      "Hamburg's street lamps light the cobbles round them for real, warm, every stone showing, instead of laying a flat pale disc over the street.",
+      "The board at the top of the screen in the forest says what each number is — logs, rye, bread, seed, marks, people and beds — so you needn't hover over it to find out.",
+    ],
+  },
+  {
     v: "1.99.158", date: "25 October 2026", title: "Steel that shines",
     items: [
       "Bright metal shows the sky: an axe's head, a blade, a gun's lock and a pan catch the light as steel and copper do, instead of standing out as black blocks; a regiment's bayonets and pike heads glint in the line. Indoors they show only the dim room, and by night the dark.",

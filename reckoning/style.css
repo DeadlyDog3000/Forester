@@ -50,9 +50,11 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--deep);
 .mm-n { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); font: italic 700 13px var(--serif); color: #9a2e22; text-shadow: 0 0 3px #dccb9f; }
 @media (max-width: 640px) { #minimapWrap { width: 120px; height: 120px; right: 12px; top: 12px; } }
 /* the settlement at a glance */
-#townbar { position: absolute; left: 28px; top: 98px; display: flex; gap: 14px; padding: 6px 12px; background: linear-gradient(90deg, var(--panel), rgba(9, 24, 16, 0)); font: 600 13px var(--sans); color: var(--ink); }
+#townbar { position: absolute; left: 28px; top: 98px; display: flex; gap: 14px; padding: 6px 12px; background: linear-gradient(90deg, var(--panel) 75%, rgba(9, 24, 16, 0.25)); font: 600 13px var(--sans); color: var(--ink); }
 #townbar .tb { display: inline-flex; align-items: center; gap: 5px; }
 #townbar img { width: 20px; height: 20px; image-rendering: pixelated; }
+#townbar .tb small { font: 500 11px var(--sans); color: var(--ink-dim, #b8ad92); margin-left: 1px; letter-spacing: 0.02em; }
+@media (max-width: 1100px) { #townbar .tb small { display: none; } }
 #townbar .tname { font: italic 16px var(--serif); color: var(--gold); margin-right: 6px; }
 /* the plans */
 #buildmenu, #ask { position: fixed; inset: 0; pointer-events: auto; display: flex; align-items: center; justify-content: center; background: rgba(3, 10, 6, 0.55); z-index: 5; }
@@ -916,7 +918,7 @@ body.freecam::after { content: "FREE CAMERA  ·  press ; to come back"; position
 #mpTop { position: absolute; left: 28px; bottom: 62px; padding: 7px 16px 8px; background: linear-gradient(90deg, var(--panel), rgba(9, 24, 16, 0)); border-left: 4px solid var(--gold); }
 #mpRoom { font: italic 19px var(--serif); color: var(--gold); }
 #mpMode, #mpCount { font: 600 12px var(--sans); letter-spacing: 0.08em; color: var(--ink-dim); margin-top: 2px; }
-#mpStock { position: absolute; left: 28px; top: 120px; display: flex; gap: 14px; padding: 6px 12px; background: linear-gradient(90deg, var(--panel), rgba(9, 24, 16, 0)); font: 600 13px var(--sans); color: var(--ink); }
+#mpStock { position: absolute; left: 28px; top: 120px; display: flex; gap: 14px; padding: 6px 12px; background: linear-gradient(90deg, var(--panel) 75%, rgba(9, 24, 16, 0.25)); font: 600 13px var(--sans); color: var(--ink); }
 #mpStock .tb { display: inline-flex; align-items: center; gap: 5px; }
 #mpStock img { width: 20px; height: 20px; image-rendering: pixelated; }
 #mpStock b { font-size: 16px; margin: 0 3px; }
