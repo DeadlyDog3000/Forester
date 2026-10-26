@@ -3251,7 +3251,7 @@ export function makeShipyard(w = 14, d = 24) {
 // for them.
 // (a texture read back, small, to colour a merged crowd's vertices where the pieces had a picture — a face's skin, its
 //  brows and lips — instead of the plain white under it: every soldier's face and hands came out chalk-white)
-const SKIN_BAKE = [0.84, 0.72, 0.64], ONE = [1, 1, 1];
+const SKIN_BAKE = [0.76, 0.62, 0.53], ONE = [1, 1, 1];   // (a shade deeper than weatheredSkin's, as a merged face has no blotch or grime to break it up, and under a low evening sun the paler ones blew out chalk-white)
 const _texRead = new WeakMap();
 function texReader(tex) {
   const img = tex && tex.image; if (!img || !img.width || typeof document === "undefined") return null;

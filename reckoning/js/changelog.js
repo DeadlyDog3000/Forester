@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.179", date: "26 October 2026", title: "Faces in the ranks",
+    items: [
+      "Soldiers in the ranks keep the colour of their faces and hands under a low evening sun, instead of the paler ones blowing out chalk-white.",
+    ],
+  },
+  {
     v: "1.99.178", date: "26 October 2026", title: "Daylight",
     items: [
       "The daylight in the shade is a little less blue, so the forest floor in a glade is brown litter again instead of lavender.",
