@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.186", date: "26 October 2026", title: "Iron hats",
+    items: [
+      "The watch's steel hats are dull dark iron, worn by use and weather, instead of glossy pale grey that looked like plastic.",
+    ],
+  },
+  {
     v: "1.99.185", date: "26 October 2026", title: "Birches",
     items: [
       "The birches' crowns are tall, uneven ovals of leaves instead of a few big round balls, which stood like lollipops or, by twos, like a pair of ears.",
