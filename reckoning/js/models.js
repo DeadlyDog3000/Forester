@@ -3165,6 +3165,27 @@ export function makeShipyard(w = 14, d = 24) {
 // many. So for a battle's men the pieces showing are made into one or two (the cloth and skin; the metal), sharing one
 // skeleton, each piece's tint baked into its colours. The pieces themselves are kept, hidden, for anything that asks
 // for them.
+// (a texture read back, small, to colour a merged crowd's vertices where the pieces had a picture — a face's skin, its
+//  brows and lips — instead of the plain white under it: every soldier's face and hands came out chalk-white)
+const SKIN_BAKE = [0.84, 0.72, 0.64], ONE = [1, 1, 1];
+const _texRead = new WeakMap();
+function texReader(tex) {
+  const img = tex && tex.image; if (!img || !img.width || typeof document === "undefined") return null;
+  let R = _texRead.get(img);
+  if (R === undefined) {
+    R = null;
+    try {
+      const S = 128, cv = document.createElement("canvas"); cv.width = cv.height = S; const x = cv.getContext("2d", { willReadFrequently: true }); x.drawImage(img, 0, 0, S, S);
+      const d = x.getImageData(0, 0, S, S).data, lin = new Float32Array(S * S * 3);
+      for (let i = 0; i < S * S; i++) for (let k = 0; k < 3; k++) lin[i * 3 + k] = Math.pow(d[i * 4 + k] / 255, 2.2);
+      R = { S, lin };
+    } catch (e) {}
+    _texRead.set(img, R);
+  }
+  if (!R) return null;
+  const flip = tex.flipY;
+  return (u, v, out) => { const S = R.S, X = Math.min(S - 1, Math.max(0, Math.floor((u - Math.floor(u)) * S))), vv = v - Math.floor(v), Y = Math.min(S - 1, Math.max(0, Math.floor((flip ? 1 - vv : vv) * S))), i = (Y * S + X) * 3; out[0] = R.lin[i]; out[1] = R.lin[i + 1]; out[2] = R.lin[i + 2]; return out; };
+}
 export function mergeRig(root) {
   const parts = [];
   root.traverse(o => { if (o.isSkinnedMesh && !Array.isArray(o.material) && o.geometry.attributes.skinIndex) { let v = true; for (let p = o; p && p !== root; p = p.parent) if (!p.visible) { v = false; break; } if (v) parts.push(o); } });
@@ -3189,12 +3210,18 @@ export function mergeRig(root) {
       if (clothSimOf(o)) sim = clothSimOf(o);
       // (a piece made to flow — see cloth.js — merged as it flows: the merged mesh swings with the same hem)
       const g = o.geometry, AC = g.attributes.aCloth, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
+      const UV = g.attributes.uv, rd = UV && o.material.map ? texReader(o.material.map) : null, tc = [1, 1, 1];
+      const skinPart = o.material.userData && o.material.userData.part === "skin";
       for (let k = 0; k < P.count; k++) {
         const j = v0 + k;
         pos[j * 3] = P.getX(k); pos[j * 3 + 1] = P.getY(k); pos[j * 3 + 2] = P.getZ(k);
         if (N) { nor[j * 3] = N.getX(k); nor[j * 3 + 1] = N.getY(k); nor[j * 3 + 2] = N.getZ(k); }
         const r = C && o.material.vertexColors ? C.getX(k) : 1, gg = C && o.material.vertexColors ? C.getY(k) : 1, b = C && o.material.vertexColors ? C.getZ(k) : 1;
-        col[j * 3] = r * m.r; col[j * 3 + 1] = gg * m.g; col[j * 3 + 2] = b * m.b;
+        if (rd) rd(UV.getX(k), UV.getY(k), tc);
+        // (skin: the sun and the weather's tan, and the grime, as weatheredSkin lays on one man's — without it a crowd's
+        //  faces and hands were chalk-white beside his)
+        const sk = skinPart ? SKIN_BAKE : ONE;
+        col[j * 3] = r * m.r * tc[0] * sk[0]; col[j * 3 + 1] = gg * m.g * tc[1] * sk[1]; col[j * 3 + 2] = b * m.b * tc[2] * sk[2];
         // (the mud up a worn piece's hem baked in: a crowd's merged pieces have no shader of their own for it)
         if (o.material.userData && o.material.userData.worn) { const y = P.getY(k), u = Math.max(0, Math.min(1, (y - 0.08) / 0.54)), mud = 1 - u * u * (3 - 2 * u), k2 = 1 - mud * 0.45; col[j * 3] = col[j * 3] * k2 + mud * 0.07; col[j * 3 + 1] = col[j * 3 + 1] * k2 + mud * 0.055; col[j * 3 + 2] = col[j * 3 + 2] * k2 + mud * 0.035; }
         for (let q = 0; q < 4; q++) { si[j * 4 + q] = SI.getComponent(k, q); sw[j * 4 + q] = SW.getComponent(k, q); }

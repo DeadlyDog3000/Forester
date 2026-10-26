@@ -242,7 +242,7 @@ export class Wilds extends WorldBase {
     this.falling = [];
     this.stumps = new Map();
     this.snowLine = this.land.big ? 62 : 48;
-    this.mat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }), { scale: 1, amount: 0.06, grain: 0.15, surface: "ground" });
+    this.mat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }), { scale: 1, amount: 0.06, grain: 0.15, surface: "ground" });
     this.rockMat = addDetail(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95, flatShading: true }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
     // the sea and the lakes: one sheet of water at one level, following you about under the haze
     // (fine near you and coarser out toward the haze, so the swell can move it where you can see it move)
@@ -354,22 +354,29 @@ export class Wilds extends WorldBase {
   key(ci, cj) { return ci + "," + cj; }
   buildChunk(ci, cj) {
     const L = this.land, x0 = ci * CHUNK, z0 = cj * CHUNK, g = new THREE.Group();
-    // the ground: one sheet of flat facets, each its own colour
+    // the ground: one sheet, its colour and slope blended from corner to corner
     const geo = new THREE.PlaneGeometry(CHUNK, CHUNK, SEG, SEG); geo.rotateX(-Math.PI / 2); geo.translate(x0 + CHUNK / 2, 0, z0 + CHUNK / 2);
     const p0 = geo.attributes.position;
     for (let i = 0; i < p0.count; i++) p0.setY(i, L.heightAt(p0.getX(i), p0.getZ(i)));
     const ng = geo.toNonIndexed(); geo.dispose();
-    const pos = ng.attributes.position, cols = new Float32Array(pos.count * 3), c = new THREE.Color();
-    for (let t = 0; t < pos.count; t += 3) {
-      const x = (pos.getX(t) + pos.getX(t + 1) + pos.getX(t + 2)) / 3, z = (pos.getZ(t) + pos.getZ(t + 1) + pos.getZ(t + 2)) / 3, h = (pos.getY(t) + pos.getY(t + 1) + pos.getY(t + 2)) / 3;
-      const ax = pos.getX(t + 1) - pos.getX(t), ay = pos.getY(t + 1) - pos.getY(t), az = pos.getZ(t + 1) - pos.getZ(t);
-      const bx = pos.getX(t + 2) - pos.getX(t), by = pos.getY(t + 2) - pos.getY(t), bz = pos.getZ(t + 2) - pos.getZ(t);
-      const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx, steep = 1 - Math.abs(ny) / (Math.hypot(nx, ny, nz) || 1);
-      this.colourAt(x, z, h, steep, c);
-      c.multiplyScalar(0.9 + hash(x * 0.37, z * 0.53) * 0.2);
-      for (let k = 0; k < 3; k++) { cols[(t + k) * 3] = c.r; cols[(t + k) * 3 + 1] = c.g; cols[(t + k) * 3 + 2] = c.b; }
+    // (each corner its own colour and its own slope, from the land itself — so the ground blends and rolls as the
+    //  story's woods do, and the pieces meet without a seam; one flat colour and one flat face to each facet laid it
+    //  out as a mosaic)
+    const pos = ng.attributes.position, cols = new Float32Array(pos.count * 3), nors = new Float32Array(pos.count * 3), c = new THREE.Color(), memo = new Map(), e = CHUNK / SEG * 0.5;
+    const vn = (x, z) => { const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j, u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+      return (hash(i, j) * (1 - u) + hash(i + 1, j) * u) * (1 - v) + (hash(i, j + 1) * (1 - u) + hash(i + 1, j + 1) * u) * v; };
+    for (let t = 0; t < pos.count; t++) {
+      const x = pos.getX(t), z = pos.getZ(t), key = Math.round(x * 4) * 100003 + Math.round(z * 4);
+      let q = memo.get(key);
+      if (!q) {
+        const h = pos.getY(t), sx = (L.heightAt(x + e, z) - L.heightAt(x - e, z)) / (2 * e), sz = (L.heightAt(x, z + e) - L.heightAt(x, z - e)) / (2 * e), l = Math.hypot(sx, 1, sz);
+        this.colourAt(x, z, h, 1 - 1 / l, c);
+        c.multiplyScalar(0.92 + vn(x * 0.21 + 7, z * 0.21 + 3) * 0.16);
+        memo.set(key, (q = [c.r, c.g, c.b, -sx / l, 1 / l, -sz / l]));
+      }
+      cols.set(q.slice(0, 3), t * 3); nors.set(q.slice(3), t * 3);
     }
-    ng.setAttribute("color", new THREE.BufferAttribute(cols, 3)); ng.computeVertexNormals();
+    ng.setAttribute("color", new THREE.BufferAttribute(cols, 3)); ng.setAttribute("normal", new THREE.BufferAttribute(nors, 3));
     const ground = new THREE.Mesh(ng, this.mat); ground.receiveShadow = true; g.add(ground);
     // the trees: near (every facet, shadows) and far (plainer), switched by distance as in the old woods
     const trees = L.chunkTrees(ci, cj);

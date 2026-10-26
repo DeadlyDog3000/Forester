@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.166", date: "25 October 2026", title: "Faces in the line",
+    items: [
+      "Soldiers in a battle line have weathered, sun-browned faces and hands, as one man on his own does, instead of chalk-white ones; where a piece of clothing or skin has a painted picture, the crowd keeps its colours too.",
+      "The ground of battlefields and the online worlds rolls and blends smoothly, as the story's woods now do, instead of in flat four-metre facets.",
+    ],
+  },
+  {
     v: "1.99.165", date: "25 October 2026", title: "Rolling ground",
     items: [
       "The ground in the woods is lit smooth as it rolls: hills, hollows and the pond's banks no longer show as a mosaic of flat four-metre facets.",
