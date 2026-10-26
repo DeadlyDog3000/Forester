@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.181", date: "26 October 2026", title: "Under the spruce",
+    items: [
+      "Standing at a spruce's trunk with the axe, its lower limbs thin away round you as they were meant to, instead of standing round your head like the spokes of an umbrella.",
+      "The boughs over your head stay thick with needles when you stand under a tree; only those all but brushing your face thin away.",
+    ],
+  },
+  {
     v: "1.99.180", date: "26 October 2026", title: "Snow on the boughs",
     items: [
       "In winter the spruces round the clearing carry snow on their boughs like the rest of the wood, instead of standing green against the white.",

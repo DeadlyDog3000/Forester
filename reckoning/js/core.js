@@ -328,7 +328,10 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear) discard; }
         }` : ""}
         if (dNear > 0.0) {
-          float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.42, dNear * 0.6, dd);
+          // (over your head, only what's all but touching you: from the trunk with the axe, the crown thinned away to the
+          //  bare limbs over you, a frame of grey poles like an umbrella's)
+          float dNr = vDReal.y > cameraPosition.y + 0.5 ? 0.4 : 1.0;
+          float dd = distance(vDReal, cameraPosition), kNear = 1.0 - smoothstep(dNear * 0.42 * dNr, dNear * 0.6 * dNr, dd);
           if (vDTrunk.z > 0.0) { float tIn = 1.0 - smoothstep(1.7, 2.6, distance(cameraPosition.xz, vDTrunk.xy) / vDTrunk.z); if (vDReal.y < cameraPosition.y + 1.6) kNear = max(kNear, tIn); }
           if (kNear >= 1.0) discard;
           if (kNear > 0.0) { ivec2 bq = ivec2(mod(gl_FragCoord.xy, 4.0)); float bm[16] = float[16](0., 8., 2., 10., 12., 4., 14., 6., 3., 11., 1., 9., 15., 7., 13., 5.); if ((bm[bq.x + bq.y * 4] + 0.5) / 16.0 < kNear) discard; }
@@ -436,7 +439,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
   };
   // (and whatever else has been laid on this material — cloth, wear, weathered skin, bark: see addHook)
   { const dc = material.onBeforeCompile; material.onBeforeCompile = (sh, r) => { dc(sh, r); runHooks(material, sh, r); }; }
-  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w") + (local ? "l" : "") + (rim ? "" : "r") + (cards ? "c" : "") + hookKey(material);
+  material.customProgramCacheKey = () => "detail" + surf + (weather ? "" : "w") + (local ? "l" : "") + (rim ? "" : "r") + (cards ? "c" : "") + (limbs > 0 && local ? "L" + limbs : "") + hookKey(material);   // (limbs too: without it the copy whose limbs thin away close to was handed the plain copy's program, and they never did)
   material.needsUpdate = true;
   return material;
 }
