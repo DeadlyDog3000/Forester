@@ -655,16 +655,16 @@ function morionGeo(old) {
   const pos = [], uv = [], idx = [];
   const grid = (nu, nv, f) => { const b = pos.length / 3; for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const p = f(i / nu, j / nv); pos.push(p[0] + cx, p[1], p[2] + cz); uv.push(i / nu, j / nv); }
     for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = b + j * (nu + 1) + i, c = a + nu + 1; idx.push(a, c, a + 1, a + 1, c, c + 1); } };
-  const RX = 0.118, RZ = 0.136, H = 0.2;
+  const RX = 0.108, RZ = 0.123, H = 0.155;
   // (the crown: straight up a little, then rounded over)
   const crownR = v => { const t = Math.max(0, (v - 0.22) / 0.78); return Math.sqrt(Math.max(0, 1 - t * t)) * (1 + 0.04 * Math.sin(Math.min(1, v / 0.3) * Math.PI / 2)); };
   grid(32, 14, (u, v) => { const a = u * TAU, r = crownR(v); return [Math.sin(a) * RX * r, y0 + H * v, Math.cos(a) * RZ * r]; });
   // (the comb: a thin plate front to back over the top)
   const topAt = z => { const t = Math.min(1, Math.abs(z) / (RZ * 1.04)); const v = 0.22 + 0.78 * Math.sqrt(Math.max(0, 1 - t * t)); return y0 + H * v; };
-  grid(20, 2, (u, v) => { const z = (u * 2 - 1) * RZ * 0.92, h = 0.06 * Math.sqrt(Math.max(0, 1 - (u * 2 - 1) ** 2)); return [0, topAt(z) - 0.01 + (h + 0.01) * v, z]; });
+  grid(20, 2, (u, v) => { const z = (u * 2 - 1) * RZ * 0.92, h = 0.042 * Math.sqrt(Math.max(0, 1 - (u * 2 - 1) ** 2)); return [0, topAt(z) - 0.01 + (h + 0.01) * v, z]; });
   // (the brim: out from the crown's foot, rising to its points fore and aft, a little down at the sides)
-  grid(40, 4, (u, w) => { const a = u * TAU, c = Math.cos(a), rx = RX + (0.165 - RX) * w, rz = RZ + (0.235 - RZ) * w;
-    return [Math.sin(a) * rx, y0 + 0.004 + 0.075 * Math.pow(Math.abs(c), 4) * Math.pow(w, 1.4) - 0.008 * w * (1 - Math.abs(c)), Math.cos(a) * rz]; });
+  grid(40, 4, (u, w) => { const a = u * TAU, c = Math.cos(a), rx = RX + (0.138 - RX) * w, rz = RZ + (0.19 - RZ) * w;
+    return [Math.sin(a) * rx, y0 + 0.004 + 0.05 * Math.pow(Math.abs(c), 4) * Math.pow(w, 1.4) - 0.008 * w * (1 - Math.abs(c)), Math.cos(a) * rz]; });
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
   g.computeVertexNormals();

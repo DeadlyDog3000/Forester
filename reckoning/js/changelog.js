@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.188", date: "26 October 2026", title: "A morion that fits",
+    items: [
+      "The watch's morions fit their heads: a closer crown, a lower dome and comb, and a shorter brim.",
+    ],
+  },
+  {
     v: "1.99.187", date: "26 October 2026", title: "Morions",
     items: [
       "The watch's steel hats are morions: a tall round crown with a comb along the top and a narrow brim swept up to a point before and behind, instead of a broad flat saucer like a sombrero.",
