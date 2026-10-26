@@ -74,7 +74,7 @@ const BLOCKS = [
   [15, 30, 32, 66], [38, 3, 62, 66],
 ];
 const PLASTER = [0xe8dcc4, 0xd9c7a0, 0xc9a77a, 0xe0d0b0, 0xb7836a, 0xd6c3a5, 0xcfb89a];
-const BRICK = [0x8a4a38, 0x7a3e30, 0x9a5a44, 0x6e3a2e];
+const BRICK = [0x98543f, 0x8a4838, 0xa8644c, 0x7c4434];   // (the red-brown of Hamburg's Backstein: darker, a brick house in the shade of the street went black)
 const ROOF = [0x7a3a2a, 0x6a3428, 0x4a4a52, 0x8a4a34, 0x5a3a30];
 const TIMBER = 0x3a2a20;
 
@@ -204,7 +204,7 @@ export class Hamburg extends WorldBase {
     const r = rng(1683);
     const b = new Builder(), win = new Builder(), lit = new Builder(), props = new Builder();
     // (the houses' walls and roofs apart, each with the grain of what it is: lime plaster, brick in its courses, tiles)
-    b.sub = { plaster: new Builder(), brick: new Builder(), tiles: new Builder() };
+    b.sub = { plaster: new Builder(), brick: new Builder(), tiles: new Builder(), stone: new Builder() };
 
     // ---- ground ----
     // cobbles, real ones: a photographed street, about three and a half metres to a tile
@@ -670,16 +670,28 @@ export class Hamburg extends WorldBase {
     this.col.addBox(-8, 57.5, 8, 66.5, 20); this.col.addBox(-3.3, 54.2, 3.3, 61, 40);
   }
   buildWall(b, props, lit) {
-    const stone = 0x7d7468, top = 7;
+    const stone = 0x8a8072, top = 7;
+    // (in stone's own grain — courses and joints — and with some build to it: a battered foot, a string course under the
+    //  merlons, buttresses along the inside; it stood at the end of every street as a plain grey slab)
+    const sw = (b.sub && b.sub.stone) || b;
     const seg = (x0, x1) => {
-      b.box(x1 - x0, top, 2.4, (x0 + x1) / 2, top / 2, 69.2, stone, 0, 0.03);
-      for (let x = x0 + 0.6; x < x1 - 0.4; x += 1.6) b.box(0.8, 0.8, 2.4, x, top + 0.4, 69.2, stone);
+      sw.box(x1 - x0, top, 2.4, (x0 + x1) / 2, top / 2, 69.2, stone, 0, 0.03);
+      sw.box(x1 - x0, 0.9, 2.9, (x0 + x1) / 2, 0.45, 69.2, 0x7a7266, 0, 0.03);
+      sw.box(x1 - x0, 0.22, 2.7, (x0 + x1) / 2, top - 0.6, 69.2, 0x9a9282);
+      for (let x = x0 + 0.6; x < x1 - 0.4; x += 1.6) sw.box(0.8, 0.8, 2.4, x, top + 0.4, 69.2, stone);
+      for (let x = x0 + 4; x < x1 - 2; x += 9) sw.box(1.1, top - 1.2, 0.9, x, (top - 1.2) / 2, 67.6, 0x80776a, 0, 0.03);
       this.col.addBox(x0, 68, x1, 70.4, 20);
     };
     seg(-64, -40); seg(-30, 64);
     // side walls
-    b.box(2.4, top, 110, -63.2, top / 2, 15, stone, 0, 0.03); this.col.addBox(-64.4, -40, -62, 70, 20);
-    b.box(2.4, top, 110, 63.2, top / 2, 15, stone, 0, 0.03); this.col.addBox(62, -40, 64.4, 70, 20);
+    for (const sx of [-1, 1]) {
+      sw.box(2.4, top, 110, sx * 63.2, top / 2, 15, stone, 0, 0.03);
+      sw.box(2.9, 0.9, 110, sx * 63.2, 0.45, 15, 0x7a7266, 0, 0.03);
+      sw.box(2.7, 0.22, 110, sx * 63.2, top - 0.6, 15, 0x9a9282);
+      for (let z = -38; z < 68; z += 9) sw.box(0.9, top - 1.2, 1.1, sx * 61.6, (top - 1.2) / 2, z, 0x80776a, 0, 0.03);
+      for (let z = -39.5; z < 69; z += 1.6) sw.box(2.4, 0.8, 0.8, sx * 63.2, top + 0.4, z, stone);
+    }
+    this.col.addBox(-64.4, -40, -62, 70, 20); this.col.addBox(62, -40, 64.4, 70, 20);
     // the gatehouse
     b.box(3, 13, 6, -38.5, 6.5, 69.2, stone, 0, 0.02); b.box(3, 13, 6, -31.5, 6.5, 69.2, stone, 0, 0.02);
     b.box(10, 5, 6, -35, 10.5, 69.2, stone, 0, 0.02);

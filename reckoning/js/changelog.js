@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.190", date: "26 October 2026", title: "The city wall",
+    items: [
+      "Hamburg's wall, seen at the end of the streets, is coursed stone with a battered foot, a string course under the battlements and buttresses along its inside, instead of a plain grey slab; the side walls have their battlements too.",
+      "Brick houses are a lighter red-brown, so in the shade of a street they read as brick instead of going black.",
+    ],
+  },
+  {
     v: "1.99.189", date: "26 October 2026", title: "A morion that fits",
     items: [
       "The watch's morions fit their heads: a close crown sitting down on the head, a low dome and comb, and a short brim.",
