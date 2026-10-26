@@ -770,7 +770,9 @@ export function wornColour(c) {
   // (worked in sRGB, as the eye sees it: in three's linear space a white's "lightness" was already low, and halving it
   //  left an apron that still read as white)
   const S = THREE.SRGBColorSpace, h = {}; c.getHSL(h, S);
-  let l = h.l * 0.72, sat = h.s * 0.4;
+  // (dye fades with wear and sun, greyer and if anything lighter, not darker — the dirt is laid on by wornCloth's mud and
+  //  grime: darkened as well, every coat in the game went to a black silhouette)
+  let l = h.l * 0.86 + 0.035, sat = h.s * 0.45;
   // (white and near-white: unbleached, greyed, a little yellow-brown)
   if (h.l > 0.7) { l = 0.5 + (h.l - 0.7) * 0.3; sat = Math.min(Math.max(sat, 0.1), 0.18); c.setHSL(0.09, sat, l, S); return c; }
   c.setHSL(h.h, sat, l, S); return c;

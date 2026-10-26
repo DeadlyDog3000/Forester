@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.184", date: "26 October 2026", title: "Faded, not black",
+    items: [
+      "Worn clothes are faded and greyed, as wear and weather leave them, instead of darkened as well: coats in browns, greens, russet and the watch's blue again, where everyone had gone about in black.",
+    ],
+  },
+  {
     v: "1.99.183", date: "26 October 2026", title: "Indoor light",
     items: [
       "Indoors, the daylight in a room is warm and dim, as it comes off the walls and floor, and dark things no longer catch a bright blue rim of sky round their edges.",
