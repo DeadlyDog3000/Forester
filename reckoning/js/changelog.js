@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.156", date: "25 October 2026", title: "Fire",
+    items: [
+      "Fire looks like fire: each flame is several tongues from one root, licking up at their own heights and tearing off into loose wisps, with a thin blue at the roots; a big fire burns all along its wood, its flames spread over the bed, lower toward the edge, instead of one tall cone in the middle.",
+      "Under a campfire, a bed of coals glows through the ash, its hot spots shifting and pulsing; the smoke over it shows a little plainer. The burning ends of the wood glow along their rings and cracks.",
+    ],
+  },
+  {
     v: "1.99.155", date: "25 October 2026", title: "Logs by the fire",
     items: [
       "The wood in the campfire is real split wood, its bark charred black and its ends glowing; the two logs to sit on by the fire are real logs, bark and sawn ends, instead of smooth red tubes.",

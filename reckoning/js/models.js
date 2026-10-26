@@ -2361,7 +2361,8 @@ export function logMats(kind, v = 0) {
   // (in the fire: the bark charred black, the cut ends glowing)
   if (kind === "char") { const R = logReal(); if (R) return _logMatsK.char || (_logMatsK.char = (() => {
     const side = R[0][0].clone(); side.color = new THREE.Color(0x2c2622); side.roughness = 1;
-    const end = R[0][1].clone(); end.color = new THREE.Color(0x3a2a20); end.emissive = new THREE.Color(0xff5a1a); end.emissiveIntensity = 0.7;
+    // (the ends glowing unevenly, along their rings and cracks, as a burning end does — not a flat orange disc)
+    const end = R[0][1].clone(); end.color = new THREE.Color(0x2a1e18); end.emissive = new THREE.Color(0xff4a12); end.emissiveMap = end.map; end.emissiveIntensity = 1.1;
     return [side, end, end]; })()); }
   { const R = logReal(); if (R) return R[v & 1]; }
   if (_logMats) return _logMats;

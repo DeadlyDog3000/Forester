@@ -924,18 +924,29 @@ function flameParts() {
       // the rising turbulence: noise drifting up through the flame, two scales of it
       const n1 = noise3(u * 2.2 + cz, v * 3.2 - ang * 0.9, sz), n2 = noise3(u * 5 + 7 + cz * 1.7, v * 7 - ang * 1.8, sz * 1.7 + 3);
       const turb = n1 * 0.65 + n2 * 0.35;
-      // the shape: wide and bright at the foot, narrowing and breaking up toward the top, bent by the turbulence
-      const wv = 0.62 * Math.pow(1 - v, 0.55) + 0.04, du = u + (turb - 0.5) * 0.55 * v;
-      let k = Math.exp(-Math.pow(du / wv, 2) * 1.6) * Math.pow(1 - v, 0.35);
-      k *= 0.45 + turb * 1.1 - v * 0.55;
-      k = Math.max(0, Math.min(1.2, k * 1.5 - 0.1));
+      // the shape: not one cone but three tongues from a common root, each its own height and sway, licking up, thinning
+      //  and tearing off into loose wisps near the top, bent by the turbulence
+      const du = u + (turb - 0.5) * 0.6 * v;
+      let k = 0;
+      for (let t = 0; t < 3; t++) {
+        const c = (t - 1) * 0.32 * (0.35 + v) + Math.sin(ang + t * 2.1) * 0.08 * v, ht = t === 1 ? 1 : 0.62 + 0.22 * Math.sin(ang * (t + 1) + t);
+        if (v > ht) continue;
+        const vt = v / ht, wv = (t === 1 ? 0.5 : 0.34) * Math.pow(1 - vt, 0.6) + 0.03;
+        k = Math.max(k, Math.exp(-Math.pow((du - c) / wv, 2) * 1.7) * Math.pow(1 - vt, 0.3));
+      }
+      k *= 0.42 + turb * 1.15 - v * 0.6;
+      // (the torn-off wisps: above the body of the flame, only where the finer noise runs strong)
+      k += Math.max(0, n2 - 0.62) * 2.2 * Math.max(0, v - 0.45) * Math.exp(-Math.pow(du / 0.45, 2));
+      k = Math.max(0, Math.min(1.2, k * 1.55 - 0.12));
       // (nothing at a frame's very edges, so no frame bleeds into the next)
       k *= Math.min(1, v / 0.05) * Math.min(1, (1 - v) / 0.08) * Math.min(1, (1 - Math.abs(u)) / 0.08);
       const o = ((oy + j) * cv.width + ox + i) * 4;
       // white-gold at the heart, orange, then deep red as it thins
       d[o] = Math.min(255, 255 * Math.min(1, k * 2.2));
       d[o + 1] = Math.min(255, 255 * Math.max(0, Math.min(1, k * 1.5 - 0.25)));
-      d[o + 2] = Math.min(255, 255 * Math.max(0, k - 0.75) * 2.4);
+      // (and at the very root, where the wood gives off its gas, a thin blue)
+      const root = Math.max(0, 0.16 - v) / 0.16 * Math.exp(-u * u * 3) * Math.min(1, k * 3);
+      d[o + 2] = Math.min(255, 255 * (Math.max(0, k - 0.75) * 2.4 + root * 0.55));
       d[o + 3] = Math.min(255, 255 * Math.min(1, k * 1.8));
     }
   }
@@ -963,14 +974,17 @@ export function makeFlame(size = 1, light = null) {
   g.userData.heat = size; FLAMES.add(g);
   // the faces of the flame: a tall one in the middle, and smaller ones about it, each at its own place in the film
   const faces = [];
-  const n = size >= 2 ? 4 : size >= 0.8 ? 3 : 2;
+  const n = size >= 4 ? 9 : size >= 2 ? 6 : size >= 0.8 ? 3 : 2;
   for (let i = 0; i < n; i++) {
     const map = F.film.clone(); map.repeat.set(0.25, 0.25);
-    const m = new THREE.SpriteMaterial({ map, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: true });
+    // (many flames over a big fire add up where they overlap: each fainter, or their roots burn out to a white blot)
+    const m = new THREE.SpriteMaterial({ map, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: true, opacity: n > 4 ? 0.55 : n > 3 ? 0.8 : 1 });
     const sp = new THREE.Sprite(m); sp.center.set(0.5, 0.04); sp.renderOrder = 2;
     const main = i === 0, a = i / n * Math.PI * 2 + Math.random();
-    const w = (main ? 0.26 : 0.17 + Math.random() * 0.05) * size, h = (main ? 0.52 : 0.34 + Math.random() * 0.1) * size;
-    sp.position.set(main ? 0 : Math.cos(a) * 0.05 * size, 0, main ? 0 : Math.sin(a) * 0.05 * size);
+    const w = (main ? 0.24 : 0.12 + Math.random() * 0.08) * size, h = (main ? 0.5 : 0.24 + Math.random() * 0.2) * size;
+    // (a big fire burns along its wood, not from one point: its flames spread over the bed, lower toward the edge)
+    const rr = main ? 0 : (n > 4 ? 0.035 + Math.random() * 0.06 : 0.05) * size;
+    sp.position.set(Math.cos(a) * rr, 0, Math.sin(a) * rr);
     sp.scale.set(w, h, 1);
     sp.userData = { w, h, ph: Math.random() * FRAMES, fps: 15 + Math.random() * 6, flip: Math.random() < 0.5 };
     if (sp.userData.flip) { map.repeat.x = -0.25; }
@@ -982,13 +996,32 @@ export function makeFlame(size = 1, light = null) {
   if (size >= 1.5) for (let i = 0; i < Math.min(14, Math.round(size * 2.5)); i++) {
     const sp = new THREE.Sprite(F.ember.clone()); sp.scale.setScalar(0.035 * Math.min(2, size / 2)); sp.userData = { t: Math.random(), sp: 0.35 + Math.random() * 0.35, dx: 0, dz: 0, sw: Math.random() * 10 }; sp.renderOrder = 3; g.add(sp); sparks.push(sp);
   }
+  // the bed of coals under a proper fire: glowing through the ash, hot spots shifting and pulsing, darker at the rim
+  let coals = null;
+  if (size >= 2) {
+    const cm = new THREE.ShaderMaterial({ uniforms: { uT: { value: 0 }, uK: { value: 1 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: "varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      fragmentShader: `varying vec2 vUv; uniform float uT, uK;
+        float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+        float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+        void main() {
+          vec2 p = vUv * 9.0;
+          float a = n(p + vec2(uT * 0.11, -uT * 0.07)) * 0.6 + n(p * 2.3 - vec2(uT * 0.17, uT * 0.05)) * 0.4;
+          float hot = smoothstep(0.42, 0.85, a), edge = smoothstep(0.5, 0.18, length(vUv - 0.5));
+          float ash = smoothstep(0.55, 0.75, n(p * 4.1 + 11.0));
+          float pulse = 0.72 + 0.28 * sin(uT * 2.3 + a * 9.0);
+          vec3 col = mix(vec3(0.5, 0.05, 0.0), vec3(1.0, 0.5, 0.12), hot) * hot * edge * pulse * (1.0 - ash * 0.7) * uK;
+          gl_FragColor = vec4(col, 1.0);
+        }` });
+    coals = new THREE.Mesh(new THREE.CircleGeometry(0.095 * size, 24), cm); coals.rotation.x = -Math.PI / 2; coals.position.y = 0.015; coals.renderOrder = 1; g.add(coals);
+  }
   // smoke, over a proper fire
   const smoke = [];
   if (size >= 2) for (let i = 0; i < 7; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: F.smokeTex, color: 0x9a948a, transparent: true, depthWrite: false, opacity: 0, fog: true }));
     m.userData = { t: i / 7, rot: (Math.random() - 0.5) * 0.6 }; m.renderOrder = 1; g.add(m); smoke.push(m);
   }
-  g.userData.flame = { faces, glow, sparks, smoke, size, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
+  g.userData.flame = { faces, glow, sparks, smoke, coals, size, t: Math.random() * 10, light, base: light ? light.intensity : 0 };
   if (light) { light.position.y = 0.25 * size; g.add(light); }
   return g;
 }
@@ -1007,6 +1040,7 @@ export function flicker(g, dt) {
     sp.scale.set(u.w * (1.02 - (k - 0.85) * 0.4), u.h * breathe, 1);
     sp.material.rotation = Math.sin(f.t * 1.7 + u.ph) * 0.05;
   }
+  if (f.coals) { f.coals.visible = !!f.light ? f.base > 0.001 : true; f.coals.material.uniforms.uT.value = f.t; f.coals.material.uniforms.uK.value = lit ? 1 : 0.35; }
   if (f.glow) { f.glow.visible = lit; f.glow.scale.setScalar(0.75 * s * (0.9 + (k - 0.85) * 1.5)); }
   for (const sp of f.sparks || []) {
     const u = sp.userData;
@@ -1023,7 +1057,7 @@ export function flicker(g, dt) {
     m.visible = lit;
     m.position.set(Math.sin(t * 3 + u.rot * 9) * 0.15 * s, 0.35 * s + t * 1.6 * s, Math.cos(t * 2.4 + u.rot * 7) * 0.12 * s);
     m.scale.setScalar((0.25 + t * 0.9) * s);
-    m.material.opacity = Math.sin(Math.min(1, t * 1.3) * Math.PI) * 0.16;
+    m.material.opacity = Math.sin(Math.min(1, t * 1.3) * Math.PI) * 0.22;
     m.material.rotation = u.rot * t * 3;
   }
   if (f.light) f.light.intensity = f.base * (0.8 + (k - 0.85) * 2.5);
