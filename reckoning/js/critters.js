@@ -191,7 +191,8 @@ export class Fireflies {
     const T = G.town, p = G.player && G.player.pos; if (!T || !p) return;
     this.t += dt;
     const f0 = T.frac, night = f0 > 0.7 || f0 < 0.03;
-    const want = T.season === "summer" && night && (this.w.rainK || 0) < 0.05 && (G.windV ? Math.hypot(G.windV.x, G.windV.z) : 0) < 1.5 ? 1 : 0;
+    // (and only where it is dark: a chapter can hold the light at afternoon whatever the clock says)
+    const want = T.season === "summer" && night && (!G.sun || G.sun.intensity < 1.2) && (this.w.rainK || 0) < 0.05 && (G.windV ? Math.hypot(G.windV.x, G.windV.z) : 0) < 1.5 ? 1 : 0;
     this.k += (want - this.k) * Math.min(1, dt * 0.3);
     this.pts.visible = this.k > 0.01;
     if (!this.pts.visible) { for (const f of this.fl) f.ok = false; return; }

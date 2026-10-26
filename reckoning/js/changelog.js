@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.160", date: "25 October 2026", title: "Skirts that hang",
+    items: [
+      "Skirts and aprons hang straight down from the widest of the hips and knees, or flare a little, as cloth does — not bellied out over the knees and tucked in at the hem like a jar. They still swing as you walk and fall loose when someone goes down.",
+      "No fireflies at noon: they come out only once it's dark, even on a summer afternoon when the clearing's clock stands still.",
+    ],
+  },
+  {
     v: "1.99.159", date: "25 October 2026", title: "Log walls and lamplight",
     items: [
       "The cabin's logs are round, and their ends are sawn: at the corners you see each log's rings and the dark of its bark, not a row of soft tan blobs. The logs themselves are peeled and weathered toward a grey-brown instead of a fresh orange. The woodshed's logs too.",

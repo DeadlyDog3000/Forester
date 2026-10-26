@@ -77,6 +77,19 @@ function restNet(pieces, top, lo, hipX, hipZ) {
   return pts;
 }
 
+function hangNet(rest, hx, hz) {
+  const pts = rest.map(p => p.clone());
+  for (let s = 0; s < S; s++) {
+    let m = 0;
+    for (let r = 0; r <= R; r++) {
+      const p = pts[id(r, s)], dx = p.x - hx, dz = p.z - hz, d = Math.hypot(dx, dz);
+      if (r > 1 && d < m && d > 1e-4) { p.x = hx + dx / d * m; p.z = hz + dz / d * m; }
+      m = Math.max(m, d);
+    }
+  }
+  return pts;
+}
+
 // the shader: after the skin's bones have bent it, each vertex carried by the four points of the net around it
 const CLOTH_GLSL = `
   { float rf = aCloth.y * ${R}.0; int r0 = min(int(floor(rf)), ${R}), r1 = min(r0 + 1, ${R}); float fr = rf - float(r0);
@@ -148,10 +161,14 @@ export function attachCloth(P, scene) {
   // (the net at rest: worked out once for each model, from all its hanging pieces together)
   C.rest = geos[0].userData.clothNet ??= restNet(geos, top, lo, hipRest.x, hipRest.z);
   C.hipRest = hipRest;
-  // (the cloth's own lengths between neighbouring points: down, and round)
+  // (how it hangs: as made, but never drawn in going down — the shapes as made bellied out over the knees and tucked in
+  //  at the hem, so every skirt and apron stood like a jar; cloth falls straight from the widest of hips and knees, or
+  //  flares)
+  C.hang = geos[0].userData.clothHang ??= hangNet(C.rest, hipRest.x, hipRest.z);
+  // (the cloth's own lengths between neighbouring points, as it hangs: down, and round)
   C.down = new Float32Array(N); C.round = new Float32Array(N);
-  for (let r = 1; r <= R; r++) for (let s = 0; s < S; s++) C.down[id(r, s)] = C.rest[id(r, s)].distanceTo(C.rest[id(r - 1, s)]);
-  for (let r = 0; r <= R; r++) for (let s = 0; s < S; s++) C.round[id(r, s)] = C.rest[id(r, s)].distanceTo(C.rest[id(r, s + 1)]);
+  for (let r = 1; r <= R; r++) for (let s = 0; s < S; s++) C.down[id(r, s)] = C.hang[id(r, s)].distanceTo(C.hang[id(r - 1, s)]);
+  for (let r = 0; r <= R; r++) for (let s = 0; s < S; s++) C.round[id(r, s)] = C.hang[id(r, s)].distanceTo(C.hang[id(r, s + 1)]);
   P.cloth = C;
   return C;
 }
@@ -191,7 +208,10 @@ function step(C, frame) {
   _W.multiplyMatrices(HW, sk.boneInverses[hipI]).multiply(mesh.bindMatrix);
   if (!C.T) C.T = C.rest.map(() => new THREE.Vector3());
   const T = C.T; for (let i = 0; i < N; i++) T[i].copy(C.rest[i]).applyMatrix4(_W);
-  if (!C.pts || T[0].distanceTo(C.pts[0]) > 3) { C.pts = T.map(p => p.clone()); C.prev = T.map(p => p.clone()); }
+  // (and where it would hang, standing: the pull of the cut is toward that)
+  if (!C.TT) C.TT = C.rest.map(() => new THREE.Vector3());
+  const TT = C.TT; for (let i = 0; i < N; i++) TT[i].copy(C.hang[i]).applyMatrix4(_W);
+  if (!C.pts || T[0].distanceTo(C.pts[0]) > 3) { C.pts = TT.map(p => p.clone()); C.prev = TT.map(p => p.clone()); }
   const P = C.pts, Q = C.prev;
   // (how upright the hips are: 1 standing, 0 lying — and how much of the garment's cut it keeps)
   const up = Math.max(0, _a.set(0, 1, 0).applyMatrix3(_n3.setFromMatrix4(HW)).normalize().y), keep = Math.max(0, (up - 0.55) / 0.45);
@@ -211,7 +231,7 @@ function step(C, frame) {
       const gust = 0.55 + 0.45 * Math.sin(wt * 0.55 - (p.x * wd.x + p.z * wd.y) * 0.07), w = (0.8 + 5 * wk) * gust * (1 + 0.45 * Math.sin(wt * 6.3 + s * 1.7 + r)) * dt * dt * (r / R);
       p.x += wd.x * w; p.z += wd.y * w;
     }
-    if (pull > 0) p.lerp(T[i], pull * (0.35 + 0.65 * r / R));
+    if (pull > 0) p.lerp(TT[i], pull * (0.35 + 0.65 * r / R));
   }
   // hold it together: sewn to the waist; never longer than the cloth between neighbours (though free to bunch); out of
   // the legs, the body and the ground
