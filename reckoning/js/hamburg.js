@@ -518,7 +518,9 @@ export class Hamburg extends WorldBase {
     // (a merchant's beds: carved and posted, the linen white — scanned (Poly Haven, CC0), where they're loaded)
     for (const x of [14.9, 16.9]) {
       const m = modelCopy("prop_bed");
-      if (m) { props.object(m.scene, x, 0, -12.8, 0, 1); m.scene.scale.set(0.82, 1, 1.02); } else P.bed(props, x, -12.8, 0);
+      // (its linen as it would be in a house with a coal fire and no bleach: yellowed, greyed, not lit-white)
+      if (m) { m.scene.traverse(o => { if (o.isMesh && o.material) addHook(o.material, sh => { sh.fragmentShader = sh.fragmentShader.replace("#include <map_fragment>", "#include <map_fragment>\nfloat linenK = smoothstep(0.3, 0.6, dot(diffuseColor.rgb, vec3(0.3, 0.55, 0.15)));\ndiffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.6, 0.54, 0.44), linenK);").replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\nroughnessFactor = mix(roughnessFactor, 0.95, linenK);"); }, "linen"); });
+        props.object(m.scene, x, 0, -12.8, 0, 1); m.scene.scale.set(0.82, 1, 1.02); } else P.bed(props, x, -12.8, 0);
       this.col.addRect(x, -12.8, 1.15, 2.1, 0.6);
     }
     props.box(0.5, 0.5, 0.4, 17.3, 0.25, -9.6, 0x5a3e28);

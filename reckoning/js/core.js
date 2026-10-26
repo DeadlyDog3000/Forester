@@ -492,6 +492,48 @@ export function noSnow(obj) {
   });
   return obj;
 }
+// ---- what bright metal shows: the sky over it and the ground under it ----
+// (with nothing to reflect, a metal draws black — an axe's head, a gun's lock, a pan were dark blocks even at noon.
+//  One small sky, light above, the horizon paler, the earth dark below, tinted and dimmed by the hour (ENVK, set
+//  in applyAtmo) so a blade at night isn't lit by a noon sky)
+export const ENVK = { value: new THREE.Color(0.4, 0.42, 0.46) };
+let _skyCube = null;
+function skyCube() {
+  if (_skyCube) return _skyCube;
+  const face = (top, mid, bot) => {
+    const c = document.createElement("canvas"); c.width = c.height = 32; const x = c.getContext("2d"), g = x.createLinearGradient(0, 0, 0, 32);
+    g.addColorStop(0, top); g.addColorStop(0.48, mid); g.addColorStop(0.56, "#5a5248"); g.addColorStop(1, bot); x.fillStyle = g; x.fillRect(0, 0, 32, 32); return c;
+  };
+  const side = () => face("#d8dee6", "#f2f2ee", "#2e2a24"), up = face("#e4e8ee", "#e4e8ee", "#e4e8ee"), dn = face("#262420", "#262420", "#262420");
+  _skyCube = new THREE.CubeTexture([side(), side(), up, dn, side(), side()]);
+  _skyCube.colorSpace = THREE.SRGBColorSpace; _skyCube.needsUpdate = true;
+  return _skyCube;
+}
+// (how much of a metalness map is metal: a scanned bed or chest carries one that's black but for its nails — only
+//  what is mostly metal, an axe's head, a pan, gets the sky; glTF keeps metalness in the blue)
+const _metalShare = new WeakMap();
+function metalShare(tex) {
+  const img = tex && tex.image; if (!img || !img.width || typeof document === "undefined") return 1;
+  if (_metalShare.has(img)) return _metalShare.get(img);
+  let k = 1;
+  try { const c = document.createElement("canvas"); c.width = c.height = 32; const x = c.getContext("2d", { willReadFrequently: true }); x.drawImage(img, 0, 0, 32, 32);
+    const d = x.getImageData(0, 0, 32, 32).data; let n = 0; for (let i = 2; i < d.length; i += 4) if (d[i] > 120) n++; k = n / 1024; } catch (e) {}
+  _metalShare.set(img, k); return k;
+}
+export function shine(m) {
+  if (!m || !m.isMeshStandardMaterial || m.envMap || (m.metalness || 0) < 0.15) return m;
+  if (m.metalnessMap && metalShare(m.metalnessMap) < 0.06) return m;
+  m.envMap = skyCube(); m.envMapIntensity = 1;
+  return addHook(m, sh => {
+    sh.uniforms.uEnvK = ENVK;
+    // (once: a copy can run its source's hooks as well as its own)
+    if (sh.fragmentShader.includes("uniform vec3 uEnvK;")) return;
+    const tint = c => c.replace(/envMapColor\.rgb \* envMapIntensity/g, "envMapColor.rgb * envMapIntensity * uEnvK");
+    sh.fragmentShader = "uniform vec3 uEnvK;\n" + (sh.fragmentShader.includes("#include <envmap_physical_pars_fragment>")
+      ? sh.fragmentShader.replace("#include <envmap_physical_pars_fragment>", tint(THREE.ShaderChunk.envmap_physical_pars_fragment))
+      : tint(sh.fragmentShader));
+  }, "env");
+}
 export function mat(hex, opts = {}) {
   const key = hex + JSON.stringify(opts);
   if (!_mc[key]) {
@@ -499,6 +541,7 @@ export function mat(hex, opts = {}) {
     const { surface, weather, ...o } = opts;
     _mc[key] = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.9, ...o });
     if (!o.metalness) addDetail(_mc[key], { scale: 3, amount: 0.16, grain: 0.4, surface: surface || "auto", weather: weather !== false });
+    else shine(_mc[key]);
   }
   return _mc[key];
 }
@@ -1026,6 +1069,9 @@ export function makeFlame(size = 1, light = null) {
   if (light) { light.position.y = 0.25 * size; g.add(light); }
   return g;
 }
+// (a fire under the open sky by day: the sun drowns its light, and the grass round it isn't washed yellow — set from the
+//  sun's strength in applyAtmo; a flame marked dayDim takes it, a hearth indoors doesn't)
+export const FIREDAY = { k: 1 };
 export function flicker(g, dt) {
   const f = g.userData.flame; if (!f) return;
   f.t += dt;
@@ -1061,5 +1107,5 @@ export function flicker(g, dt) {
     m.material.opacity = Math.sin(Math.min(1, t * 1.3) * Math.PI) * 0.22;
     m.material.rotation = u.rot * t * 3;
   }
-  if (f.light) f.light.intensity = f.base * (0.8 + (k - 0.85) * 2.5);
+  if (f.light) f.light.intensity = f.base * (0.8 + (k - 0.85) * 2.5) * (f.dayDim ? FIREDAY.k : 1);
 }

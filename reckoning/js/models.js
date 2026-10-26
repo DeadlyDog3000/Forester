@@ -6,7 +6,7 @@
 // load, the way the first Forester built its sounds instead of loading them.
 
 import { loadPose, rodEnds, ROD_GEO } from "./reload.js";
-import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, addHook, noSnow, ownGrainAll } from "./core.js";
+import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, addHook, noSnow, ownGrainAll, shine, inheritHooks } from "./core.js";
 import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
 import { attachCloth, clothMerged, clothSrcOf, clothSimOf } from "./cloth.js";
 
@@ -579,6 +579,7 @@ async function fetchModel(k, url) {
       }
       // (a tree's needles and leaves thin away when you stand inside it, so you can see out)
       addDetail(m, { scale: 2, amount: 0.22, grain: 0.6, surface: m.userData.surface, seeThrough: /needle|lea[fv]|foliage|canopy/i.test(m.name || "") ? 3.6 : 0 });
+      shine(m);
     });
   }
   catch (e) { console.warn("Reckoning: could not load model", k, url, e); }
@@ -2362,7 +2363,7 @@ export function logMats(kind, v = 0) {
   if (kind === "char") { const R = logReal(); if (R) return _logMatsK.char || (_logMatsK.char = (() => {
     const side = R[0][0].clone(); side.color = new THREE.Color(0x2c2622); side.roughness = 1;
     // (the ends glowing unevenly, along their rings and cracks, as a burning end does — not a flat orange disc)
-    const end = R[0][1].clone(); end.color = new THREE.Color(0x2a1e18); end.emissive = new THREE.Color(0xff4a12); end.emissiveMap = end.map; end.emissiveIntensity = 1.1;
+    const end = R[0][1].clone(); end.color = new THREE.Color(0x1e1612); end.emissive = new THREE.Color(0xe8581c); end.emissiveMap = end.map; end.emissiveIntensity = 0.6;
     return [side, end, end]; })()); }
   { const R = logReal(); if (R) return R[v & 1]; }
   if (_logMats) return _logMats;
@@ -3166,7 +3167,10 @@ export function mergeRig(root) {
     geo.computeBoundingSphere(); geo.computeBoundingBox();
     // (the material: the first piece's own — its finish and its grain — white, so the baked colours show as they were)
     const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = (clothSrcOf(M0.material) || M0.material).clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
-    if (!metal) { mat.metalness = 0; mat.roughness = Math.max(0.7, mat.roughness ?? 0.85); }
+    if (!metal) { mat.metalness = 0; mat.roughness = Math.max(0.7, mat.roughness ?? 0.85); mat.envMap = null; }
+    // (the steel of a crowd — pike heads, bayonets, locks — the sky in it as on one man's; its maps were the pieces' own)
+    else { mat.metalnessMap = null; mat.roughnessMap = null; mat.metalness = Math.max(mat.metalness, 0.6); mat.roughness = Math.min(mat.roughness ?? 0.4, 0.45); mat.envMap = null;
+      const src = clothSrcOf(M0.material) || M0.material; if (mat.userData.detail && typeof mat.userData.detail === "object") { addDetail(mat, mat.userData.detail); inheritHooks(src, mat); } shine(mat); }
     const sk = new THREE.SkinnedMesh(geo, mat); sk.name = "merged_" + (metal ? "metal" : "cloth");
     sk.userData.parts = parts; sk.userData.base = col.slice();
     sk.castShadow = true; sk.receiveShadow = true; sk.frustumCulled = false;

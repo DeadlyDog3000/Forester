@@ -200,6 +200,7 @@ function step(C, frame) {
   const pelvis = hips.getWorldPosition(new THREE.Vector3()), chest = C.spine ? C.spine.getWorldPosition(new THREE.Vector3()) : pelvis.clone();
   const seat = C.P && C.P.sitting > 0.5 ? pelvis.y - 0.1 * scale : null;
   const LR = 0.095 * scale, BR = 0.13 * scale, pull = (1 - Math.pow(0.3, dt)) * keep * keep;
+  const minR = (0.45 + 0.43 * keep) / 1.06;
   const wd = SWAY && SWAY.dir ? SWAY.dir.value : null, wt = SWAY ? SWAY.t.value : 0, wk = SWAY ? SWAY.k.value : 0;
   // move: momentum (a little lost to the air), weight, the wind, and while standing the garment's own hang
   for (let r = 1; r <= R; r++) for (let s = 0; s < S; s++) {
@@ -225,6 +226,9 @@ function step(C, frame) {
       const n = id(r, s + 1), Ln = C.round[i] * scale * 1.06;
       _a.subVectors(P[n], P[i]); const dn = _a.length();
       if (dn > Ln) { const k = (dn - Ln) / dn * 0.5; P[i].addScaledVector(_a, k); P[n].addScaledVector(_a, -k); }
+      // (and not much shorter, while standing: a skirt's hem is a ring of cloth that keeps its round — left free to
+      //  shrink, gravity drew the hem in under the knees and every skirt stood like a jar; fallen, it bunches as it likes)
+      else if (dn < Ln * minR && dn > 1e-6) { const k = (dn - Ln * minR) / dn * 0.5; P[i].addScaledVector(_a, k); P[n].addScaledVector(_a, -k); }
     }
     for (let r = 1; r <= R; r++) for (let s = 0; s < S; s++) {
       const p = P[id(r, s)];

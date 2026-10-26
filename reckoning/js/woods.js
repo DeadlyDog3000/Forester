@@ -1492,6 +1492,7 @@ export class Woods extends WorldBase {
       const L = this.lightPool[0]; L.intensity = 9; L.distance = 18;
       this.fire = makeFlame(5, L); this.fire.position.set(FIRE.x, this.cy + 0.05, FIRE.z);
       this.fire.userData.flame.base = 9;
+      this.fire.userData.flame.dayDim = true;
       this.root.add(this.fire); this.flames.push(this.fire);
     }
   }

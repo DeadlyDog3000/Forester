@@ -216,8 +216,8 @@ body.menu-open #hint, body.menu-open #dialog, body.menu-open #bark, body.menu-op
 
 /* ---------- the curtain, the cards, the narration ---------- */
 #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; }
-#card { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 5; text-align: center; padding: 16px; }
-#cardKicker { font: italic 22px var(--serif); color: var(--ink-dim); margin-bottom: 14px; }
+#card { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; z-index: 5; text-align: center; padding: 16px; background: radial-gradient(ellipse 70% 22% at 50% 50%, rgba(0,0,0,0.55), rgba(0,0,0,0) 100%); }
+#cardKicker { font: italic 22px var(--serif); color: var(--ink-dim); margin-bottom: 14px; text-shadow: 0 1px 3px #000, 0 0 14px #000; }
 #cardTitle { font: 700 clamp(30px, 5vw, 54px)/1.1 var(--display); letter-spacing: 0.06em; color: var(--ink); text-shadow: 0 2px 20px #000; }
 #narration { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(760px, 90vw); text-align: center; font: italic 26px/1.5 var(--serif); color: var(--ink); z-index: 5; pointer-events: none; }
 

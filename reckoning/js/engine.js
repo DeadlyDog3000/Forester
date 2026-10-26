@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY } from "./core.js";
 import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 import { reflectWater } from "./water.js";
@@ -255,6 +255,9 @@ function weathered(a) {
     sunI: a.sunI * (1 - c * 0.72), hemiI: a.hemiI * (1 + c * 0.15) + fl * 2.5, hemiS: a.hemiS.clone().lerp(new THREE.Color(0xdde4ff), fl),
     near: a.near * (1 - c * 0.5) * (1 - m * 0.85), far: a.far * (1 - c * 0.45) * (1 - m * 0.6), stars: a.stars * (1 - c), exp: a.exp * (1 - c * 0.06) + fl * 0.6, win: a.win + c * 0.35 };
 }
+// (what metal shows: the sky by the hour; indoors, a dim warm room)
+const envBase = new THREE.Color(), ENV_IN = new THREE.Color(0.07, 0.055, 0.045);
+function setEnvK() { ENVK.value.copy(envBase).lerp(ENV_IN, G.indoorK || 0); }
 function applyAtmo(a00) {
   G.atmoNow = a00;
   const a0 = weathered(a00);
@@ -265,6 +268,8 @@ function applyAtmo(a00) {
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;
   fill.intensity = a.fill ?? 0.1;
   RIM.value.copy(a.hemiS).multiplyScalar(0.55 * a.hemiI);
+  envBase.copy(a.hemiS).multiplyScalar(0.75 * a.hemiI); setEnvK();
+  FIREDAY.k = clamp(1.3 - a.sunI * 0.33, 0.35, 1);
   // (the sun for the post pass's shafts: where, how strong, what colour)
   post.sunDir = G.sunDir; post.sunI = a.sunI; (post.sunC ||= new THREE.Color()).copy(a.sunC);
   // (the draw distance booster pulls the fog in, and the camera stops drawing just beyond it)
@@ -2906,6 +2911,10 @@ export function frame(dt, skipRender) {
     if (window.__foley) window.__foley.work(w.actors);
     if (w.update) w.update(dt);
     for (const f of w.flames) flicker(f, dt);
+    // (under a roof, metal shows the dim room and not the sky: eased, so a step through the door doesn't snap it)
+    { const p = G.player.pos, inn = (w.insideCabin && w.insideCabin(p.x, p.z)) || (w.inHome && w.inHome(p.x, p.z)) || (w.cave && w.cave.inside) || (w.floorIn && w.floorIn(p.x, p.z, p.y) !== null);
+      const k0 = G.indoorK ?? 0; G.indoorK = k0 + ((inn ? 1 : 0) - k0) * Math.min(1, dt * 3);
+      if (Math.abs(G.indoorK - k0) > 1e-4 && G.atmoNow) setEnvK(); }
     G.bugs.update(dt, G.player, () => AUDIO.buzz());
     // triggers
     for (const t of w.triggers.slice()) {

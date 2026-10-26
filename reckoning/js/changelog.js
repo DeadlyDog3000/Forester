@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.158", date: "25 October 2026", title: "Steel that shines",
+    items: [
+      "Bright metal shows the sky: an axe's head, a blade, a gun's lock and a pan catch the light as steel and copper do, instead of standing out as black blocks; a regiment's bayonets and pike heads glint in the line. Indoors they show only the dim room, and by night the dark.",
+      "A campfire by day no longer washes the grass round it yellow; its light comes up as the sun goes down. The burning ends of its wood glow a deep orange rather than red.",
+      "Skirts and aprons keep their round at the hem as they hang, rather than drawing in under the knees.",
+      "The linen on the beds in the house on the Deichstraße is the yellowed, matte linen of an old house, not white satin.",
+      "The chapter's title card has a soft shadow behind it, so the place and year above the title can be read against a bright room.",
+    ],
+  },
+  {
     v: "1.99.157", date: "25 October 2026", title: "Torch smoke",
     items: [
       "Torches and small fires give off a thin, dark trail of smoke from the burning pitch, as the big fires already did.",
