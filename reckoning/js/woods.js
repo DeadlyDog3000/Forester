@@ -443,8 +443,21 @@ export class Woods extends WorldBase {
       // the dead end: a spruce fallen across the track
       const e = br.pts[br.pts.length - 4], e2 = br.pts[br.pts.length - 1];
       const ey = this.heightAt(e.x, e.z), ang = Math.atan2(e2.x - e.x, e2.z - e.z);
-      sb.add(new THREE.CylinderGeometry(0.22, 0.3, 9, 8), 0x4e3a2a, e.x, ey + 0.28, e.z, Math.PI / 2, ang + Math.PI / 2, 0.05);
-      for (let j = 0; j < 4; j++) sb.add(TREE.blobSolid, 0x2f4a2c, e.x + Math.sin(ang + Math.PI / 2) * (2 + j * 1.2), ey + 0.7, e.z + Math.cos(ang + Math.PI / 2) * (2 + j * 1.2), 0, j, 0, 1.1, 0.8, 1.1, 0.08);
+      // (the spruce itself, lying where it came down — or, if it can't be had, a pole and lumps of green)
+      const fallen = modelCopy("spruce");
+      if (fallen) {
+        const g = new THREE.Group(), th = ang + Math.PI / 2;
+        fallen.scene.scale.setScalar(0.95); fallen.scene.rotation.set(Math.PI / 2, 0, 0.6);
+        g.add(fallen.scene); g.rotation.y = th; g.position.set(e.x - Math.sin(th) * 4.6, ey + 0.26, e.z - Math.cos(th) * 4.6);
+        // (its needles lit as the sky now falls on them: their light was turned out from the standing trunk, and lying
+        //  down that is sideways and under, and the whole crown went black)
+        const upL = new THREE.Vector3(0, 1, 0).applyQuaternion(fallen.scene.quaternion.clone().invert());
+        fallen.scene.traverse(o => { if (o.isMesh && o.geometry.attributes.uv && o.geometry.attributes.normal) { const gg = o.geometry.clone(), nn = gg.attributes.normal, v = new THREE.Vector3(); for (let i = 0; i < nn.count; i++) { v.fromBufferAttribute(nn, i).multiplyScalar(0.35).addScaledVector(upL, 0.8).normalize(); nn.setXYZ(i, v.x, v.y, v.z); } o.geometry = gg; } });
+        root.add(g); ownGrainAll(g);
+      } else {
+        sb.add(new THREE.CylinderGeometry(0.22, 0.3, 9, 8), 0x4e3a2a, e.x, ey + 0.28, e.z, Math.PI / 2, ang + Math.PI / 2, 0.05);
+        for (let j = 0; j < 4; j++) sb.add(TREE.blobSolid, 0x2f4a2c, e.x + Math.sin(ang + Math.PI / 2) * (2 + j * 1.2), ey + 0.7, e.z + Math.cos(ang + Math.PI / 2) * (2 + j * 1.2), 0, j, 0, 1.1, 0.8, 1.1, 0.08);
+      }
       this.col.addCircle(e.x, e.z, 1.6, this.heightAt(e.x, e.z) + 2);
     }
     root.add(sb.build(MAT.rough));
@@ -1890,7 +1903,7 @@ export class Woods extends WorldBase {
   makeBerryBushes() {
     // (bare in the winter: the settlement's winter, or snow lying in a chapter that has no settlement to say so)
     const bare = () => !!(G.town && G.town.winter) || SNOW.value > 0.15;
-    const r = rng(733), leafB = new Builder();
+    const r = rng(733), leaves = [];
     this.bushes = [];
     for (let i = 0, tries = 0; i < 30 && tries < 400; tries++) {
       let x, z;
@@ -1899,8 +1912,9 @@ export class Woods extends WorldBase {
       if (this.anyRoadDist(x, z).d < 3.2 || Math.hypot(x - CLEARING.x, z - CLEARING.z) < CLEARING.r + 1 || pondK(x, z) < 1.3 || (this.brookAt(x, z) || { d: 9 }).d < 3) continue;
       const y = this.heightAt(x, z);
       if (this.col.solidAt(x, y + 0.5, z, 0.9) || this.bushes.some(b => Math.hypot(b.x - x, b.z - z) < 4)) continue;
-      // the bramble: a low tangle of dark leaves
-      for (let j = 0; j < 4; j++) leafB.add(TREE.blobSolid, r.pick([0x2e4a24, 0x35522a, 0x3a5a2c]), x + r.range(-0.45, 0.45), y + 0.25 + r() * 0.2, z + r.range(-0.45, 0.45), 0, r() * 3, 0, r.range(0.45, 0.75), r.range(0.35, 0.55), r.range(0.45, 0.75), 0.08);
+      // the bramble: a low tangle of dark leaves (sprays of real leaves, cut out, as the woods' other bushes are — not
+      //  four lumps of green facets)
+      for (let j = 0; j < 4; j++) leaves.push({ x: x + r.range(-0.45, 0.45), y: y + 0.22 + r() * 0.2, z: z + r.range(-0.45, 0.45), ry: r() * 3, sx: r.range(0.45, 0.75), sy: r.range(0.35, 0.55), sz: r.range(0.45, 0.75), col: r.pick([0x46663a, 0x4e6e3e, 0x587844]) });
       // and the fruit on it: ripe black, a few still red
       const fb = new Builder();
       for (let j = 0; j < 16; j++) { const a = r() * TAU, d = 0.3 + r() * 0.45; fb.add(new THREE.IcosahedronGeometry(0.035, 0), r() < 0.8 ? 0x241030 : 0x9a2a2a, x + Math.cos(a) * d, y + 0.3 + r() * 0.45, z + Math.sin(a) * d, 0, 0, 0, 1, 1, 1, 0); }
@@ -1919,7 +1933,9 @@ export class Woods extends WorldBase {
         } });
       this.bushes.push(bush); i++;
     }
-    this.root.add(leafB.build(MAT.rough, { shadow: false }));
+    { const m = new THREE.InstancedMesh(swayGeo(TREE.blob, leaves.length), this.shrubLeaf, leaves.length), d = new THREE.Object3D(), c = new THREE.Color();
+      leaves.forEach((q, n) => { m.geometry.attributes.aSway.array.set([q.y - 0.2, 1.2, (q.x * 0.71 + q.z * 0.43) % 6.283], n * 3); d.position.set(q.x, q.y, q.z); d.rotation.set(0, q.ry, 0); d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); m.setMatrixAt(n, d.matrix); m.setColorAt(n, c.set(q.col)); });
+      m.castShadow = false; m.receiveShadow = true; m.computeBoundingSphere(); this.root.add(m); }
     // (the fruit comes back on its own time, and goes in the winter)
     this.bushTick = () => { const off = bare(); for (const b of this.bushes) b.fruit.visible = G.time >= b.ripeAt && !off; };
     G.onFrame.push(dt => { if (G.world === this && (this._bushT = (this._bushT || 0) - dt) <= 0) { this._bushT = 2; this.bushTick(); } });

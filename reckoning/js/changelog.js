@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.175", date: "26 October 2026", title: "Brambles and windfalls",
+    items: [
+      "The brambles round the clearing are tangles of real leaves instead of four lumps of green facets.",
+      "Where each track into the woods ends, the spruce lying across it is a whole fallen spruce, its crown green in the daylight, instead of a bare pole with green lumps beside it.",
+    ],
+  },
+  {
     v: "1.99.174", date: "26 October 2026", title: "Wolves, bears and spruces",
     items: [
       "Wolves can be seen at last: the game had been judging a wolf by a point fifty metres underground and leaving it out of the picture wherever it stood.",
