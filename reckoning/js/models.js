@@ -2233,16 +2233,19 @@ export function forestInstances(list, far = false) {
     }
   }
   // birch: a pale trunk and a loose, many-clumped crown
-  const leaves = new THREE.InstancedMesh(swayGeo(BLOB, kinds.birch.length * 6), TREE.leafMat, kinds.birch.length * 6);
+  // (nine smaller clumps up a tall oval, widest a little below the middle: six big balls round a trunk stood like a
+  //  lollipop, or two of them like a pair of ears)
+  const BN = 9, leaves = new THREE.InstancedMesh(swayGeo(BLOB, kinds.birch.length * BN), TREE.leafMat, Math.max(1, kinds.birch.length * BN));
   let li = 0, bi = 0;
   for (const t of kinds.birch) {
     dummy.position.set(t.x, t.y - 0.2, t.z); dummy.rotation.set(0, t.rot, 0); dummy.scale.set(0.5, t.h * 0.78, 0.5); dummy.updateMatrix();
     sway(birchTr, bi, t); birchTr.setMatrixAt(bi++, dummy.matrix); (t.slots ??= []).push([birchTr, bi - 1]);
     const seed = t.x * 0.71 + t.z * 0.29;
-    for (let i = 0; i < 6; i++) {
-      const a = t.rot + i * 2.4, rad = i === 0 ? 0 : 0.5 + (i % 3) * 0.35;
-      dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.56 + (i / 6) * 0.36), t.z + Math.sin(a) * rad);
-      const w = t.h * (0.15 - i * 0.008); dummy.scale.set(w, w * 0.85, w); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
+    for (let i = 0; i < BN; i++) {
+      const f = i / (BN - 1), bulge = Math.sin(Math.PI * (0.2 + 0.72 * f)), jit = (Math.sin(seed * 3.1 + i * 7.7) * 0.5 + 0.5);
+      const a = t.rot + i * 2.4 + Math.sin(seed + i) * 0.5, rad = i === BN - 1 ? 0 : t.h * (0.025 + 0.065 * bulge) * (0.7 + 0.6 * jit);
+      dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * (0.5 + f * 0.46), t.z + Math.sin(a) * rad);
+      const w = t.h * (0.065 + 0.05 * bulge) * (0.85 + 0.3 * jit); dummy.scale.set(w, w * 1.05, w); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
       sway(leaves, li, t); leaves.setMatrixAt(li, dummy.matrix); t.slots.push([leaves, li]);
       tint(leaves, li++, 0, seed, 0.09, 0.03);
     }

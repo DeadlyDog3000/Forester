@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.185", date: "26 October 2026", title: "Birches",
+    items: [
+      "The birches' crowns are tall, uneven ovals of leaves instead of a few big round balls, which stood like lollipops or, by twos, like a pair of ears.",
+    ],
+  },
+  {
     v: "1.99.184", date: "26 October 2026", title: "Faded, not black",
     items: [
       "Worn clothes are faded and greyed, as wear and weather leave them, instead of darkened as well: coats in browns, greens, russet and the watch's blue again, where everyone had gone about in black.",
