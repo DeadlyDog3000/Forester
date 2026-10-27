@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.199", date: "26 October 2026", title: "The Danish camp",
+    items: [
+      "The Danish camp before Hamburg is a European army's: lines of ridge tents, a red pavilion at their head, instead of round Turkish pavilions scattered about.",
+    ],
+  },
+  {
     v: "1.99.198", date: "26 October 2026", title: "Windows everywhere",
     items: [
       "Every town fought over on the field — in the campaign's sieges and its town battles too — has windows in its houses, storey on storey, and doors on its streets, instead of blank walls.",

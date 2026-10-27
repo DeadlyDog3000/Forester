@@ -169,7 +169,21 @@ export function buildThings(w, C, b, flip) {
       cone(M_[col] || M_.canvas, p.x, y0 + 1.8, p.z, r * 1.08, r * 0.9, 12);
       solid(p.x, p.z, r * 0.8, r * 0.8, 0, y0 + 2.5);
     },
-    tents(u0, u1, v0, v1, n = 12, col = "canvas") {
+    tents(u0, u1, v0, v1, n = 12, col = "canvas", style = "") {
+      // (a Christian army's camp in its lines of ridge tents — "ridge" — a Turkish one in round pavilions)
+      if (style === "ridge") {
+        const rows = Math.max(2, Math.round(Math.sqrt(n / 2))), per = Math.ceil(n / rows);
+        for (let rI = 0; rI < rows; rI++) for (let i = 0; i < per; i++) {
+          const u = u0 + (u1 - u0) * (rows > 1 ? rI / (rows - 1) : 0.5), v = v0 + (v1 - v0) * (per > 1 ? i / (per - 1) : 0.5) + (hsh(rI, i) - 0.5) * 2;
+          const p = at(u, v), y0 = y(p.x, p.z) - 0.05, wd = 2.2 + hsh(i, rI) * 0.6, L = 3 + hsh(rI, i + 3) * 1.2;
+          roof(M_.canvas, p.x, y0, p.z, wd, 1.8, L, 0);
+          box(M_.stake, p.x, y0 + 1.0, p.z + L / 2 + 0.25, 0.08, 2.0, 0.08); box(M_.stake, p.x, y0 + 1.0, p.z - L / 2 - 0.25, 0.08, 2.0, 0.08);
+          solid(p.x, p.z, wd / 2, L / 2, 0, y0 + 1.8);
+        }
+        // (and the colours before the commander's tent: a red pavilion at the head of the lines)
+        B.tent((u0 + u1) / 2, v0 - 8, 3.4, "red");
+        return;
+      }
       for (let i = 0; i < n; i++) { const u = u0 + (u1 - u0) * hsh(i, 3.1), v = v0 + (v1 - v0) * hsh(i, 7.7); B.tent(u, v, 2.4 + hsh(i, 1.3) * 2.2, i % 5 === 0 ? (col === "canvas" ? "red" : "green") : col); }
     },
     // a vineyard: rows of stakes, each with its vine (no more than a tangle at knee and hip height)
