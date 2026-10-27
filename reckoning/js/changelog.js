@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.195", date: "26 October 2026", title: "Hamburg's windows",
+    items: [
+      "Hamburg's brick houses on the battlefield have their windows, storey on storey, each on a pale stone sill, and their doors on the street.",
+    ],
+  },
+  {
     v: "1.99.194", date: "26 October 2026", title: "Battles run smoothly",
     items: [
       "Big battles run more than twice as smoothly: a skirt or coat near you still swings every moment, one further off a little less often, and far across the field it simply hangs, where nobody could see it move.",

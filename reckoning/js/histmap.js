@@ -108,7 +108,7 @@ export function buildThings(w, C, b, flip) {
   const M_ = {
     wall: mat(0xb8ad96, { surface: "plaster" }), whitewash: mat(0xd8d0bc, { surface: "plaster" }), thatch: mat(0x8a7444), tile: mat(0x8a3a28, { surface: "tiles" }), slate: mat(0x4a4c52, { surface: "tiles" }), copper: mat(0x5a8a78), wood: mat(0x5a4632, { surface: "wood" }),
     stone: mat(0x8a8478, { surface: "stone" }), dark: mat(0x3a3430, { surface: "wood" }), plaster: mat(0xcfc0a0, { surface: "plaster" }), ochre: mat(0xc8a46a, { surface: "plaster" }), brick: mat(0x9a5a40, { surface: "brick" }), tile2: mat(0x9c5236, { surface: "tiles" }),
-    brick2: mat(0x84462f, { surface: "brick" }), brick3: mat(0xa8684a, { surface: "brick" }), turf: mat(0x5c6a3a), timbered: mat(0xd8cfb8, { surface: "plaster" }),
+    brick2: mat(0x84462f, { surface: "brick" }), brick3: mat(0xa8684a, { surface: "brick" }), turf: mat(0x5c6a3a), timbered: mat(0xd8cfb8, { surface: "plaster" }), glass: mat(0x2b3238, { roughness: 0.35, metalness: 0.2 }), sill: mat(0xd2c8b4, { surface: "stone" }),
     ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0), red: mat(0xa8322a), green: mat(0x3e6a40), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
   };
   const box = (m, x, yy, z, sx, sy, sz, ry = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; tgt.add(o); return o; };
@@ -208,6 +208,15 @@ export function buildThings(w, C, b, flip) {
           //  and steep, as the Hanse built: the ridge runs back from the street)
           rh = sx * (0.85 + rr() * 0.3);
           roof(rm, x, y0 + h, z, sx, rh, sz, 0);
+          // (its windows, storey on storey, front and back, each on its pale sill; a door on the street)
+          { const st = Math.round((h - 0.6) / 3.1), nw = Math.max(1, Math.floor((sx - 0.8) / 2.1));
+            for (const fz of [-1, 1]) {
+              const zf = z + fz * (sz / 2 + 0.03);
+              for (let k = 0; k < st; k++) for (let i = 0; i < nw; i++) {
+                const wx = x - sx / 2 + (i + 0.5) * sx / nw, wy = y0 + 0.9 + k * 3.1 + 1.0;
+                if (k === 0 && i === Math.floor(nw / 2) && fz === 1) { box(M_.door, wx, y0 + 0.3 + 1.1, zf, 1.1, 2.2, 0.08); continue; }
+                box(M_.glass, wx, wy, zf, 0.95, 1.45, 0.06); box(M_.sill, wx, wy - 0.78, zf + fz * 0.04, 1.15, 0.1, 0.12);
+              } } }
           // (the timber-framed ones: posts and a rail dark against the whitewash, front and back)
           if (fm === M_.timbered) { for (const k of [-0.47, -0.16, 0.16, 0.47]) box(M_.dark, x + k * sx, y0 + h / 2, z, 0.22, h, sz + 0.06); for (const fy of [0.34, 0.67]) box(M_.dark, x, y0 + h * fy, z, sx + 0.04, 0.2, sz + 0.06); }
         } else { rh = Math.min(sx, sz) * (0.45 + rr() * 0.2); if (sx >= sz) roof(rm, x, y0 + h, z, sz, rh, sx, Math.PI / 2); else roof(rm, x, y0 + h, z, sx, rh, sz, 0); }
