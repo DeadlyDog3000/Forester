@@ -736,6 +736,11 @@ async function fetchModel(k, url) {
             { float fl = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(fl * vec3(${coat[1]}), diffuseColor.rgb, ${coat[0].toFixed(2)}); }`);
         }, "coat" + k);
       }
+      // (the guns' stocks walnut, oiled and handled dark: the photographed wood came out a bright orange-red in the sun)
+      if (/^(musket|pistol)$/.test(k) && n === "pbr") addHook(m, sh => {
+        sh.fragmentShader = sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
+          { float wl = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(wl * vec3(1.25, 0.95, 0.72), diffuseColor.rgb, 0.45) * 0.82; }`);
+      }, "walnut");
       if (n === "glass") { m.roughness = 0.15; m.metalness = 0.4; }
       // (bright metal — a gun's furniture, a blade — with no reflection to show goes black: kept only a little metal)
       if (n === "steel" || n === "brass" || n === "iron") m.metalness = Math.min(m.metalness, n === "iron" ? 0.3 : 0.4);

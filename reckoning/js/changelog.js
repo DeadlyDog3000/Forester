@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.200", date: "26 October 2026", title: "Walnut",
+    items: [
+      "Musket and pistol stocks are dark oiled walnut instead of a bright orange-red in the sun.",
+    ],
+  },
+  {
     v: "1.99.199", date: "26 October 2026", title: "The Danish camp",
     items: [
       "The Danish camp before Hamburg is a European army's: lines of ridge tents, a red pavilion at their head, instead of round Turkish pavilions scattered about.",
