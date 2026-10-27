@@ -465,8 +465,13 @@ export class Hamburg extends WorldBase {
     for (const y of [3.4, 6.4, 9.4]) b.box(W, 0.2, 0.1, cx, y, H.z1 + 0.02, TIMBER);
     for (const x of [H.x0 + 0.1, 10.8, 15.2, H.x1 - 0.1]) b.box(0.2, h, 0.1, x, h / 2, H.z1 + 0.02, TIMBER);
     for (const [x, y] of [[9.9, 1.7], [16.1, 1.7], [9.9, 4.9], [13, 4.9], [16.1, 4.9], [9.9, 7.9], [13, 7.9], [16.1, 7.9], [13, 11]]) {
-      lit.box(0.9, 1.3, 0.08, x, y, H.z1 + 0.06, 0xffd9a0);
-      b.box(1.1, 0.1, 0.12, x, y - 0.72, H.z1 + 0.06, TIMBER);
+      // (the glass a thin pane set back in its frame — as a box standing proud of the wall, its sides glowed with the
+      //  leaded panes smeared across them — and round it the frame, its mullion and transom, the sill under)
+      lit.box(0.84, 1.24, 0.02, x, y, H.z1 + 0.02, 0xffd9a0);
+      b.box(1.06, 0.1, 0.1, x, y + 0.67, H.z1 + 0.05, TIMBER);
+      for (const sd of [-1, 1]) b.box(0.1, 1.44, 0.1, x + sd * 0.48, y, H.z1 + 0.05, TIMBER);
+      b.box(0.05, 1.24, 0.05, x, y, H.z1 + 0.045, TIMBER); b.box(0.84, 0.05, 0.05, x, y + 0.16, H.z1 + 0.045, TIMBER);
+      b.box(1.16, 0.09, 0.18, x, y - 0.68, H.z1 + 0.08, TIMBER);
     }
     // a sign over the door: a sheaf of wheat, for the grain the house dealt in
     b.box(0.08, 0.08, 0.9, 13, 2.85, H.z1 + 0.45, TIMBER);
@@ -664,8 +669,8 @@ export class Hamburg extends WorldBase {
     b.add(new THREE.ConeGeometry(4.2, 26, 8), 0x4a7a6a, 0, 49, 57.5, 0, Math.PI / 8, 0);
     b.add(new THREE.SphereGeometry(0.5, 8, 6), 0xd4af37, 0, 62.4, 57.5);
     // windows: tall and pointed, dim
-    for (const x of [-6, -2.2, 2.2, 6]) lit.box(1.2, 5, 0.1, x, 7, 57.45, 0xe0b070);
-    for (const y of [12, 22, 30]) lit.box(1.4, 3, 0.1, 0, y, 54.2, 0xe0b070);
+    for (const x of [-6, -2.2, 2.2, 6]) lit.box(1.2, 5, 0.03, x, 7, 57.45, 0xe0b070);
+    for (const y of [12, 22, 30]) lit.box(1.4, 3, 0.03, 0, y, 54.2, 0xe0b070);
     b.box(2.2, 3.6, 0.2, 0, 1.8, 54.2, 0x3a2418);
     this.col.addBox(-8, 57.5, 8, 66.5, 20); this.col.addBox(-3.3, 54.2, 3.3, 61, 40);
   }

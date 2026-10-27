@@ -10,7 +10,7 @@
 // Stripe dashboard and in the buyer's receipt), and is good only once Stripe says that checkout was paid — asked of
 // Stripe directly, whenever the key is first used, and again now and then after (a refund or a dispute takes it back).
 //
-//   GET /shop/status          { on, live }                    — is the shop open
+//   GET /shop/status          { on, live, sale }              — is the shop open, and any sale on
 //   GET /shop/start           { url, claim }                  — from the game: a checkout, and a ticket to claim its key
 //   GET /shop/claim?c=        { state: pending|paid|gone, key }  — the game asking whether it's paid yet
 //   GET /shop/buy             303 → Stripe Checkout           — from the website's Buy button
@@ -49,6 +49,20 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
   const contact = () => cfg("SMTP_FROM") || cfg("SMTP_USER") || "the address on the game's page";
   const isOn = () => !!(cfg("STRIPE_SECRET_KEY") && cfg("STRIPE_PRICE"));
   const isLive = () => /^(sk|rk)_live_/.test(cfg("STRIPE_SECRET_KEY"));
+  // ---- a sale: for a while, the game at a lower price — the checkout charges it, and on its last day it ends by itself.
+  //  The Halloween sale, CA$7.99 (from CA$14.99) to the end of Tuesday 3 November 2026, Pacific time. (SALE_PRICE in
+  //  cents and SALE_UNTIL, an ISO time, in the settings file override it, or start another.)
+  const SALE = { name: "Halloween sale", cents: 799, currency: "cad", until: "2026-11-04T08:00:00Z", price: "CA$7.99", was: "CA$14.99" };
+  const sale = () => {
+    const cents = +(cfg("SALE_PRICE") || SALE.cents), until = Date.parse(cfg("SALE_UNTIL") || SALE.until);
+    return cents > 0 && Date.now() < until ? { ...SALE, cents, until: new Date(until).toISOString(), price: "CA$" + (cents / 100).toFixed(2) } : null;
+  };
+  // (the sale's line: the regular price's own product and tax treatment, looked up once, at the sale's amount)
+  let regular = null;
+  const saleLine = async sl => {
+    if (!regular) { try { const pr = await stripe("GET", `/v1/prices/${encodeURIComponent(cfg("STRIPE_PRICE"))}`); regular = { product: pr.product, tax: pr.tax_behavior, cur: pr.currency }; } catch (e) { regular = { product: null, tax: null, cur: null }; log("shop: couldn't read the regular price (" + e.message + "); the sale's line names the game itself"); } }
+    return { price_data: { currency: regular.cur || sl.currency, unit_amount: sl.cents, ...(regular.product ? { product: regular.product } : { product_data: { name: "Forester: Reckoning" } }), ...(regular.tax && regular.tax !== "unspecified" ? { tax_behavior: regular.tax } : {}) }, quantity: 1 };
+  };
 
   // ---- the book of keys: on disk, written whole and swapped in, so a crash never leaves half of it ----
   const file = dataDir ? path.join(dataDir, "shop.json") : null;
@@ -83,10 +97,10 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
   // ---- a checkout: the key made first, and carried by the payment ----
   const cleanUser = u => String(u || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 32);
   async function checkout(claim = null, user = "") {
-    const key = mintKey(), site = SITE();
+    const key = mintKey(), site = SITE(), sl = sale();
     const s = await stripe("POST", "/v1/checkout/sessions", {
       mode: "payment",
-      line_items: { 0: { price: cfg("STRIPE_PRICE"), quantity: 1 } },
+      line_items: { 0: sl ? await saleLine(sl) : { price: cfg("STRIPE_PRICE"), quantity: 1 } },
       success_url: `${site}?paid={CHECKOUT_SESSION_ID}#buy`,
       cancel_url: `${site}#buy`,
       client_reference_id: key,
@@ -101,7 +115,7 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
     // (tickets nobody came back for, after a day: forgotten)
     for (const [c, v] of Object.entries(book.claims)) if (Date.now() - v.at > 86400000) delete book.claims[c];
     save();
-    log(`shop: checkout opened (${s.id.slice(0, 16)}…)`);
+    log(`shop: checkout opened (${s.id.slice(0, 16)}…, ${((s.amount_total | 0) / 100).toFixed(2)} ${s.currency || ""}${sl ? ", " + sl.name : ""})`);
     return s;
   }
 
@@ -248,7 +262,7 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
   }
   async function handle(u, req, res) {
     const p = u.pathname;
-    if (p === "/shop/status") return json(res, 200, { on: isOn(), live: isLive() }), true;
+    if (p === "/shop/status") return json(res, 200, { on: isOn(), live: isLive(), sale: sale() }), true;
     if (p === "/shop/sales") {
       if (tooMany(req, "x", 30, 60000)) return json(res, 429, { error: "too many" }), true;
       if (!tokenOk(u.searchParams.get("t"))) return json(res, 403, { error: "no" }), true;

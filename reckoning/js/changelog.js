@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.219", date: "27 October 2026", title: "Halloween sale, and your house's windows",
+    items: [
+      "Halloween sale: the full game is CA$7.99 (from CA$14.99) until the end of Tuesday 3 November. The Buy page and the title screen say so, and the price goes back by itself when the sale ends.",
+      "The windows on the front of your family's house in Hamburg are set in proper frames, with a mullion and transom and a sill under them. They were glowing boxes standing out of the wall, the leaded panes smeared across their sides. The church's tall windows lost the same glowing edges.",
+    ],
+  },
+  {
     v: "1.99.218", date: "27 October 2026", title: "The burnt farm's chimney",
     items: [
       "The chimney stack of the burnt-out farm between the lines is laid in courses of stone like its walls, stepped in near the top and blackened by the fire, instead of one smooth grey block.",

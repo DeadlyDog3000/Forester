@@ -26,7 +26,11 @@ export const SHOP = {
   // (the game's page, where the buy box is: what the Buy button opens until there's a checkout link of its own)
   url: "https://deadlydog3000.github.io/deadlydog-productions/reckoning.html#buy",
   price: "CA$14.99",
+  // (a sale: the server's checkout charges it while it lasts — this only says so on the Buy page, and stops saying so
+  //  when it ends)
+  sale: { name: "Halloween sale", price: "CA$7.99", until: Date.parse("2026-11-04T08:00:00Z"), ends: "Tuesday 3 November" },
 };
+export const saleOn = () => !!(SHOP.sale && Date.now() < SHOP.sale.until);
 export const SALES_OPEN = !!SHOP.open;
 export const buyUrl = () => SHOP.checkout || SHOP.url;
 const KEY = "reckoning.licence.v1";

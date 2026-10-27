@@ -25,7 +25,7 @@ import { KINDS } from "./economy.js";
 import { AMBITIONS, ambitionsDone } from "./ambitions.js";
 import { loadModels } from "./models.js";
 import { goreOff } from "./gore.js";
-import { full, gate, activate, recheck, SHOP, SALES_OPEN, buyUrl, startPurchase, watchPurchase } from "./licence.js";
+import { full, gate, activate, recheck, SHOP, SALES_OPEN, buyUrl, startPurchase, watchPurchase, saleOn } from "./licence.js";
 import { ARMS } from "./raid.js";
 import { SKILLS, SKILL_NAME, JOB_SKILL, TEMPER, MARKS, topSkills, skillLvl, trainCost } from "./people.js";
 import { FAITHS, FAITH_IDS, faithOf, census, dedication } from "./faith.js";
@@ -348,11 +348,13 @@ G.openBuy = what => {
   $("buyKick").textContent = what === "story" ? "The demo ends here" : "The full game";
   $("buyWhy").textContent = BUY_WHY[what] || BUY_WHY.title;
   $("buyList").innerHTML = [`The whole story — all ${CHAPTERS.filter(c => !/free play/i.test(c.title)).length} chapters, Hamburg to a city of your own, and free play after`, "The campaign — Europe in 1683 and a crown of your own, from Easy to Ruthless, alone or with a friend", "Battles & duels, against the bots or other players, ranked", "Worlds & colonies — the Wide World, a co-op colony, nations, Frontier", "Every update to come"].map(x => `<li>${x}</li>`).join("");
-  $("buyPrice").textContent = SHOP.price; $("buyMsg").textContent = ""; $("buyMsg").className = "buy-msg";
+  $("buyPrice").textContent = saleOn() ? `${SHOP.sale.name}: ${SHOP.sale.price}, was ${SHOP.price} (until ${SHOP.sale.ends})` : SHOP.price; $("buyMsg").textContent = ""; $("buyMsg").className = "buy-msg";
   screen("buy");
 };
 G.demoGate = () => gate("story");
 $("btnUnlock").onclick = () => G.openBuy("title");
+// (a sale on: the title's link says so)
+if (saleOn() && $("btnUnlock")) $("btnUnlock").textContent = `${SHOP.sale.name} · the full game ${SHOP.sale.price}`;
 // (bought from here: Stripe's checkout in the browser, and the game unlocking itself as soon as it's paid)
 const bought = (key, a) => {
   const m = $("buyMsg");
