@@ -57,11 +57,20 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
     const cents = +(cfg("SALE_PRICE") || SALE.cents), until = Date.parse(cfg("SALE_UNTIL") || SALE.until);
     return cents > 0 && Date.now() < until ? { ...SALE, cents, until: new Date(until).toISOString(), price: "CA$" + (cents / 100).toFixed(2) } : null;
   };
-  // (the sale's line: the regular price's own product and tax treatment, looked up once, at the sale's amount)
+  // (the sale's line: the game's own product — it carries the tax code Stripe insists on — at the sale's amount. The
+  //  product's found from the regular price, or, when the key may not read prices, from an earlier checkout's line)
   let regular = null;
+  const findRegular = async () => {
+    try { const pr = await stripe("GET", `/v1/prices/${encodeURIComponent(cfg("STRIPE_PRICE"))}`); return { product: pr.product, tax: pr.tax_behavior, cur: pr.currency }; } catch (e) {}
+    for (const sid of Object.keys(book.sessions).reverse().slice(0, 5)) {
+      try { const li = await stripe("GET", `/v1/checkout/sessions/${encodeURIComponent(sid)}/line_items?limit=1`), pr = li && li.data && li.data[0] && li.data[0].price; if (pr && pr.product && pr.id === cfg("STRIPE_PRICE")) return { product: pr.product, tax: pr.tax_behavior, cur: pr.currency }; } catch (e) {}
+    }
+    return null;
+  };
   const saleLine = async sl => {
-    if (!regular) { try { const pr = await stripe("GET", `/v1/prices/${encodeURIComponent(cfg("STRIPE_PRICE"))}`); regular = { product: pr.product, tax: pr.tax_behavior, cur: pr.currency }; } catch (e) { regular = { product: null, tax: null, cur: null }; log("shop: couldn't read the regular price (" + e.message + "); the sale's line names the game itself"); } }
-    return { price_data: { currency: regular.cur || sl.currency, unit_amount: sl.cents, ...(regular.product ? { product: regular.product } : { product_data: { name: "Forester: Reckoning" } }), ...(regular.tax && regular.tax !== "unspecified" ? { tax_behavior: regular.tax } : {}) }, quantity: 1 };
+    if (!regular) regular = await findRegular();
+    if (!regular) return null;
+    return { price_data: { currency: regular.cur || sl.currency, unit_amount: sl.cents, product: regular.product, ...(regular.tax && regular.tax !== "unspecified" ? { tax_behavior: regular.tax } : {}) }, quantity: 1 };
   };
 
   // ---- the book of keys: on disk, written whole and swapped in, so a crash never leaves half of it ----
@@ -97,10 +106,14 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
   // ---- a checkout: the key made first, and carried by the payment ----
   const cleanUser = u => String(u || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 32);
   async function checkout(claim = null, user = "") {
-    const key = mintKey(), site = SITE(), sl = sale();
-    const s = await stripe("POST", "/v1/checkout/sessions", {
+    const key = mintKey(), site = SITE();
+    // (a sale's line, if there's a sale and its line can be made; if Stripe won't take it, the regular price — a buyer
+    //  is never left without a checkout)
+    let sl = sale(), line = sl ? await saleLine(sl) : null;
+    if (sl && !line) { log("shop: the sale's line couldn't be made (the game's product wasn't found); regular price"); sl = null; }
+    const params = line => ({
       mode: "payment",
-      line_items: { 0: sl ? await saleLine(sl) : { price: cfg("STRIPE_PRICE"), quantity: 1 } },
+      line_items: { 0: line || { price: cfg("STRIPE_PRICE"), quantity: 1 } },
       success_url: `${site}?paid={CHECKOUT_SESSION_ID}#buy`,
       cancel_url: `${site}#buy`,
       client_reference_id: key,
@@ -109,6 +122,9 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
       allow_promotion_codes: "true",
       ...(cfg("STRIPE_TAX") === "1" ? { automatic_tax: { enabled: "true" } } : {}),
     });
+    let s;
+    try { s = await stripe("POST", "/v1/checkout/sessions", params(line)); }
+    catch (e) { if (!line) throw e; log("shop: Stripe refused the sale's line (" + e.message + "); regular price"); regular = null; sl = null; s = await stripe("POST", "/v1/checkout/sessions", params(null)); }
     book.keys[key] = { s: s.id, at: Date.now(), paid: false, checked: 0, insts: [], ...(cleanUser(user) ? { user: cleanUser(user) } : {}) };
     book.sessions[s.id] = key;
     if (claim) book.claims[claim] = { key, at: Date.now() };

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.220", date: "27 October 2026", title: "The sale's checkout",
+    items: [
+      "The Halloween sale's checkout uses the game's own listing at Stripe, and if Stripe ever refuses the sale price the Buy button still opens a checkout instead of failing.",
+    ],
+  },
+  {
     v: "1.99.219", date: "27 October 2026", title: "Halloween sale, and your house's windows",
     items: [
       "Halloween sale: the full game is CA$7.99 (from CA$14.99) until the end of Tuesday 3 November. The Buy page and the title screen say so, and the price goes back by itself when the sale ends.",
