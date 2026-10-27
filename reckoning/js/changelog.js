@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.207", date: "26 October 2026", title: "Gabions",
+    items: [
+      "The gabions in front of the batteries are wicker baskets: willow rods woven over and under their stakes, the stakes' ends standing out of the packed earth on top, the sides a little bellied. Before, they were brown barrels in hoops.",
+    ],
+  },
+  {
     v: "1.99.206", date: "26 October 2026", title: "The sawbuck",
     items: [
       "The sawhorse by the chopping block is a sawbuck: two X-frames of rough poles joined by a rail, with a log lying in their V's ready for the saw, instead of four straight posts under a plank.",

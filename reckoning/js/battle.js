@@ -9,7 +9,7 @@
 // Your company is yours to command (F): where to stand and in what order, when to fire and at whom, when to charge.
 // The other side has its own officer.
 
-import { THREE, rockGeo, mat, makeFlame, flicker, FLAMES } from "./core.js";
+import { THREE, rockGeo, mat, makeFlame, flicker, FLAMES, addDetail } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -241,6 +241,31 @@ export function inUniform(look, u) {
 // ---------------------------------------------------------------------------
 //  the field: the works, the cover they give, and the guns
 // ---------------------------------------------------------------------------
+// a gabion's weave: willow rods round and round, over one stake and under the next, each row the other way about, the
+// stakes showing between — drawn once on a canvas, and its light and dark serve for the bumps too
+let WICKER = null;
+function wickerMat() {
+  if (WICKER) return WICKER;
+  const N = 512, cv = document.createElement("canvas"); cv.width = cv.height = N; const x = cv.getContext("2d");
+  x.fillStyle = "#30251a"; x.fillRect(0, 0, N, N);
+  const STK = 18, ROWS = 44, sw = N / STK, rh = N / ROWS; let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let s = 0; s < STK; s++) { x.fillStyle = "#4a3824"; x.fillRect(s * sw + sw / 2 - 4, 0, 8, N); }
+  for (let r = 0; r < ROWS; r++) {
+    const tone = [[176, 142, 100], [158, 126, 90], [184, 152, 112], [146, 120, 92], [168, 146, 112]][Math.floor(rnd() * 5)];
+    for (let s = 0; s < STK; s++) {
+      const over = (r + s) % 2 === 0, x0 = s * sw + sw / 2 - (over ? 0 : -4), w = sw - (over ? 0 : 8), y0 = r * rh + 1;
+      const g = x.createLinearGradient(0, y0, 0, y0 + rh - 2), k = over ? 1 : 0.62;
+      const c = (f) => `rgb(${tone[0] * k * f | 0},${tone[1] * k * f | 0},${tone[2] * k * f | 0})`;
+      g.addColorStop(0, c(0.55)); g.addColorStop(0.35, c(1.08)); g.addColorStop(1, c(0.5));
+      x.fillStyle = g; for (const o of [0, -N]) { x.beginPath(); x.ellipse(x0 + w / 2 + o, y0 + (rh - 2) / 2, w / 2 + (over ? 3 : 0), (rh - 2) / 2, 0, 0, Math.PI * 2); x.fill(); }
+    }
+  }
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  WICKER = new THREE.MeshStandardMaterial({ map: t, bumpMap: t, bumpScale: 2.5, roughness: 0.95, color: 0xffffff, side: THREE.DoubleSide });
+  addDetail(WICKER, { scale: 3, amount: 0.12, grain: 0.3, surface: "none" });
+  return WICKER;
+}
+
 export class Field {
   // C: the middle of the field; dx: how far either side's line stands from it (west is side 0, east side 1)
   // fort: the side whose fort it is (0 yours, 1 theirs), or null for the open field
@@ -502,9 +527,13 @@ export class Field {
   }
   gabion(x, z, side = null, inward = null) {
     const g = new THREE.Group(), h = 1.15, R = 0.42;
-    const basket = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.96, h, 12, 4, true), this.M.wicker); basket.position.y = h / 2; g.add(basket);
-    // (the weave: bands round it)
-    for (let k = 1; k < 5; k++) { const b = new THREE.Mesh(new THREE.TorusGeometry(R + 0.008, 0.012, 4, 14), this.M.wicker); b.rotation.x = Math.PI / 2; b.position.y = k * h / 5; g.add(b); }
+    // (a basket woven of willow round its stakes, not a barrel in hoops: the weave in its texture, the stakes' ends
+    //  standing up out of the earth at the top, its sides a little bellied with what is packed in it)
+    const bg = new THREE.CylinderGeometry(R, R * 0.96, h, 18, 6, true), bp = bg.attributes.position;
+    for (let i = 0; i < bp.count; i++) { const yy = bp.getY(i) / h + 0.5, k = 1 + Math.sin(yy * Math.PI) * 0.045; bp.setX(i, bp.getX(i) * k); bp.setZ(i, bp.getZ(i) * k); }
+    bg.computeVertexNormals();
+    const basket = new THREE.Mesh(bg, wickerMat()); basket.position.y = h / 2; g.add(basket);
+    for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2, st = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.016, 0.16, 4), this.M.stave); st.position.set(Math.cos(a) * R * 0.99, h + 0.05, Math.sin(a) * R * 0.99); g.add(st); }
     const top = new THREE.Mesh(new THREE.SphereGeometry(R * 0.98, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), this.M.earth); top.scale.y = 0.35; top.position.y = h - 0.02; g.add(top);
     this.put(g, x, z, this.r() * 6);
     // (solid round, as a basket is; a place to crouch behind it, for the side whose it is)
