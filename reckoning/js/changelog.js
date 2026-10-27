@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.192", date: "26 October 2026", title: "Ships in the Elbe",
+    items: [
+      "The ships before Hamburg lie out on the Elbe itself, wherever the river runs deepest, instead of being set down in the woods beside it.",
+    ],
+  },
+  {
     v: "1.99.191", date: "26 October 2026", title: "Hamburg, 1686",
     items: [
       "The battle before Hamburg is fought at Hamburg: tall narrow brick houses with their steep gables to the street, some timber-framed; a great brick church with a green copper needle of a spire; and the city's works as they were, brick-faced ramparts with a turfed breastwork and low arrowhead bastions with sentry boxes, instead of a medieval wall with battlements and towers.",

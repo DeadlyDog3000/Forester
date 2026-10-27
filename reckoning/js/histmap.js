@@ -459,7 +459,10 @@ export function buildThings(w, C, b, flip) {
     ships(u0, u1, v, n = 4) {
       for (let i = 0; i < n; i++) {
         const m = modelCopy(i % 2 ? "ship_pinnace" : "ship_dutch"); if (!m) continue;
-        const p = at(u0 + (u1 - u0) * (n > 1 ? i / (n - 1) : 0.5), v + (hsh(i, 5.3) - 0.5) * 24);
+        // (out on the river itself: the deepest spot across it near where it's asked for — never on dry land)
+        const uu = u0 + (u1 - u0) * (n > 1 ? i / (n - 1) : 0.5); let p = null, lo = WATER - 1.2;
+        for (let dv = -60; dv <= 60; dv += 4) { const q = at(uu, v + dv), h = y(q.x, q.z); if (h < lo && y(q.x + 8, q.z) < WATER - 0.6 && y(q.x - 8, q.z) < WATER - 0.6) { lo = h; p = q; } }
+        if (!p) continue;
         m.scene.position.set(p.x, WATER - 0.4, p.z); m.scene.rotation.y = Math.PI / 2 + (hsh(i, 2.1) - 0.5) * 0.5;
         m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; } });
         g.add(m.scene);
