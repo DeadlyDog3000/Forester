@@ -210,6 +210,7 @@ window.G = G; window.__renderer = renderer; window.__camera = camera;
 //  atmosphere: sun, sky, fog, and how bright the windows are
 // ---------------------------------------------------------------------------
 const sky = makeSky();
+let skyBackOn = null;
 const sun = new THREE.DirectionalLight(0xffffff, 2);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -1696,6 +1697,10 @@ function updateCamera(dt) {
   sun.position.set(p.pos.x + sd.x * 90, p.pos.y + sd.y * 90, p.pos.z + sd.z * 90);
   sun.target.position.set(p.pos.x, p.pos.y, p.pos.z);
   sky.position.copy(camera.position);
+  // (a world's painted backdrop — a city kilometres off, see histmap's skyline — hung on the sky: its direction and size
+  //  true from the field, drawn after the sky and before the world)
+  { const want = G.world && G.world.skyBack || null;
+    if (skyBackOn !== want) { if (skyBackOn) sky.remove(skyBackOn); skyBackOn = want; if (want) { sky.renderOrder = -2; want.position.copy(want.userData.at); sky.add(want); } } }
   // (the clouds drift on, with the wind)
   sky.material.uniforms.cloudT.value = (G.time || 0) * (1 + (G.windV ? Math.hypot(G.windV.x, G.windV.z) : 0.4));
 }

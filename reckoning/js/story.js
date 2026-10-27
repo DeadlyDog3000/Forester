@@ -2869,7 +2869,7 @@ async function chDanes(w) {
   // (the city itself at your back: Hamburg's stone walls, its defenders on the walk behind the parapet and its guns in the
   //  embrasures — not a field redoubt — and the Danish tents across the field)
   const b = { ...H, campaign: true, fort: null,
-    map: { ...H.map, things: [["town", -1, 3, 1, 1686, 0], ...H.map.things.filter(t => t[0] === "tents")] },
+    map: { ...H.map, things: [["town", -1, 3, 1, 1686, 0, "hamburg"], ...H.map.things.filter(t => t[0] === "tents" || t[0] === "skyline" || t[0] === "ships")] },
     sides: [{ ...H.sides[0], name: `The city's militia, and the company from ${S.name}`, cos: [{ uni: "hamburg", muster: mus, guns: 0, call: { musketeer: "Militiaman" } }, ...H.sides[0].cos] }, H.sides[1]],
     after: ["The works held. Days later the Duke of Celle's regiments came up the Elbe road, and King Christian struck his camp and went home. Hamburg stayed free.",
       "The Danes drove you off the works by the Elbe, but the city held behind its walls until the Duke of Celle's regiments came up the road. King Christian struck his camp and went home. Hamburg stayed free."],

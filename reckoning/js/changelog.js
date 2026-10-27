@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.191", date: "26 October 2026", title: "Hamburg, 1686",
+    items: [
+      "The battle before Hamburg is fought at Hamburg: tall narrow brick houses with their steep gables to the street, some timber-framed; a great brick church with a green copper needle of a spire; and the city's works as they were, brick-faced ramparts with a turfed breastwork and low arrowhead bastions with sentry boxes, instead of a medieval wall with battlements and towers.",
+      "Beyond the works the whole city stands against the sky — its bastions and windmills, the sea of roofs, the five green spires — always there over the haze, from the walls and from the Danish camp alike; and ships lie in the Elbe below it.",
+      "The historical battle of Hamburg has the same skyline and ships in place of four lone spires.",
+    ],
+  },
+  {
     v: "1.99.190", date: "26 October 2026", title: "The city wall",
     items: [
       "Hamburg's wall, seen at the end of the streets, is coursed stone with a battered foot, a string course under the battlements and buttresses along its inside, instead of a plain grey slab; the side walls have their battlements too.",

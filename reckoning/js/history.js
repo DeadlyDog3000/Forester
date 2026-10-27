@@ -85,7 +85,7 @@ export const BATTLES = [
   {
     id: "hamburg", name: "Hamburg", date: "August 1686", year: 1686, lon: 9.99, lat: 53.55, at: "Before the walls of Hamburg",
     hour: "afternoon", cloud: 0.4, mist: 0, fort: 0, won: 0, you: 0,
-    map: { low: 3, rivers: [{ v: 150, w: 90, d: 3 }], r2: 380, things: [["city", -96, -110, 110, 10], ["spire", -170, -30, 110], ["spire", -190, 40, 100], ["spire", -150, 70, 90], ["spire", -215, -70, 95], ["tents", 70, 110, -60, 60, 14]] },
+    map: { low: 3, rivers: [{ v: 150, w: 90, d: 3 }], r2: 380, things: [["city", -96, -110, 110, 10], ["skyline", -320, -10, 1.7], ["ships", -230, -140, 128, 4], ["tents", 70, 110, -60, 60, 14]] },
     brief: "King Christian V of Denmark wants the free city of Hamburg for himself. He has brought an army and his siege guns to its walls. The city's own citizens stand on the works with the militia, and wait for help from Lüneburg.",
     after: ["The walls held. Troops from Brunswick-Lüneburg came to the city's aid, and the Danes struck their camp and went home. Hamburg stayed free.", "Here the walls gave way, and Hamburg is the King of Denmark's."],
     sides: [
