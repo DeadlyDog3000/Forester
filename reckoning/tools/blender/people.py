@@ -1312,9 +1312,13 @@ def build_person(key):
         P.sphere("cap", WHITE, (0, hy - 0.004, top + 0.06), (0.062, 0.066, 0.07), segs=16, rings=8)
     elif hat in ("shapka", "kolpak"):
         # a cap of cloth (the regiment's colour), a deep band of fur round it; the kolpak taller, a brooch at the front
+        # (the kolpak's felt crown narrowing as it rises and leaning back a little, its top rounded soft: a tall felt
+        #  cap, not a stovepipe hat)
         tall = 0.13 if hat == "kolpak" else 0.07
-        P.cyl("hat", WHITE, (0, hy, top - 0.05), (0, hy, top + tall), 0.1, 0.088 if hat == "kolpak" else 0.094, segs=22)
-        P.sphere("hat", WHITE, (0, hy, top + tall), (0.088 if hat == "kolpak" else 0.094, 0.092 if hat == "kolpak" else 0.098, 0.03), segs=18, rings=8)
+        lean = 0.028 if hat == "kolpak" else 0.0
+        rt = 0.07 if hat == "kolpak" else 0.094
+        P.cyl("hat", WHITE, (0, hy, top - 0.05), (0, hy + lean, top + tall), 0.1, rt, segs=22)
+        P.sphere("hat", WHITE, (0, hy + lean, top + tall), (rt, rt * 1.05, 0.045 if hat == "kolpak" else 0.03), segs=18, rings=8)
         P.cyl("fur", WHITE, (0, hy, top - 0.08), (0, hy, top + 0.0), 0.122, 0.118, segs=22)
         P.sphere("fur", WHITE, (0, hy, top - 0.04), (0.126, 0.132, 0.045), segs=22, rings=8)
         if hat == "kolpak":

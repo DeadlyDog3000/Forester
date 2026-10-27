@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.209", date: "26 October 2026", title: "The kolpak",
+    items: [
+      "Sobieski's haiduks wear the kolpak as it was, a tall felt cap narrowing as it rises and leaning back a little over its fur band, its top rounded soft, instead of a straight-sided stovepipe that looked like a top hat a century early.",
+    ],
+  },
+  {
     v: "1.99.208", date: "26 October 2026", title: "Palisades and haystacks",
     items: [
       "Palisade stakes are young trunks in their bark, each a little different and turned its own way, their points hewn to a few pale axe facets, instead of smooth brown poles with two dark hoops round them like barrels and a cone stuck on top. The same goes for the stakes along the forts' flanks, the logs facing the ramparts, and the broken stakes in a breach.",
