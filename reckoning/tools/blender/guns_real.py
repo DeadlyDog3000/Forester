@@ -131,11 +131,23 @@ def musket():
     bpy.ops.import_scene.gltf(filepath=src)
     made = {}
     for o in [o for o in bpy.data.objects if o.type == "MESH"]:
+        # (a part with no photograph of its own — the ramrod, the horn tip, the soot in the bore — keeps the colour that
+        #  was painted on it, as its material's own: its painted colours taken off with the rest, it came out white, a
+        #  white stripe down every musket)
+        mean = None
+        if o.data.color_attributes:
+            ca = o.data.color_attributes[0]; n = len(ca.data)
+            if n: mean = [sum(d.color[c] for d in ca.data) / n for c in range(3)]
         for a in list(o.data.color_attributes):
             o.data.color_attributes.remove(a)
         for i, slot in enumerate(o.material_slots):
             part = (slot.material.name if slot.material else "").split("_")[-1].split(".")[0]
             if part not in SKIN:
+                if slot.material and mean and slot.material.use_nodes:
+                    b = next((nd for nd in slot.material.node_tree.nodes if nd.type == "BSDF_PRINCIPLED"), None)
+                    if b:
+                        for l in list(b.inputs["Base Color"].links): slot.material.node_tree.links.remove(l)
+                        b.inputs["Base Color"].default_value = (*mean, 1.0)
                 continue
             asset, tint, metal, rough, per_m = SKIN[part]
             name = "musket_pbr" if part == "wood" else f"musket_{part}"

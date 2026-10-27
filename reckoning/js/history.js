@@ -63,7 +63,7 @@ export const BATTLES = [
   {
     id: "vienna", name: "Vienna", date: "12 September 1683", year: 1683, lon: 16.3, lat: 48.27, at: "The Kahlenberg, before Vienna",
     hour: "afternoon", cloud: 0.15, mist: 0, fort: null, won: 0, you: 0,
-    map: { ramp: [-140, 26, 30, 0], hills: [{ u: -210, v: -40, r: 90, h: 34 }], rivers: [{ v: -210, w: 60, d: 2.6 }], r2: 360, things: [["vines", -72, -14, -46, -14], ["vines", -72, -14, 14, 46], ["tents", 64, 120, -55, 55, 22], ["spire", 330, 40, 120, "slate"], ["city", 300, -60, 140, 12], ["skyline", 420, 10, 1.6, "vienna", 30], ["church", -150, 60, 0.3, 18, 8], ["house", -130, 76, 0.2], ["house", -110, 70, 0.5]] },
+    map: { ramp: [-140, 26, 30, 0], hills: [{ u: -210, v: -40, r: 90, h: 34 }], rivers: [{ v: -210, w: 60, d: 2.6 }], r2: 360, things: [["vines", -72, -14, -46, -14], ["vines", -72, -14, 14, 46], ["tents", 64, 120, -55, 55, 22], ["city", 300, -60, 140, 12], ["skyline", 420, 10, 1.6, "vienna", 30], ["church", -150, 60, 0.3, 18, 8], ["house", -130, 76, 0.2], ["house", -110, 70, 0.5]] },
     brief: "Kara Mustafa's army has had Vienna under siege for two months, and the city is near its end. The relief army has come over the Wienerwald: the Emperor's men, the Saxons and Bavarians, and King Jan Sobieski's Poles. They fight down the vineyards of the Kahlenberg all day towards the Turkish camp, and at the end of it comes the greatest cavalry charge in history.",
     after: ["The relief army broke through the Turkish lines, and Sobieski's winged hussars rode down into the camp. The siege was lifted that evening. The Ottoman Empire would never stand at Vienna again.", "Here the relief failed. Vienna's fate hangs on the walls alone."],
     sides: [

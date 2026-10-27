@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.222", date: "27 October 2026", title: "The musket, slimmer",
+    items: [
+      "The musket is shaped like the real thing: the ramrod runs close under the barrel in a slim fore-end, a few millimetres of wood between, instead of three centimetres down in a fore-end as deep as a plank. Seen end on, it is far less tall.",
+      "The white stripe down every musket is gone. The ramrod, the horn tip and the soot in the bore had lost their colour when the musket got its real wood and metal, and showed white.",
+      "At Vienna, a tall pale ghost of a tower no longer stands in the haze beside St. Stephen's.",
+    ],
+  },
+  {
     v: "1.99.221", date: "27 October 2026", title: "Eyes, and no haystacks",
     items: [
       "People's eyes are eyes again: the whites are white and the eye colour is in the iris. The colour meant for the iris had been painted over the whites, and with their shading on top, everyone stared out of two black holes.",
