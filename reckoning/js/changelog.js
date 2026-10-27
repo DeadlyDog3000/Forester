@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.201", date: "26 October 2026", title: "Ferns",
+    items: [
+      "The ferns and nettles about the clearing are green and lit through like leaves, instead of lying about the meadow dark as black spiders.",
+      "Dead branches on the forest floor are weathered silver-grey.",
+      "Behind the roofs of Hamburg on the battlefield stand its windmills.",
+    ],
+  },
+  {
     v: "1.99.200", date: "26 October 2026", title: "Walnut",
     items: [
       "Musket and pistol stocks are dark oiled walnut instead of a bright orange-red in the sun.",

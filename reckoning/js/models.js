@@ -736,6 +736,9 @@ async function fetchModel(k, url) {
             { float fl = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)); diffuseColor.rgb = mix(fl * vec3(${coat[1]}), diffuseColor.rgb, ${coat[0].toFixed(2)}); }`);
         }, "coat" + k);
       }
+      // (the dead branches on the ground weathered silver-grey, as fallen wood goes: as photographed, dark and thin in the
+      //  grass, they lay about the meadow like black spiders)
+      if (/^branch_/.test(k)) m.color.setRGB(2.0, 1.95, 1.88);
       // (the guns' stocks walnut, oiled and handled dark: the photographed wood came out a bright orange-red in the sun)
       if (/^(musket|pistol)$/.test(k) && n === "pbr") addHook(m, sh => {
         sh.fragmentShader = sh.fragmentShader.replace("#include <map_fragment>", `#include <map_fragment>
@@ -2063,9 +2066,23 @@ export function addSway(material) {
 // the same shape, with a sway for each of n instances (the shape's own buffers shared, not copied)
 // a real model's one mesh, to be drawn many times over (an InstancedMesh): its shape and its material — swaying in the
 // wind, if asked (a fern, a bush) — or null, if it isn't to be had
+// (a scanned plant's leaves lit as leaves: both faces alike — seen from low down, the undersides of the fronds were lit as
+//  if turned from the sky, and the ferns in the meadow lay about like black spiders — no gloss, and the sun through them)
+function leafLight(m) {
+  addHook(m, sh => {
+    sh.fragmentShader = sh.fragmentShader.replace("#include <normal_fragment_begin>", THREE.ShaderChunk.normal_fragment_begin.replace("normal *= faceDirection;", ""))
+      .replace("#include <aomap_fragment>", `reflectedLight.directSpecular *= 0.15; reflectedLight.indirectSpecular *= 0.15;
+        #if NUM_DIR_LIGHTS > 0
+        { float tr = max(dot(-normalize(vViewPosition), directionalLights[0].direction), 0.0);
+          reflectedLight.directDiffuse += diffuseColor.rgb * directionalLights[0].color * (0.1 + 0.4 * tr * tr * tr) * vec3(0.85, 1.05, 0.6); }
+        #endif
+        #include <aomap_fragment>`);
+  }, "leaflight");
+}
 export function realPart(key, sway = false) {
   const M = MODELS[key]; if (!M) return null; let mesh = null; M.scene.traverse(o => { if (!mesh && o.isMesh) mesh = o; });
   if (!mesh) return null;
+  if (/^(fern|nettle)$/.test(key) && !mesh.material.userData.leafLit) { mesh.material.userData.leafLit = true; leafLight(mesh.material); }
   // (a plant: its leaves cut out of their cards by the texture's own alpha, both faces drawn, stirring in the wind)
   if (sway && !mesh.material.userData.swayed) { const m = mesh.material; m.userData.swayed = true; m.side = THREE.DoubleSide; m.alphaTest = 0.45; m.transparent = false; m.depthWrite = true; addSway(m); }
   return { geo: mesh.geometry, mat: mesh.material };

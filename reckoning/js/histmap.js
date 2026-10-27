@@ -270,6 +270,8 @@ export function buildThings(w, C, b, flip) {
         cone(rank >= 3 ? M_.copper : M_.slate, t.x, y0 + th, t.z, 3.8, th * 0.45, rank >= 3 ? 8 : 4);
         solid(p.x, p.z, Lc / 2, Wd / 2, 0, y0 + 9); solid(t.x, t.z, 2.75, 2.75, 0, y0 + th); } }
       { const p = T(sq - 8, -10), y0 = y(p.x, p.z); const wl = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 0.9, 12), M_.stone); wl.position.set(p.x, y0 + 0.45, p.z); wl.castShadow = true; g.add(wl); solid(p.x, p.z, 1.1, 1.1, 0, y0 + 0.9); }
+      // (and Hamburg's windmills, standing up behind the roofs as they stood on the city's ramparts)
+      if (hh) for (const sv of [-1, 1]) { const mu = d * (end + 30), mv = sv * (W * 0.55); B.mill(mu, mv); w.clearScenery(at(mu, mv).x, at(mu, mv).z, 8); }
       // (Hamburg's streets cobbled, wall to wall, the stones following the lie of the ground)
       if (hh) {
         const u0 = wallU + 1.5, u1 = end + 14, v0 = -(W + 5), v1 = W + 5, du = 2, dv = 2, nu = Math.ceil((u1 - u0) / du), nv = Math.ceil((v1 - v0) / dv);
