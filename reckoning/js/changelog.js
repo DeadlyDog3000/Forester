@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.218", date: "27 October 2026", title: "The burnt farm's chimney",
+    items: [
+      "The chimney stack of the burnt-out farm between the lines is laid in courses of stone like its walls, stepped in near the top and blackened by the fire, instead of one smooth grey block.",
+    ],
+  },
+  {
     v: "1.99.217", date: "27 October 2026", title: "Scots pine crowns",
     items: [
       "The Scots pines' crowns have body to them: each bough's cloud of needles is flattish but full, and tipped a little this way or that, instead of pressed so thin that from below every pine looked like a stack of saucers.",

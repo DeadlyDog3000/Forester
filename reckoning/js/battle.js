@@ -686,8 +686,9 @@ export class Field {
       if (wl.gap && wl.gap[2]) { const rows = Math.round(wl.gap[2] / 0.3); for (let k = 0; k < rows; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(wl.gap[1], 0.28, T), this.M.stone); st.position.set(wl.gap[0], 0.15 + k * 0.3, 0); g.add(st); } const pc = this.at(mid.x, mid.z, wry, wl.gap[0], 0); this.solid(pc.x, pc.z, wl.gap[1], T + 0.1, wry, wl.gap[2], false); }
       this.put(g, mid.x, mid.z, wry);
     }
-    // the chimney stack, at the west end, up above the rest
-    { const c = this.at(x, z, ry, -W / 2 + 0.6, 0), g = new THREE.Group(); const st = new THREE.Mesh(new THREE.BoxGeometry(1.0, 3.6, 0.9), this.M.stone); st.position.y = 1.8; g.add(st); const cap = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.0), this.M.soot); cap.position.y = 3.62; g.add(cap); this.put(g, c.x, c.z, ry); const cc = this.w.col.addOBox(c.x, c.z, 0.5, 0.45, ry, this.y(c.x, c.z) + 3.6); this.cols.push(cc); }
+    // the chimney stack, at the west end, up above the rest: laid in courses like the walls, stepped in near the top, the
+    //  last of it blackened by the fire
+    { const c = this.at(x, z, ry, -W / 2 + 0.6, 0), g = new THREE.Group(); for (let k = 0; k < 12; k++) { const tw = k > 7 ? 0.82 : 1.0, st = new THREE.Mesh(new THREE.BoxGeometry(tw * (0.97 + r() * 0.06), 0.29, (tw - 0.1) * (0.97 + r() * 0.06)), k > 9 ? this.M.soot : this.M.stone); st.position.set((r() - 0.5) * 0.03, 0.15 + k * 0.3, (r() - 0.5) * 0.03); st.rotation.y = (r() - 0.5) * 0.04; g.add(st); } const cap = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.0), this.M.soot); cap.position.y = 3.62; g.add(cap); this.put(g, c.x, c.z, ry); const cc = this.w.col.addOBox(c.x, c.z, 0.5, 0.45, ry, this.y(c.x, c.z) + 3.6); this.cols.push(cc); }
     // the roof-beams, fallen in and burnt black, one end up on the wall
     for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(D + 0.4, 0.2, 0.2), this.M.soot), c = this.at(x, z, ry, -1.6 + i * 1.6 + (r() - 0.5) * 0.6, 0), g = new THREE.Group(); b.rotation.set(0, Math.PI / 2 + (r() - 0.5) * 0.4, (r() - 0.5) * 0.5); b.position.y = 0.25 + r() * 0.3; g.add(b); this.put(g, c.x, c.z, ry); }
     // ash and char over the floor
