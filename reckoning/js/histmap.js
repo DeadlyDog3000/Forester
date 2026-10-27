@@ -277,8 +277,10 @@ export function buildThings(w, C, b, flip) {
       list.forEach((p, i) => {
         const yy = y(p.x, p.z), h = hsh(p.z, p.x); m4.makeTranslation(p.x, yy + 0.62, p.z); st.setMatrixAt(i, m4);
         for (let k = 0; k < 2; k++) {
-          e.set(0, hsh(p.x + k, p.z) * 6, 0); q.setFromEuler(e); const sc = (k ? 0.3 : 0.42) * (0.85 + h * 0.3);
-          m4.compose(new THREE.Vector3(p.x + (hsh(i, k) - 0.5) * 0.2, yy + (k ? 1.05 : 0.68), p.z), q, new THREE.Vector3(sc, sc * 0.8, sc));
+          // (drawn out along the row and low, so that each vine's leaves run into the next: a vineyard's rows, green
+          //  hedges at hip height with the stakes standing out of them, not a grid of little round trees)
+          e.set(0, (hsh(p.x + k, p.z) - 0.5) * 0.4, 0); q.setFromEuler(e); const sc = (k ? 0.32 : 0.44) * (0.85 + h * 0.3);
+          m4.compose(new THREE.Vector3(p.x + (hsh(i, k) - 0.5) * 0.16, yy + (k ? 1.0 : 0.56), p.z + (k ? 0.35 : -0.2)), q, new THREE.Vector3(sc * 0.72, sc * (k ? 0.75 : 1.0), sc * 1.7));
           vi.setMatrixAt(i * 2 + k, m4); vi.setColorAt(i * 2 + k, c.setHex([0x5a7a34, 0x64823a, 0x52702e][(i + k) % 3]));
         }
       });

@@ -2899,7 +2899,12 @@ export function makeHorse(coat = 0x6a4428, seed = 1, opts = {}) {
     const tack = new THREE.Group(), cm = mat(cloth, { surface: "cloth", roughness: 0.95 }), lm = mat(0x3a2416, { surface: "none", roughness: 0.7 });
     // (the cloth a thin blanket over the back, just wider than the saddle; the saddle on it, high at the pommel and the
     //  cantle; the stirrup leathers down each side)
-    const blanket = new THREE.Mesh(new THREE.SphereGeometry(0.3, 20, 10, 0, Math.PI * 2, 0, Math.PI * 0.42), cm); blanket.scale.set(1.0, 0.45, 1.7); blanket.position.set(0, HORSE_BACK - 0.12, HORSE_SADDLE_Z); tack.add(blanket);
+    // (the cloth hangs: over the back and down each flank, a bordered edge along the bottom — a flat dome laid on the
+    //  back stood out past the horse's sides like a plate)
+    const BL = 0.62, bg = new THREE.CylinderGeometry(0.24, 0.24, BL, 22, 1, true, Math.PI / 2 - 0.12, Math.PI + 0.24); bg.rotateX(Math.PI / 2);
+    const cmD = mat(cloth, { surface: "cloth", roughness: 0.95, side: THREE.DoubleSide }), tm = mat(0xb89048, { surface: "cloth", roughness: 0.8, side: THREE.DoubleSide });
+    const blanket = new THREE.Mesh(bg, cmD); blanket.scale.set(1.0, 1.25, 1.0); blanket.position.set(0, HORSE_BACK - 0.285, HORSE_SADDLE_Z - 0.02); tack.add(blanket);
+    for (const t0 of [Math.PI / 2 - 0.12, Math.PI * 1.5 + 0.04]) { const tg = new THREE.CylinderGeometry(0.243, 0.243, BL + 0.01, 3, 1, true, t0, 0.08); tg.rotateX(Math.PI / 2); const tr = new THREE.Mesh(tg, tm); tr.scale.copy(blanket.scale); tr.position.copy(blanket.position); tack.add(tr); }
     const seat = new THREE.Mesh(new THREE.SphereGeometry(0.2, 18, 9, 0, Math.PI * 2, 0, Math.PI / 2), lm); seat.scale.set(0.95, 0.38, 1.35); seat.position.set(0, HORSE_BACK - 0.03, HORSE_SADDLE_Z); tack.add(seat);
     for (const z of [0.24, -0.25]) { const r = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6), lm); r.scale.set(1.6, 0.8, 0.6); r.position.set(0, HORSE_BACK + 0.04, HORSE_SADDLE_Z + z); tack.add(r); }
     for (const sd of [-1, 1]) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.4, 0.03), lm); st.position.set(sd * 0.27, HORSE_BACK - 0.27, HORSE_SADDLE_Z + 0.05); st.rotation.z = sd * 0.12; tack.add(st); }

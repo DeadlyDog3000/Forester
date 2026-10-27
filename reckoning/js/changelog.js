@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.213", date: "27 October 2026", title: "Saddle cloths and vine rows",
+    items: [
+      "A riding horse's saddle cloth hangs over its back and down both flanks, with a gold border along the bottom. It used to be a flat dome laid on the back that stood out past the horse's sides like a plate, a blue or green disc round every horseman.",
+      "The vineyards at Vienna grow in rows: each vine's leaves run into the next along its row at hip height, the stakes standing out of them, instead of a grid of little round trees.",
+    ],
+  },
+  {
     v: "1.99.212", date: "27 October 2026", title: "Post mills and revetted ramparts",
     items: [
       "The windmills (at Seneffe, Fehrbellin and in some skirmishes) are real post mills: a weatherboarded body standing on its great post in crossed sills on brick piers, four lattice sails spread with canvas, a ladder up to the door and the tail pole to turn it into the wind. Before, it was a plank box with four boards stuck on the front, and the woods are cleared back from it.",
