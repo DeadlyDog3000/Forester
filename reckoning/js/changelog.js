@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.193", date: "26 October 2026", title: "Battles run smoothly",
+    items: [
+      "Big battles run more than twice as smoothly: a skirt or coat near you still swings every moment, one further off a little less often, and far across the field it simply hangs, where nobody could see it move.",
+    ],
+  },
+  {
     v: "1.99.192", date: "26 October 2026", title: "Ships in the Elbe",
     items: [
       "The ships before Hamburg lie out on the Elbe itself, wherever the river runs deepest, instead of being set down in the woods beside it.",

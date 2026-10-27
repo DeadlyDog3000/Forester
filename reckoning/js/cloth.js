@@ -199,8 +199,18 @@ function outOf(p, a, b, rad) {
 // one step of the cloth, once a frame however many pieces of it are drawn
 const G_ = new THREE.Vector3(0, -9.8, 0);
 const _W = new THREE.Matrix4(), _T = new THREE.Matrix4();
+// (how often a net is worked, by how far it is from the eye: every frame near to, every other or third further off, and
+//  past seventy metres not at all — its hem stays as it last hung, which no one can tell at that distance. A battle's
+//  hundred and sixty skirts and coats each worked every frame took the field from sixty frames a second to twenty)
 function step(C, frame) {
   if (C.frame === frame) return; C.frame = frame;
+  const cam = typeof window !== "undefined" && window.__camera;
+  if (cam && C.pts) {
+    const h = C.hips.matrixWorld.elements, e = cam.matrixWorld.elements, d2 = (h[12] - e[12]) ** 2 + (h[13] - e[13]) ** 2 + (h[14] - e[14]) ** 2;
+    const every = d2 > 4900 ? 0 : d2 > 1225 ? 3 : d2 > 324 ? 2 : 1;
+    if (every === 0) { C.last = performance.now() / 1000; return; }
+    if (every > 1 && (frame + (C.phase ??= Math.floor(Math.random() * 3))) % every) return;
+  }
   const now = performance.now() / 1000, dt = Math.min(1 / 30, C.last ? now - C.last : 1 / 60); C.last = now;
   if (dt <= 0) return;
   const hips = C.hips; hips.updateWorldMatrix(true, false);
@@ -222,6 +232,9 @@ function step(C, frame) {
   const legs = C.legs.map(([a, b]) => [a.getWorldPosition(new THREE.Vector3()), b.getWorldPosition(new THREE.Vector3())]);
   const pelvis = hips.getWorldPosition(new THREE.Vector3()), chest = C.spine ? C.spine.getWorldPosition(new THREE.Vector3()) : pelvis.clone();
   const seat = C.P && C.P.sitting > 0.5 ? pelvis.y - 0.1 * scale : null;
+  // (the ground once, under the hips: under one person it's as good as flat — looked up for every point of the net, six
+  //  times over, it was most of the cost)
+  const g0 = gy ? gy(pelvis.x, pelvis.z) + 0.02 : null;
   const LR = 0.095 * scale, BR = 0.13 * scale, pull = (1 - Math.pow(0.3, dt)) * keep * keep;
   const minR = (0.45 + 0.43 * keep) / 1.06;
   const wd = SWAY && SWAY.dir ? SWAY.dir.value : null, wt = SWAY ? SWAY.t.value : 0, wk = SWAY ? SWAY.k.value : 0;
@@ -259,7 +272,7 @@ function step(C, frame) {
       outOf(p, pelvis, chest, BR);
       // (sitting — on a bench, a log, in the saddle — the seat under him: cloth over it rests on it and falls from its edge)
       if (seat && Math.hypot(p.x - pelvis.x, p.z - pelvis.z) < 0.3 * scale && p.y < seat) p.y = seat;
-      if (gy) { const g = gy(p.x, p.z) + 0.02; if (p.y < g) { p.y = g; const q = Q[id(r, s)]; q.x = p.x * 0.6 + q.x * 0.4; q.z = p.z * 0.6 + q.z * 0.4; } }
+      if (g0 !== null) { const g = g0; if (p.y < g) { p.y = g; const q = Q[id(r, s)]; q.x = p.x * 0.6 + q.x * 0.4; q.z = p.z * 0.6 + q.z * 0.4; } }
     }
   }
   // (each piece: how far each point of the net is from where the bones alone would put it, in the piece's own space)
