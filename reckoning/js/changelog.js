@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.223", date: "27 October 2026", title: "Hamburg's marsh gate",
+    items: [
+      "The marsh gate is a real gate tower: an arched passage turned in dressed stone, arched plank doors strapped and studded with iron with a wicket in one leaf, the city's arms (a white castle on red) over the arch, battlements round the top. It was a grey slab with a flat brown board for a door.",
+      "Hamburg's street lamps are lanterns in iron frames, not glowing white boxes on poles.",
+    ],
+  },
+  {
     v: "1.99.222", date: "27 October 2026", title: "The musket, slimmer",
     items: [
       "The musket is shaped like the real thing: the ramrod runs close under the barrel in a slim fore-end, a few millimetres of wood between, instead of three centimetres down in a fore-end as deep as a plank. Seen end on, it is far less tall.",

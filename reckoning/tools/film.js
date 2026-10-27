@@ -93,8 +93,9 @@ export const SHOTS = {
   },
   gate: {
     secs: 5,
-    async stage() { await chapter(4); setAtmo("mist"); },
-    cam: (t, c) => rig.look(c, L(V(-37.6, 1.4, 42), V(-37.2, 1.35, 47.5), E(t)), V(-35, 3.0, 67), 50),
+    // (the postern's marker off: it shows through the walls in play, as a guide, and on film it's a pale card in the wall)
+    async stage() { await chapter(4); setAtmo("mist"); if (G.world && G.world.posternGlow) G.world.posternGlow.visible = false; },
+    cam: (t, c) => { if (G.world && G.world.posternGlow) G.world.posternGlow.visible = false; rig.look(c, L(V(-37.6, 1.4, 42), V(-37.2, 1.35, 47.5), E(t)), V(-35, 3.0, 67), 50); },
   },
   road: {
     secs: 6.5,

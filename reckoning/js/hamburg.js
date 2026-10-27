@@ -354,7 +354,10 @@ export class Hamburg extends WorldBase {
       lampB.box(0.06, 0.06, 0.6, x, 3.3, z, 0x2a2622, Math.atan2(-x, -z));
       const hx = x + Math.sin(Math.atan2(-x, -z)) * 0.3, hz = z + Math.cos(Math.atan2(-x, -z)) * 0.3;
       lampB.add(new THREE.ConeGeometry(0.2, 0.16, 4), 0x2a2622, hx, 3.28, hz, 0, Math.PI / 4, 0);
-      headB.box(0.3, 0.38, 0.3, hx, 3.02, hz, 0xffffff);
+      headB.box(0.28, 0.36, 0.28, hx, 3.02, hz, 0xffffff);
+      // (its iron frame: the corner posts and a bar round the middle of its glass — a lantern, not a glowing box)
+      for (const [a, c2] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) lampB.box(0.035, 0.4, 0.035, hx + a * 0.145, 3.02, hz + c2 * 0.145, 0x2a2622);
+      lampB.box(0.31, 0.03, 0.31, hx, 3.2, hz, 0x2a2622); lampB.box(0.3, 0.02, 0.3, hx, 3.04, hz, 0x2a2622);
       lampB.box(0.26, 0.04, 0.26, hx, 2.89, hz, 0x2a2622);
       this.col.addCircle(x, z, 0.12, 3.4);
       const gl = new THREE.Mesh(glowGeo, this.glowMat); gl.position.set(hx, 0.03, hz); gl.renderOrder = 1; root.add(gl);
@@ -697,14 +700,41 @@ export class Hamburg extends WorldBase {
       for (let z = -39.5; z < 69; z += 1.6) sw.box(2.4, 0.8, 0.8, sx * 63.2, top + 0.4, z, stone);
     }
     this.col.addBox(-64.4, -40, -62, 70, 20); this.col.addBox(62, -40, 64.4, 70, 20);
-    // the gatehouse
-    b.box(3, 13, 6, -38.5, 6.5, 69.2, stone, 0, 0.02); b.box(3, 13, 6, -31.5, 6.5, 69.2, stone, 0, 0.02);
-    b.box(10, 5, 6, -35, 10.5, 69.2, stone, 0, 0.02);
-    b.add(new THREE.ConeGeometry(6.2, 6, 4), 0x5a3a30, -35, 16, 69.2, 0, Math.PI / 4, 0);
-    this.col.addBox(-40, 66.2, -30, 72.2, 20);
-    // the great doors, shut
-    b.box(4, 7.8, 0.3, -35, 3.9, 67.2, 0x4a3020);
-    for (const y of [1.5, 4, 6.5]) b.box(4, 0.15, 0.1, -35, y, 67.02, 0x2a2622);
+    // the gatehouse: a tower over an arched passage — the arch turned in dressed stone, the passage dark behind its
+    //  doors; the doors themselves arched, of upright planks, strapped and studded with iron, a wicket in one leaf;
+    //  the city's arms over the arch, battlements along the top, and its roof (it stood as a grey slab with a flat
+    //  brown board for a door)
+    { const gx = -35, fz = 66.2, H = 13, R = 2, SP = 5.2, dz = fz + 0.7, dress = 0xa69c8a;
+      b.box(3, H, 6, gx - 3.5, H / 2, 69.2, stone, 0, 0.02); b.box(3, H, 6, gx + 3.5, H / 2, 69.2, stone, 0, 0.02);
+      b.box(4, H - SP - R - 0.6, 6, gx, (SP + R + 0.6 + H) / 2, 69.2, stone, 0, 0.02);
+      // (the spandrels over the arch, filled course by course down to its curve)
+      for (let i = 0; i < 16; i++) { const x = -R + (i + 0.5) * (2 * R / 16), yc = SP + Math.sqrt(Math.max(0, R * R - x * x)); const h = SP + R + 0.6 - yc; if (h > 0.01) b.box(2 * R / 16 + 0.01, h, 6, gx + x, yc + h / 2, 69.2, stone); }
+      // (the arch's dressed voussoirs, and its jambs)
+      for (let k = 0; k <= 10; k++) { const a = Math.PI * k / 10; b.add(BOXG, dress, gx + Math.cos(a) * (R + 0.25), SP + Math.sin(a) * (R + 0.25), fz - 0.04, 0, 0, a - Math.PI / 2, 0.62, 0.5, 0.2); }
+      for (const sd of [-1, 1]) for (let y = 0.4; y < SP; y += 0.9) b.box(0.55 + (Math.round(y) % 2) * 0.2, 0.86, 0.2, gx + sd * (R + 0.25), y + 0.03, fz - 0.04, dress);
+      // (the passage behind, dark)
+      b.box(2 * R, SP, 0.1, gx, SP / 2, fz + 2.5, 0x15120f); b.add(new THREE.CircleGeometry(R, 20, 0, Math.PI), 0x15120f, gx, SP, fz + 2.45, 0, Math.PI, 0);
+      // (the doors: upright planks, each its own shade, under an arched head; iron straps and their studs; the wicket)
+      const planks = 14;
+      for (let i = 0; i < planks; i++) { const x = -R + (i + 0.5) * (2 * R / planks), top = SP + Math.sqrt(Math.max(0, R * R - x * x)) - 0.05, c = [0x4a3020, 0x523624, 0x46301e, 0x4e3422][i % 4]; b.box(2 * R / planks - 0.015, top, 0.12, gx + x, top / 2, dz, c); }
+      for (const y of [0.9, 2.6, 4.3]) for (const sd of [-1, 1]) {
+        b.box(R - 0.12, 0.12, 0.05, gx + sd * (R / 2 + 0.02), y, dz - 0.085, 0x26231f);
+        for (let k = 0; k < 6; k++) b.add(new THREE.SphereGeometry(0.035, 5, 3), 0x3a3632, gx + sd * (0.2 + k * 0.32), y, dz - 0.115);
+      }
+      b.box(0.08, SP + R - 0.1, 0.06, gx, (SP + R) / 2, dz - 0.08, 0x2e2a26);
+      b.box(0.9, 1.8, 0.03, gx + 1.0, 0.95, dz - 0.075, 0x3e2a1a); b.box(0.06, 0.06, 0.06, gx + 0.66, 0.95, dz - 0.1, 0x2a2622);
+      // (the arms of Hamburg over the arch: a white castle of three towers on red)
+      b.box(1.7, 2.0, 0.12, gx, SP + R + 2.2, fz - 0.07, 0xa02a22); b.box(1.9, 2.2, 0.08, gx, SP + R + 2.2, fz - 0.02, dress);
+      b.box(1.1, 0.6, 0.06, gx, SP + R + 1.75, fz - 0.15, 0xe8e2d4);
+      for (const [x, h] of [[-0.4, 0.95], [0, 1.25], [0.4, 0.95]]) b.box(0.24, h, 0.06, gx + x, SP + R + 1.75 + h / 2, fz - 0.15, 0xe8e2d4);
+      b.box(0.3, 0.42, 0.065, gx, SP + R + 1.66, fz - 0.16, 0x2a2622);
+      // (a string course, and the battlements round the top of the tower, the roof standing within them)
+      b.box(10.4, 0.25, 6.4, gx, H - 2.2, 69.2, dress);
+      for (let x = -4.6; x <= 4.6; x += 1.3) { b.box(0.7, 0.9, 0.5, gx + x, H + 0.45, fz + 0.25, stone); b.box(0.7, 0.9, 0.5, gx + x, H + 0.45, 72.2 - 0.25, stone); }
+      for (let z = fz + 1.2; z <= 71.4; z += 1.3) { b.box(0.5, 0.9, 0.7, gx - 4.75, H + 0.45, z, stone); b.box(0.5, 0.9, 0.7, gx + 4.75, H + 0.45, z, stone); }
+      b.add(new THREE.ConeGeometry(5.4, 6, 4), 0x5a3a30, gx, H + 3, 69.2, 0, Math.PI / 4, 0);
+      b.add(new THREE.CylinderGeometry(0.04, 0.06, 1.4, 5), 0x2a2622, gx, H + 6.6, 69.2);
+      this.col.addBox(-40, 66.2, -30, 72.2, 20); }
     // the postern: a small door in the wall beside the gate
     // pale dressed stone round it, so it shows against the rubble of the wall
     b.box(1.7, 2.7, 0.12, -27.5, 1.35, 67.9, 0xc8bca8);
