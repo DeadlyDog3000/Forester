@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.205", date: "26 October 2026", title: "Village churches, cottages and castles",
+    items: [
+      "The churches on the battlefields are village churches: a buttressed nave on its stone plinth with tall windows between the buttresses, a lower chancel at the east end, a porch on the south side, and the tower with a door at its foot, string courses, the belfry's louvred openings and an eight-sided spire broached at its foot with an iron cross on top (or a parapet with corner pinnacles). Before, they were two plain blocks with a four-sided cone.",
+      "Cottages have shutters folded back beside their windows, sills, a stone footing under their walls and a chimney through the roof.",
+      "The castles at Chocim and Narva are castles: battlemented curtain walls round a court with arrow slits, round corner towers under conical roofs, a gatehouse with its gate shut, and the keep with its windows. Before, they were one solid block with four towers.",
+    ],
+  },
+  {
     v: "1.99.204", date: "26 October 2026", title: "Vienna below the Kahlenberg",
     items: [
       "At Vienna you can see Vienna: the besieged city lies out beyond the field, St. Stephen's great Gothic tower and its needle over the roofs, the long nave under its steep roof, the churches' towers, the Hofburg, the stone bastions on their pale glacis, and before the walls the Turks' siege, a sea of their tents and their trenches zig-zagging up. Before, the city was a few blocks lost in the haze.",

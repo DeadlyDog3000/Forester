@@ -125,17 +125,61 @@ export function buildThings(w, C, b, flip) {
       const cr = Math.cos(r), sr = Math.sin(r), lp = (lx, lz) => [p.x + lx * cr + lz * sr, p.z - lx * sr + lz * cr];
       for (const [lx, fz, door] of [[-sx * 0.28, 1, 0], [sx * 0.28, 1, 0], [0, 1, 1], [0, -1, 0]]) {
         const [wx, wz] = lp(lx, fz * (sz / 2 + 0.03));
-        if (door) box(M_.door, wx, y0 + 0.95, wz, 0.95, 1.9, 0.08, r); else box(M_.glass, wx, y0 + 1.75, wz, 0.75, 0.8, 0.06, r);
+        if (door) box(M_.door, wx, y0 + 0.95, wz, 0.95, 1.9, 0.08, r);
+        else {
+          box(M_.glass, wx, y0 + 1.75, wz, 0.75, 0.8, 0.06, r);
+          // (its shutters, folded back either side, and a sill under it)
+          for (const e of [-1, 1]) { const [hx, hz] = lp(lx + e * 0.58, fz * (sz / 2 + 0.05)); box(M_.dark, hx, y0 + 1.75, hz, 0.38, 0.86, 0.05, r); }
+          const [ux, uz] = lp(lx, fz * (sz / 2 + 0.07)); box(M_.sill, ux, y0 + 1.31, uz, 0.95, 0.1, 0.14, r);
+        }
       }
+      // (a stone footing under the walls, and a chimney up through the roof at one end)
+      box(M_.stone, p.x, y0 + 0.2, p.z, sx + 0.14, 0.5, sz + 0.14, r);
+      { const [cx, cz] = lp(sx * 0.12, -sz / 2 + 0.7); box(kind === "tile" ? M_.brick : M_.stone, cx, y0 + 5.2, cz, 0.75, 2.6, 0.75, r); box(M_.stone, cx, y0 + 6.55, cz, 0.9, 0.14, 0.9, r); }
       solid(p.x, p.z, sx / 2, sz / 2, r, y0 + 5);
     },
-    // a village church: the nave, and its tower at the west end with a spire or a cap
+    // a village church: the nave on its plinth, buttressed, its tall windows between; the chancel lower at the east
+    // end, a porch on the south side; and its tower at the west end — a door at its foot, string courses, the belfry's
+    // louvred openings — with a spire (eight-sided, broached at its foot, a cross on top) or a parapet
     church(u, v, ry = 0, tower = 18, spire = 10) {
       const p = at(u, v), y0 = y(p.x, p.z) - 0.4, r = ry * sg, c = Math.cos(r), s = Math.sin(r);
+      const lp = (lx, lz) => [p.x + lx * c + lz * s, p.z - lx * s + lz * c];
+      const bx = (m, lx, yy, lz, sx, sy, sz) => { const [x, z] = lp(lx, lz); return box(m, x, yy, z, sx, sy, sz, r); };
       box(M_.stone, p.x, y0 + 3.5, p.z, 16, 7, 8, r); roof(M_.slate, p.x, y0 + 6.6, p.z, 8, 4, 16, r + Math.PI / 2);
-      const tx = p.x - c * 9.5, tz = p.z + s * 9.5;
-      box(M_.stone, tx, y0 + tower / 2, tz, 5, tower, 5, r); cone(M_.slate, tx, y0 + tower, tz, 3.4, spire, 4).rotation.y = r + Math.PI / 4;
-      solid(p.x, p.z, 8, 4, r, y0 + 8); solid(tx, tz, 2.5, 2.5, r, y0 + tower);
+      bx(M_.ashlar2, 0, y0 + 0.35, 0, 16.3, 0.7, 8.3);
+      // (the chancel)
+      bx(M_.stone, 10, y0 + 2.9, 0, 4.4, 5.8, 6); { const [x, z] = lp(10.2, 0); roof(M_.slate, x, y0 + 5.6, z, 6, 2.8, 4.6, r + Math.PI / 2); }
+      // (buttresses, and the windows between them, on both sides)
+      for (const fz of [-1, 1]) {
+        for (const lx of [-8, -4, 0, 4]) bx(M_.ashlar, lx, y0 + 2.4, fz * 4.25, 0.7, 4.8, 0.6);
+        for (const lx of [-6, -2, 2, 6]) { bx(M_.glass, lx, y0 + 3.7, fz * 4.03, 1.0, 2.6, 0.06); bx(M_.sill, lx, y0 + 5.1, fz * 4.05, 1.3, 0.25, 0.1); bx(M_.sill, lx, y0 + 2.35, fz * 4.08, 1.3, 0.18, 0.16); }
+        bx(M_.glass, 10, y0 + 3.2, fz * 3.03, 0.8, 2.0, 0.06);
+      }
+      bx(M_.glass, 12.23, y0 + 3.2, 0, 0.06, 2.4, 1.2);
+      // (the porch on the south side, its door)
+      bx(M_.stone, 2, y0 + 1.4, 5.2, 3, 2.8, 2.6); { const [x, z] = lp(2, 5.3); roof(M_.slate, x, y0 + 2.8, z, 3.2, 1.5, 2.8, r); }
+      bx(M_.dark, 2, y0 + 1.1, 6.52, 1.3, 2.1, 0.06);
+      // (the tower)
+      const tx = -9.5;
+      bx(M_.stone, tx, y0 + tower / 2, 0, 5, tower, 5);
+      for (const k of [0.42, 0.78]) bx(M_.ashlar, tx, y0 + tower * k, 0, 5.3, 0.3, 5.3);
+      bx(M_.ashlar, tx - 2.52, y0 + 1.6, 0, 0.1, 3.2, 2.0); bx(M_.door, tx - 2.56, y0 + 1.35, 0, 0.08, 2.7, 1.4);
+      bx(M_.glass, tx - 2.53, y0 + tower * 0.6, 0, 0.06, 1.8, 0.7);
+      for (const [lx, lz, sx, sz] of [[2.53, 0, 0.06, 1.0], [-2.53, 0, 0.06, 1.0], [0, 2.53, 1.0, 0.06], [0, -2.53, 1.0, 0.06]]) {
+        bx(M_.dark, tx + lx, y0 + tower - 2.0, lz, sx || 1, 2.0, sz || 1);
+        for (let k = 0; k < 4; k++) bx(M_.wood, tx + lx * 1.01, y0 + tower - 2.75 + k * 0.48, lz * 1.01, sx < 0.5 ? 0.1 : 1.0, 0.1, sz < 0.5 ? 0.1 : 1.0);
+      }
+      const [tX, tZ] = lp(tx, 0);
+      if (spire > 0) {
+        cone(M_.slate, tX, y0 + tower, tZ, 3.6, spire * 0.3, 4).rotation.y = r + Math.PI / 4;
+        cone(M_.slate, tX, y0 + tower, tZ, 2.7, spire, 8).rotation.y = r + Math.PI / 8;
+        box(M_.iron, tX, y0 + tower + spire + 0.6, tZ, 0.1, 1.4, 0.1, r); box(M_.iron, tX, y0 + tower + spire + 0.85, tZ, 0.7, 0.1, 0.1, r);
+      } else {
+        for (const [lx, lz] of [[-2.2, -2.2], [2.2, -2.2], [2.2, 2.2], [-2.2, 2.2]]) bx(M_.ashlar, tx + lx, y0 + tower + 0.9, lz, 0.6, 1.8, 0.6);
+        for (const [lx, lz, sx, sz] of [[0, -2.35, 5, 0.3], [0, 2.35, 5, 0.3], [-2.35, 0, 0.3, 5], [2.35, 0, 0.3, 5]]) bx(M_.stone, tx + lx, y0 + tower + 0.4, lz, sx, 0.8, sz);
+      }
+      solid(p.x, p.z, 8, 4, r, y0 + 8); solid(tX, tZ, 2.5, 2.5, r, y0 + tower);
+      { const [x, z] = lp(10, 0); solid(x, z, 2.2, 3, r, y0 + 5.5); }
     },
     // a great town church far off: a tall tower, its spire — the skyline of a city
     spire(u, v, h = 70, kind = "copper") {
@@ -154,13 +198,36 @@ export function buildThings(w, C, b, flip) {
         for (let k = 0; k < 2; k++) { const r = at(u - (8 + k * 9), v + (hsh(v, k) - 0.5) * 10); const hh = 7 + hsh(k, v) * 5; box(M_.whitewash, r.x, y0 + hh / 2, r.z, 7, hh, 9); roof(M_.tile, r.x, y0 + hh, r.z, 9, 4, 7, Math.PI / 2); }
       }
     },
-    // a castle: a squat keep and a curtain wall with round towers
+    // a castle: a curtain wall round a court — battlemented, a wall-walk behind the merlons — round towers at its
+    // corners under their conical roofs, a gatehouse, and the tall keep inside with its windows and its roof
     castle(u, v, s = 1) {
-      const p = at(u, v), y0 = y(p.x, p.z) - 0.6;
-      box(M_.stone, p.x, y0 + 4 * s, p.z, 40 * s, 8 * s, 32 * s);
-      for (const [a, c] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const t = new THREE.Mesh(new THREE.CylinderGeometry(4 * s, 4.4 * s, 13 * s, 10), M_.stone); t.position.set(p.x + a * 20 * s, y0 + 6.5 * s, p.z + c * 16 * s); t.castShadow = true; g.add(t); cone(M_.slate, p.x + a * 20 * s, y0 + 13 * s, p.z + c * 16 * s, 4.6 * s, 5 * s, 10); }
-      box(M_.stone, p.x - 6 * s, y0 + 14 * s, p.z, 14 * s, 28 * s, 14 * s);
-      solid(p.x, p.z, 21 * s, 17 * s, 0, y0 + 12 * s);
+      const p = at(u, v), y0 = y(p.x, p.z) - 0.6, X = 20 * s, Z = 16 * s, H = 9 * s, T = 2.4 * s;
+      for (const [cx, cz, lx, lz] of [[0, -Z, 2 * X, T], [0, Z, 2 * X, T], [-X, 0, T, 2 * Z], [X, 0, T, 2 * Z]]) {
+        box(M_.stone, p.x + cx, y0 + H / 2, p.z + cz, lx, H, lz);
+        // (the merlons along its outer edge)
+        const n = Math.round(Math.max(lx, lz) / (2.2 * s)), along = lx > lz;
+        for (let i = 0; i < n; i++) { const t = -0.5 + (i + 0.5) / n, ox = along ? t * lx : (cx > 0 ? 1 : -1) * (T / 2 - 0.3 * s), oz = along ? (cz > 0 ? 1 : -1) * (T / 2 - 0.3 * s) : t * lz; if (i % 2 === 0) box(M_.ashlar, p.x + cx + ox, y0 + H + 0.55 * s, p.z + cz + oz, along ? 1.1 * s : 0.6 * s, 1.1 * s, along ? 0.6 * s : 1.1 * s); }
+        // (and arrow slits)
+        for (let i = 1; i < 4; i++) { const t = -0.5 + i / 4, o = (along ? cz : cx) > 0 ? 1 : -1; box(M_.dark, p.x + cx + (along ? t * lx : o * (T / 2 + 0.02)), y0 + H * 0.6, p.z + cz + (along ? o * (T / 2 + 0.02) : t * lz), along ? 0.25 * s : 0.06, 1.4 * s, along ? 0.06 : 0.25 * s); }
+      }
+      for (const [a, c] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(4 * s, 4.6 * s, 13 * s, 14), M_.stone); t.position.set(p.x + a * X, y0 + 6.5 * s, p.z + c * Z); t.castShadow = t.receiveShadow = true; tgt.add(t);
+        const r2 = new THREE.Mesh(new THREE.CylinderGeometry(4.25 * s, 4.25 * s, 0.6 * s, 14), M_.ashlar); r2.position.set(p.x + a * X, y0 + 12.4 * s, p.z + c * Z); r2.castShadow = true; tgt.add(r2);
+        cone(M_.slate, p.x + a * X, y0 + 12.7 * s, p.z + c * Z, 4.7 * s, 6.5 * s, 14);
+        for (const k of [0, 2]) { const an = Math.atan2(c, a) + (k - 1) * 0.9; box(M_.dark, p.x + a * X + Math.cos(an) * 4.12 * s, y0 + (6 + k) * s, p.z + c * Z + Math.sin(an) * 4.12 * s, 0.25 * s, 1.3 * s, 0.25 * s); }
+      }
+      // (the gatehouse on the front wall: two flanking towers, the arch between them shut with its gate)
+      const gx = p.x + (C.x > p.x ? 1 : -1) * X;
+      for (const e of [-1, 1]) box(M_.stone, gx, y0 + H * 0.65, p.z + e * 3.6 * s, 5 * s, H * 1.3, 3.2 * s);
+      box(M_.stone, gx, y0 + H * 0.92, p.z, 5 * s, H * 0.36, 4.2 * s);
+      box(M_.door, gx + (C.x > p.x ? 1 : -1) * 1.27 * s, y0 + H * 0.37, p.z, 0.1, H * 0.74, 3.6 * s);
+      // (the keep)
+      const kx = p.x - 6 * s;
+      box(M_.stone, kx, y0 + 14 * s, p.z, 14 * s, 28 * s, 14 * s);
+      for (const e of [-1, 1]) for (const k of [0.45, 0.68, 0.86]) { box(M_.glass, kx + e * 7.03 * s, y0 + 28 * s * k, p.z, 0.06, 1.6 * s, 0.8 * s); box(M_.glass, kx, y0 + 28 * s * k, p.z + e * 7.03 * s, 0.8 * s, 1.6 * s, 0.06); }
+      box(M_.ashlar, kx, y0 + 28.3 * s, p.z, 14.6 * s, 0.6 * s, 14.6 * s);
+      cone(M_.slate, kx, y0 + 28.6 * s, p.z, 10.4 * s, 7 * s, 4).rotation.y = Math.PI / 4;
+      solid(p.x, p.z, X + 2 * s, Z + 2 * s, 0, y0 + 12 * s);
     },
     // a tent: the Turkish camp's, round and peaked — or a soldier's ridge tent
     tent(u, v, r = 3, col = "canvas") {
