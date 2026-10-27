@@ -109,7 +109,7 @@ export function buildThings(w, C, b, flip) {
     wall: mat(0xb8ad96, { surface: "plaster" }), whitewash: mat(0xd8d0bc, { surface: "plaster" }), thatch: mat(0x8a7444), tile: mat(0x8a3a28, { surface: "tiles" }), slate: mat(0x4a4c52, { surface: "tiles" }), copper: mat(0x5a8a78), wood: mat(0x5a4632, { surface: "wood" }),
     stone: mat(0x8a8478, { surface: "stone" }), dark: mat(0x3a3430, { surface: "wood" }), plaster: mat(0xcfc0a0, { surface: "plaster" }), ochre: mat(0xc8a46a, { surface: "plaster" }), brick: mat(0x9a5a40, { surface: "brick" }), tile2: mat(0x9c5236, { surface: "tiles" }),
     brick2: mat(0x84462f, { surface: "brick" }), brick3: mat(0xa8684a, { surface: "brick" }), turf: mat(0x5c6a3a), timbered: mat(0xd8cfb8, { surface: "plaster" }), glass: mat(0x2b3238, { roughness: 0.35, metalness: 0.2 }), sill: mat(0xd2c8b4, { surface: "stone" }),
-    ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0, { surface: "cloth" }), red: mat(0xa8322a, { surface: "cloth" }), green: mat(0x4a7a48, { surface: "cloth" }), brass: mat(0xb08a3a, { metalness: 0.7, roughness: 0.4 }), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
+    ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0, { surface: "cloth" }), red: mat(0xa8322a, { surface: "cloth" }), green: mat(0x4a7a48, { surface: "cloth" }), sailcloth: mat(0xcfc4a8, { surface: "cloth", side: THREE.DoubleSide }), brass: mat(0xb08a3a, { metalness: 0.7, roughness: 0.4 }), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
   };
   const box = (m, x, yy, z, sx, sy, sz, ry = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; tgt.add(o); return o; };
   const roof = (m, x, yy, z, sx, h, sz, ry = 0) => { const s = new THREE.Shape(); s.moveTo(-sx / 2 - 0.3, 0); s.lineTo(0, h); s.lineTo(sx / 2 + 0.3, 0); s.lineTo(-sx / 2 - 0.3, 0); const geo = new THREE.ExtrudeGeometry(s, { depth: sz + 0.6, bevelEnabled: false }); geo.translate(0, 0, -(sz + 0.6) / 2); const o = new THREE.Mesh(geo, m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = true; tgt.add(o); return o; };
@@ -614,16 +614,43 @@ export function buildThings(w, C, b, flip) {
         g.add(m.scene);
       }
     },
+    // a post mill, as Flanders and Brandenburg built them: the whole weatherboarded body (the buck) turned to the wind
+    //  on its one great post, the post standing in its crossed sills on four low brick piers; four sails — lattice frames
+    //  of bars on their whips, a canvas spread over each — on the windshaft at the front; at the back the ladder up to
+    //  the door and the long tail pole the miller hauls round to turn the whole mill
     mill(u, v) {
-      const p = at(u, v), y0 = y(p.x, p.z);
-      box(M_.wood, p.x, y0 + 4, p.z, 3.4, 5, 3.4); roof(M_.wood, p.x, y0 + 6.5, p.z, 3.4, 1.6, 3.4);
-      const s = new THREE.Group(); for (let i = 0; i < 4; i++) { const a = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7, 0.1), M_.canvas); a.position.y = 3.5; const h = new THREE.Group(); h.rotation.z = i * Math.PI / 2 + 0.3; h.add(a); s.add(h); }
-      s.position.set(p.x, y0 + 5, p.z + 1.9); g.add(s); box(M_.wood, p.x, y0 + 1, p.z, 0.5, 2, 0.5);
-      solid(p.x, p.z, 1.8, 1.8, 0, y0 + 7);
+      const p = at(u, v); const y0 = y(p.x, p.z), x = p.x, z = p.z, by = y0 + 3.4, BW = 3.6, BD = 4.4, BH = 4.6;
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(M_.brick, x + a * 2.3, y0 + 0.25, z + b * 2.3, 0.9, 0.9, 0.9);
+      box(M_.dark, x, y0 + 0.75, z, 6.2, 0.35, 0.35, Math.PI / 4); box(M_.dark, x, y0 + 0.75, z, 6.2, 0.35, 0.35, -Math.PI / 4);
+      box(M_.dark, x, y0 + 1.9, z, 0.6, 2.6, 0.6);
+      for (const a of [0, 1, 2, 3]) { const r = a * Math.PI / 2 + Math.PI / 4, o = box(M_.dark, x + Math.cos(r) * 1.2, y0 + 1.5, z + Math.sin(r) * 1.2, 0.2, 2.4, 0.2); o.rotation.set(Math.sin(r) * 0.6, 0, -Math.cos(r) * 0.6); }
+      box(M_.wood, x, by + BH / 2, z, BW, BH, BD);
+      for (let k = 0; k < 7; k++) box(M_.dark, x, by + 0.35 + k * 0.66, z, BW + 0.06, 0.05, BD + 0.06);
+      roof(M_.wood, x, by + BH, z, BW, 1.7, BD, 0);
+      box(M_.door, x + 0.6, by + 1.05, z - BD / 2 - 0.03, 0.9, 1.9, 0.06);
+      box(M_.glass, x - 0.9, by + 3.0, z - BD / 2 - 0.03, 0.5, 0.6, 0.06); box(M_.glass, x + BW / 2 + 0.03, by + 3.2, z + 0.8, 0.06, 0.6, 0.5);
+      // (the ladder from the ground to the door, and the tail pole beside it)
+      const lad = new THREE.Group(); lad.position.set(x + 0.6, y0, z - BD / 2 - 1.6); lad.rotation.x = 0.55; tgt.add(lad);
+      for (const s2 of [-0.45, 0.45]) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.12, 4.0, 0.12), M_.dark); o.position.set(s2, 1.8, 0); o.castShadow = true; lad.add(o); }
+      for (let k = 0; k < 9; k++) { const o = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.22), M_.wood); o.position.set(0, 0.3 + k * 0.42, 0); lad.add(o); }
+      const tp = box(M_.dark, x - 0.8, by - 0.2, z - BD / 2 - 2.6, 0.2, 0.2, 6.0); tp.rotation.x = -0.5;
+      // (the sails: on the windshaft at the front, tipped back a little, a slow turn on them in the breeze)
+      const sails = new THREE.Group(); sails.position.set(x, by + BH - 0.7, z + BD / 2 + 0.55); sails.rotation.x = -0.08; g.add(sails);
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.8, 8), M_.dark); hub.rotation.x = Math.PI / 2; sails.add(hub);
+      const rot = new THREE.Group(); rot.rotation.z = hsh(u, v) * 3; sails.add(rot);
+      for (let i = 0; i < 4; i++) {
+        const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2; rot.add(arm);
+        const add = (m, sx, sy, sz, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(px, py, pz); o.castShadow = true; arm.add(o); return o; };
+        add(M_.dark, 0.24, 7.0, 0.2, 0, 3.5, 0.12);
+        for (const sd of [0.25, 1.75]) add(M_.dark, 0.08, 5.4, 0.08, sd, 4.1, 0.22);
+        for (let k = 0; k <= 9; k++) add(M_.dark, 1.62, 0.06, 0.06, 1.0, 1.4 + k * 0.6, 0.24);
+        const c = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 5.2), M_.sailcloth); c.position.set(1.0, 4.1, 0.3); c.castShadow = true; arm.add(c);
+      }
+      solid(x, z, 2.4, 2.4, 0, by + BH + 1.7);
     },
   };
   // (no wood growing where a town, a camp or a vineyard stands: the trees there cleared first)
-  const CLEAR = { house: 9, church: 16, spire: 30, castle: 34, tent: 6, mill: 7 };
+  const CLEAR = { house: 9, church: 16, spire: 30, castle: 34, tent: 6, mill: 14 };
   for (const [k, ...a] of M.things) {
     if (CLEAR[k]) { const p = at(a[0], a[1]); w.clearScenery(p.x, p.z, CLEAR[k] * (k === "castle" ? a[2] || 1 : 1)); }
     else if (k === "convoy") { const d = a[0] || -1; for (let v = -100; v <= 100; v += 8) { const p = at(d * 12, v); w.clearScenery(p.x, p.z, 8); } }

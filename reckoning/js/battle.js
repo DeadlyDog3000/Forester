@@ -504,7 +504,13 @@ export class Field {
     const g = new THREE.Group(), m = new THREE.Mesh(geo, this.M.turf); m.rotation.y = Math.PI / 2;
     // (which face is outward: the long slope toward the enemy, the steep revetted face inside)
     const sx = side === 0 ? -1 : 1; m.scale.z = -sx; g.add(m);
-    for (let i = 0; i < Math.round(len / 0.32); i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 1.0, 6), this.M.post); lg.position.set(sx * 0.95, 0.5, -len / 2 + (i + 0.5) * 0.32); g.add(lg); }
+    // (its steep inner face revetted: stakes driven every half-metre or so, willow wattle woven between them holding
+    //  the earth, and a squared timber laid along their heads — not a row of bare posts standing like so many stumps)
+    { const n = Math.max(2, Math.round(len / 0.55)), sp = len / n;
+      for (let i = 0; i <= n; i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.085, 1.28, 6), this.M.post); lg.position.set(sx * 0.97, 0.62, -len / 2 + i * sp); lg.rotation.y = this.r() * 3; g.add(lg); }
+      const wg = new THREE.PlaneGeometry(len, 1.12), uv = wg.attributes.uv; for (let k = 0; k < uv.count; k++) uv.setXY(k, uv.getX(k) * len / 2.64, uv.getY(k) * 1.12 / 1.15);
+      const wt = new THREE.Mesh(wg, wickerMat()); wt.rotation.y = Math.PI / 2; wt.position.set(sx * 0.93, 0.6, 0); g.add(wt);
+      const cap = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, len + 0.2), this.M.wood); cap.position.set(sx * 0.95, 1.3, 0); g.add(cap); }
     const gg = new THREE.Group(); gg.add(g); g.rotation.y = -Math.PI / 2;
     this.put(gg, x, z, ry - Math.PI / 2, -0.05);
     this.solid(x, z, len, 2.4, ry, 1.3, side, inward);

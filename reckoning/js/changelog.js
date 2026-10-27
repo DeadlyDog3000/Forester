@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.212", date: "27 October 2026", title: "Post mills and revetted ramparts",
+    items: [
+      "The windmills (at Seneffe, Fehrbellin and in some skirmishes) are real post mills: a weatherboarded body standing on its great post in crossed sills on brick piers, four lattice sails spread with canvas, a ladder up to the door and the tail pole to turn it into the wind. Before, it was a plank box with four boards stuck on the front, and the woods are cleared back from it.",
+      "The inner face of a fort's rampart is revetted as it should be: slim stakes with willow wattle woven between them and a timber along their heads. It was a row of flat-topped posts that, standing beside them at the start of Sedgemoor or Hamburg, looked like a row of stumps.",
+    ],
+  },
+  {
     v: "1.99.211", date: "27 October 2026", title: "The Sultan's camp, out of the fight",
     items: [
       "At Zenta and Chocim the Ottoman camp's tents stood right where the enemy forms up, a cluster of squat green domes in the middle of the battlefield. The camp now lies behind their line, by the river at Zenta.",
