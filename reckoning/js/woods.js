@@ -1008,9 +1008,14 @@ export class Woods extends WorldBase {
     blk.box(0.66, 0.52, 0.56, BLOCK.x, 0.26, BLOCK.z, 0x5e4229, 0.25, 0.05);
     blk.box(0.64, 0.02, 0.54, BLOCK.x, 0.53, BLOCK.z, 0xa88a62, 0.25);
     for (let k = 0; k < 4; k++) blk.box(0.5, 0.012, 0.012, BLOCK.x + (k - 1.5) * 0.08, 0.541, BLOCK.z, 0x6a4f34, 0.25 + 0.6 + k * 0.3);
-    // a sawhorse beside it
-    for (const s of [-0.7, 0.7]) { blk.box(0.08, 0.9, 0.08, BLOCK.x + 1.3 + s, 0.45, BLOCK.z + 0.35, 0x5a4030); blk.box(0.08, 0.9, 0.08, BLOCK.x + 1.3 + s, 0.45, BLOCK.z - 0.35, 0x5a4030); }
-    blk.box(1.8, 0.1, 0.12, BLOCK.x + 1.3, 0.9, BLOCK.z, 0x6a4a30);
+    // a sawbuck beside it: two X-frames of rough poles, pegged where they cross and joined by a rail, a log lying in
+    //  their V's ready for the saw (not four straight posts under a plank)
+    { const pole = new THREE.CylinderGeometry(0.042, 0.05, 1.3, 7), X0 = BLOCK.x + 1.3;
+      for (const s of [-0.62, 0.62]) for (const a of [-0.52, 0.52]) blk.add(pole, 0x6b5640, X0 + s, 0.56, BLOCK.z, a, 0, 0, 1, 1, 1, 0.08);
+      blk.add(pole, 0x64503a, X0, 0.56, BLOCK.z, 0, 0, Math.PI / 2, 0.9, 1.05, 0.9);
+      const log = new THREE.CylinderGeometry(0.13, 0.14, 1.7, 10), end = new THREE.CylinderGeometry(0.125, 0.125, 0.012, 10);
+      blk.add(log, 0x4c3c2c, X0 + 0.05, 0.83, BLOCK.z, 0, 0, Math.PI / 2, 1, 1, 1, 0.06);
+      for (const e of [-1, 1]) blk.add(end, 0xb48e62, X0 + 0.05 + e * 0.856, 0.83, BLOCK.z, 0, 0, Math.PI / 2); }
     const bm2 = blk.build(); bm2.position.y = y0; root.add(bm2);
     // (collider tops are heights in the world, and the clearing stands well above nought)
     this.col.addCircle(BLOCK.x, BLOCK.z, 0.45, this.heightAt(BLOCK.x, BLOCK.z) + 0.55);

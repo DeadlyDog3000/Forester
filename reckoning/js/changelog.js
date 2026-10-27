@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.206", date: "26 October 2026", title: "The sawbuck",
+    items: [
+      "The sawhorse by the chopping block is a sawbuck: two X-frames of rough poles joined by a rail, with a log lying in their V's ready for the saw, instead of four straight posts under a plank.",
+    ],
+  },
+  {
     v: "1.99.205", date: "26 October 2026", title: "Village churches, cottages and castles",
     items: [
       "The churches on the battlefields are village churches: a buttressed nave on its stone plinth with tall windows between the buttresses, a lower chancel at the east end, a porch on the south side, and the tower with a door at its foot, string courses, the belfry's louvred openings and an eight-sided spire broached at its foot with an iron cross on top (or a parapet with corner pinnacles). Before, they were two plain blocks with a four-sided cone.",
