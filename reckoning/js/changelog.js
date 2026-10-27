@@ -7,9 +7,10 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.193", date: "26 October 2026", title: "Battles run smoothly",
+    v: "1.99.194", date: "26 October 2026", title: "Battles run smoothly",
     items: [
       "Big battles run more than twice as smoothly: a skirt or coat near you still swings every moment, one further off a little less often, and far across the field it simply hangs, where nobody could see it move.",
+      "A town on the field is drawn in far fewer pieces, which helps a siege's frame rate too.",
     ],
   },
   {

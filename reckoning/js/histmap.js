@@ -21,6 +21,7 @@
 import { THREE, mat } from "./core.js";
 import { makeHorse, modelCopy } from "./models.js";
 import { WATER } from "./mp/terrain.js";
+import { mergeGeometries } from "../lib/utils/BufferGeometryUtils.js";
 
 const ss = x => { x = Math.max(0, Math.min(1, x)); return x * x * (3 - 2 * x); };
 const hsh = (x, z) => { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); };
@@ -487,6 +488,23 @@ export function buildThings(w, C, b, flip) {
     else if (k === "tents" || k === "vines") { const p = at((a[0] + a[1]) / 2, (a[2] + a[3]) / 2); w.clearScenery(p.x, p.z, Math.hypot(a[1] - a[0], a[3] - a[2]) / 2 + 6); }
   }
   for (const [k, ...a] of M.things) if (B[k]) B[k](...a);
+  // (the static pieces merged, one mesh to a material: a town is a thousand boxes, roofs and cones, each drawn on its own
+  //  — and again for the shadows — and the field's frame rate went with them. Each breakable length of wall merged within
+  //  itself, so it still comes down as one; what's knocked off on its own — a merlon — left as it is)
+  { const keep = new Set(); for (const b2 of breaks) for (const m of b2.merl || []) keep.add(m);
+    const merge = parent => {
+      const by = new Map();
+      for (const o of parent.children.slice()) if (o.isMesh && !o.isInstancedMesh && !o.isSkinnedMesh && !keep.has(o) && o.geometry.attributes.normal && !o.children.length) { let l = by.get(o.material); if (!l) by.set(o.material, l = []); l.push(o); }
+      for (const [m, list] of by) {
+        if (list.length < 2) continue;
+        const geos = list.map(o => { o.updateMatrix(); let q = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); for (const k of Object.keys(q.attributes)) if (k !== "position" && k !== "normal" && k !== "uv") q.deleteAttribute(k); if (!q.attributes.uv) q.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2)); return q.applyMatrix4(o.matrix); });
+        const mg = mergeGeometries(geos); if (!mg) continue;
+        const mm = new THREE.Mesh(mg, m); mm.castShadow = list.some(o => o.castShadow); mm.receiveShadow = true;
+        for (const o of list) { parent.remove(o); o.geometry.dispose(); }
+        parent.add(mm);
+      }
+    };
+    merge(g); for (const b2 of [...breaks, ...palisade]) if (b2.grp) merge(b2.grp); }
   w.root.add(g);
   // (a town besieged before the assault: how far its walls are already battered down, 0 to 1 and more)
   const twn = M.things.find(t => t[0] === "town");
