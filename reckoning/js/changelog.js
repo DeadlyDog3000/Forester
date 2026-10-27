@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.204", date: "26 October 2026", title: "Vienna below the Kahlenberg",
+    items: [
+      "At Vienna you can see Vienna: the besieged city lies out beyond the field, St. Stephen's great Gothic tower and its needle over the roofs, the long nave under its steep roof, the churches' towers, the Hofburg, the stone bastions on their pale glacis, and before the walls the Turks' siege, a sea of their tents and their trenches zig-zagging up. Before, the city was a few blocks lost in the haze.",
+      "Far cities (Vienna, and Hamburg behind the Danes' works) rise out of the haze over the plain, their feet fading into it, instead of standing on it like an island.",
+      "The Kahlenberg's vineyards are rows of stakes, each with its vine, a head of real leaves from the knee to the shoulder, instead of rows of dark spindles that looked like little cypresses.",
+      "At Narva the Russians' camp, and at Sedgemoor the King's, are lines of ridge tents, not the round pavilions of a Turkish camp.",
+    ],
+  },
+  {
     v: "1.99.203", date: "26 October 2026", title: "The cave",
     items: [
       "The cave's halls are smooth rock with its own grain and a crack here and there, instead of flat facets that looked cut from card; its floor is dark trodden grit instead of a pale grey that shone like snow under the lantern; and its stalagmites are rounded instead of five-sided pyramids.",

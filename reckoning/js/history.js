@@ -63,7 +63,7 @@ export const BATTLES = [
   {
     id: "vienna", name: "Vienna", date: "12 September 1683", year: 1683, lon: 16.3, lat: 48.27, at: "The Kahlenberg, before Vienna",
     hour: "afternoon", cloud: 0.15, mist: 0, fort: null, won: 0, you: 0,
-    map: { ramp: [-140, 26, 30, 0], hills: [{ u: -210, v: -40, r: 90, h: 34 }], rivers: [{ v: -210, w: 60, d: 2.6 }], r2: 360, things: [["vines", -72, -14, -46, -14], ["vines", -72, -14, 14, 46], ["tents", 64, 120, -55, 55, 22], ["spire", 330, 40, 120, "slate"], ["city", 300, -60, 140, 12], ["church", -150, 60, 0.3, 18, 8], ["house", -130, 76, 0.2], ["house", -110, 70, 0.5]] },
+    map: { ramp: [-140, 26, 30, 0], hills: [{ u: -210, v: -40, r: 90, h: 34 }], rivers: [{ v: -210, w: 60, d: 2.6 }], r2: 360, things: [["vines", -72, -14, -46, -14], ["vines", -72, -14, 14, 46], ["tents", 64, 120, -55, 55, 22], ["spire", 330, 40, 120, "slate"], ["city", 300, -60, 140, 12], ["skyline", 420, 10, 1.6, "vienna", 30], ["church", -150, 60, 0.3, 18, 8], ["house", -130, 76, 0.2], ["house", -110, 70, 0.5]] },
     brief: "Kara Mustafa's army has had Vienna under siege for two months, and the city is near its end. The relief army has come over the Wienerwald: the Emperor's men, the Saxons and Bavarians, and King Jan Sobieski's Poles. They fight down the vineyards of the Kahlenberg all day towards the Turkish camp, and at the end of it comes the greatest cavalry charge in history.",
     after: ["The relief army broke through the Turkish lines, and Sobieski's winged hussars rode down into the camp. The siege was lifted that evening. The Ottoman Empire would never stand at Vienna again.", "Here the relief failed. Vienna's fate hangs on the walls alone."],
     sides: [
@@ -74,7 +74,7 @@ export const BATTLES = [
   {
     id: "sedgemoor", name: "Sedgemoor", date: "6 July 1685", year: 1685, lon: -2.92, lat: 51.12, at: "Somerset, England",
     hour: "night", cloud: 0.2, mist: 0.55, fort: 0, won: 0, you: 1,
-    map: { low: 1.8, rivers: [{ u: -22, w: 4.5, d: 1.0, bank: 1.5 }], things: [["church", -140, 8, 0, 26, 0], ["house", -118, 34, 0.1], ["house", -124, -26, 0.4], ["house", -100, -40, 0.2], ["tents", -120, -60, -50, 50, 10]] },
+    map: { low: 1.8, rivers: [{ u: -22, w: 4.5, d: 1.0, bank: 1.5 }], things: [["church", -140, 8, 0, 26, 0], ["house", -118, 34, 0.1], ["house", -124, -26, 0.4], ["house", -100, -40, 0.2], ["tents", -120, -60, -50, 50, 14, "canvas", "ridge"]] },
     brief: "The Duke of Monmouth has raised the West Country against his uncle, King James II. His army is farmers and weavers, many armed with scythes fixed to poles. He tries a night march across the moor to surprise the King's army asleep in its camp, but a shot goes off in the mist, and the regulars wake behind the Bussex Rhine ditch.",
     after: ["The rebels could not get across the ditch, and stood firing into the dark until dawn. Then the King's guns and horse broke them. It was the last pitched battle on English soil. Monmouth was beheaded nine days later, and hundreds of his men were hanged.", "Here the rebellion won its night. Monmouth's road to London lies open."],
     sides: [
@@ -138,7 +138,7 @@ export const BATTLES = [
   {
     id: "narva", name: "Narva", date: "30 November 1700", year: 1700, lon: 28.19, lat: 59.38, at: "In Ingria",
     hour: "afternoon", cloud: 1, mist: 0.6, fort: 1, won: 0, you: 0,
-    map: { snow: true, low: 2.6, rivers: [{ u: 100, w: 40, d: 2.6 }], things: [["castle", 150, -60, 1.5], ["spire", 170, -20, 60, "slate"], ["castle", 60, 140, 0.9], ["tents", 46, 70, -50, 50, 12]] },
+    map: { snow: true, low: 2.6, rivers: [{ u: 100, w: 40, d: 2.6 }], things: [["castle", 150, -60, 1.5], ["spire", 170, -20, 60, "slate"], ["castle", 60, 140, 0.9], ["tents", 46, 70, -50, 50, 18, "canvas", "ridge"]] },
     brief: "Peter the Great is besieging Narva with nearly forty thousand men behind a long line of earthworks. Charles XII of Sweden, eighteen years old, has marched up with ten thousand. At two in the afternoon a snowstorm blows straight into the Russians' faces, and the Swedes attack out of it.",
     after: ["The Swedes broke the Russian line in two places, and in the blinding snow the Russian army fell apart. Thousands surrendered. Charles was the wonder of Europe. Peter went home to rebuild his army, and nine years later beat him at Poltava.", "Here the Tsar's lines held, and the young King's war ended before it began."],
     sides: [

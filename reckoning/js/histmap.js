@@ -18,8 +18,8 @@
 //   snow    the ground white
 //   things  what stands on it: [kind, u, v, ...]
 
-import { THREE, mat, groundTexture } from "./core.js";
-import { makeHorse, modelCopy } from "./models.js";
+import { THREE, mat, groundTexture, addDetail } from "./core.js";
+import { makeHorse, modelCopy, TREE, FOL } from "./models.js";
 import { WATER } from "./mp/terrain.js";
 import { mergeGeometries } from "../lib/utils/BufferGeometryUtils.js";
 
@@ -186,13 +186,22 @@ export function buildThings(w, C, b, flip) {
       }
       for (let i = 0; i < n; i++) { const u = u0 + (u1 - u0) * hsh(i, 3.1), v = v0 + (v1 - v0) * hsh(i, 7.7); B.tent(u, v, 2.4 + hsh(i, 1.3) * 2.2, i % 5 === 0 ? (col === "canvas" ? "red" : "green") : col); }
     },
-    // a vineyard: rows of stakes, each with its vine (no more than a tangle at knee and hip height)
+    // a vineyard: rows of stakes, each with its vine — a round head of real leaves (cut-out sprays, as the woods' bushes
+    //  are) about the stake's top, from the knee to the shoulder; not a dark spindle of facets, a row of little cypresses
     vines(u0, u1, v0, v1, gap = 2.6) {
       const list = []; for (let u = u0; u <= u1; u += gap) for (let v = v0; v <= v1; v += 1.4) list.push(at(u + (hsh(u, v) - 0.5) * 0.3, v));
-      const sg2 = new THREE.CylinderGeometry(0.035, 0.045, 1.5, 4), vg = new THREE.IcosahedronGeometry(0.3, 0);
-      const st = new THREE.InstancedMesh(sg2, M_.stake, list.length), vi = new THREE.InstancedMesh(vg, M_.vine, list.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-      list.forEach((p, i) => { const yy = y(p.x, p.z); m4.makeTranslation(p.x, yy + 0.7, p.z); st.setMatrixAt(i, m4); e.set(0, hsh(p.x, p.z) * 6, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(p.x, yy + 0.85, p.z), q, new THREE.Vector3(0.75, 1.5 + hsh(p.z, p.x) * 0.4, 0.45)); vi.setMatrixAt(i, m4); });
-      st.castShadow = vi.castShadow = true; g.add(st, vi);
+      const sg2 = new THREE.CylinderGeometry(0.035, 0.045, 1.5, 4);
+      if (!B.vineLeaf) { B.vineLeaf = new THREE.MeshStandardMaterial({ roughness: 1, map: FOL.leaf, alphaTest: 0.42, side: THREE.DoubleSide }); addDetail(B.vineLeaf, { scale: 2, amount: 0.18, grain: 0.5, surface: "needles", rim: false, cards: true }); }
+      const st = new THREE.InstancedMesh(sg2, M_.stake, list.length), vi = new THREE.InstancedMesh(TREE.blob, B.vineLeaf, list.length * 2), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), c = new THREE.Color();
+      list.forEach((p, i) => {
+        const yy = y(p.x, p.z), h = hsh(p.z, p.x); m4.makeTranslation(p.x, yy + 0.62, p.z); st.setMatrixAt(i, m4);
+        for (let k = 0; k < 2; k++) {
+          e.set(0, hsh(p.x + k, p.z) * 6, 0); q.setFromEuler(e); const sc = (k ? 0.3 : 0.42) * (0.85 + h * 0.3);
+          m4.compose(new THREE.Vector3(p.x + (hsh(i, k) - 0.5) * 0.2, yy + (k ? 1.05 : 0.68), p.z), q, new THREE.Vector3(sc, sc * 0.8, sc));
+          vi.setMatrixAt(i * 2 + k, m4); vi.setColorAt(i * 2 + k, c.setHex([0x5a7a34, 0x64823a, 0x52702e][(i + k) % 3]));
+        }
+      });
+      st.castShadow = vi.castShadow = true; vi.receiveShadow = true; g.add(st, vi);
     },
     // a bridge of boats: planks over a line of pontoons, from bank to bank
     bridge(u0, u1, v, wd = 4) {
@@ -486,18 +495,29 @@ export function buildThings(w, C, b, flip) {
       for (let i = 0; i < 4; i++) { const p = T(U0 + 12 + rr() * (U1 - U0 - 24), (rr() - 0.5) * W * 0.3), y0 = y(p.x, p.z); for (const e of [-1, 1]) box(M_.wood, p.x, y0 + 0.9, p.z + e * 1.2, 0.1, 1.8, 0.1); box(M_.wood, p.x, y0 + 1.75, p.z, 0.08, 0.08, 2.5); box(mat(0x9a7a5a), p.x, y0 + 1.3, p.z, 0.05, 0.8, 2.0); }
     },
     // a windmill, on its post
-    // a great city across the field: the Hamburg made in Blender (tools/blender/hamburg_skyline.py) — its bastions with
-    // their windmills, the sea of gabled roofs, the five green spires, the masts in the harbour — facing the field
-    skyline(u, v, s = 1.4) {
-      const m = modelCopy("hamburg_skyline"); if (!m) return;
-      const p = at(u, v);
+    // a great city across the field, made in Blender: Hamburg (tools/blender/hamburg_skyline.py) — its bastions with
+    // their windmills, the sea of gabled roofs, the five green spires, the masts in the harbour — or Vienna under siege
+    // (vienna_skyline.py), St. Stephen's over the roofs and the Turks' tents before the walls — facing the field. drop:
+    // how far below the eye its foot sits (lower for a city seen from a hill)
+    skyline(u, v, s = 1.4, city = "hamburg", drop = 13) {
+      const m = modelCopy(city + "_skyline"); if (!m) return;
+      const p = at(u, v), haze = new THREE.Color(0xc0c6cc);
       // (kilometres off, past where the battle's haze lets anything be drawn: hung on the sky like a painted backdrop, so
       //  it is always there over the near roofs — flat and pale with the distance, the near world drawn over it)
       m.scene.scale.setScalar(s); m.scene.rotation.y = Math.atan2(C.x - p.x, C.z - p.z);
       m.scene.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; o.renderOrder = -1;
-        o.material = new THREE.MeshBasicMaterial({ vertexColors: !!o.geometry.attributes.color, color: o.geometry.attributes.color ? 0xc4c8cc : o.material.color.clone().lerp(new THREE.Color(0xc0c6cc), 0.55), fog: false, depthWrite: false }); } });
+        o.material = new THREE.MeshBasicMaterial({ vertexColors: !!o.geometry.attributes.color, color: o.geometry.attributes.color ? 0xc4c8cc : o.material.color.clone().lerp(new THREE.Color(0xc0c6cc), 0.55), fog: false, depthWrite: false });
+        // (and the air between: everything a little into the haze's own colour, its foot most of all — the city rising
+        //  out of the haze over the plain, not an island floating on it)
+        o.material.onBeforeCompile = sh => {
+          sh.uniforms.hazeC = { value: haze };
+          sh.vertexShader = sh.vertexShader.replace("void main() {", "varying float vSkyH;\nvoid main() {\n vSkyH = position.y;");
+          sh.fragmentShader = sh.fragmentShader.replace("void main() {", "uniform vec3 hazeC; varying float vSkyH;\nvoid main() {")
+            .replace("#include <opaque_fragment>", "outgoingLight = mix(outgoingLight, hazeC, 0.3 + 0.62 * (1.0 - smoothstep(0.0, 11.0, vSkyH)));\n#include <opaque_fragment>");
+        };
+        o.onBeforeRender = (r, sc) => { if (sc.fog) haze.copy(sc.fog.color); }; } });
       const back = new THREE.Group(); back.add(m.scene);
-      back.userData.at = new THREE.Vector3(p.x - C.x, -13, p.z - C.z);   // (its foot a little below the eye: the ground out there, past the haze, is whatever the far terrain is, and could bury it)
+      back.userData.at = new THREE.Vector3(p.x - C.x, -drop, p.z - C.z);   // (its foot a little below the eye: the ground out there, past the haze, is whatever the far terrain is, and could bury it)
       w.skyBack = back;
     },
     // ships lying in the river below the city, along the stream
