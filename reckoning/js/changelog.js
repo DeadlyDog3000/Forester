@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.216", date: "27 October 2026", title: "Spruce tops",
+    items: [
+      "The spruces round the clearing come to a green point at the top. Each one's leader stood clear above its top whorl, and its spray's forked tip read as a dead stick broken off at the top of every tree along the skyline.",
+    ],
+  },
+  {
     v: "1.99.215", date: "27 October 2026", title: "Hamburg's walls",
     items: [
       "Behind the Danes' fort at Hamburg the city's wall is a 1600s fortress front: a brick-faced rampart with a turf parapet, a stone cordon along it, arrowhead bastions at its angles, and the gabled houses of the city crowding up behind it, brick, whitewash and timber-framed under red tile and slate. It was a pale blank wall that filled the view behind you.",

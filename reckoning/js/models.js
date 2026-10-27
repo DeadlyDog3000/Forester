@@ -621,7 +621,9 @@ function spruceCards(mesh) {
     const t = onTrunk ? new V(1, 0, 0) : new V().crossVectors(up, d).normalize(), u = new V().crossVectors(d, t).normalize();
     let d0 = 1e9, d1 = -1e9, t0 = 1e9, t1 = -1e9, u0 = 1e9, u1 = -1e9; const w = new V();
     for (const i of q) { w.set(P.getX(i), P.getY(i), P.getZ(i)).sub(c); const a = w.dot(d), b = w.dot(t), e = w.dot(u); d0 = Math.min(d0, a); d1 = Math.max(d1, a); t0 = Math.min(t0, b); t1 = Math.max(t1, b); u0 = Math.min(u0, e); u1 = Math.max(u1, e); }
-    const L = (d1 - d0) * 1.3 + 0.15, W = Math.max(t1 - t0, u1 - u0) * 1.25 + 0.1, mid = c.clone().addScaledVector(d, (d0 + d1) / 2);
+    const L = (d1 - d0) * 1.3 + 0.15, W = Math.max(t1 - t0, u1 - u0) * 1.25 + 0.1 + (onTrunk ? (d1 - d0) * 0.3 : 0), mid = c.clone().addScaledVector(d, (d0 + d1) / 2 - (onTrunk ? (d1 - d0) * 0.45 : 0));
+    // (the leader sunk into the top whorl and a little shorter: standing clear of it, its spray's forked tip read as a
+    //  dead stick broken off at the top of every spruce)
     const lum = C ? (0.299 * cc[0] + 0.587 * cc[1] + 0.114 * cc[2]) / q.length : ref, k = Math.min(1.3, Math.max(0.5, lum / ref)) * 1.0;
     // (a little droop to each card, the tip lower than where it leaves the branch)
     const droop = onTrunk ? 0 : 0.12 + rnd() * 0.18;
