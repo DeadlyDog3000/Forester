@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.211", date: "27 October 2026", title: "The Sultan's camp, out of the fight",
+    items: [
+      "At Zenta and Chocim the Ottoman camp's tents stood right where the enemy forms up, a cluster of squat green domes in the middle of the battlefield. The camp now lies behind their line, by the river at Zenta.",
+      "The Turkish tents are real pavilions: pale canvas walls taller than a man, a high peaked roof (red or green for an officer's), a coloured valance round the eaves, the tent pole standing out of the peak with a brass ball, a door, and guy ropes pegged out round them. Before, they were low dark huts.",
+    ],
+  },
+  {
     v: "1.99.210", date: "26 October 2026", title: "Turfed earthworks",
     items: [
       "The forts' ramparts and the banks along their flanks are grassed over, as old earthworks are, instead of a pale bare earth that read as concrete slabs in the evening light; the earth in the gabions and in a breach is dark dug soil.",

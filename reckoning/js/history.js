@@ -19,7 +19,7 @@ export const BATTLES = [
   {
     id: "chocim", name: "Chocim", date: "11 November 1673", year: 1673, lon: 26.5, lat: 48.5, at: "On the Dniester, in Podolia",
     hour: "morning", cloud: 0.85, mist: 0.35, fort: 1, won: 0, you: 0,
-    map: { ramp: [-40, 0, 60, 4], rivers: [{ u: 96, w: 34, d: 2.4 }], low: 3, things: [["tents", 52, 74, -40, 40, 16], ["castle", 92, 120, 1.2], ["church", -120, -60, 0.3, 14, 7]] },
+    map: { ramp: [-40, 0, 60, 4], rivers: [{ u: 96, w: 34, d: 2.4 }], low: 3, things: [["tents", 66, 76, -44, 44, 16], ["castle", 92, 120, 1.2], ["church", -120, -60, 0.3, 14, 7]] },
     brief: "Hussein Pasha's army has dug in on the old camp above the Dniester, behind ramparts. Hetman Jan Sobieski has kept the Polish–Lithuanian army standing to arms all through a night of sleet, so the Turks are worn out with watching. At dawn the infantry and dismounted dragoons go over the earthworks first, to open a way for the hussars.",
     after: ["The Polish foot carried the ramparts and the hussars rode through the gaps. The Turkish army broke against the river; the bridge gave way under the men crowding onto it. Within a year Sobieski was King of Poland.", "History went the other way: here the camp held."],
     sides: [
@@ -127,7 +127,7 @@ export const BATTLES = [
   {
     id: "zenta", name: "Zenta", date: "11 September 1697", year: 1697, lon: 20.08, lat: 45.93, at: "On the Tisza, in Hungary",
     hour: "evening", cloud: 0.1, mist: 0, fort: 1, won: 0, you: 0,
-    map: { low: 2.6, rivers: [{ u: 100, w: 46, d: 2.6 }], things: [["bridge", 66, 134, -10, 5], ["tents", 52, 72, -50, 50, 14, "green"], ["tents", 150, 200, -80, 60, 24], ["church", -140, 80, 0.2, 14, 6]] },
+    map: { low: 2.6, rivers: [{ u: 100, w: 46, d: 2.6 }], things: [["bridge", 66, 134, -10, 5], ["tents", 66, 74, -56, 56, 12, "green"], ["tents", 150, 200, -80, 60, 24], ["church", -140, 80, 0.2, 14, 6]] },
     brief: "Prince Eugene of Savoy has caught the Sultan's army halfway across the Tisza. The Sultan is over the river already. The rest wait their turn behind the earthworks of the bridgehead. Eugene has only a few hours of daylight left, and attacks straight off the march.",
     after: ["The Imperial foot stormed the bridgehead and drove the Ottoman army into the river. Tens of thousands died before dark, while the Imperials lost a few hundred. Two years later the Sultan gave up Hungary at Karlowitz.", "Here the bridgehead held, and the Sultan's army got away over the river."],
     sides: [

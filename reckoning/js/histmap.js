@@ -109,7 +109,7 @@ export function buildThings(w, C, b, flip) {
     wall: mat(0xb8ad96, { surface: "plaster" }), whitewash: mat(0xd8d0bc, { surface: "plaster" }), thatch: mat(0x8a7444), tile: mat(0x8a3a28, { surface: "tiles" }), slate: mat(0x4a4c52, { surface: "tiles" }), copper: mat(0x5a8a78), wood: mat(0x5a4632, { surface: "wood" }),
     stone: mat(0x8a8478, { surface: "stone" }), dark: mat(0x3a3430, { surface: "wood" }), plaster: mat(0xcfc0a0, { surface: "plaster" }), ochre: mat(0xc8a46a, { surface: "plaster" }), brick: mat(0x9a5a40, { surface: "brick" }), tile2: mat(0x9c5236, { surface: "tiles" }),
     brick2: mat(0x84462f, { surface: "brick" }), brick3: mat(0xa8684a, { surface: "brick" }), turf: mat(0x5c6a3a), timbered: mat(0xd8cfb8, { surface: "plaster" }), glass: mat(0x2b3238, { roughness: 0.35, metalness: 0.2 }), sill: mat(0xd2c8b4, { surface: "stone" }),
-    ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0), red: mat(0xa8322a), green: mat(0x3e6a40), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
+    ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0, { surface: "cloth" }), red: mat(0xa8322a, { surface: "cloth" }), green: mat(0x4a7a48, { surface: "cloth" }), brass: mat(0xb08a3a, { metalness: 0.7, roughness: 0.4 }), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
   };
   const box = (m, x, yy, z, sx, sy, sz, ry = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; tgt.add(o); return o; };
   const roof = (m, x, yy, z, sx, h, sz, ry = 0) => { const s = new THREE.Shape(); s.moveTo(-sx / 2 - 0.3, 0); s.lineTo(0, h); s.lineTo(sx / 2 + 0.3, 0); s.lineTo(-sx / 2 - 0.3, 0); const geo = new THREE.ExtrudeGeometry(s, { depth: sz + 0.6, bevelEnabled: false }); geo.translate(0, 0, -(sz + 0.6) / 2); const o = new THREE.Mesh(geo, m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = true; tgt.add(o); return o; };
@@ -229,11 +229,25 @@ export function buildThings(w, C, b, flip) {
       cone(M_.slate, kx, y0 + 28.6 * s, p.z, 10.4 * s, 7 * s, 4).rotation.y = Math.PI / 4;
       solid(p.x, p.z, X + 2 * s, Z + 2 * s, 0, y0 + 12 * s);
     },
-    // a tent: the Turkish camp's, round and peaked — or a soldier's ridge tent
+    // a tent: the Turkish camp's pavilion — pale canvas walls, a tall peaked roof (in red or green for an officer's,
+    //  else canvas with a coloured valance round its eaves), its pole standing out of the peak with a brass ball, and
+    //  guy ropes pegged out round it. Not a squat dome: it stands taller than a man at the walls, its peak twice that
     tent(u, v, r = 3, col = "canvas") {
-      const p = at(u, v), y0 = y(p.x, p.z) - 0.1;
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1.8, 12), M_[col] || M_.canvas); t.position.set(p.x, y0 + 0.9, p.z); t.castShadow = true; g.add(t);
-      cone(M_[col] || M_.canvas, p.x, y0 + 1.8, p.z, r * 1.08, r * 0.9, 12);
+      const p = at(u, v); const y0 = y(p.x, p.z) - 0.1, wh = 2.1, rh = 1.3 + r * 0.6, acc = col === "canvas" ? M_.red : M_[col] || M_.red;
+      if (!B.tentRope) { B.tentRope = new THREE.CylinderGeometry(0.012, 0.012, 1, 3); B.tentRope.translate(0, 0.5, 0); }
+      const t = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.02, wh, 14, 1, true), M_.canvas); t.position.set(p.x, y0 + wh / 2, p.z); t.castShadow = t.receiveShadow = true; g.add(t);
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(r * 1.13, r * 1.11, 0.42, 14, 1, true), acc); band.position.set(p.x, y0 + wh - 0.05, p.z); band.castShadow = true; g.add(band);
+      cone(col === "canvas" ? M_.canvas : acc, p.x, y0 + wh + 0.1, p.z, r * 1.14, rh, 14);
+      // (the door: its flap tied back, the dark inside)
+      const ang = hsh(u, v) * 6.28, d = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.8), M_.door); d.position.set(p.x + Math.sin(ang) * (r + 0.02), y0 + 0.9, p.z + Math.cos(ang) * (r + 0.02)); d.rotation.y = ang; g.add(d);
+      box(M_.stake, p.x, y0 + wh + rh + 0.45, p.z, 0.07, 0.9, 0.07);
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), M_.brass); ball.position.set(p.x, y0 + wh + rh + 0.95, p.z); g.add(ball);
+      for (let k = 0; k < 8; k++) {
+        const a = ang + 0.39 + k * Math.PI / 4, ex = p.x + Math.sin(a) * r * 1.13, ez = p.z + Math.cos(a) * r * 1.13, ey = y0 + wh + 0.1;
+        const gx = p.x + Math.sin(a) * (r + 2.2), gz = p.z + Math.cos(a) * (r + 2.2), gy = y(gx, gz);
+        const dx = ex - gx, dy = ey - gy, dz = ez - gz, L = Math.hypot(dx, dy, dz), rp = new THREE.Mesh(B.tentRope, M_.stake);
+        rp.position.set(gx, gy, gz); rp.scale.set(1, L, 1); rp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(dx / L, dy / L, dz / L)); g.add(rp);
+      }
       solid(p.x, p.z, r * 0.8, r * 0.8, 0, y0 + 2.5);
     },
     tents(u0, u1, v0, v1, n = 12, col = "canvas", style = "") {
@@ -251,7 +265,7 @@ export function buildThings(w, C, b, flip) {
         B.tent((u0 + u1) / 2, v0 - 8, 3.4, "red");
         return;
       }
-      for (let i = 0; i < n; i++) { const u = u0 + (u1 - u0) * hsh(i, 3.1), v = v0 + (v1 - v0) * hsh(i, 7.7); B.tent(u, v, 2.4 + hsh(i, 1.3) * 2.2, i % 5 === 0 ? (col === "canvas" ? "red" : "green") : col); }
+      for (let i = 0; i < n; i++) { const u = u0 + (u1 - u0) * hsh(i, 3.1), v = v0 + (v1 - v0) * hsh(i, 7.7); B.tent(u, v, 2.4 + hsh(i, 1.3) * 2.2, i % 5 === 0 ? (col === "canvas" ? "red" : "green") : col === "canvas" || i % 2 ? "canvas" : col); }
     },
     // a vineyard: rows of stakes, each with its vine — a round head of real leaves (cut-out sprays, as the woods' bushes
     //  are) about the stake's top, from the knee to the shoulder; not a dark spindle of facets, a row of little cypresses
