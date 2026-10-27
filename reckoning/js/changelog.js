@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.210", date: "26 October 2026", title: "Turfed earthworks",
+    items: [
+      "The forts' ramparts and the banks along their flanks are grassed over, as old earthworks are, instead of a pale bare earth that read as concrete slabs in the evening light; the earth in the gabions and in a breach is dark dug soil.",
+    ],
+  },
+  {
     v: "1.99.209", date: "26 October 2026", title: "The kolpak",
     items: [
       "Sobieski's haiduks wear the kolpak as it was, a tall felt cap narrowing as it rises and leaning back a little over its fur band, its top rounded soft, instead of a straight-sided stovepipe that looked like a top hat a century early.",

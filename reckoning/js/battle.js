@@ -279,7 +279,7 @@ export class Field {
     this.camps = camps; if (camps) { const L = []; this.spots = [L, L, L, L]; }
     let s = seed | 0 || 7; this.r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
     const M = this.M = {
-      earth: mat(0x6a5236, { surface: "ground" }), wicker: mat(0x7a5c36, { surface: "bark" }), wood: mat(0x6a4a2e, { surface: "wood" }), log: mat(0x5a4028, { surface: "log" }),
+      earth: mat(0x4c4030, { surface: "ground" }), turf: mat(0x48522e, { surface: "needles" }), wicker: mat(0x7a5c36, { surface: "bark" }), wood: mat(0x6a4a2e, { surface: "wood" }), log: mat(0x5a4028, { surface: "log" }),
       stone: mat(0x8a8478, { surface: "rock" }), iron: mat(0x2a2b2e, { metalness: 0.4, roughness: 0.55 }), stave: mat(0x7a5634, { surface: "wood" }),
       leaf: mat(0x3e5626, { surface: "needles" }), leaf2: mat(0x4a5e2c, { surface: "needles" }), rail: mat(0x7e6a50, { surface: "wood" }),
       soot: mat(0x231d18, { surface: "wood" }), ash: mat(0x3a342e, { surface: "ground" }), boulder: mat(0x8e897f, { surface: "rock", weather: false }),
@@ -501,7 +501,7 @@ export class Field {
   rampart(x, z, len, ry, side, inward) {
     const sh = new THREE.Shape(); sh.moveTo(-1.6, 0); sh.lineTo(-0.5, 1.3); sh.lineTo(0.55, 1.32); sh.lineTo(0.85, 0.8); sh.lineTo(1.0, 0); sh.lineTo(-1.6, 0);
     const geo = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
-    const g = new THREE.Group(), m = new THREE.Mesh(geo, this.M.earth); m.rotation.y = Math.PI / 2;
+    const g = new THREE.Group(), m = new THREE.Mesh(geo, this.M.turf); m.rotation.y = Math.PI / 2;
     // (which face is outward: the long slope toward the enemy, the steep revetted face inside)
     const sx = side === 0 ? -1 : 1; m.scale.z = -sx; g.add(m);
     for (let i = 0; i < Math.round(len / 0.32); i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 1.0, 6), this.M.post); lg.position.set(sx * 0.95, 0.5, -len / 2 + (i + 0.5) * 0.32); g.add(lg); }
@@ -544,7 +544,7 @@ export class Field {
     // a long mound of earth, sloped both faces
     const sh = new THREE.Shape(); sh.moveTo(-1.3, 0); sh.lineTo(-0.35, 1.1); sh.lineTo(0.35, 1.15); sh.lineTo(1.3, 0); sh.lineTo(-1.3, 0);
     const geo = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false }); geo.translate(0, 0, -len / 2);
-    const m = new THREE.Mesh(geo, this.M.earth); const g = new THREE.Group(); m.rotation.y = Math.PI / 2; g.add(m);
+    const m = new THREE.Mesh(geo, this.M.turf); const g = new THREE.Group(); m.rotation.y = Math.PI / 2; g.add(m);
     this.put(g, x, z, ry, -0.08);
     this.solid(x, z, len, 1.6, ry, 1.05, side, inward);
   }
