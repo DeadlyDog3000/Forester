@@ -188,14 +188,34 @@ export function buildThings(w, C, b, flip) {
       cone(M_[kind] || M_.copper, p.x, y0 + h * 0.72, p.z, 4.6, h * 0.36, 8);
       box(M_.stone, p.x + 14, y0 + 6, p.z + 3, 30, 12, 13); roof(M_.slate, p.x + 14, y0 + 12, p.z + 3, 13, 7, 30, Math.PI / 2);
     },
-    // a city's wall far off: a long rampart with houses' roofs over it, here and there a tower
+    // a city's wall far off, as the 1600s fortified them: a brick-faced rampart with a turf parapet along its top, an
+    //  arrowhead bastion thrust out at each angle, and over it the houses packed inside — gabled, brick and whitewash and
+    //  timber-framed, red-tiled and slated, their windows dark — not a pale blank wall
     city(u, v0, v1, h = 9) {
-      const n = Math.max(1, Math.round(Math.abs(v1 - v0) / 22));
+      const n = Math.max(1, Math.round(Math.abs(v1 - v0) / 22)), H = h * 0.72, out = u > 0 ? -1 : 1;
+      const bastion = (v, y0) => {
+        const pts = [[0, -10], [9, -7], [15, 0], [9, 7], [0, 10]].map(([du, dv]) => at(u + du * out, v + dv)), sh = new THREE.Shape();
+        pts.forEach((q, k) => k ? sh.lineTo(q.x, -q.z) : sh.moveTo(q.x, -q.z));
+        for (const [m, hh, y1] of [[M_.brick2, H, y0], [M_.turf, 1.3, y0 + H]]) { const geo = new THREE.ExtrudeGeometry(sh, { depth: hh, bevelEnabled: false }); geo.rotateX(-Math.PI / 2); const o = new THREE.Mesh(geo, m); o.position.y = y1; o.castShadow = o.receiveShadow = true; tgt.add(o); }
+      };
       for (let i = 0; i <= n; i++) {
         const v = v0 + (v1 - v0) * i / n, p = at(u, v), y0 = y(p.x, p.z) - 1;
-        if (i < n) { const q = at(u, v + (v1 - v0) / n / 2); box(M_.wall, q.x, y0 + h / 2, q.z, 6, h, Math.abs(v1 - v0) / n + 0.5); }
-        box(M_.wall, p.x, y0 + h * 0.65, p.z, 9, h * 1.3, 9);
-        for (let k = 0; k < 2; k++) { const r = at(u - (8 + k * 9), v + (hsh(v, k) - 0.5) * 10); const hh = 7 + hsh(k, v) * 5; box(M_.whitewash, r.x, y0 + hh / 2, r.z, 7, hh, 9); roof(M_.tile, r.x, y0 + hh, r.z, 9, 4, 7, Math.PI / 2); }
+        if (i < n) {
+          const L = Math.abs(v1 - v0) / n, q = at(u, v + (v1 - v0) / n / 2);
+          box(M_.brick2, q.x, y0 + H / 2, q.z, 6, H, L + 0.5);
+          box(M_.ashlar2, q.x + out * 3.05 * (sg), y0 + H - 0.3, q.z, 0.4, 0.5, L + 0.5);
+          box(M_.turf, q.x - out * 0.6 * sg, y0 + H + 0.65, q.z, 4.8, 1.3, L + 0.5);
+          // (the houses behind this stretch: a row, gables to the wall, and a second row above and beyond them)
+          for (let row = 0; row < 2; row++) for (let k = 0; k < 3; k++) {
+            const vv = v + (v1 - v0) / n * (k + 0.5) / 3 + (hsh(v, k + row) - 0.5) * 2, r = at(u - out * (11 + row * 10 + hsh(k, v) * 3), vv);
+            const hh = 8 + hsh(k + row * 3, v) * 6 + row * 2, w = 6 + hsh(v, k) * 2, d = 9;
+            const wm = [M_.brick, M_.whitewash, M_.timbered, M_.brick3, M_.plaster][Math.floor(hsh(vv, row) * 5)], rm = [M_.tile, M_.tile2, M_.slate, M_.tile][Math.floor(hsh(row, vv) * 4)];
+            box(wm, r.x, y0 + hh / 2, r.z, d, hh, w);
+            roof(rm, r.x, y0 + hh, r.z, w, 4 + hsh(vv, 2) * 2, d, Math.PI / 2);
+            for (let f = 1; f <= 2; f++) for (const e of [-1, 1]) box(M_.glass, r.x + out * sg * (d / 2 + 0.03), y0 + hh * (f / 3), r.z + e * w * 0.22, 0.06, 1.3, 0.8);
+          }
+        }
+        bastion(v, y0);
       }
     },
     // a castle: a curtain wall round a court — battlemented, a wall-walk behind the merlons — round towers at its

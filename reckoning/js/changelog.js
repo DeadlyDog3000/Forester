@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.215", date: "27 October 2026", title: "Hamburg's walls",
+    items: [
+      "Behind the Danes' fort at Hamburg the city's wall is a 1600s fortress front: a brick-faced rampart with a turf parapet, a stone cordon along it, arrowhead bastions at its angles, and the gabled houses of the city crowding up behind it, brick, whitewash and timber-framed under red tile and slate. It was a pale blank wall that filled the view behind you.",
+    ],
+  },
+  {
     v: "1.99.214", date: "27 October 2026", title: "A chopping bench",
     items: [
       "The chopping block by the woodpile is a proper chopping bench: a half-log hewn flat on top, standing on four splayed legs, its top scored with old cuts. Before, it was a plain reddish box.",
