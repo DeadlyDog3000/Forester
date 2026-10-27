@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.202", date: "26 October 2026", title: "The cave",
+    items: [
+      "The cave's halls are smooth rock with its own grain and a crack here and there, instead of flat facets that looked cut from card; its floor is dark trodden grit instead of a pale grey that shone like snow under the lantern; and its stalagmites are rounded instead of five-sided pyramids.",
+      "Rock everywhere shows its cracks only here and there, instead of curling lines all over it like the lines on a map.",
+    ],
+  },
+  {
     v: "1.99.201", date: "26 October 2026", title: "Ferns",
     items: [
       "The ferns and nettles about the clearing are green and lit through like leaves, instead of lying about the meadow dark as black spiders.",

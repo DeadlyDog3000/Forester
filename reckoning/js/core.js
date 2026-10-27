@@ -166,7 +166,7 @@ const SURF_GLSL = `
     if (s == 6) return dTri(dTexC, 0, p * 0.8, w);
     if (s == 8) {
       // a boulder's own rock, not a mason's wall: a coarse grain, specks of other stone in it, and a few hairline cracks
-      float n = dFbm(p * 2.4), sp = dNoise(p * 17.0), cr = 1.0 - smoothstep(0.0, 0.035, abs(dNoise(p * 0.8 + 4.3) - 0.5));
+      float n = dFbm(p * 2.4), sp = dNoise(p * 17.0), cr = (1.0 - smoothstep(0.0, 0.018, abs(dNoise(p * 0.8 + 4.3) - 0.5))) * smoothstep(0.55, 0.7, dNoise(p * 0.37 + 9.1));   // (cracks only here and there: everywhere, they ran round the stone like the lines on a map)
       return clamp(0.5 + (n - 0.5) * 1.0 + (sp - 0.5) * 0.4 - cr * 0.35, 0.0, 1.0);
     }
     return dTri(dTexC, 1, p * 0.6, w);

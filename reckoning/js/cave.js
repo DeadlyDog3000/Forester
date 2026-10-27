@@ -71,9 +71,11 @@ export class Caves {
         const h = roof ? (s > 0 ? f + 2.9 + Math.min(9, s * 0.75) + (r() - 0.5) * 0.9 : f + Math.max(-0.4, s * 0.8)) : f;
         pos.push(x, h, z);
         // (the rock in bands: grey, a darker seam, now and then a rusty one where there's iron in it)
-        const band = Math.sin(h * 2.3 + x * 0.07 + z * 0.05), g = (roof ? 0.36 + r() * 0.1 : 0.44 + r() * 0.08) * (0.88 + band * 0.12);
-        const rust = roof && band > 0.75 ? 0.08 : 0;
-        col.push(g * 0.94 + rust, g * 0.96, g * 1.0 - rust * 0.5);
+        // (the floor dark, earthy and damp, trodden grit over the rock — pale as the walls, under the lantern it shone like
+        //  snow — and the walls a little darker than they were)
+        const band = Math.sin(h * 2.3 + x * 0.07 + z * 0.05), g = (roof ? 0.3 + r() * 0.09 : 0.15 + r() * 0.05) * (0.88 + band * 0.12);
+        const rust = roof && band > 0.75 ? 0.07 : 0;
+        if (roof) col.push(g * 0.97 + rust, g * 0.95, g * 0.92 - rust * 0.5); else col.push(g * 1.1, g * 0.98, g * 0.85);
         return at[k] = pos.length / 3 - 1;
       };
       for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
@@ -85,8 +87,9 @@ export class Caves {
       let geo = new THREE.BufferGeometry();
       geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
       geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-      geo.setIndex(idx); geo = geo.toNonIndexed(); geo.computeVertexNormals();
-      const m = new THREE.Mesh(geo, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true, side: roof ? THREE.DoubleSide : THREE.FrontSide }), { surface: "none", scale: 0.9, amount: 0.75, snow: false, weather: false }));
+      // (smooth rock, the light rolling over it, with the rock's own grain: drawn in flat facets the halls looked cut from card)
+      geo.setIndex(idx); geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: false, side: roof ? THREE.DoubleSide : THREE.FrontSide }), { surface: "rock", scale: 0.9, amount: 0.38, snow: false, weather: false }));
       m.receiveShadow = true;
       return m;
     };
@@ -103,7 +106,7 @@ export class Caves {
     for (let i = 0; i < 70; i++) {
       const h = this.halls[Math.floor(r() * this.halls.length)], a = r() * TAU, d = r() * h.r * 0.85, x = h.x + Math.cos(a) * d, z = h.z + Math.sin(a) * d;
       if (this.sd(x, z) < 2) continue;
-      const s = new THREE.Mesh(new THREE.ConeGeometry(0.25 + r() * 0.35, 0.8 + r() * 1.8, 5), mat(0x8a8478, { roughness: 1, surface: "rock", weather: false }));
+      const s = new THREE.Mesh(new THREE.ConeGeometry(0.25 + r() * 0.35, 0.8 + r() * 1.8, 10, 1), mat(0x6c665c, { roughness: 0.9, surface: "rock", weather: false, flatShading: false }));
       s.position.set(x, this.floorAt(x, z) + 0.5, z); root.add(s);
     }
     // the ore: plenty of it, deeper halls richer
