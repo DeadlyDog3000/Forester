@@ -18,7 +18,7 @@
 //   snow    the ground white
 //   things  what stands on it: [kind, u, v, ...]
 
-import { THREE, mat } from "./core.js";
+import { THREE, mat, groundTexture } from "./core.js";
 import { makeHorse, modelCopy } from "./models.js";
 import { WATER } from "./mp/terrain.js";
 import { mergeGeometries } from "../lib/utils/BufferGeometryUtils.js";
@@ -249,6 +249,18 @@ export function buildThings(w, C, b, flip) {
         cone(rank >= 3 ? M_.copper : M_.slate, t.x, y0 + th, t.z, 3.8, th * 0.45, rank >= 3 ? 8 : 4);
         solid(p.x, p.z, Lc / 2, Wd / 2, 0, y0 + 9); solid(t.x, t.z, 2.75, 2.75, 0, y0 + th); } }
       { const p = T(sq - 8, -10), y0 = y(p.x, p.z); const wl = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.2, 0.9, 12), M_.stone); wl.position.set(p.x, y0 + 0.45, p.z); wl.castShadow = true; g.add(wl); solid(p.x, p.z, 1.1, 1.1, 0, y0 + 0.9); }
+      // (Hamburg's streets cobbled, wall to wall, the stones following the lie of the ground)
+      if (hh) {
+        const u0 = wallU + 1.5, u1 = end + 14, v0 = -(W + 5), v1 = W + 5, du = 2, dv = 2, nu = Math.ceil((u1 - u0) / du), nv = Math.ceil((v1 - v0) / dv);
+        const pos = [], uv = [], idx = [];
+        for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const p = T(u0 + i * du, v0 + j * dv); pos.push(p.x, y(p.x, p.z) + 0.05, p.z); uv.push(p.x / 3.5, p.z / 3.5); }
+        for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * (nu + 1) + i, b2 = a + nu + 1; idx.push(a, b2, a + 1, a + 1, b2, b2 + 1); }
+        const cg = new THREE.BufferGeometry(); cg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); cg.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); cg.setIndex(idx); cg.computeVertexNormals();
+        // (whichever way the grid was laid, its faces up)
+        if (cg.attributes.normal.getY(0) < 0) { cg.setIndex(idx.map((_, k) => idx[k - (k % 3) + [0, 2, 1][k % 3]])); cg.computeVertexNormals(); }
+        const cm = new THREE.MeshStandardMaterial({ map: groundTexture("cobbles", 1), roughness: 0.92, color: 0xb8b2a8, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+        const cob = new THREE.Mesh(cg, cm); cob.receiveShadow = true; g.add(cob);
+      }
       if (!walls) return;
       // ---- the wall: its face a little out from the rampart's foot, the parapet a man's chest over the walk ----
       // (a star fort's low thick bastioned walls: twice the battering to bring down)
@@ -508,7 +520,7 @@ export function buildThings(w, C, b, flip) {
         if (list.length < 2) continue;
         const geos = list.map(o => { o.updateMatrix(); let q = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); for (const k of Object.keys(q.attributes)) if (k !== "position" && k !== "normal" && k !== "uv") q.deleteAttribute(k); if (!q.attributes.uv) q.setAttribute("uv", new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * 2), 2)); return q.applyMatrix4(o.matrix); });
         const mg = mergeGeometries(geos); if (!mg) continue;
-        const mm = new THREE.Mesh(mg, m); mm.castShadow = list.some(o => o.castShadow); mm.receiveShadow = true;
+        const mm = new THREE.Mesh(mg, m); mm.castShadow = m !== M_.glass && m !== M_.sill && list.some(o => o.castShadow); mm.receiveShadow = true;   // (a window's pane and sill, a few centimetres proud of the wall, cast no shadow: they laid dark diamonds across the brick)
         for (const o of list) { parent.remove(o); o.geometry.dispose(); }
         parent.add(mm);
       }

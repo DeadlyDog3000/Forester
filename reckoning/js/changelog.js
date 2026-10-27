@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.196", date: "26 October 2026", title: "Cobbles",
+    items: [
+      "Hamburg's streets on the battlefield are cobbled, wall to wall, instead of meadow.",
+      "Windows no longer throw dark diamonds of shadow across the brick around them.",
+    ],
+  },
+  {
     v: "1.99.195", date: "26 October 2026", title: "Hamburg's windows",
     items: [
       "Hamburg's brick houses on the battlefield have their windows, storey on storey, each on a pale stone sill, and their doors on the street.",
