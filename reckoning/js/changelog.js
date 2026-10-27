@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.208", date: "26 October 2026", title: "Palisades and haystacks",
+    items: [
+      "Palisade stakes are young trunks in their bark, each a little different and turned its own way, their points hewn to a few pale axe facets, instead of smooth brown poles with two dark hoops round them like barrels and a cone stuck on top. The same goes for the stakes along the forts' flanks, the logs facing the ramparts, and the broken stakes in a breach.",
+      "Haystacks are weathered straw, not bright orange.",
+    ],
+  },
+  {
     v: "1.99.207", date: "26 October 2026", title: "Gabions",
     items: [
       "The gabions in front of the batteries are wicker baskets: willow rods woven over and under their stakes, the stakes' ends standing out of the packed earth on top, the sides a little bellied. Before, they were brown barrels in hoops.",

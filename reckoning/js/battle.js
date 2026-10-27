@@ -283,7 +283,7 @@ export class Field {
       stone: mat(0x8a8478, { surface: "rock" }), iron: mat(0x2a2b2e, { metalness: 0.4, roughness: 0.55 }), stave: mat(0x7a5634, { surface: "wood" }),
       leaf: mat(0x3e5626, { surface: "needles" }), leaf2: mat(0x4a5e2c, { surface: "needles" }), rail: mat(0x7e6a50, { surface: "wood" }),
       soot: mat(0x231d18, { surface: "wood" }), ash: mat(0x3a342e, { surface: "ground" }), boulder: mat(0x8e897f, { surface: "rock", weather: false }),
-      hay: mat(0xb0924e, { surface: "none" }), tarp: mat(0x6e6650, { surface: "cloth" }),
+      hay: mat(0x9c8a5c, { surface: "needles" }), post: mat(0x5c4834, { surface: "bark" }), hewn: mat(0xa8865e, { surface: "wood" }), tarp: mat(0x6e6650, { surface: "cloth" }),
       fleece: mat(0x8a7a62, { surface: "cloth" }), flannel: mat(0xc8b890, { surface: "cloth" }),
     };
     void M;
@@ -504,7 +504,7 @@ export class Field {
     const g = new THREE.Group(), m = new THREE.Mesh(geo, this.M.earth); m.rotation.y = Math.PI / 2;
     // (which face is outward: the long slope toward the enemy, the steep revetted face inside)
     const sx = side === 0 ? -1 : 1; m.scale.z = -sx; g.add(m);
-    for (let i = 0; i < Math.round(len / 0.32); i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 1.0, 6), this.M.log); lg.position.set(sx * 0.95, 0.5, -len / 2 + (i + 0.5) * 0.32); g.add(lg); }
+    for (let i = 0; i < Math.round(len / 0.32); i++) { const lg = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.13, 1.0, 6), this.M.post); lg.position.set(sx * 0.95, 0.5, -len / 2 + (i + 0.5) * 0.32); g.add(lg); }
     const gg = new THREE.Group(); gg.add(g); g.rotation.y = -Math.PI / 2;
     this.put(gg, x, z, ry - Math.PI / 2, -0.05);
     this.solid(x, z, len, 2.4, ry, 1.3, side, inward);
@@ -514,7 +514,7 @@ export class Field {
     this.bank(x, z, len, ry, side, inward);
     const g = new THREE.Group(), n = Math.round(len / 0.18);
     { const back = new THREE.Mesh(new THREE.BoxGeometry(len, 1.15, 0.05), this.M.wood); back.position.set(0, 0.9 + 0.6, 0.1); g.add(back); }
-    for (let i = 0; i < n; i++) { const h = 1.3 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, h, 7), this.M.log); st.position.set(-len / 2 + (i + 0.5) * len / n, 0.9 + h / 2, 0); g.add(st); const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), this.M.stave); tip.position.set(st.position.x, 0.9 + h + 0.12, 0); g.add(tip); }
+    for (let i = 0; i < n; i++) { const h = 1.3 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, h, 7), this.M.post); st.position.set(-len / 2 + (i + 0.5) * len / n, 0.9 + h / 2, 0); st.rotation.y = this.r() * 3; g.add(st); const tip = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.32, 5), this.M.hewn); tip.position.set(st.position.x, 0.9 + h + 0.16, 0); tip.rotation.y = this.r() * 3; g.add(tip); }
     this.put(g, x, z, ry);
     this.solid(x, z, len, 0.35, ry, 2.4, side, inward);
   }
@@ -522,7 +522,7 @@ export class Field {
   rubble(x, z) {
     const g = new THREE.Group();
     for (let i = 0; i < 9; i++) { const c = new THREE.Mesh(rockGeo(0.4 + this.r() * 0.35), this.M.earth); c.position.set((this.r() - 0.5) * 3, 0.1, (this.r() - 0.5) * 1.6); c.scale.y = 0.45; g.add(c); }
-    for (let i = 0; i < 5; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), this.M.log); st.position.set((this.r() - 0.5) * 3, 0.25, (this.r() - 0.5) * 1.4); st.rotation.set(Math.PI / 2 + (this.r() - 0.5), this.r() * 3, 0); g.add(st); }
+    for (let i = 0; i < 5; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), this.M.post); st.position.set((this.r() - 0.5) * 3, 0.25, (this.r() - 0.5) * 1.4); st.rotation.set(Math.PI / 2 + (this.r() - 0.5), this.r() * 3, 0); g.add(st); }
     this.put(g, x, z, this.r() * 3);
   }
   gabion(x, z, side = null, inward = null) {
@@ -564,9 +564,10 @@ export class Field {
     const g = new THREE.Group(), n = Math.round(len / 0.18);
     const back = new THREE.Mesh(new THREE.BoxGeometry(len, 1.35, 0.05), this.M.wood); back.position.set(0, 0.7, 0.1); g.add(back);
     for (let i = 0; i < n; i++) {
-      const h = 1.5 + this.r() * 0.3, st = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, h, 7), this.M.log);
-      st.position.set(-len / 2 + (i + 0.5) * len / n, h / 2, 0); g.add(st);
-      const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.25, 6), this.M.stave); tip.position.set(st.position.x, h + 0.12, 0); g.add(tip);
+      // (each a young trunk in its bark, its point hewn to a few pale axe facets — no hoops round it)
+      const h = 1.5 + this.r() * 0.3, rr = 0.1 + this.r() * 0.025, st = new THREE.Mesh(new THREE.CylinderGeometry(rr, rr * 1.08, h, 7), this.M.post);
+      st.position.set(-len / 2 + (i + 0.5) * len / n, h / 2, (this.r() - 0.5) * 0.04); st.rotation.y = this.r() * 3; g.add(st);
+      const tip = new THREE.Mesh(new THREE.ConeGeometry(rr, 0.32, 5), this.M.hewn); tip.position.set(st.position.x, h + 0.16, st.position.z); tip.rotation.y = this.r() * 3; g.add(tip);
     }
     const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.06), this.M.wood); rail.position.set(0, 0.9, 0.12); g.add(rail);
     this.put(g, x, z, ry);
