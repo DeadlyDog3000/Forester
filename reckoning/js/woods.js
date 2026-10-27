@@ -1003,11 +1003,15 @@ export class Woods extends WorldBase {
 
     // ---- the chopping block, with an axe left in it ----
     const blk = new Builder();
-    // (a squared timber, hewn flat on its four sides with the adze, the end grain on top scored with old cuts — no round
-    //  of trunk that could be taken for a stump)
-    blk.box(0.66, 0.52, 0.56, BLOCK.x, 0.26, BLOCK.z, 0x5e4229, 0.25, 0.05);
-    blk.box(0.64, 0.02, 0.54, BLOCK.x, 0.53, BLOCK.z, 0xa88a62, 0.25);
-    for (let k = 0; k < 4; k++) blk.box(0.5, 0.012, 0.012, BLOCK.x + (k - 1.5) * 0.08, 0.541, BLOCK.z, 0x6a4f34, 0.25 + 0.6 + k * 0.3);
+    // (a chopping bench, as the woods' people made them: a half-log hewn flat on top, the round under, standing on four
+    //  splayed legs pegged into it, its top scored with old cuts — no round of trunk that could be taken for a stump,
+    //  and no crate either)
+    { const TOP = 0.55, half = new THREE.CylinderGeometry(0.23, 0.24, 0.92, 12, 1, false, Math.PI, Math.PI);
+      blk.add(half, 0x5e4229, BLOCK.x, TOP - 0.012, BLOCK.z, 0, 0, Math.PI / 2, 1, 1, 1, 0.05);
+      blk.box(0.92, 0.024, 0.46, BLOCK.x, TOP, BLOCK.z, 0xa88a62, 0, 0.04);
+      for (let k = 0; k < 5; k++) blk.box(0.012, 0.012, 0.3 + (k % 2) * 0.08, BLOCK.x - 0.16 + k * 0.075, TOP + 0.013, BLOCK.z + (k % 3 - 1) * 0.03, 0x6a4f34, 0.3 + k * 0.25);
+      const leg = new THREE.CylinderGeometry(0.035, 0.045, 0.62, 6);
+      for (const a of [-1, 1]) for (const b of [-1, 1]) blk.add(leg, 0x6b5640, BLOCK.x + a * 0.36, 0.27, BLOCK.z + b * 0.15, -b * 0.28, 0, a * 0.18, 1, 1, 1, 0.08); }
     // a sawbuck beside it: two X-frames of rough poles, pegged where they cross and joined by a rail, a log lying in
     //  their V's ready for the saw (not four straight posts under a plank)
     { const pole = new THREE.CylinderGeometry(0.042, 0.05, 1.3, 7), X0 = BLOCK.x + 1.3;

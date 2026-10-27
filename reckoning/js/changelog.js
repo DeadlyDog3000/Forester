@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.214", date: "27 October 2026", title: "A chopping bench",
+    items: [
+      "The chopping block by the woodpile is a proper chopping bench: a half-log hewn flat on top, standing on four splayed legs, its top scored with old cuts. Before, it was a plain reddish box.",
+    ],
+  },
+  {
     v: "1.99.213", date: "27 October 2026", title: "Saddle cloths and vine rows",
     items: [
       "A riding horse's saddle cloth hangs over its back and down both flanks, with a gold border along the bottom. It used to be a flat dome laid on the back that stood out past the horse's sides like a plate, a blue or green disc round every horseman.",
