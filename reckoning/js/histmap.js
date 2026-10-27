@@ -121,6 +121,12 @@ export function buildThings(w, C, b, flip) {
       const p = at(u, v), y0 = Math.min(y(p.x - 3, p.z), y(p.x + 3, p.z), y(p.x, p.z - 3), y(p.x, p.z + 3)), r = ry * sg;
       box(kind === "tile" ? M_.whitewash : M_.wall, p.x, y0 + 1.4, p.z, sx, 3.6, sz, r);
       roof(M_[kind] || M_.thatch, p.x, y0 + 3.2, p.z, sx, 2.6, sz, r + Math.PI / 2 * 0);
+      // (two small windows and a door on its front, a window behind: a cottage, not a whitewashed block)
+      const cr = Math.cos(r), sr = Math.sin(r), lp = (lx, lz) => [p.x + lx * cr + lz * sr, p.z - lx * sr + lz * cr];
+      for (const [lx, fz, door] of [[-sx * 0.28, 1, 0], [sx * 0.28, 1, 0], [0, 1, 1], [0, -1, 0]]) {
+        const [wx, wz] = lp(lx, fz * (sz / 2 + 0.03));
+        if (door) box(M_.door, wx, y0 + 0.95, wz, 0.95, 1.9, 0.08, r); else box(M_.glass, wx, y0 + 1.75, wz, 0.75, 0.8, 0.06, r);
+      }
       solid(p.x, p.z, sx / 2, sz / 2, r, y0 + 5);
     },
     // a village church: the nave, and its tower at the west end with a spire or a cap
