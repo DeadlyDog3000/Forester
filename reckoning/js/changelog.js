@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.197", date: "26 October 2026", title: "Windows everywhere",
+    items: [
+      "Every town fought over on the field — in the campaign's sieges and its town battles too — has windows in its houses, storey on storey, and doors on its streets, instead of blank walls.",
+    ],
+  },
+  {
     v: "1.99.196", date: "26 October 2026", title: "Cobbles",
     items: [
       "Hamburg's streets on the battlefield are cobbled, wall to wall, instead of meadow.",

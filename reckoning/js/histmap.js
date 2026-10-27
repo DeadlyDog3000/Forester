@@ -208,18 +208,19 @@ export function buildThings(w, C, b, flip) {
           //  and steep, as the Hanse built: the ridge runs back from the street)
           rh = sx * (0.85 + rr() * 0.3);
           roof(rm, x, y0 + h, z, sx, rh, sz, 0);
-          // (its windows, storey on storey, front and back, each on its pale sill; a door on the street)
-          { const st = Math.round((h - 0.6) / 3.1), nw = Math.max(1, Math.floor((sx - 0.8) / 2.1));
-            for (const fz of [-1, 1]) {
-              const zf = z + fz * (sz / 2 + 0.03);
-              for (let k = 0; k < st; k++) for (let i = 0; i < nw; i++) {
-                const wx = x - sx / 2 + (i + 0.5) * sx / nw, wy = y0 + 0.9 + k * 3.1 + 1.0;
-                if (k === 0 && i === Math.floor(nw / 2) && fz === 1) { box(M_.door, wx, y0 + 0.3 + 1.1, zf, 1.1, 2.2, 0.08); continue; }
-                box(M_.glass, wx, wy, zf, 0.95, 1.45, 0.06); box(M_.sill, wx, wy - 0.78, zf + fz * 0.04, 1.15, 0.1, 0.12);
-              } } }
           // (the timber-framed ones: posts and a rail dark against the whitewash, front and back)
           if (fm === M_.timbered) { for (const k of [-0.47, -0.16, 0.16, 0.47]) box(M_.dark, x + k * sx, y0 + h / 2, z, 0.22, h, sz + 0.06); for (const fy of [0.34, 0.67]) box(M_.dark, x, y0 + h * fy, z, sx + 0.04, 0.2, sz + 0.06); }
         } else { rh = Math.min(sx, sz) * (0.45 + rr() * 0.2); if (sx >= sz) roof(rm, x, y0 + h, z, sz, rh, sx, Math.PI / 2); else roof(rm, x, y0 + h, z, sx, rh, sz, 0); }
+        // (its windows, storey on storey, front and back, each on its pale sill; a door on the street)
+        { const st = Math.round((h - 0.6) / 3.1), nw = Math.max(1, Math.floor((sx - 0.8) / 2.1));
+          for (const fz of [-1, 1]) {
+            const zf = z + fz * (sz / 2 + 0.03);
+            for (let k = 0; k < st; k++) for (let i = 0; i < nw; i++) {
+              const wx = x - sx / 2 + (i + 0.5) * sx / nw, wy = y0 + 0.9 + k * 3.1 + 1.0;
+              if (k === 0 && i === Math.floor(nw / 2) && fz === 1) { box(M_.door, wx, y0 + 0.3 + 1.1, zf, 1.1, 2.2, 0.08); continue; }
+              box(M_.glass, wx, wy, zf, 0.95, 1.45, 0.06); box(M_.sill, wx, wy - 0.78, zf + fz * 0.04, 1.15, 0.1, 0.12);
+            } } }
+
         if (rr() < 0.5) box(M_.brick, x + (rr() - 0.5) * sx * 0.5, y0 + h + rh * 0.7, z + (rr() - 0.5) * sz * 0.5, 0.7, rh * 1.1, 0.7);
         solid(x, z, sx / 2, sz / 2, 0, y0 + h + rh);
       };
