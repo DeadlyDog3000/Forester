@@ -9,7 +9,7 @@ import { THREE, rockGeo, mat, MAT, rng, TAU, makeFlame, camera, addDetail, rende
 import { G, Actor } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { makeArm, makeTorch } from "./models.js";
+import { makeArm, makeTorch, realPart } from "./models.js";
 import { CLEARING } from "./woods.js";
 import { Bandit, swingAt, makeStash, lootStash } from "./camps.js";
 
@@ -160,10 +160,15 @@ export class Caves {
     const rock = new THREE.MeshStandardMaterial({ color: 0x6a665e, roughness: 1 });
     // the hill it goes into: a low mound of earth and moss behind
     const mound = new THREE.Mesh(new THREE.SphereGeometry(7, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x4a5a32, roughness: 1, flatShading: true }));
-    mound.scale.set(1, 0.62, 0.9); mound.position.set(0, -0.3, -8.2); mound.receiveShadow = true; g.add(mound);
+    mound.scale.set(1.35, 0.78, 1.15); mound.position.set(0, -0.6, -6.6);   // (a hillside the mouth is set into, not a low hump behind a heap of stones) mound.receiveShadow = true; g.add(mound);
     // an arch of rock: two jambs, a lintel across, and rubble either side
     for (const [px, py, pz, s] of [[-1.9, 1.1, 0.2, 1.1], [1.9, 1.1, 0.2, 1.1], [-2.1, 2.4, -0.2, 0.9], [2.1, 2.4, -0.2, 0.9], [0, 3.35, 0, 1.25], [-1.1, 3.2, -0.4, 0.9], [1.1, 3.2, -0.4, 0.9], [-3.2, 0.5, -0.6, 1.0], [3.2, 0.5, -0.6, 1.0], [-2.6, 3.0, -1.6, 1.4], [2.6, 3.0, -1.6, 1.4], [0, 4.2, -1.8, 1.6]]) {
-      const m = new THREE.Mesh(rockGeo(s), rock); m.position.set(px, py, pz); m.rotation.set(px * 1.3, pz + 0.4, py); m.castShadow = true; g.add(m);
+      // (the scanned granite of the woods' stones, where it can be had: built ones, smooth, stood about the mouth like a
+      //  heap of potatoes)
+      const RC = realPart("rock_c");
+      const m = RC ? new THREE.Mesh(RC.geo, RC.mat) : new THREE.Mesh(rockGeo(s), rock);
+      if (RC) m.scale.set(s * 2.9, s * 2.5, s * 2.9);
+      m.position.set(px * (RC ? 0.92 : 1), py - (RC ? 0.35 : 0), pz); m.rotation.set(px * 1.3, pz + 0.4, py); m.castShadow = true; m.receiveShadow = true; g.add(m);
     }
     // the passage: black, going back and down into the hill
     const dark = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.7, 2.2), new THREE.MeshBasicMaterial({ color: 0x040302, side: THREE.BackSide }));

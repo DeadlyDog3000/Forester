@@ -7,10 +7,11 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.202", date: "26 October 2026", title: "The cave",
+    v: "1.99.203", date: "26 October 2026", title: "The cave",
     items: [
       "The cave's halls are smooth rock with its own grain and a crack here and there, instead of flat facets that looked cut from card; its floor is dark trodden grit instead of a pale grey that shone like snow under the lantern; and its stalagmites are rounded instead of five-sided pyramids.",
       "Rock everywhere shows its cracks only here and there, instead of curling lines all over it like the lines on a map.",
+      "The cave's mouth is an arch of real grey granite set into its hill, instead of a heap of smooth beige stones like potatoes.",
     ],
   },
   {
