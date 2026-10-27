@@ -992,7 +992,9 @@ function useModel(P, key, colors = {}) {
   const own = {};
   m.scene.traverse(o => {
     if (!o.isMesh || !o.material) return;
-    const part = o.material.userData.part, want = colors[part === "beard" || part === "tash" ? "hair" : part];
+    // (the eye colour asked for is the iris's: given to the "eyes" — the whites — it stained every white brown or blue,
+    //  and with the painted shading on them every man looked out of two black holes)
+    const part = o.material.userData.part, want = part === "eyes" ? undefined : colors[part === "beard" || part === "tash" ? "hair" : part === "iris" ? "eyes" : part];
     // (a part left off altogether: the watch's sash, when the uniform has none)
     if (colors.hide && colors.hide.includes(part)) { o.visible = false; return; }
     if (want === undefined || want === null) return;
@@ -1003,6 +1005,7 @@ function useModel(P, key, colors = {}) {
       //  colour seen, its shading kept)
       const vc = o.material.vertexColors && o.geometry.attributes.color;
       // (the iris tinted as it's painted, light to dark: brightened to its mean, a brown eye lit up amber)
+      if (vc && part === "iris") { const mean = paintedMean(o.geometry); for (const c of ["r", "g", "b"]) own[part].color[c] /= Math.max(0.1, mean[c === "r" ? 0 : c === "g" ? 1 : 2] * 2.6); }
       if (vc && part !== "iris") { const mean = paintedMean(o.geometry); own[part].userData.vcMean = mean; own[part].color.r /= Math.max(0.04, mean[0]); own[part].color.g /= Math.max(0.04, mean[1]); own[part].color.b /= Math.max(0.04, mean[2]); }
       addDetail(own[part], { scale: 2, amount: 0.22, grain: 0.6, surface: o.material.userData.surface });
     }
@@ -1039,7 +1042,10 @@ function useModel(P, key, colors = {}) {
     if (!own[part]) { own[part] = o.material.clone(); own[part].userData.part = part; if (o.material.userData.detail) addDetail(own[part], o.material.userData.detail); }
     const e = own[part]; if (e.userData.wet) { o.material = e; return; }
     e.userData.wet = true;
-    if (e.color) e.color.multiply(part === "eyes" ? new THREE.Color(0.8, 0.74, 0.66) : new THREE.Color(0.75, 0.72, 0.7));
+    // (the whites' painted shading is dark — about a fifth — so the white is set against it: a white seen as a white,
+    //  the shading at its corners kept)
+    if (part === "eyes" && e.vertexColors && o.geometry.attributes.color) { const mean = paintedMean(o.geometry); e.color.setRGB(0.74 / Math.max(0.05, mean[0]), 0.68 / Math.max(0.05, mean[1]), 0.6 / Math.max(0.05, mean[2])); }
+    else if (e.color) e.color.multiply(part === "eyes" ? new THREE.Color(0.8, 0.74, 0.66) : new THREE.Color(0.75, 0.72, 0.7));
     e.roughness = 0.12; if ("metalness" in e) e.metalness = 0;
     o.material = e;
   });

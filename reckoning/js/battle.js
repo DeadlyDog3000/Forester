@@ -16,7 +16,7 @@ import { AUDIO } from "./audio.js";
 import { makeCannon, cloud, segDist } from "./cannon.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { shake } from "./fight.js";
-import { P, makeLogs, makeSheaf, makeSack } from "./models.js";
+import { P, makeLogs, makeSack } from "./models.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -283,7 +283,7 @@ export class Field {
       stone: mat(0x8a8478, { surface: "rock" }), iron: mat(0x2a2b2e, { metalness: 0.4, roughness: 0.55 }), stave: mat(0x7a5634, { surface: "wood" }),
       leaf: mat(0x3e5626, { surface: "needles" }), leaf2: mat(0x4a5e2c, { surface: "needles" }), rail: mat(0x7e6a50, { surface: "wood" }),
       soot: mat(0x231d18, { surface: "wood" }), ash: mat(0x3a342e, { surface: "ground" }), boulder: mat(0x8e897f, { surface: "rock", weather: false }),
-      hay: mat(0x9c8a5c, { surface: "needles" }), post: mat(0x5c4834, { surface: "bark" }), hewn: mat(0xa8865e, { surface: "wood" }), tarp: mat(0x6e6650, { surface: "cloth" }),
+      post: mat(0x5c4834, { surface: "bark" }), hewn: mat(0xa8865e, { surface: "wood" }), tarp: mat(0x6e6650, { surface: "cloth" }),
       fleece: mat(0x8a7a62, { surface: "cloth" }), flannel: mat(0xc8b890, { surface: "cloth" }),
     };
     void M;
@@ -580,16 +580,16 @@ export class Field {
     this.solid(x, z, len, 0.3, ry, 1.9, side);   // (to the stakes' points: nothing goes over the top of it below them)
   }
   // ---- between the lines: what the country left lying about ----
-  // farms, field walls and hedges, a woodcutter's felling, rocks, haystacks, a wagon broken down — set down by turns on
+  // farms, field walls and hedges, a woodcutter's felling, rocks, a wagon broken down — set down by turns on
   // either half, so neither side has it all; walls and hedges mostly across the field, to get down behind
   between(n) {
     // (the very middle left open — the ground the two lines cross to meet; the cover on either side of it, and well out
     //  up and down the field)
     const r = this.r, C = this.C, ix = this.battle ? this.dx - 14 : this.dx - 7, iz = this.battle ? 44 : 22, mid = this.battle ? 9 : 3;
     const across = () => r() < 0.8 ? Math.PI / 2 + (r() - 0.5) * 0.7 : r() * Math.PI;
-    // (in the woods of the New World: no farms, walls, hay or wagons — the trees that were felled, and the rocks)
+    // (in the woods of the New World: no farms, walls or wagons — the trees that were felled, and the rocks)
     const KINDS = this.w.woods != null ? [["felled", 3], ["rocks", 3]] : this.battle
-      ? [["wall", 4], ["farm", 1], ["felled", 2], ["rocks", 3], ["hay", 2], ["wagon", 2], ["fence", 1], ["barrels", 2]]
+      ? [["wall", 4], ["farm", 1], ["felled", 2], ["rocks", 3], ["wagon", 2], ["fence", 1], ["barrels", 2]]
       : [["wall", 3], ["felled", 2], ["rocks", 2], ["wagon", 1], ["fence", 1], ["barrels", 1]];
     const total = KINDS.reduce((s, k) => s + k[1], 0), had = {};
     const pick = () => { let v = r() * total; for (const [k, w] of KINDS) if ((v -= w) < 0) return k; return KINDS[0][0]; };
@@ -600,7 +600,7 @@ export class Field {
       // (on the near half or the far one by turns; the very middle left open, mostly)
       const half = i % 2 ? 1 : -1, ry = across();
       const len = kind === "wall" ? 6 + r() * 7 : kind === "hedge" ? 8 + r() * 7 : kind === "fence" ? 9 + r() * 8 : 0;
-      const rad = len ? len / 2 : { farm: 6.5, felled: 4.5, rocks: 2.6, hay: 3.2, wagon: 3, barrels: 1.2 }[kind];
+      const rad = len ? len / 2 : { farm: 6.5, felled: 4.5, rocks: 2.6, wagon: 3, barrels: 1.2 }[kind];
       const p = this.find(() => ({ x: C.x + half * (mid + rad * 0.6 + r() * Math.max(1, ix - mid - rad)), z: C.z + (r() * 2 - 1) * (iz - rad * 0.5) }), rad);
       if (!p) continue;
       if (kind === "wall") {
@@ -613,7 +613,6 @@ export class Field {
       else if (kind === "farm") this.farm(p.x, p.z, across());
       else if (kind === "felled") this.felled(p.x, p.z, r() * Math.PI);
       else if (kind === "rocks") this.rocks(p.x, p.z);
-      else if (kind === "hay") this.hay(p.x, p.z);
       else if (kind === "wagon") this.wagon(p.x, p.z, r() * Math.PI);
       else this.barrels(p.x, p.z);
     }
@@ -721,21 +720,6 @@ export class Field {
       const top = R * hy * 1.5;
       if (i === 0) this.solid(px, pz, R * 1.7, R * 1.6, r() * 3, top, null);
       else this.cols.push(this.w.col.addCircle(px, pz, R * 0.95, this.y(px, pz) + top));
-    }
-  }
-  // a haystack, built round a pole and thatched against the rain, and stooks of sheaves stood drying by it
-  hay(x, z) {
-    const r = this.r, g = new THREE.Group();
-    const prof = [[0, 0], [1.75, 0], [1.9, 0.5], [1.85, 1.1], [1.5, 1.8], [0.95, 2.4], [0.35, 2.85], [0.05, 3.0]].map(([a, b]) => new THREE.Vector2(a, b));
-    const stack = new THREE.Mesh(new THREE.LatheGeometry(prof, 18), this.M.hay); g.add(stack);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.0, 6), this.M.log); pole.position.y = 3.2; g.add(pole);
-    for (let k = 0; k < 2; k++) { const band = new THREE.Mesh(new THREE.TorusGeometry(1.2 - k * 0.45, 0.03, 4, 18), this.M.rail); band.rotation.x = Math.PI / 2; band.position.y = 1.95 + k * 0.55; band.scale.setScalar(1 + (1 - k) * 0.2); g.add(band); }
-    this.put(g, x, z, r() * 3);
-    this.solid(x, z, 3.0, 3.0, r() * 3, 2.8, null);
-    for (let i = 0; i < 3 + Math.floor(r() * 3); i++) {
-      const a = r() * Math.PI * 2, d = 2.6 + r() * 1.2, s = new THREE.Group();
-      for (let k = 0; k < 6; k++) { const t = k / 6 * Math.PI * 2, sh = makeSheaf(); sh.scale.setScalar(2.4); sh.rotation.set(0, t, -0.3); sh.position.set(-Math.cos(t) * 0.2, 0, Math.sin(t) * 0.2); s.add(sh); }
-      this.put(s, x + Math.cos(a) * d, z + Math.sin(a) * d, r() * 3);
     }
   }
   // a wagon broken down and left: the farm cart over on its side, its load spilled — barrels rolled off, sacks split
