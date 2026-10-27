@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.217", date: "27 October 2026", title: "Scots pine crowns",
+    items: [
+      "The Scots pines' crowns have body to them: each bough's cloud of needles is flattish but full, and tipped a little this way or that, instead of pressed so thin that from below every pine looked like a stack of saucers.",
+    ],
+  },
+  {
     v: "1.99.216", date: "27 October 2026", title: "Spruce tops",
     items: [
       "The spruces round the clearing come to a green point at the top. Each one's leader stood clear above its top whorl, and its spray's forked tip read as a dead stick broken off at the top of every tree along the skyline.",

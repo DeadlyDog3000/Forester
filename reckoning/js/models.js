@@ -2281,7 +2281,8 @@ export function forestInstances(list, far = false) {
   }
   // Scots pine: a tall bare trunk and a flat, broken crown
   // (the crown the top third of it: a flat-topped head, and boughs standing out from the trunk under it, each its own
-  //  flat cloud of needles — not one blob on a stick)
+  //  cloud of needles, flattish but with body to it (pressed thinner, they read from below as so many saucers) — not
+  //  one blob on a stick)
   const PN = 7, pineB = new THREE.InstancedMesh(swayGeo(BLOB, kinds.pine.length * PN), TREE.pineMat, Math.max(1, kinds.pine.length * PN));
   // (and each of those clouds borne on its own limb out of the trunk, in the trunk's bark: they hung in the air beside it)
   const pineL = new THREE.InstancedMesh(swayGeo(TREE.limb, kinds.pine.length * (PN - 1)), TREE.trunkMat, Math.max(1, kinds.pine.length * (PN - 1)));
@@ -2296,7 +2297,7 @@ export function forestInstances(list, far = false) {
       const w = t.h * (i === 0 ? 0.2 : 0.12 + (i % 2) * 0.03);
       const hy = i === 0 ? 0.9 : 0.66 + ((i * 0.37 + Math.sin(seed * 3 + i) * 0.1) % 0.24);
       dummy.position.set(t.x + Math.cos(a) * rad, t.y + t.h * hy, t.z + Math.sin(a) * rad);
-      dummy.scale.set(w, w * 0.42, w * 0.85); dummy.rotation.set(0, a, 0); dummy.updateMatrix();
+      dummy.scale.set(w, w * (i === 0 ? 0.66 : 0.58 + (i % 3) * 0.05), w * 0.85); dummy.rotation.set(Math.sin(seed + i * 1.3) * 0.12, a, 0); dummy.updateMatrix();
       sway(pineB, pi, t); pineB.setMatrixAt(pi, dummy.matrix); t.slots.push([pineB, pi]);
       tint(pineB, pi++, 0, seed);
       if (i > 0) {
