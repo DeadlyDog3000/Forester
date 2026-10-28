@@ -1464,6 +1464,7 @@ async function start(opts = {}) {
     if (u.pathname === "/licence") return licence(u, res, req);
     // the shop itself: the game sold through Stripe, and its own keys (see shop.cjs)
     if (u.pathname === "/hello") return counts.hello(u, req, res);
+    if (u.pathname === "/visit") return counts.visit(u, req, res);
     if (u.pathname === "/stats") return counts.stats(u, res);
     if (u.pathname.startsWith("/shop/")) { shop.handle(u, req, res).catch(e => { log("shop:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the website's reviews: accounts, and two reviews each on every game (see reviews.cjs)

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.229", date: "28 October 2026", title: "The server counts website visits",
+    items: [
+      "The game's server can count visits to the DeadlyDog website and plays of its browser games, the same anonymous way it counts players: a random number per browser, kept only scrambled, tallied by day, with no address stored.",
+    ],
+  },
+  {
     v: "1.99.228", date: "27 October 2026", title: "Counting players",
     items: [
       "When the desktop game starts, it sends our server an anonymous random number (made on your computer the first time, not tied to you), its version, Mac or Windows, and demo or full game, so we can count how many people play. Nothing else is sent, and the server keeps the number only scrambled. The credits say so.",
