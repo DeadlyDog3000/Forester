@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.226", date: "27 October 2026", title: "The gunners' powder",
+    items: [
+      "The gunners' powder on the battlefield is a stand of barrels with a tarpaulin thrown over them and draped down their sides. It used to be a ridge tent on poles that read from across the field as a little hut.",
+    ],
+  },
+  {
     v: "1.99.225", date: "27 October 2026", title: "Walls you build",
     items: [
       "A length of stone wall you build has a plinth along its foot, a string course under the cap, and merlons spaced along its whole length.",

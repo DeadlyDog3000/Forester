@@ -840,10 +840,16 @@ export class Field {
   }
   // a gun's powder, kept back from it: a few casks under a tarpaulin pegged down over a ridge-pole
   powder(x, z, ry) {
-    const g = new THREE.Group();
+    // the gunners' powder: barrels stood together, a tarpaulin thrown over them against the wet and draped down their
+    //  sides, a keg or two beside — not a ridge tent on poles, which from across the field read as a little hut
+    const g = new THREE.Group(), r = this.r;
     for (let i = 0; i < 4; i++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.6, 10), this.M.stave); b.position.set((i % 2) * 0.55 - 0.27, 0.3, Math.floor(i / 2) * 0.55 - 0.27); g.add(b); }
-    for (const sd of [-1, 1]) { const t = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.02, 1.15), this.M.tarp); t.position.set(0, 0.62, sd * 0.42); t.rotation.x = sd * 0.75; g.add(t); }
-    for (const e of [-0.85, 0.85]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.05, 5), this.M.wood); p.position.set(e, 0.52, 0); g.add(p); }
+    const tg = new THREE.PlaneGeometry(1.7, 1.6, 12, 12); tg.rotateX(-Math.PI / 2); const tp = tg.attributes.position;
+    for (let i = 0; i < tp.count; i++) { const px = tp.getX(i), pz = tp.getZ(i), e = Math.max(Math.abs(px) / 0.85, Math.abs(pz) / 0.8), over = Math.max(0, e - 0.62) / 0.38;
+      tp.setY(i, 0.63 - over * over * 0.5 + Math.sin(px * 7 + pz * 5) * 0.012 - (Math.abs(px) < 0.05 || Math.abs(pz) < 0.05 ? 0.025 : 0)); }
+    tg.computeVertexNormals();
+    const tarp = new THREE.Mesh(tg, this.M.tarp); tarp.material.side = THREE.DoubleSide; g.add(tarp);
+    for (let k = 0; k < 2; k++) { const keg = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.32, 9), this.M.stave); keg.position.set(0.85 + k * 0.1, 0.16 + (k ? 0 : 0), -0.4 + k * 0.4); if (k) { keg.rotation.z = Math.PI / 2; keg.position.y = 0.15; } g.add(keg); }
     this.put(g, x, z, ry);
     this.solid(x, z, 1.8, 1.7, ry, 0.95, null);
   }
