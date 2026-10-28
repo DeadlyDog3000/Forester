@@ -13,6 +13,7 @@
 //   GET /stats?t=<the shop's sales token>                         { installs, today, week, launches, byVersion, …, web }
 
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
+const ipOf = require("./ipof.cjs");
 
 const KEEP_DAYS = 90;
 
@@ -33,7 +34,7 @@ module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
 
   // (a few hellos an hour from one place at most: the address is used for that and forgotten, never written down)
   const asks = new Map();
-  const tooMany = (req, kind = "h", max = 20) => { const ip = kind + ((req.socket && req.socket.remoteAddress) || "x"), t = Date.now(), l = (asks.get(ip) || []).filter(x => t - x < 3600000); l.push(t); asks.set(ip, l); if (asks.size > 5000) asks.clear(); return l.length > max; };
+  const tooMany = (req, kind = "h", max = 20) => { const ip = kind + (ipOf(req)), t = Date.now(), l = (asks.get(ip) || []).filter(x => t - x < 3600000); l.push(t); asks.set(ip, l); if (asks.size > 5000) asks.clear(); return l.length > max; };
 
   const clean = (s, n) => String(s || "").replace(/[^A-Za-z0-9._-]/g, "").slice(0, n);
 

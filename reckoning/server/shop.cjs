@@ -26,6 +26,7 @@
 // again whenever it changes, so setting it needs no restart.
 
 const fs = require("fs"), path = require("path"), crypto = require("crypto"), https = require("https"), http = require("http");
+const ipOf = require("./ipof.cjs");
 const mailer = require("./mailer.cjs");
 
 const MAX_COMPUTERS = 3;
@@ -240,7 +241,7 @@ Keep this email. If you ever lose your key or need a hand, just reply to it.
 
   // ---- the routes ----
   const asks = new Map();
-  const tooMany = (req, kind, n, ms) => { const ip = (req.socket && req.socket.remoteAddress) || "x", k = kind + ip, t = Date.now(), l = (asks.get(k) || []).filter(x => t - x < ms); l.push(t); asks.set(k, l); return l.length > n; };
+  const tooMany = (req, kind, n, ms) => { const ip = ipOf(req), k = kind + ip, t = Date.now(), l = (asks.get(k) || []).filter(x => t - x < ms); l.push(t); asks.set(k, l); return l.length > n; };
   const json = (res, code, o) => { res.statusCode = code; res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(o)); };
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const page = (res, code, title, body) => {

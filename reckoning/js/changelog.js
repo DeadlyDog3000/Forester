@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.230", date: "28 October 2026", title: "Fair limits behind the secure address",
+    items: [
+      "The server's limits on how often one place may ask (checkouts, replays, licence checks, the counts) tell callers apart again when they come through its secure https address. Through the proxy they all looked like one caller, and shared a single limit.",
+    ],
+  },
+  {
     v: "1.99.229", date: "28 October 2026", title: "The server counts website visits",
     items: [
       "The game's server can count visits to the DeadlyDog website and plays of its browser games, the same anonymous way it counts players: a random number per browser, kept only scrambled, tallied by day, with no address stored.",

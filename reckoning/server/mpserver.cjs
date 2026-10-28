@@ -15,6 +15,7 @@
 // or from inside the app (shell.js), to host a game on your own network.
 
 const http = require("http"), crypto = require("crypto"), fs = require("fs"), path = require("path"), dgram = require("dgram"), os = require("os");
+const ipOf = require("./ipof.cjs");
 const { pathToFileURL } = require("url");
 
 let R = null, T = null, LK = null, F = null;
@@ -1512,7 +1513,7 @@ async function start(opts = {}) {
     }
     if (req.method !== "POST") { res.statusCode = 405; return res.end("{}"); }
     // (sent in: a few an hour from anyone, and no bigger than a long battle makes)
-    const ip = (req.socket && req.socket.remoteAddress) || "x", t = now(), recent = (repAsks.get(ip) || []).filter(x => t - x < 600000);
+    const ip = ipOf(req), t = now(), recent = (repAsks.get(ip) || []).filter(x => t - x < 600000);
     if (recent.length >= 12) { res.statusCode = 429; return res.end(JSON.stringify({ error: "too many" })); }
     recent.push(t); repAsks.set(ip, recent);
     const parts = []; let size = 0, over = false;
@@ -1543,7 +1544,7 @@ async function start(opts = {}) {
   function licence(u, res, req) {
     const op = u.searchParams.get("op"), key = String(u.searchParams.get("key") || "").slice(0, 80), inst = String(u.searchParams.get("inst") || "").slice(0, 80), name = String(u.searchParams.get("name") || "Forester Reckoning").slice(0, 60), user = String(u.searchParams.get("user") || "").slice(0, 32);
     if (!["activate", "validate", "deactivate"].includes(op) || !/^[A-Za-z0-9-]{8,80}$/.test(key)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad request" })); }
-    const ip = (req.socket && req.socket.remoteAddress) || "x", t = now(), recent = (licAsks.get(ip) || []).filter(x => t - x < 60000);
+    const ip = ipOf(req), t = now(), recent = (licAsks.get(ip) || []).filter(x => t - x < 60000);
     if (recent.length > 10) { res.statusCode = 429; return res.end(JSON.stringify({ error: "too many" })); }
     recent.push(t); licAsks.set(ip, recent);
     // (one of the shop's own keys: answered here)
