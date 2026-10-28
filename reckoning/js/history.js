@@ -138,7 +138,7 @@ export const BATTLES = [
   {
     id: "narva", name: "Narva", date: "30 November 1700", year: 1700, lon: 28.19, lat: 59.38, at: "In Ingria",
     hour: "afternoon", cloud: 1, mist: 0.6, fort: 1, won: 0, you: 0,
-    map: { snow: true, low: 2.6, rivers: [{ u: 100, w: 40, d: 2.6 }], things: [["castle", 150, -60, 1.5], ["spire", 170, -20, 60, "slate"], ["castle", 60, 140, 0.9], ["tents", 46, 70, -50, 50, 18, "canvas", "ridge"]] },
+    map: { snow: true, low: 2.6, rivers: [{ u: 100, w: 40, d: 2.6 }], things: [["castle", 150, -60, 1.5], ["spire", 170, -20, 60, "slate"], ["castle", 60, 140, 0.9], ["tents", 64, 78, -54, 54, 18, "canvas", "ridge"]] },
     brief: "Peter the Great is besieging Narva with nearly forty thousand men behind a long line of earthworks. Charles XII of Sweden, eighteen years old, has marched up with ten thousand. At two in the afternoon a snowstorm blows straight into the Russians' faces, and the Swedes attack out of it.",
     after: ["The Swedes broke the Russian line in two places, and in the blinding snow the Russian army fell apart. Thousands surrendered. Charles was the wonder of Europe. Peter went home to rebuild his army, and nine years later beat him at Poltava.", "Here the Tsar's lines held, and the young King's war ended before it began."],
     sides: [

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.227", date: "27 October 2026", title: "Narva's camp",
+    items: [
+      "At Narva the Russian camp's tents stand behind their line, by the river, instead of in the ground where their army forms up.",
+    ],
+  },
+  {
     v: "1.99.226", date: "27 October 2026", title: "The gunners' powder",
     items: [
       "The gunners' powder on the battlefield is a stand of barrels with a tarpaulin thrown over them and draped down their sides. It used to be a ridge tent on poles that read from across the field as a little hut.",
