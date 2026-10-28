@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.225", date: "27 October 2026", title: "Walls you build",
+    items: [
+      "A length of stone wall you build has a plinth along its foot, a string course under the cap, and merlons spaced along its whole length.",
+      "A broken palisade's pieces all lie in the grass. Its two short ends no longer stand upright where they read as stumps.",
+    ],
+  },
+  {
     v: "1.99.224", date: "27 October 2026", title: "Snow on the roofs",
     items: [
       "Snow lies evenly on a pitched roof, with a little drift in it, instead of in blotches that left the tiles showing through in red patches like rust.",

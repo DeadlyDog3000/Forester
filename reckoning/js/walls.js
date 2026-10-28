@@ -23,13 +23,14 @@ export function wallVis(g, b, def) {
   const r = rng(Math.floor(b.x * 31 + b.z * 17));
   const W = def.w;
   if (b.broken) {
-    // what's left: a few stumps of it, and the rest in the grass
+    // what's left: its pieces lying in the grass
     if (def.wall === "stone") for (let i = 0; i < 7; i++) {
       const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.28 + r() * 0.2, 0), mat(0x8a857c, { surface: "rock" }));
       m.position.set((r() - 0.5) * W, 0.2, (r() - 0.5) * 1.2); m.rotation.set(r() * 3, r() * 3, 0); m.castShadow = true; g.add(m);
     } else {
       g.add(makeLogs([0, 1, 2].map(i => ({ x: (i - 1) * 0.9 + (r() - 0.5) * 0.3, y: 0.18, z: (r() - 0.5) * 1.2, len: 2.2 + r(), r: 0.16, dir: "x", ry: (r() - 0.5) * 0.8 })), 5));
-      g.add(makeLogs([-1, 1].map(s => ({ x: s * W * 0.42, y: 0.45, z: 0, len: 0.9, r: 0.17, dir: "y" })), 7));
+      // (the broken ends down in the grass too: two short lengths standing upright here read as stumps)
+      g.add(makeLogs([-1, 1].map(s => ({ x: s * W * 0.42, y: 0.17, z: (r() - 0.5) * 0.8, len: 1.1, r: 0.16, dir: "x", ry: 0.9 + r() * 0.8 })), 7));
     }
     return;
   }
@@ -51,8 +52,12 @@ export function wallVis(g, b, def) {
     const stone = mat(0x8e887e, { surface: "stone" });
     const body = new THREE.Mesh(new THREE.BoxGeometry(W + 0.02, WALL_H, def.d), stone); body.position.y = WALL_H / 2; body.castShadow = body.receiveShadow = true; g.add(body);
     const cap = new THREE.Mesh(new THREE.BoxGeometry(W + 0.06, 0.18, def.d + 0.14), mat(0x7a756c, { surface: "stone" })); cap.position.y = WALL_H + 0.09; cap.castShadow = true; g.add(cap);
-    // crenels along the top
-    for (let i = 0; i < 4; i++) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.5, def.d), stone); c.position.set(-W / 2 + 0.4 + i * (W - 0.8) / 3, WALL_H + 0.43, 0); c.castShadow = true; g.add(c); }
+    // (a plinth along its foot, a little wider and darker, as a wall is footed; a string course under the cap)
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.55, def.d + 0.22), mat(0x7e786e, { surface: "stone" })); foot.position.y = 0.27; foot.castShadow = foot.receiveShadow = true; g.add(foot);
+    const course = new THREE.Mesh(new THREE.BoxGeometry(W + 0.04, 0.1, def.d + 0.08), mat(0x9a9488, { surface: "stone" })); course.position.y = WALL_H - 0.35; g.add(course);
+    // merlons along the top, spaced to its length
+    const nm = Math.max(2, Math.round(W / 1.05));
+    for (let i = 0; i < nm; i++) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.55, def.d), stone); c.position.set(-W / 2 + (i + 0.5) * W / nm, WALL_H + 0.45, 0); c.castShadow = true; g.add(c); }
     damageMarks(g, b, def, r);
     return;
   }
