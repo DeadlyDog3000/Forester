@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.224", date: "27 October 2026", title: "Snow on the roofs",
+    items: [
+      "Snow lies evenly on a pitched roof, with a little drift in it, instead of in blotches that left the tiles showing through in red patches like rust.",
+    ],
+  },
+  {
     v: "1.99.223", date: "27 October 2026", title: "Hamburg's marsh gate",
     items: [
       "The marsh gate is a real gate tower: an arched passage turned in dressed stone, arched plank doors strapped and studded with iron with a wicket in one leaf, the city's arms (a white castle on red) over the arch, battlements round the top. It was a grey slab with a flat brown board for a door.",

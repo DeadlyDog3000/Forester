@@ -416,7 +416,9 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
           // snow lies on whatever faces the sky, thinner where the noise says so
           if (dSnow > 0.0) {
             // (dSnowK: how much of it lies here — a trodden path keeps only a thin, broken cover)
-            float lie = smoothstep(0.25, 0.75, vDNormal.y + (dNoise(vDWorld * 1.7) - 0.5) * 0.5) * dSnow * dSnowK;
+            // (lying evenly on a pitched roof, with only a little drift in it: thinned by the noise to half-metre blotches,
+            //  the tiles showed through in red patches like rust)
+            float lie = smoothstep(0.18, 0.6, vDNormal.y + (dNoise(vDWorld * 1.7) - 0.5) * 0.24 + (dNoise(vDWorld * 6.0) - 0.5) * 0.1) * dSnow * dSnowK;
             ${cards ? `// (on leaves and needles — cards whose light is bent up and out, every one of them \"facing the sky\" — only
             //  in clumps along the boughs' tops, the green showing under and between, not a tree turned to sugar)
             lie = smoothstep(0.5, 0.75, dNoise(vDWorld * 2.3 + 4.0) + vDNormal.y * 0.35 - 0.12) * 0.82 * dSnow * dSnowK;` : ""}
