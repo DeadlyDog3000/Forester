@@ -1463,6 +1463,8 @@ async function start(opts = {}) {
     // a licence key, checked with the shop (Lemon Squeezy's licence API) for a game that can't ask it itself
     if (u.pathname === "/licence") return licence(u, res, req);
     // the shop itself: the game sold through Stripe, and its own keys (see shop.cjs)
+    if (u.pathname === "/hello") return counts.hello(u, req, res);
+    if (u.pathname === "/stats") return counts.stats(u, res);
     if (u.pathname.startsWith("/shop/")) { shop.handle(u, req, res).catch(e => { log("shop:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the website's reviews: accounts, and two reviews each on every game (see reviews.cjs)
     if (u.pathname.startsWith("/reviews/")) { reviews.handle(u, req, res).catch(e => { log("reviews:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
@@ -1535,6 +1537,8 @@ async function start(opts = {}) {
   const licAsks = new Map();
   const reviews = require("./reviews.cjs")({ dataDir, log });
   const shop = require("./shop.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), log });
+  // (how many play: an anonymous count, see stats.cjs)
+  const counts = require("./stats.cjs")({ dataDir, tokenOk: t => shop.tokenOk(t), log });
   function licence(u, res, req) {
     const op = u.searchParams.get("op"), key = String(u.searchParams.get("key") || "").slice(0, 80), inst = String(u.searchParams.get("inst") || "").slice(0, 80), name = String(u.searchParams.get("name") || "Forester Reckoning").slice(0, 60), user = String(u.searchParams.get("user") || "").slice(0, 32);
     if (!["activate", "validate", "deactivate"].includes(op) || !/^[A-Za-z0-9-]{8,80}$/.test(key)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad request" })); }
@@ -1747,7 +1751,7 @@ async function start(opts = {}) {
   }
   const stop = () => new Promise(ok => {
     clearInterval(iv1); clearInterval(iv2); clearInterval(iv3); clearInterval(ivDuel); if (biv) clearInterval(biv); if (beacon) try { beacon.close(); } catch (e) {}
-    saveWorld(); for (const s of socks) s.close(); server.close(() => ok());
+    saveWorld(); counts.save(); for (const s of socks) s.close(); server.close(() => ok());
     setTimeout(ok, 1500);
   });
   return { port, stop, rooms, stats, name };

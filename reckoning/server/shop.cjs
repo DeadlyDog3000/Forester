@@ -330,5 +330,5 @@ var r=document.createRange();r.selectNodeContents(k);var s=getSelection();s.remo
     json(res, 404, {}); return true;
   }
 
-  return { handle, licence, isOn, isLive, sweep, _book: () => book };
+  return { handle, licence, isOn, isLive, sweep, tokenOk, _book: () => book };
 };

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.228", date: "27 October 2026", title: "Counting players",
+    items: [
+      "When the desktop game starts, it sends our server an anonymous random number (made on your computer the first time, not tied to you), its version, Mac or Windows, and demo or full game, so we can count how many people play. Nothing else is sent, and the server keeps the number only scrambled. The credits say so.",
+    ],
+  },
+  {
     v: "1.99.227", date: "27 October 2026", title: "Narva's camp",
     items: [
       "At Narva the Russian camp's tents stand behind their line, by the river, instead of in the ground where their army forms up.",

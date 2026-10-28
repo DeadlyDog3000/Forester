@@ -580,6 +580,17 @@ $("slotFile").addEventListener("change", async () => {
 });
 // (the version, under the title)
 { const v = document.getElementById("verNum"); if (v && CHANGELOG[0]) v.textContent = `Version ${CHANGELOG[0].v}`; }
+// (how many play: the desktop game, a few seconds after it starts, says hello to the server with a random number it
+//  made for itself the first time — nothing else about the computer or the player — with its version, its platform and
+//  whether it's the full game. Only the app itself: not the tests, not a page in a browser. See server/stats.cjs)
+if (location.protocol === "app:") setTimeout(() => {
+  try {
+    let id = localStorage.getItem("reckoning.anon.id");
+    if (!/^[0-9a-f]{16}$/.test(id || "")) { id = [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, "0")).join(""); localStorage.setItem("reckoning.anon.id", id); }
+    const p = /Mac/i.test(navigator.userAgent) ? "mac" : /Win/i.test(navigator.userAgent) ? "win" : "web";
+    fetch(`${SHOP.server}/hello?i=${id}&v=${encodeURIComponent(CHANGELOG[0] ? CHANGELOG[0].v : "?")}&p=${p}&f=${full() ? 1 : 0}`, { mode: "no-cors", cache: "no-store" }).catch(() => {});
+  } catch (e) {}
+}, 5000);
 function buildChapters() {
   const s = loadSave() || {}, u = s.unlocked || 1;
   const list = $("chapterList");
