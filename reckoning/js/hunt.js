@@ -130,7 +130,9 @@ class Animal {
     if (a && this.state === "graze") a.timeScale = 1;
     this.mix.update(dt);
   }
-  centre() { return new THREE.Vector3(this.pos.x, this.pos.y + this.K.h, this.pos.z); }
+  // (where its body is drawn: a hare in mid-bound is a third of a metre off the ground, and an arrow aimed at it there
+  //  passed under a body still counted as sitting)
+  centre() { return new THREE.Vector3(this.pos.x, (this.root ? this.root.position.y : this.pos.y) + this.K.h, this.pos.z); }
   sync() {
     const w = this.hunt.w;
     this.pos.y = w.heightAt(this.pos.x, this.pos.z);
@@ -553,7 +555,18 @@ export class Hunt {
     //  rises a little over the line and comes down onto it there; nearer it's a hand high, further it falls short.
     //  Sent straight down the crosshair, everything at a hunting range landed a foot or two low)
     const d = dir.clone();
-    if (!npc && !atYou) { const lift = GRAVITY * ZERO_AT / (2 * speed * speed); d.y += lift * Math.hypot(d.x, d.z); d.normalize(); }
+    // (and with an animal in line, it's the range to that animal you allow for, as an archer judges it by eye: zeroed
+    //  at twenty paces whatever the distance, a near hare had the arrow a hand or more over its back — a foot and more
+    //  from a bow half drawn)
+    if (!npc && !atYou) {
+      let near = Infinity; const u = dir.clone().normalize(), v = new THREE.Vector3();
+      for (const a of this.animals) {
+        if (!a.alive) continue;
+        const t = v.copy(a.centre()).sub(from).dot(u);
+        if (t > 2 && t < 90 && t < near && v.addScaledVector(u, -t).length() < Math.max(0.5, t * 0.04)) near = t;
+      }
+      const zero = near < Infinity ? near : ZERO_AT, lift = GRAVITY * zero / (2 * speed * speed); d.y += lift * Math.hypot(d.x, d.z); d.normalize();
+    }
     const ar = { mesh, pos: from.clone(), from: from.clone(), vel: d.multiplyScalar(speed), power, t: 0, stuck: false, npc, atYou, bolt };
     this.arrows.push(ar);
     this.orient(ar);
@@ -693,8 +706,9 @@ export class Hunt {
     const w = this.w;
     for (const ar of this.arrows) {
       if (ar.stuck) continue;
-      // a few small steps a frame, so a fast arrow can't pass through a hare
-      const steps = 4, h = Math.min(dt, 0.05) / steps;
+      // small steps, five centimetres at most whatever its speed, so a fast arrow can't pass through a hare between two
+      // of them (four a frame let a full draw's arrow jump a quarter of a metre at a time — wider than a hare is thick)
+      const step = Math.min(dt, 0.05), steps = Math.min(48, Math.max(4, Math.ceil(ar.vel.length() * step / 0.05))), h = step / steps;
       for (let s = 0; s < steps && !ar.stuck; s++) {
         ar.vel.y -= GRAVITY * h;
         ar.pos.addScaledVector(ar.vel, h);
@@ -718,7 +732,8 @@ export class Hunt {
           const c = a.centre(), fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
           const along = clamp((ar.pos.x - c.x) * fx + (ar.pos.z - c.z) * fz, -a.K.len, a.K.len);
           const px = c.x + fx * along, pz = c.z + fz * along;
-          if (Math.hypot(ar.pos.x - px, ar.pos.y - c.y, ar.pos.z - pz) < a.K.r) { if (!ar.npc && !ar.atYou) youHit(a, ar.pos); this.stick(ar, a); a.hit(ar.power, false, ar.npc ? ar.from : undefined); break; }
+          // (and the arrowhead's own breadth: it strikes a body it grazes)
+          if (Math.hypot(ar.pos.x - px, ar.pos.y - c.y, ar.pos.z - pz) < a.K.r + 0.03) { if (!ar.npc && !ar.atYou) youHit(a, ar.pos); this.stick(ar, a); a.hit(ar.power, false, ar.npc ? ar.from : undefined); break; }
         }
         if (ar.stuck) break;
         const gy = w.heightAt(ar.pos.x, ar.pos.z);
