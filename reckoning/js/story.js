@@ -469,6 +469,64 @@ function wanderer(route, seed, speed = 1.2) {
 // ===========================================================================
 //  I. THE HOUSE BY THE HARBOUR
 // ===========================================================================
+// A CUTPURSE on the lane to the harbour: he comes past close, has Father's ledger out of your hands, and runs for the
+// quay. Run him down (Shift) and you have it back off him; fall too far behind and he throws it down to run the
+// lighter, and you pick it up off the cobbles. Either way the errand goes on.
+async function cutpurse(w) {
+  const pl = G.player;
+  // (he comes up the lane from the quay, the way he'll run back: a step to your right and a couple ahead of you)
+  const t = spawn(CUTPURSE, pl.pos.x + 1.0, pl.pos.z - 2.6, 0);
+  t.faceTo(pl.pos.x, pl.pos.z);
+  await wait(0.35);
+  SFX.pickup(); UI.carry(null); AUDIO.whoosh && AUDIO.whoosh(0.3, false);
+  bark("A cutpurse", "Obliged to you!", 1.6);
+  // (down to the quay, along it west, and up the far street towards the walls)
+  const route = [[0.6, -32], [0.4, -41.5], [-18, -41.6], [-34.6, -41.4], [-35, -24], [-35, -6], [-35, 12], [-35, 28]];
+  let speed = 4.5; const run = t.walk(route, speed);
+  await wait(0.5);
+  bark(YOU(), "Hey — that's Father's ledger! Stop! Thief!", 2.4);
+  UI.objective("After him! Get Father's ledger back (Shift to run)");
+  mark(t);
+  let caught = false, dropped = false, behind = 0, T = 0, gone = false;
+  run.then(() => { gone = true; });
+  const tick = onFrame(dt => {
+    T += dt;
+    // (he tires, as you do)
+    if (T > 9 && speed > 3.7) { speed = 3.7; t.walkSpeed = speed; }
+    const d = Math.hypot(pl.pos.x - t.pos.x, pl.pos.z - t.pos.z);
+    if (d < 1.7 && T > 1) caught = true;
+    behind = d > 34 ? behind + dt : 0;
+    if (behind > 4 || gone) dropped = true;
+  });
+  await until(() => caught || dropped);
+  tick();
+  if (caught) {
+    // (a hand on his collar, and he twists out of his coat's grip and drops it rather than be held)
+    G.lockMove = true; t.place(t.pos.x, t.pos.z); lookAt(t, 1.6); t.faceTo(pl.pos.x, pl.pos.z);
+    t.person.flinch && t.person.flinch(); AUDIO.voice && AUDIO.voice("grunt", { at: t.pos });
+    await wait(0.4);
+    SFX.pickup(); UI.carry("Father's ledger");
+    bark("A cutpurse", "All right! All right — take it, it's only paper!", 2.2);
+    await wait(0.6);
+    G.lockMove = false; look(null);
+    const away = t.walk([[t.pos.x - 6, t.pos.z - 2], [t.pos.x - 30, t.pos.z - 2]], 4.6); void away;
+    setTimeout(() => t.remove(), 9000);
+    bark(YOU(), "...Only paper. Two hundred and twelve sacks of it.", 2.8);
+  } else {
+    // (he's away: but the ledger's in the road where he threw it down, to run the faster)
+    const at = { x: t.pos.x, z: t.pos.z };
+    t.walk([[at.x - 25, at.z], [at.x - 60, at.z]], 5.2); setTimeout(() => t.remove(), 12000);
+    bark(YOU(), "He threw it down! ...Too heavy to run with, Father's ledger.", 2.8);
+    const book = makeScroll(); book.position.set(at.x, G.world.heightAt ? G.world.heightAt(at.x, at.z) + 0.05 : 0.05, at.z); book.rotation.set(Math.PI / 2, 0, 0.6); w.root.add(book);
+    UI.objective("Pick up Father's ledger");
+    mark({ x: at.x, z: at.z, y: 0.4, keep: true });
+    let got = false;
+    const it = w.addInteract({ x: at.x, y: 0.5, z: at.z, reach: 2.2, label: "Pick up the ledger", use: () => { got = true; } });
+    await until(() => got);
+    w.removeInteract(it); w.root.remove(book); SFX.pickup(); UI.carry("Father's ledger");
+  }
+}
+
 async function ch1(w) {
   setAtmo("evening"); w.setChapter(1); G.bugs.setKind("moths");
   AUDIO.music("home"); AUDIO.water(true);
@@ -511,7 +569,7 @@ async function ch1(w) {
   UI.objective("Take the ledger to Jakob at the harbour warehouse");
   mark(jakob);
   // while you are still indoors the marker shows the way out
-  const doorMark = onFrame(() => { if (w.inHome()) mark({ x: 13, z: -3.1, y: 1.6, hideWithin: 1 }); else if (!G.marker || !G.marker.actor) mark(jakob); });
+  const doorMark = onFrame(() => { if (w.inHome()) mark({ x: 13, z: -3.1, y: 1.6, hideWithin: 1 }); else if (!G.marker || (!G.marker.actor && !G.marker.keep)) mark(jakob); });
   tutor("door", "The front door sticks — F, and put your shoulder in it. Out in the street you can run. Not in here.", [["F", "open the door"], ["Shift", "run"], [["Q", "E"], "lean"]]);
   let outside = false;
   onFrame(() => { if (!outside && !w.inHome()) { outside = true; tutor("pack", "", [["T", "inventory — the ledger's in there"]], 7); } });
@@ -520,9 +578,11 @@ async function ch1(w) {
   w.addTrigger({ x: 10, z: 1, r: 4, fn: () => { albers.facePlayer(); albers.lookAtPlayer(true); bark("Frau Albers", `Evening! Tell your father to save me two of the good rye tomorrow — the dark one, mind, not the white.`); } });
   w.addTrigger({ x: 0, z: -30, r: 6, fn: () => bark("A dock hand", "Mind yourself — rope! ...Ah, it's the merchant's. Evening.") });
 
-  let delivered = false;
+  let delivered = false, haveLedger = true, snatched = false;
   void doorMark;
-  const jIt = w.addInteract({ x: jakob.pos.x, y: 1.5, z: jakob.pos.z, reach: 2.6, label: "Give Jakob the ledger", use: () => { delivered = true; } });
+  // (on the way down the lane to the quay, a cutpurse takes it off you: after him)
+  w.addTrigger({ x: 0, z: -19, r: 5, fn: () => { if (snatched) return; snatched = true; haveLedger = false; cutpurse(w).then(() => { haveLedger = true; mark(jakob); UI.objective("Take the ledger to Jakob at the harbour warehouse"); }); } });
+  const jIt = w.addInteract({ x: jakob.pos.x, y: 1.5, z: jakob.pos.z, reach: 2.6, label: "Give Jakob the ledger", can: () => haveLedger, use: () => { delivered = true; } });
   await until(() => delivered);
   doorMark();
   w.removeInteract(jIt);
@@ -1487,6 +1547,7 @@ async function ch6(w) {
 // ===========================================================================
 //  VII. SEED BEFORE FROST — Part Two: Roots
 // ===========================================================================
+const CUTPURSE = { model: "townsman", name: "A cutpurse", coat: 0x3a3428, legs: 0x2a261e, hat: "cap", hatColor: 0x2a241c, beard: 0x2e261c, seed: 61 };
 const HENNING = { model: "townsman", name: "Henning", coat: 0x2e2a26, legs: 0x26221e, hair: 0x6a6660, hat: "hat", hatColor: 0x1e1a18, beard: 0x6a6660, seed: 77 };
 const FIELD = { x: 22.5, z: -311, ry: 0.35 };        // three strips of it, beside the cabin
 async function ch7(w) {
