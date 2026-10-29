@@ -22,7 +22,7 @@ import { G, Actor, setWorld, setAtmo, blendAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { Hamburg, SPOTS, ROUTES, HOME } from "./hamburg.js";
-import { Camps } from "./camps.js";
+import { Camps, Bandit, swingAt } from "./camps.js";
 import { Woods, CLEARING, CABIN, STACK, BLOCK, FIRE, FORKS, HUNT } from "./woods.js";
 import { Hunt } from "./hunt.js";
 import { Raids } from "./raid.js";
@@ -1580,6 +1580,12 @@ async function ch7(w) {
     S.stage = 2; persist();
   }
 
+  // ---- the road home, the bow new on your back: two men waiting on it ----
+  if (S.stage === 2 && !S.ambushed && !S.hunted && !S.dug.length) {
+    await roadAmbush(w, B);
+    S.ambushed = true; persist();
+  }
+
   // ---- the hunt: meat in before the digging ----
   if (S.stage === 2 && !S.hunted && !S.dug.length) {
     await huntForMeat(w, sib);
@@ -1689,6 +1695,71 @@ async function stowInChest(w, icon, objective) {
   await until(() => !G.pack.some(i => i.icon === icon));
   mark(null); UI.objective(null);
 }
+// ON THE ROAD HOME FROM THE BURNER'S, Henning's bow on your back: two men step out onto the road ahead, and they've
+// seen you. You've a dozen arrows and the length of the road to use them; let them reach you and it's the axe.
+// Put down, you come to in the ditch, robbed — and the story goes on.
+async function roadAmbush(w, B) {
+  const pl = G.player, road = w.road;
+  // (the place: the road a little under halfway home from the burner's track, the men some forty paces on from where
+  //  you first see them — far enough to shoot, near enough to hit)
+  const nearest = (x, z) => { let bi = 0, bd = Infinity; road.forEach((p, i) => { const d = Math.hypot(p.x - x, p.z - z); if (d < bd) { bd = d; bi = i; } }); return bi; };
+  const iB = nearest(B.x, B.z), iC = nearest(CLEARING.x, CLEARING.z), step = Math.sign(iC - iB) || 1;
+  const along = (i0, m) => { let i = i0, d = 0; while (d < m && i + step >= 0 && i + step < road.length && i !== iC) { d += Math.hypot(road[i + step].x - road[i].x, road[i + step].z - road[i].z); i += step; } return i; };
+  const iSee = iB + Math.round((iC - iB) * 0.42), iMen = along(iSee, 38);           // (the road's points are evenly spaced)
+  const at = road[iSee], men = road[iMen], next = road[Math.min(road.length - 1, Math.max(0, iMen + step))];
+  // (already home — a game taken up again at the clearing — and the road's behind you: no one waits on it)
+  const toHome = (x, z) => Math.hypot(x - CLEARING.x, z - CLEARING.z);
+  if (toHome(pl.pos.x, pl.pos.z) < toHome(men.x, men.z)) return;
+  UI.objective("Take the seed home to the clearing");
+  mark([CLEARING.x, CLEARING.z, w.cy + 1]);
+  // (or home by another way, through the trees: then they missed you)
+  await until(() => (Math.hypot(pl.pos.x - men.x, pl.pos.z - men.z) < 46 && Math.hypot(pl.pos.x - B.x, pl.pos.z - B.z) > 30) || toHome(pl.pos.x, pl.pos.z) < CLEARING.r);
+  mark(null);
+  if (toHome(pl.pos.x, pl.pos.z) < CLEARING.r) return;
+  // (they step out of the trees onto the road, one either side of it)
+  const owner = { band: [], fire: null, holds: () => true, wakeText: "Two men on the road ahead — and they've seen you. Shoot!", onDown: () => {} };
+  const hunt = new Hunt(w, { x: men.x, z: men.z, r: 1 });
+  const ax = next.z - men.z, az = -(next.x - men.x), al = Math.hypot(ax, az) || 1;
+  for (const i of [0, 1]) {
+    const side = i ? 1.6 : -1.6, b = new Bandit(owner, men.x + ax / al * side, men.z + az / al * side, i);
+    b.hp = 45;                                                      // (two arrows in the body, or one in the head)
+    b.a.faceTo(pl.pos.x, pl.pos.z); owner.band.push(b);
+  }
+  const ticks = onFrame(dt => { for (const b of owner.band) b.tick(dt); });
+  bark(YOU(), "...Two men on the road. Not travellers. They've seen me.", 3.2);
+  await wait(1.2);
+  owner.band[0].wake();
+  if (pl.hasBow && !pl.bow) pl.showBow(true);
+  UI.objective(`Two men on the road, coming for you — shoot them before they reach you (${pl.arrows || 0} arrows)`);
+  const swingWas = G.onSwing, downedWas = G.onDowned;
+  let beaten = false;
+  G.onSwing = () => swingAt(owner.band, pl);
+  G.onDowned = () => { beaten = true; };
+  await until(() => beaten || owner.band.every(b => b.down));
+  G.onSwing = swingWas; G.onDowned = downedWas;
+  ticks(); UI.objective(null);
+  if (beaten) {
+    // (put down: they go through your pack, and leave you in the ditch)
+    await fade(1, 1.2);
+    for (const b of owner.band) b.remove(); owner.band = [];
+    hunt.stop();
+    G.downed = false; G.health = Math.max(G.health || 0, 0.35); G.stamina = 0.5;
+    pl.place(at.x + 2.2, at.z + 1.2, pl.yaw);
+    const turnips = G.pack.find(i => i.icon === "seeds"); if (turnips) turnips.note = "A sack of rye seed. The turnips are gone — taken on the road.";
+    await fade(0, 1.6);
+    await narrate("I came to in the ditch. They'd taken the turnips and left the seed. What would a thief do with seed?", 5);
+  } else {
+    await wait(1.4);
+    await say(YOU(), "Two of them. On the road to our door.");
+    // (your arrows gathered up again, from the road and from them, before you go on)
+    const back = hunt.arrows.length;
+    for (const b of owner.band) b.remove(); owner.band = [];
+    hunt.stop();
+    if (back) { pl.arrows = (pl.arrows || 0) + back; UI.hint(`You gather up your arrows — ${back} of them. ${pl.arrows} in the quiver.`, 3.5); }
+  }
+  UI.objective("Take the seed home to the clearing");
+}
+
 async function huntForMeat(w, sib) {
   const pl = G.player, NEED = 3;          // three beasts brought down and dressed, whatever each gives
   let meat = 0, kills = 0, first = true;
