@@ -306,7 +306,9 @@ export class Woods extends WorldBase {
     }
     // (the stones: real ones, scanned — a boulder or a smaller stone, half sunk — or the built ones if those can't be had)
     if (realPart("rock_b") && realPart("rock_c")) {
-      const A = stones.filter(q => q.v < 0.45), Bs = stones.filter(q => q.v >= 0.45), pl = (q, k) => ({ x: q.x, y: q.y - 0.12 * k, z: q.z, ry: q.a * 6.28, rx: (q.b - 0.5) * 0.3, s: q.sx * k, sy: q.sy * k * 1.6, sz: q.sz * k });
+      // (set by the lowest ground under its footprint, not the ground at its middle: on a slope that left an edge in the air)
+      const foot = (q, rad) => { let h = q.y; for (let i = 0; i < 8; i++) { const a = i / 8 * TAU; h = Math.min(h, this.heightAt(q.x + Math.cos(a) * rad, q.z + Math.sin(a) * rad)); } return h; };
+      const A = stones.filter(q => q.v < 0.45), Bs = stones.filter(q => q.v >= 0.45), pl = (q, k) => ({ x: q.x, y: foot(q, 0.5 * k * Math.max(q.sx, q.sz)) - 0.12 * k, z: q.z, ry: q.a * 6.28, rx: (q.b - 0.5) * 0.3, s: q.sx * k, sy: q.sy * k * 1.6, sz: q.sz * k });
       for (const m of [realMany("rock_b", A.map(q => pl(q, 0.9))), realMany("rock_c", Bs.map(q => pl(q, 0.7)))]) if (m) root.add(m);
     } else for (const q of stones) ub.add(rockGeo(0.5), 0x7a7870, q.x, q.y + 0.1, q.z, q.a, q.b, q.c, q.sx, q.sy, q.sz, 0.08);
     root.add(ub.build(MAT.rough, { shadow: false }));
@@ -516,16 +518,29 @@ export class Woods extends WorldBase {
     const makeAt = (kind, x, z) => {
         const y = this.heightAt(x, z), g = new THREE.Group(); g.position.set(x, y, z);
         const big = 0.7 + r() * 0.35;
+        // (each stone let down until its foot is in the ground all round — set by the ground at its middle, on a slope its
+        //  downhill side stood in the air — but never more than a little under half of it buried)
+        const settle = m => {
+          m.updateMatrix(); const geo = m.geometry, P = geo.attributes.position, v = new THREE.Vector3();
+          geo.computeBoundingBox(); const lo = geo.boundingBox.min.y, hi = geo.boundingBox.max.y; let gap = -Infinity;
+          for (let i = 0; i < P.count; i++) { if (P.getY(i) > lo + (hi - lo) * 0.3) continue; v.fromBufferAttribute(P, i).applyMatrix4(m.matrix); gap = Math.max(gap, y + v.y - this.heightAt(x + v.x, z + v.z)); }
+          const dy = Math.max(0, Math.min(gap + 0.04, (hi - lo) * 0.45)); m.position.y -= dy; return dy;
+        };
+        let main = null;
         for (let j = 0; j < 3; j++) {
           const m = new THREE.Mesh(boulder(big * (j ? 0.5 : 1), kind === "tin"), rockMat);
-          m.position.set(j ? (r() - 0.5) * 1.3 : 0, big * (j ? 0.18 : 0.4), j ? (r() - 0.5) * 1.3 : 0); m.rotation.y = r() * 3;
+          m.position.set(j ? (r() - 0.5) * 1.3 : 0, big * (j ? 0.18 : 0.4), j ? (r() - 0.5) * 1.3 : 0);
+          // (lying with the slope, as a stone comes to rest, rather than upright on it)
+          { const px = x + m.position.x, pz = z + m.position.z, e = 0.6, n = new THREE.Vector3(this.heightAt(px - e, pz) - this.heightAt(px + e, pz), 2 * e, this.heightAt(px, pz - e) - this.heightAt(px, pz + e)).normalize();
+            m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), n).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), r() * 3)); }
+          settle(m); if (!j) main = m;
           m.castShadow = m.receiveShadow = true; g.add(m);
         }
         // the ore shows in the rock: flecks set into its faces all round
         if (FLECK[kind]) for (let j = 0; j < 14; j++) {
           const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 + r() * 0.05, 0), FLECK[kind][j % 2]);
           const u = r() * TAU, v = r() * 1.1;
-          f.position.set(Math.cos(u) * Math.cos(v) * big * 0.92, big * 0.4 + Math.sin(v) * big * 0.62, Math.sin(u) * Math.cos(v) * big * 0.92); g.add(f);
+          f.position.set(Math.cos(u) * Math.cos(v) * big * 0.92, Math.sin(v) * big * 0.62, Math.sin(u) * Math.cos(v) * big * 0.92); main.add(f);   // (on the stone itself, so they lie as it lies)
         }
         this.root.add(g);
         const rock = { kind, x, z, y, g, hp: ROCKS[kind].hp, gone: 0, col: this.col.addCircle(x, z, big * 0.9, y + 1.4) };
