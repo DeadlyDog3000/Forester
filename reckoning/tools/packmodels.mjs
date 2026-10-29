@@ -22,6 +22,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "models");
+// Left as exported: animals whose skinning moves visibly once their skin weights are stored to 8 bits, as gltfpack
+// stores them (posed, the elephant's trunk was 28 cm out, the bear 7 cm, the hare, wolf and fox 2-3 cm). The people
+// stay within 2.5 mm and are packed. A new rigged animal: pack it, pose it beside the export, and add it here if it moves.
+const KEEP = new Set(["elephant.glb", "bear.glb", "hare.glb", "wolf.glb", "fox.glb", "deer.glb", "doe.glb"]);
 const ARGS = ["-cc", "-noq", "-kn", "-km", "-ke", "-kv", "-af", "0", "-ac", "-ar", "16", "-at", "24", "-as", "24"];
 
 // a .glb's own description of itself (its JSON chunk): to see whether it's packed already, and to give names back
@@ -64,7 +68,7 @@ const files = named.length ? named.map(f => path.resolve(DIR, f))
 
 let before = 0, after = 0, done = 0;
 for (const f of files) {
-  if (packed(f)) continue;
+  if (KEEP.has(path.basename(f)) || packed(f)) continue;
   const tmp = f + ".packing.glb", was = fs.statSync(f).size;
   try { pack(f, tmp); restoreMeshNames(f, tmp); } catch (e) { console.error("  could not pack " + path.relative(DIR, f) + ": " + e.message); fs.rmSync(tmp, { force: true }); continue; }
   const now = fs.statSync(tmp).size;
