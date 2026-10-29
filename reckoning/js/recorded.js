@@ -7,14 +7,14 @@
 // every one named in the credits and in art/music/CREDITS.md). For each mood the game asks for, the pieces that suit
 // it: one is played, then the quiet the mood wants (music.js's MOODS), then another — never the same twice running.
 // A change of mood fades the one playing out as the next comes in. Should a recording not load, another of the mood's
-// is tried: the music is only ever real music, really played (music.js keeps only each mood's quiet between pieces).
+// is tried a little later, and it's quiet meanwhile: only real music, played by people, is heard.
 
 import { MOODS } from "./music.js";
 
 // the pieces, by file (art/music/<name>.ogg)
 const SETS = {
-  title:      ["te_deum", "canon", "goldberg_aria", "corelli_1"],
-  court:      ["lully_turcs", "corelli_1", "brandenburg3", "canon"],
+  title:      ["te_deum", "canon_guitar", "goldberg_aria", "corelli_1"],
+  court:      ["lully_turcs", "corelli_1", "brandenburg3", "canon_guitar"],
   lobby:      ["spring_allegro", "brandenburg3", "lully_turcs", "canon_guitar"],
   home:       ["cello_prelude", "canon_guitar", "air", "innomine6", "goldberg_capo"],
   unease:     ["innomine7", "winter_largo"],
@@ -22,7 +22,7 @@ const SETS = {
   grief:      ["air", "winter_largo", "innomine6"],
   flight:     ["summer_presto", "winter_allegro"],
   woods:      ["cello_prelude", "innomine6", "innomine7", "spring_largo", "goldberg_aria", "canon_guitar"],
-  hope:       ["spring_allegro", "canon", "goldberg_capo"],
+  hope:       ["spring_allegro", "canon_guitar", "goldberg_capo"],
   settlement: ["spring_allegro", "cello_prelude", "canon_guitar", "brandenburg3"],
   evening:    ["air", "goldberg_aria", "spring_largo", "innomine6"],
   night:      ["goldberg_aria", "goldberg_capo", "winter_largo", "innomine7"],
@@ -33,8 +33,8 @@ const SETS = {
 const LEVEL = 0.8;          // (the recordings against the players' level on the same bus)
 const KEEP = 4;             // (decoded pieces kept ready: a few minutes of sound each, so not too many)
 
-export function createRecorded(getCtx, getOut, fallback) {
-  let mood = null, cur = null, wait = null, last = null, gen = 0, usingFallback = false;
+export function createRecorded(getCtx, getOut) {
+  let mood = null, cur = null, wait = null, last = null, gen = 0;
   const bufs = new Map(), loading = new Map();
   const load = async (ac, name) => {
     if (bufs.has(name)) { const b = bufs.get(name); bufs.delete(name); bufs.set(name, b); return b; }
@@ -67,9 +67,10 @@ export function createRecorded(getCtx, getOut, fallback) {
     let buf;
     try { buf = await load(ac, name); }
     catch (e) {
-      // (a piece that won't load: another of the mood's, in a moment — only real music is ever played, never the
-      //  players made in code)
-      if (n === gen && mood === m) { last = name; wait = setTimeout(() => start(m, n), 3000); }
+      // (a piece that won't load: another of the mood's in a while, and quiet meanwhile — only real music is played,
+      //  never the made-up players in its place)
+      last = name;
+      if (n === gen && mood === m) wait = setTimeout(() => start(m, n), 8000);
       return;
     }
     if (n !== gen || mood !== m) return;
@@ -93,7 +94,6 @@ export function createRecorded(getCtx, getOut, fallback) {
       if (m && !SETS[m]) m = "woods";
       mood = m; gen++;
       clearTimeout(wait);
-      if (usingFallback) { usingFallback = false; fallback(null); }
       stopCurrent(m ? 2.5 : 1.5);
       if (m) { const n = gen; wait = setTimeout(() => start(m, n), 1200); }
     },

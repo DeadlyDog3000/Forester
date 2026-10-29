@@ -969,13 +969,13 @@ export const AUDIO = {
     n.connect(f); f.connect(ng); ng.connect(node); n.start(t, Math.random()); n.stop(t + 0.08);
   },
 
-  // ---- music: played by the players in music.js — a tune for the mood, a rest, another ----
+  // ---- music: real recordings (recorded.js) — a piece for the mood, a rest, another ----
   _mood: null,
   music(mood) {
     if (mood === this._mood) return;
     this._mood = mood;
-    // (real recordings of the music of the time, and nothing else: the players made in code are never heard)
-    if (!RECORDED) RECORDED = createRecorded(() => ctx(), () => { ctx(); return musicBus; }, () => {});
+    // (real recordings of the music of the time, played by people — nothing else)
+    if (!RECORDED) RECORDED = createRecorded(() => ctx(), () => { ctx(); return musicBus; });
     RECORDED.play(mood);
   },
   // ---- the score: a recording, not the players — for a battle's opening and its highlights only (see replay.js) ----
