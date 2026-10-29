@@ -900,8 +900,12 @@ def build_person(key):
         def bmask(X, Y, Z, phi):
             under = smooth((-0.4 - Z) / 0.13) * smooth((1.45 - abs(phi)) / 0.2)
             if BH: under *= smooth((Z + 0.86) / 0.07)   # (on the base head: the beard to just under the jaw, not down the throat)
-            hole = gauss(X, 0.24) * gauss(Z + 0.5, 0.075)
-            return max(0.0, min(1.0, under * (1 - hole)))
+            # (the mouth left open wide enough for the lips' corners: narrower, the beard's thin edge lay over them and the
+            #  corners came through it as two pale lumps)
+            hole = gauss(X, 0.34) * gauss(Z + 0.5, 0.085)
+            # (and in front the beard begins below the lower lip, cleanly: no thin edge of it lying over the mouth)
+            lip = 1 - (1 - smooth((-0.62 - Z) / 0.05)) * smooth((0.45 - abs(X)) / 0.12)
+            return max(0.0, min(1.0, under * (1 - hole) * lip))
         def tmask(X, Y, Z, phi):
             tash = gauss(Z + 0.39, 0.035) * gauss(X, 0.28) * smooth((0.6 - abs(phi)) / 0.2)
             return max(0.0, min(1.0, tash * 1.2))

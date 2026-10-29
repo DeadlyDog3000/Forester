@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.235", date: "29 October 2026", title: "Beards",
+    items: [
+      "A beard grows below the lower lip, as a real one does. Its top edge used to lie half over the mouth, and the lower lip came through it as two pale lumps, on your father and on every bearded man in the game.",
+    ],
+  },
+  {
     v: "1.99.234", date: "29 October 2026", title: "Animals move as they should",
     items: [
       "The elephant, bear, wolf, fox, hare and deer move as they should again. Packed smaller in the last update, their skins bent wrong as they moved, worst at the elephant's trunk. Their models are now kept exactly as made.",
