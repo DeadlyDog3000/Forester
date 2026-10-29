@@ -28,10 +28,9 @@ import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate,
 const THRUST = new Set(["spear", "bayonet"]);
 const SHORT = new Set(["sword", "dagger"]);
 const TWO_HAND = new Set(["axe", "pick"]);
-// (an axe carried in the right hand, low by the knob, the head up — its left hand comes on to the haft for the stroke;
-//  the hand and the head both where you can see them)
-// (carried across you from the side, in both hands: the head up by the right shoulder, the haft down across the body
-//  to the knob, low and to the left of the middle, where the left hand holds it)
+// (an axe carried in both hands across the body, from the side, as a woodsman carries one: the left hand low by the knob
+//  at your belt, the right up under the head at your right shoulder, the edge turned out to the right — the haft running up and
+//  across the right of the view, the head side on where you can see it)
 const AXE_REST = [0.7, -1.1, -1.0, 0.14, -0.22, -0.48];
 const _sawD = new THREE.Vector3(), _sawT = new THREE.Vector3(), _sawS = new THREE.Vector3(), _sawM = new THREE.Matrix4(), _sawC = new THREE.Vector3(), _sawH = new THREE.Vector3(), _sawP = new THREE.Vector3(), _sawQ = new THREE.Quaternion(), _sawQ2 = new THREE.Quaternion(), _sawY = new THREE.Vector3(0, 1, 0);
 const SAW_CANT = 0.35;
@@ -909,9 +908,8 @@ export class Player {
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < this.arms.length; i++) {
       const { arm, sleeve, cuff, fore, foreSleeve } = this.arms[i];
-      // (an axe or a pick is carried as it's swung, in both hands, the left by the knob and the right up the haft, both
-      //  fast on it: the left came on to the haft only for each stroke, and the hand flicking in and out at the bottom of
-      //  the screen was the one thing that moved there)
+      // (an axe or a pick is in both hands, carried as in the stroke: the right up the haft toward the head, the left low
+      //  by the knob — the two fixed on it, never one adrift)
       if (this.axe && i === 1 && TWO_HAND.has(this.blade || "axe")) {
         this.hands[1].visible = true; arm.visible = !G.working; if (fore) fore.visible = arm.visible;
         if (this.grips) this.hands[0].position.y = this.grips[1];
@@ -1443,7 +1441,7 @@ export class Player {
       root.visible = true;
       for (const t of this.swimFP) {
         const W = _fpP.copy(t.h).sub(FP_ROOT).add(_fpA.set(0, 0, 0.06)), F = _fpA.set(0, -0.12, -1), P = _fpO.set(Math.sin(t.roll), -Math.cos(t.roll), 0);
-        handAt(A, A[t.side], W, F, P); closeHand(A[t.side], "open", 0.2);
+        A[t.side].upper.scale.setScalar(1); handAt(A, A[t.side], W, F, P); closeHand(A[t.side], "open", 0.2);
       }
       return;
     }
@@ -1461,7 +1459,11 @@ export class Player {
     const inv = _fpInv.copy(root.matrixWorld).invert(), rq = root.getWorldQuaternion(_fpQ).invert();
     for (const s of ["R", "L"]) {
       const arm = A[s], gm = want[s];
-      if (!gm) { restArm(arm); continue; }
+      // (an arm with nothing to hold is out of sight altogether — never a hand drifting at the foot of the screen)
+      // (both arms are one skin, so it's folded away into the shoulder, below the view: let hang as it came, it still showed
+      //  at the foot of the screen, bobbing as you walked)
+      if (!gm) { restArm(arm); arm.upper.scale.setScalar(1e-4); continue; }
+      arm.upper.scale.setScalar(1);
       const at = gm.getWorldPosition(_fpP).applyMatrix4(inv), gq = gm.getWorldQuaternion(_fpQ2).premultiply(rq);
       const along = _fpA.set(0, 1, 0).applyQuaternion(gq), out = _fpO.set(1, 0, 0).applyQuaternion(gq);
       // (a hold that says how the hand lies on it, in its own frame — the crossbow's)
