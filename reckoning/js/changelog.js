@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.236", date: "29 October 2026", title: "Two hands on the axe, and a saw that cuts",
+    items: [
+      "The axe is carried across you from the side in both hands: the head up by your right shoulder, the haft down across your body, the left hand by the knob and the right up the haft. Both hands stay on it, through the swing as well. Before, it was held up in the right hand alone, and the left hand flicked into the bottom of the screen for each stroke and out again.",
+      "At the sawhorse the saw is worked as a saw is: the blade lies along the stroke and slopes down onto the log, its teeth on the wood at the cut, and it goes back and forth along its length with your hand on the handle above and behind. It used to hang straight down like a plumb line.",
+    ],
+  },
+  {
     v: "1.99.235", date: "29 October 2026", title: "Beards",
     items: [
       "A beard grows below the lower lip, as a real one does. Its top edge used to lie half over the mouth, and the lower lip came through it as two pale lumps, on your father and on every bearded man in the game.",

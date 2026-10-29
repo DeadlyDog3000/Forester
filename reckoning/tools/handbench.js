@@ -18,6 +18,8 @@ const clear = () => { try { if (P.gun) P.showGun(false); if (P.bow) P.showBow(fa
 // each hold: how to take it up, and which hand to look at
 const ITEMS = {
   axe: [() => P.wield("axe"), "R"],
+  axe_left: [() => P.wield("axe"), "L"],
+  pick_left: [() => P.wield("pick"), "L"],
   sword: [() => P.wield("sword"), "R"],
   spear: [() => P.wield("spear"), "R"],
   pick: [() => P.wield("pick"), "R"],

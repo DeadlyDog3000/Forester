@@ -30,7 +30,11 @@ const SHORT = new Set(["sword", "dagger"]);
 const TWO_HAND = new Set(["axe", "pick"]);
 // (an axe carried in the right hand, low by the knob, the head up — its left hand comes on to the haft for the stroke;
 //  the hand and the head both where you can see them)
-const AXE_REST = [1.0, -0.4, -0.35, 0.3, -0.3, -0.52];
+// (carried across you from the side, in both hands: the head up by the right shoulder, the haft down across the body
+//  to the knob, low and to the left of the middle, where the left hand holds it)
+const AXE_REST = [0.7, -1.1, -1.0, 0.14, -0.22, -0.48];
+const _sawD = new THREE.Vector3(), _sawT = new THREE.Vector3(), _sawS = new THREE.Vector3(), _sawM = new THREE.Matrix4(), _sawC = new THREE.Vector3(), _sawH = new THREE.Vector3(), _sawP = new THREE.Vector3(), _sawQ = new THREE.Quaternion(), _sawQ2 = new THREE.Quaternion(), _sawY = new THREE.Vector3(0, 1, 0);
+const SAW_CANT = 0.35;
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
 // your own hands, first person: the sculpted hand closed round what it holds (models/hand_grip.glb, made by
 // tools/blender/hands.py), the haft along the hand's up; a plain fist till it's loaded. fitArms turns each about the haft
@@ -905,13 +909,12 @@ export class Player {
     const inv = new THREE.Matrix4().copy(vm.matrixWorld).invert();
     for (let i = 0; i < this.arms.length; i++) {
       const { arm, sleeve, cuff, fore, foreSleeve } = this.arms[i];
-      // (an axe or a pick carried in the one hand, the right; the left comes on to the haft only for the stroke)
+      // (an axe or a pick is carried as it's swung, in both hands, the left by the knob and the right up the haft, both
+      //  fast on it: the left came on to the haft only for each stroke, and the hand flicking in and out at the bottom of
+      //  the screen was the one thing that moved there)
       if (this.axe && i === 1 && TWO_HAND.has(this.blade || "axe")) {
-        const both = this.swingT >= 0;
-        this.hands[1].visible = both; arm.visible = both && !G.working; if (fore) fore.visible = arm.visible;
-        // (carried, the right hand low by the knob; in the stroke it slides up the haft toward the head, as it does)
-        if (this.grips) this.hands[0].position.y = both ? this.grips[1] : this.grips[0];
-        if (!both) continue;
+        this.hands[1].visible = true; arm.visible = !G.working; if (fore) fore.visible = arm.visible;
+        if (this.grips) this.hands[0].position.y = this.grips[1];
       }
       // (the shoulder well down below the eye, as your own is: the forearm comes up from under the hand, and the hand is
       //  seen whole in front of its cuff, not hidden behind it)
@@ -995,11 +998,35 @@ export class Player {
     const t = (this.workT += dt), h = this.workRig.userData.hand;
     const beat = n => { const b = Math.floor(t * n); if (b !== this.workBeat) { this.workBeat = b; return true; } return false; };
     if (kind === "saw") {
-      // long strokes, forward and back, the blade pointing away and down into the cut
+      // long strokes, forward and back along the blade, as a saw is worked: the blade upright in the line of the stroke,
+      //  sloping down away from you onto the log on the horse at a third of a right angle or so, its teeth down on the
+      //  wood at the cut, the hand on the handle above and behind it (it hung straight down before, like a plumb line)
       const k = Math.sin(t * Math.PI * 2 * 1.3);
-      // (held out before you, the blade forward and down, its teeth under it, in the cut — seen along its side)
-      h.position.set(0.17, -0.1 + k * 0.03, -0.42 - k * 0.12);
-      h.rotation.set(-2.1 + k * 0.05, -0.3, 0.8);
+      // (in the view's own frame: you look down at the log as you saw, so a blade a little below your line of sight
+      //  slopes down to it at the angle a saw is worked at)
+      if (wk.at) {
+        // (at the horse: laid on the log itself, wherever you're looking — the teeth on its top at the cut, the blade
+        //  sloping down to it from the handle, and the stroke along the blade)
+        // (the cut a little to your right, where the right hand saws: square in front of the eye, the blade was seen
+        //  only edge on, a line)
+        const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw), ex = this.pos.x + rx * 0.3, ez = this.pos.z + rz * 0.3;
+        const [ax, ay, az] = wk.at, cx = Math.max(ax - 0.6, Math.min(ax + 0.6, ex)), cut = _sawC.set(cx, (G.world && G.world.heightAt ? G.world.heightAt(cx, az) + 0.96 : ay + 0.06), az);   // (the log on the horse: its top 0.96 above the ground there)
+        const hz = _sawH.set(cut.x - ex, 0, cut.z - ez); if (hz.lengthSq() < 1e-4) hz.set(0, 0, -1); hz.normalize();
+        const a = 0.5, dir = _sawD.set(hz.x * Math.cos(a), -Math.sin(a), hz.z * Math.cos(a)), teeth = _sawT.set(0, -1, 0).addScaledVector(dir, dir.y).normalize(), side = _sawS.crossVectors(dir, teeth).normalize();
+        // (canted a little about its length, as a sawyer holds it, so its side is to be seen, not only its back edge)
+        const qW = _sawQ.setFromRotationMatrix(_sawM.makeBasis(side, dir, teeth)).multiply(_sawQ2.setFromAxisAngle(_sawY, window.__sawCant ?? SAW_CANT));
+        // (the toothed edge, two thirds along the blade, on the wood; drawn and pushed along the blade's length)
+        const pW = cut.clone().sub(_sawP.set(0, 0.47, 0.08).applyQuaternion(qW)).addScaledVector(dir, k * 0.11);
+        this.workRig.updateWorldMatrix(true, false);
+        h.position.copy(this.workRig.worldToLocal(pW));
+        h.quaternion.copy(this.workRig.getWorldQuaternion(_sawQ2).invert().multiply(qW));
+      } else {
+        // (in the view's own frame: you look down at the log as you saw, so a blade a little below your line of sight
+        //  slopes down to it at the angle a saw is worked at)
+        const dir = _sawD.set(-0.12, -0.14, -0.98).normalize(), teeth = _sawT.set(0, -1, 0).addScaledVector(dir, dir.y).normalize(), side = _sawS.crossVectors(dir, teeth).normalize();
+        h.quaternion.setFromRotationMatrix(_sawM.makeBasis(side, dir, teeth));
+        h.position.set(0.15, -0.17, -0.36).addScaledVector(dir, k * 0.1);
+      }
       if (beat(2.6) && !wk.quiet) AUDIO.whoosh(0.18, false);
     } else if (kind === "hammer") {
       // raise it slowly, bring it down fast
@@ -2604,7 +2631,7 @@ function updateInteract(dt) {
     if (it.onHoldTick) it.onHoldTick(dt, G.holdT);
     UI.hold(G.holdT / hold);
     // real work: your hands are seen doing it
-    if (hold >= 1 && !talk) G.working = { kind: it.anim || workOf(label || ""), until: G.time + 0.15, quiet: !!it.onHoldTick };
+    if (hold >= 1 && !talk) G.working = { kind: it.anim || workOf(label || ""), until: G.time + 0.15, quiet: !!it.onHoldTick, at: it.anim === "saw" && it.x != null ? [it.x, it.y, it.z] : null };
     if (G.holdT >= hold) { G.holdT = 0; UI.hold(0); G.holdLatch = input.down("KeyF"); G.tapFor = null; if (it.actor && talk) it.actor.talkUntil = G.time + 2.5; if (!(G.mpUse && G.mpUse(it))) it.use(); }   // (in someone else's colony, done in their game)
   } else { G.holdT = Math.max(0, G.holdT - dt * 2); UI.hold(G.holdT / hold); }
 }
