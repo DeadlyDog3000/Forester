@@ -94,8 +94,10 @@ def build(burned):
         log_x(D / 2, z, -W / 2 - OVER, W / 2 + OVER)
         # front wall, split by the door
         if z + R < DOOR_H:
-            log_x(-D / 2, z, -W / 2 - OVER, -DOOR_W / 2)
-            log_x(-D / 2, z, DOOR_W / 2, W / 2 + OVER)
+            # (each log runs into the middle of the door post, its sawn end hidden in it: ended flush with the post's
+            #  face, the end's rings and the post fought for the same place and showed through each other)
+            log_x(-D / 2, z, -W / 2 - OVER, -DOOR_W / 2 - 0.07)
+            log_x(-D / 2, z, DOOR_W / 2 + 0.07, W / 2 + OVER)
         else:
             log_x(-D / 2, z, -W / 2 - OVER, W / 2 + OVER)
         if i < COURSES - 1 or True:
@@ -103,8 +105,8 @@ def build(burned):
             log_y(-W / 2, zs, -D / 2 - OVER, D / 2 + OVER)
             # right wall, split by the window
             if WIN_Z0 < zs < WIN_Z1 + R:
-                log_y(W / 2, zs, -D / 2 - OVER, WIN_Y - WIN_W / 2)
-                log_y(W / 2, zs, WIN_Y + WIN_W / 2, D / 2 + OVER)
+                log_y(W / 2, zs, -D / 2 - OVER, WIN_Y - WIN_W / 2 - 0.05)     # (into the window posts, as at the door)
+                log_y(W / 2, zs, WIN_Y + WIN_W / 2 + 0.05, D / 2 + OVER)
             else:
                 log_y(W / 2, zs, -D / 2 - OVER, D / 2 + OVER)
     top = R + (COURSES - 1) * COURSE + COURSE / 2 + R
@@ -149,7 +151,7 @@ def build(burned):
         k.box("stone", (1.6, 0.7, 0.06), mat_tr((hx, hy - 0.6, 0.05)), rgb(0x6a655d, 0.05, rnd), bevel=0.02)   # hearthstone
         # door frame posts and lintel
         for x in (-DOOR_W / 2 - 0.07, DOOR_W / 2 + 0.07):
-            k.box("wood", (0.14, 0.34, DOOR_H + 0.1), mat_tr((x, -D / 2, DOOR_H / 2)), wood(0x5e422a))
+            k.box("wood", (0.14, 0.42, DOOR_H + 0.1), mat_tr((x, -D / 2, DOOR_H / 2)), wood(0x5e422a))   # (deeper than the thickest log)
         k.box("wood", (DOOR_W + 0.4, 0.36, 0.16), mat_tr((0, -D / 2, DOOR_H + 0.06)), wood(0x5e422a))
         # a flat stone step
         k.box("stone", (1.5, 0.7, 0.14), mat_tr((0, -D / 2 - 0.55, 0.04), (0, 0, 0.03)), rgb(0x7a756c, 0.1, rnd), bevel=0.03)
@@ -157,7 +159,7 @@ def build(burned):
         # ---- window: frame, shutters open, a glazing of dark horn panes ----
         wx = W / 2 + 0.02
         for y in (WIN_Y - WIN_W / 2 - 0.05, WIN_Y + WIN_W / 2 + 0.05):
-            k.box("wood", (0.3, 0.1, WIN_Z1 - WIN_Z0 + 0.2), mat_tr((wx, y, (WIN_Z0 + WIN_Z1) / 2)), wood(0x5e422a))
+            k.box("wood", (0.42, 0.1, WIN_Z1 - WIN_Z0 + 0.2), mat_tr((wx - 0.02, y, (WIN_Z0 + WIN_Z1) / 2)), wood(0x5e422a))
         for z in (WIN_Z0 - 0.05, WIN_Z1 + 0.05):
             k.box("wood", (0.32, WIN_W + 0.2, 0.1), mat_tr((wx, WIN_Y, z)), wood(0x5e422a))
         for sd in (-1, 1):
