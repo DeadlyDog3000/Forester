@@ -530,7 +530,8 @@ export async function loadModels(base = "models/") {
 // the loader, fetched once
 let _loader = null, _loaderP = null;
 function loaderReady() {
-  return _loaderP || (_loaderP = Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js")]).then(([{ GLTFLoader }, SU]) => { _clone = SU.clone; _loader = new GLTFLoader(); }));
+  // (the models are packed by tools/packmodels.mjs; meshoptimizer's decoder unpacks them as they load)
+  return _loaderP || (_loaderP = Promise.all([import("../lib/loaders/GLTFLoader.js"), import("../lib/utils/SkeletonUtils.js"), import("../lib/libs/meshopt_decoder.module.js")]).then(([{ GLTFLoader }, SU, { MeshoptDecoder }]) => { _clone = SU.clone; _loader = new GLTFLoader(); _loader.setMeshoptDecoder(MeshoptDecoder); }));
 }
 // what a model's material is named for decides its grain: a building's plaster, brick and tiles get their own
 const SURF_BY_NAME = { steel: "none", brass: "none", rod: "wood", fur: "none", hide: "none", plaster: "plaster", brick: "brick", stone: "stone", tiles: "tiles", roof: "log", wood: "wood", log: "log", glass: "none", iron: "none", soot: "none", horn: "none",

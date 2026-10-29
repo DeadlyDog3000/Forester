@@ -27,6 +27,9 @@ def read_glb(path):
     b = path.read_bytes()
     n = struct.unpack("<I", b[12:16])[0]
     j = json.loads(b[20:20 + n])
+    # (a model packed by tools/packmodels.mjs keeps its geometry compressed, which this can't edit: work on the export)
+    if "EXT_meshopt_compression" in j.get("extensionsUsed", []):
+        raise SystemExit(f"{path.name} is packed (tools/packmodels.mjs): run this on the model as exported from Blender, then pack it again")
     m = struct.unpack("<I", b[20 + n:24 + n])[0]
     return j, b[28 + n:28 + n + m]
 
