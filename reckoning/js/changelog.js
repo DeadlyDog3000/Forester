@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.233", date: "29 October 2026", title: "A smaller download",
+    items: [
+      "The game's 3D models are packed in about half the space, from 89 to 53 MB, and unpacked as they load: the same shapes, animations and textures, in a smaller download and update.",
+    ],
+  },
+  {
     v: "1.99.232", date: "29 October 2026", title: "The Halloween sale runs a week longer",
     items: [
       "The Halloween sale runs a week longer: the full game is CA$7.99 (from CA$14.99) until the end of Tuesday 10 November.",
