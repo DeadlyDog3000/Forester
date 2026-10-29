@@ -14,6 +14,9 @@ by a model made in Blender, without touching the code:
 5. Save the `.glb` in this folder, and put its file name against its key in
    `manifest.json`, e.g. `"cabin": "cabin.glb"`.
 6. Reload the game. A key left empty keeps the built-in model.
+7. Pack it: `node reckoning/tools/packmodels.mjs` (from the repository's top folder). It stores the same model in
+   about half the space; the game unpacks it as it loads. It only touches models not packed yet. To change a packed
+   model, export it from Blender again (Blender reads packed ones too) and pack again.
 
 | Key | What it replaces | Size to aim for |
 |---|---|---|
