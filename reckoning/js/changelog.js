@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.234", date: "29 October 2026", title: "Animals move as they should",
+    items: [
+      "The elephant, bear, wolf, fox, hare and deer move as they should again. Packed smaller in the last update, their skins bent wrong as they moved, worst at the elephant's trunk. Their models are now kept exactly as made.",
+    ],
+  },
+  {
     v: "1.99.233", date: "29 October 2026", title: "A smaller download",
     items: [
       "The game's 3D models are packed in about half the space, from 89 to 53 MB, and unpacked as they load: the same shapes, animations and textures, in a smaller download and update.",
