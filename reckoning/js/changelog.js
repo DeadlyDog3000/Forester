@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.237", date: "29 October 2026", title: "Only real music",
+    items: [
+      "The game's music is only real classical pieces, really played: Bach, Vivaldi, Purcell, Pachelbel, Corelli, Lully and Charpentier, in recordings their players gave to everyone. The tunes made in code (a lute, recorder and fiddle) that stood in whenever a recording didn't load are gone. If one doesn't load now, another piece is played.",
+    ],
+  },
+  {
     v: "1.99.236", date: "29 October 2026", title: "Two hands on the axe, and a saw that cuts",
     items: [
       "The axe is carried across you from the side in both hands: the head up by your right shoulder, the haft down across your body, the left hand by the knob and the right up the haft. Both hands stay on it, through the swing as well. Before, it was held up in the right hand alone, and the left hand flicked into the bottom of the screen for each stroke and out again.",

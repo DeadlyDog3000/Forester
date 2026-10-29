@@ -8,9 +8,8 @@
 // music that is a mood rather than a march. Still no audio files.
 
 /* global SFX */
-import { createMusic } from "./music.js";
 import { createRecorded } from "./recorded.js";
-let MUSIC = null, RECORDED = null;
+let RECORDED = null;
 
 let ac = null, bus = null, musicBus = null, noise = null;
 // ---- the budget: how much is sounding at once ----
@@ -975,9 +974,8 @@ export const AUDIO = {
   music(mood) {
     if (mood === this._mood) return;
     this._mood = mood;
-    if (!MUSIC) MUSIC = createMusic(() => ctx(), () => { ctx(); return musicBus; });
-    // (real recordings of the music of the time; the players in music.js only if one of them won't load)
-    if (!RECORDED) RECORDED = createRecorded(() => ctx(), () => { ctx(); return musicBus; }, m => MUSIC.play(m));
+    // (real recordings of the music of the time, and nothing else: the players made in code are never heard)
+    if (!RECORDED) RECORDED = createRecorded(() => ctx(), () => { ctx(); return musicBus; }, () => {});
     RECORDED.play(mood);
   },
   // ---- the score: a recording, not the players — for a battle's opening and its highlights only (see replay.js) ----
@@ -1010,7 +1008,7 @@ export const AUDIO = {
     for (const [node, base] of [[bus, 1], [fb, this._fbBase ?? 1]]) if (node) { node.gain.cancelScheduledValues(t); node.gain.setTargetAtTime(base * k, t, 0.25); }
   },
   get load() { return { live: liveSrc, pressure }; },
-  get musicState() { const M = RECORDED || MUSIC; return M ? { mood: M.mood, playing: M.playing } : null; },
+  get musicState() { const M = RECORDED; return M ? { mood: M.mood, playing: M.playing } : null; },
 };
 
 

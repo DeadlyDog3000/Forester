@@ -6,8 +6,8 @@
 // Vivaldi — in recordings their players gave to everyone (public domain, CC0, or Creative Commons with credit;
 // every one named in the credits and in art/music/CREDITS.md). For each mood the game asks for, the pieces that suit
 // it: one is played, then the quiet the mood wants (music.js's MOODS), then another — never the same twice running.
-// A change of mood fades the one playing out as the next comes in. Should a recording not load, the players in
-// music.js take over for that mood, as they always did.
+// A change of mood fades the one playing out as the next comes in. Should a recording not load, another of the mood's
+// is tried: the music is only ever real music, really played (music.js keeps only each mood's quiet between pieces).
 
 import { MOODS } from "./music.js";
 
@@ -67,8 +67,9 @@ export function createRecorded(getCtx, getOut, fallback) {
     let buf;
     try { buf = await load(ac, name); }
     catch (e) {
-      // (a piece that won't load: the players instead, for this mood)
-      if (n === gen && mood === m) { usingFallback = true; fallback(m); }
+      // (a piece that won't load: another of the mood's, in a moment — only real music is ever played, never the
+      //  players made in code)
+      if (n === gen && mood === m) { last = name; wait = setTimeout(() => start(m, n), 3000); }
       return;
     }
     if (n !== gen || mood !== m) return;
