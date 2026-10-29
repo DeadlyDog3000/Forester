@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.232", date: "29 October 2026", title: "The Halloween sale runs a week longer",
+    items: [
+      "The Halloween sale runs a week longer: the full game is CA$7.99 (from CA$14.99) until the end of Tuesday 10 November.",
+    ],
+  },
+  {
     v: "1.99.231", date: "29 October 2026", title: "Server: website clicks counted",
     items: [
       "The server can count clicks on the website's Buy, download and Play buttons, as anonymously as it counts visits, so the studio can see the way from a look at the page to a sale.",

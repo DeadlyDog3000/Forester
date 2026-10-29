@@ -51,9 +51,9 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
   const isOn = () => !!(cfg("STRIPE_SECRET_KEY") && cfg("STRIPE_PRICE"));
   const isLive = () => /^(sk|rk)_live_/.test(cfg("STRIPE_SECRET_KEY"));
   // ---- a sale: for a while, the game at a lower price — the checkout charges it, and on its last day it ends by itself.
-  //  The Halloween sale, CA$7.99 (from CA$14.99) to the end of Tuesday 3 November 2026, Pacific time. (SALE_PRICE in
+  //  The Halloween sale, CA$7.99 (from CA$14.99) to the end of Tuesday 10 November 2026, Pacific time. (SALE_PRICE in
   //  cents and SALE_UNTIL, an ISO time, in the settings file override it, or start another.)
-  const SALE = { name: "Halloween sale", cents: 799, currency: "cad", until: "2026-11-04T08:00:00Z", price: "CA$7.99", was: "CA$14.99" };
+  const SALE = { name: "Halloween sale", cents: 799, currency: "cad", until: "2026-11-11T08:00:00Z", price: "CA$7.99", was: "CA$14.99" };
   const sale = () => {
     const cents = +(cfg("SALE_PRICE") || SALE.cents), until = Date.parse(cfg("SALE_UNTIL") || SALE.until);
     return cents > 0 && Date.now() < until ? { ...SALE, cents, until: new Date(until).toISOString(), price: "CA$" + (cents / 100).toFixed(2) } : null;

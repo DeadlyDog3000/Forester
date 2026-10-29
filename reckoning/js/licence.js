@@ -28,7 +28,7 @@ export const SHOP = {
   price: "CA$14.99",
   // (a sale: the server's checkout charges it while it lasts — this only says so on the Buy page, and stops saying so
   //  when it ends)
-  sale: { name: "Halloween sale", price: "CA$7.99", until: Date.parse("2026-11-04T08:00:00Z"), ends: "Tuesday 3 November" },
+  sale: { name: "Halloween sale", price: "CA$7.99", until: Date.parse("2026-11-11T08:00:00Z"), ends: "Tuesday 10 November" },
 };
 export const saleOn = () => !!(SHOP.sale && Date.now() < SHOP.sale.until);
 export const SALES_OPEN = !!SHOP.open;
