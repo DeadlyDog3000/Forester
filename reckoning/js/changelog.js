@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.231", date: "29 October 2026", title: "Server: website clicks counted",
+    items: [
+      "The server can count clicks on the website's Buy, download and Play buttons, as anonymously as it counts visits, so the studio can see the way from a look at the page to a sale.",
+    ],
+  },
+  {
     v: "1.99.230", date: "28 October 2026", title: "Fair limits behind the secure address",
     items: [
       "The server's limits on how often one place may ask (checkouts, replays, licence checks, the counts) tell callers apart again when they come through its secure https address. Through the proxy they all looked like one caller, and shared a single limit.",

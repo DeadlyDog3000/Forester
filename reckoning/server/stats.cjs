@@ -8,7 +8,7 @@
 // No address, no name, nothing that could find anyone.
 //
 //   GET /hello?i=<8–32 hex>&v=<version>&p=<mac|win|web>&f=<1|0>   204
-//   GET /visit?s=<site|forester|smoke>&p=<path>&r=<referrer host>&i=<8–32 hex>   204   — a view of the website or a
+//   GET /visit?s=<site|forester|smoke>&p=<path>&r=<referrer host>&i=<8–32 hex>[&e=buy|demo-mac|demo-win|play]   204   — a view of the website or a
 //       browser game, from a random number the page keeps in its own storage: kept the same way, hashed, tallied by day
 //   GET /stats?t=<the shop's sales token>                         { installs, today, week, launches, byVersion, …, web }
 
@@ -62,6 +62,9 @@ module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
     const path = String(u.searchParams.get("p") || "/").replace(/[^A-Za-z0-9/._#-]/g, "").slice(0, 40) || "/";
     const ref = String(u.searchParams.get("r") || "").toLowerCase().replace(/[^a-z0-9.-]/g, "").slice(0, 40) || "direct";
     const W = S.web[sid] || (S.web[sid] = {}), d = day(), D = W[d] || (W[d] = { views: 0, ids: {}, paths: {}, refs: {} });
+    // (a click, not a view — the Buy button, a demo download, Play — counted on its own, for the way from a look to a sale)
+    const ev = u.searchParams.get("e");
+    if (ev != null) { if (/^(buy|demo-mac|demo-win|play)$/.test(ev)) { D.ev = D.ev || {}; D.ev[ev] = (D.ev[ev] || 0) + 1; trim(); dirty = true; } return res.end(); }
     D.views++; D.ids[h] = 1;
     if (D.paths[path] != null || Object.keys(D.paths).length < 200) D.paths[path] = (D.paths[path] || 0) + 1;
     if (D.refs[ref] != null || Object.keys(D.refs).length < 200) D.refs[ref] = (D.refs[ref] || 0) + 1;
@@ -71,11 +74,11 @@ module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
   function webStats() {
     const out = {}, today = day(), weekCut = day(Date.now() - 6 * 86400000);
     for (const sid of SITES) {
-      const W = S.web[sid] || {}, wk = new Set(); let views7 = 0; const paths = {}, refs = {};
-      for (const [d, D] of Object.entries(W)) if (d >= weekCut) { views7 += D.views; for (const h of Object.keys(D.ids)) wk.add(h); for (const [k, n] of Object.entries(D.paths)) paths[k] = (paths[k] || 0) + n; for (const [k, n] of Object.entries(D.refs)) refs[k] = (refs[k] || 0) + n; }
+      const W = S.web[sid] || {}, wk = new Set(); let views7 = 0; const paths = {}, refs = {}, events7 = {};
+      for (const [d, D] of Object.entries(W)) if (d >= weekCut) { views7 += D.views; for (const [k, n] of Object.entries(D.ev || {})) events7[k] = (events7[k] || 0) + n; for (const h of Object.keys(D.ids)) wk.add(h); for (const [k, n] of Object.entries(D.paths)) paths[k] = (paths[k] || 0) + n; for (const [k, n] of Object.entries(D.refs)) refs[k] = (refs[k] || 0) + n; }
       const days = [];
-      for (let k = KEEP_DAYS - 1; k >= 0; k--) { const d = day(Date.now() - k * 86400000), D = W[d]; days.push({ d, views: D ? D.views : 0, people: D ? Object.keys(D.ids).length : 0 }); }
-      out[sid] = { today: W[today] ? Object.keys(W[today].ids).length : 0, week: wk.size, views7, days, paths, refs };
+      for (let k = KEEP_DAYS - 1; k >= 0; k--) { const d = day(Date.now() - k * 86400000), D = W[d]; days.push({ d, views: D ? D.views : 0, people: D ? Object.keys(D.ids).length : 0, ev: (D && D.ev) || {} }); }
+      out[sid] = { today: W[today] ? Object.keys(W[today].ids).length : 0, week: wk.size, views7, events7, days, paths, refs };
     }
     return out;
   }
