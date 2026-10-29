@@ -979,12 +979,13 @@ export const AUDIO = {
     RECORDED.play(mood);
   },
   // ---- the score: a recording, not the players — for a battle's opening and its highlights only (see replay.js) ----
-  // (the Sarabande from Handel's suite in D minor, HWV 437, as zero-project arranged it: CC BY 3.0, credited)
+  // (Purcell's In Nomine à 7, for viols, as Phillip W. Serna plays it — grave, as a field before a battle is: a real
+  //  performance, where the Sarabande it replaces was a virtual-instrument arrangement. Credited with the music)
   async score(at = 0, { vol = 0.85, fade = 1.4 } = {}) {
     this.scoreOff(0.4);
     const a = ctx(), n = this._scoreN; if (!a) return null;
     try {
-      if (!this._scoreBuf) { const r = await fetch(new URL("../art/score/sarabande.mp3", import.meta.url)); this._scoreBuf = await a.decodeAudioData(await r.arrayBuffer()); }
+      if (!this._scoreBuf) { const r = await fetch(new URL("../art/music/innomine7.ogg", import.meta.url)); this._scoreBuf = await a.decodeAudioData(await r.arrayBuffer()); }
     } catch (e) { return null; }
     if (n !== this._scoreN) return null;   // (stopped, or another asked for, while it loaded)
     const s = a.createBufferSource(), g = a.createGain(), t = a.currentTime;
