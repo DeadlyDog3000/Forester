@@ -1586,6 +1586,8 @@ async function ch6(w) {
   const sibState = { mode: "idle", t: 0, tree: null };
   const sibTask = async () => {
     const g = GEN;
+    // (and the moment the cabin's done she's done: no walking off to one more tree, or the stack, from beside the fire)
+    const off = () => g !== GEN || rebuilt;
     while (g === GEN && !rebuilt) {
       if (!S.sibHelping) { await wait(1); continue; }
       // the far side from you, the nearest standing tree there
@@ -1597,20 +1599,21 @@ async function ch6(w) {
       const dx = CLEARING.x - t.x, dz = CLEARING.z - t.z, l = Math.hypot(dx, dz);
       sib.stopFollow(); sib.lookAtPlayer(false);
       await sib.walkTo(t.x + dx / l * 1.1, t.z + dz / l * 1.1, 1.5);
-      if (g !== GEN) return;
+      if (off()) return;
       sib.faceTo(t.x, t.z);
       sib.person.setPose("chop");
       const axe = sib.hold(makeSibAxe());
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < 7 && !off(); i++) {
         await wait(0.8);   // (the blows are heard from the swing itself, where they are)
       }
-      sib.person.setPose("idle");
       sib.person.held.remove(axe);
+      if (off()) { t.claimed = null; return; }
+      sib.person.setPose("idle");
       fell(t, -dx, -dz, "sib");
       await wait(2.6);
-      if (g !== GEN) return;
+      if (off()) return;
       await sib.walkTo(STACK.x + 1.4, STACK.z + 0.6, 1.4);
-      if (g !== GEN) return;
+      if (off()) return;
       S.store += LOGS_PER_TREE; w.setStack(S.store); SFX.build(); persist();
       if (Math.random() < 0.45) bark(P.sib, [
         `That's ${S.store} on the stack.`, "Father used to say a merchant counts twice. Count that.", "Don't look at me like that. Swing the axe.",
