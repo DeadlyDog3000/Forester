@@ -1357,7 +1357,9 @@ export class Player {
       const fp = !G.forceThird && !G.freecam;
       if (this.horse) m.root.position.y += 1.02;
       if (fp) { const bk = G.fpBack ?? 0.12; m.root.position.x += Math.sin(this.yaw) * bk; m.root.position.z += Math.cos(this.yaw) * bk; m.root.position.y -= G.fpDown ?? 0.05; }
-      firstPersonBones(m, fp);
+      // (with both your hands on the screen — on an axe's haft, a gun, a bow — your body's left arm goes too: no third hand
+      //  at your collar when you look down)
+      firstPersonBones(m, fp, fp && !!this.hands && this.hands.length > 1);
       // (and the gun at your body's shoulder is the one on the screen, first person: not drawn twice)
       m.aimHidden = fp;
       // (first person in the water, your own body's under you and out of sight: the arms on the screen do the swimming)
@@ -1409,7 +1411,8 @@ export class Player {
         else if (T < 0.36) pose(HIT, THRU, (T - 0.29) / 0.07);
         else pose(THRU, REST, Math.min(1, (T - 0.36) / 0.3));
       }
-      if (this.model) { this.model.setPose(THRUST.has(this.blade) ? "punch" : this.swingDir === "up" ? "overhead" : G.arena ? "slash" : "chop"); this.model.poseT = T / 1.25 * 1; }
+      // (first person, your body stays square under you: the stroke is in the arms on the screen, not a twist of the chest)
+      if (this.model && (G.forceThird || G.freecam)) { this.model.setPose(THRUST.has(this.blade) ? "punch" : this.swingDir === "up" ? "overhead" : G.arena ? "slash" : "chop"); this.model.poseT = T / 1.25 * 1; }
       if (T > 0.29 && !this._hitDone) {
         this._hitDone = true; const before = this.impactT || 0;
         this.onSwingHit && this.onSwingHit();
@@ -2172,7 +2175,14 @@ export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Numbe
 G.dm = dm;
 // your own body in first person: the head and the right arm folded away to nothing (a bone scaled to a speck
 // takes everything hung from it), and back again for anyone else's view
-function firstPersonBones(m, fp) {
+function firstPersonBones(m, fp, left) {
+  if (m._fpL === undefined) m.root.traverse(o => { if (o.isBone && /^shoulderL$/i.test(o.name)) m._fpL = o; });
+  m._fpL ??= m.armL || null;
+  if (m._fpL && m._fpLOn !== !!left) {
+    m._fpLOn = !!left; const b = m._fpL;
+    b.scale.setScalar(left ? 0.001 : 1);
+    if (b.isBone) { b.userData.fpHome ??= b.position.clone(); b.position.copy(b.userData.fpHome).multiplyScalar(left ? 0.15 : 1); }
+  } else if (left && m._fpL) m._fpL.scale.setScalar(0.001);
   if (m._fpOn === fp) { if (fp && m._fp) for (const b of m._fp) b.scale.setScalar(0.001); return; }
   m._fpOn = fp;
   if (!m._fp) {
