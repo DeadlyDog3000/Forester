@@ -148,7 +148,7 @@ const SURF_GLSL = `
   }
   // the surface's own colour pattern at p, laid on at the scale its grain is (so the two agree): 1 is the wall's colour
   vec3 dSurfCol(int s, vec3 p, vec3 w) {
-    float sc = s == 0 ? 0.9 : s == 1 ? 0.21 : s == 2 ? 0.7 : s == 3 ? 0.9 : s == 4 ? 1.1 : s == 5 ? 3.0 : s == 6 ? 0.8 : 0.6;
+    float sc = s == 0 ? 0.9 : s == 1 ? 0.21 : s == 2 ? 0.7 : s == 3 ? 0.52 : s == 4 ? 1.1 : s == 5 ? 3.0 : s == 6 ? 0.8 : 0.6;
     return dTriCol(s, p * sc, w) * 2.0;
   }
   // the grain of surface s at world point p, seen from the three axes and blended by the normal
@@ -160,7 +160,9 @@ const SURF_GLSL = `
     if (s == 0) return dTri(dTexA, 0, p * 0.9, w);
     if (s == 1) return dTri(dTexA, 1, p * 0.55, w) * 0.55 + dTri(dTexA, 1, p * 0.21 + vec3(0.37, 0.61, 0.13), w) * 0.45;   // (two scales, so the trowel marks don't repeat)
     if (s == 2) return dTri(dTexA, 2, p * 0.7, w);
-    if (s == 3) return dTri(dTexB, 0, p * 0.9, w);
+    // (brick laid at its size: Hamburg's big Klosterformat bricks, a course about 9.5 cm with its mortar — at 0.9 a course
+    //  came out under 6 cm, like a doll's house)
+    if (s == 3) return dTri(dTexB, 0, p * 0.52, w);
     if (s == 4) return dTri(dTexB, 1, p * 1.1, w);
     if (s == 5) return dTri(dTexB, 2, p * 3.0, w);
     if (s == 6) return dTri(dTexC, 0, p * 0.8, w);
