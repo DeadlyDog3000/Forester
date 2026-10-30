@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.247", date: "30 October 2026", title: "Soft needles, and an Ultra preset",
+    items: [
+      "Pine needles and leaves have soft edges against the sky, not stair-stepped ones.",
+      "A new Ultra graphics preset, above High, for a strong graphics card: the far-reaching Ultra shadows and full resolution all the time.",
+      "Switching shadows to Ultra no longer drops some shadows for a moment. (The first switch takes a second or two while the game gets ready.)",
+    ],
+  },
+  {
     v: "1.99.246", date: "30 October 2026", title: "Sharper ground and walls, and the sky's own light",
     items: [
       "Every surface is rebuilt from photographs at twice the detail: brick, stone, boards and plaster, and the forest floor, the dirt tracks and the cobbles at four times. (The download is about 8 MB bigger.)",
