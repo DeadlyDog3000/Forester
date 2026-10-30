@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.243", date: "29 October 2026", title: "Sitting down, and smaller bricks",
+    items: [
+      "People sit on the bench or the log as you do, at your height: they used to float, their feet off the ground and their heads above yours.",
+      "Bricks are the size of real ones, about a hand's breadth a course, not half again too big.",
+      "Faces by firelight are smooth: the pores and the grime on them were coarse enough to look lumpy.",
+      "The cutpurse on the lane comes up from the quay where you can see him, and snatches the ledger only when he reaches you, instead of popping up out of nowhere.",
+    ],
+  },
+  {
     v: "1.99.242", date: "29 October 2026", title: "Server: robots kept out",
     items: [
       "The game's server tells search engines' crawlers to keep out, so none opens a checkout by following the Buy link.",
