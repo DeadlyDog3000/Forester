@@ -1669,7 +1669,7 @@ function updateCamera(dt) {
   if (G.wasDeathCam) { G.wasDeathCam = false; camera.up.set(0, 1, 0); vm.visible = true; }
   if (G.freecam) { freeCamera(dt); sky.position.copy(camera.position); return; }
   const third = !!G.forceThird;   // first person always; only a scene may step the camera back
-  const bobY = third ? 0 : Math.sin(p.bob * 2) * 0.035 * Math.min(1, p.speed / 3);
+  const bobY = third ? 0 : Math.sin(p.bob * 2) * 0.016 * Math.min(1, p.speed / 3);
   const bobX = third ? 0 : Math.cos(p.bob) * 0.025 * Math.min(1, p.speed / 3);
   camera.rotation.set(p.pitch, p.yaw, third ? 0 : -p.lean * 0.18);
   const eye = p.eyePos();
@@ -1694,8 +1694,15 @@ function updateCamera(dt) {
   if (land > 0) { G.landPhase = (G.landPhase || 0) + dt * 7; G.landDip = Math.max(0, land - dt * 0.55); if (G.landDip === 0) G.landPhase = 0; }
   const landY = land > 0 ? -land * Math.min(1, (G.landPhase || 0) * 3) : 0;
   if (!third && land > 0) camera.rotation.x -= land * 0.35 * Math.min(1, (G.landPhase || 0) * 3);
+  // (the eye carried level over the small rises and dips of the ground — a rut, a root, the crown of a road — as a walker's
+  //  head is: the legs take them. A real climb or drop, a jump, a fall, it follows at once)
+  let ey = eye.y;
   if (!third) {
-    camera.position.set(eye.x + bobX * Math.cos(p.yaw), eye.y + bobY + breath + landY, eye.z - bobX * Math.sin(p.yaw));
+    const gap = (G._eyeY ?? ey) - ey;
+    if (p.onGround && !p.horse && Math.abs(gap) < 0.3) { G._eyeY = ey + gap * Math.exp(-dt / 0.08); ey = G._eyeY; } else G._eyeY = ey;
+  }
+  if (!third) {
+    camera.position.set(eye.x + bobX * Math.cos(p.yaw), ey + bobY + breath + landY, eye.z - bobX * Math.sin(p.yaw));
   } else {
     const back = new THREE.Vector3(0, 0, 1).applyEuler(camera.rotation);
     const right = new THREE.Vector3(1, 0, 0).applyEuler(camera.rotation);
