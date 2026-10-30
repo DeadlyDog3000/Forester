@@ -28,9 +28,10 @@ import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate,
 const THRUST = new Set(["spear", "bayonet"]);
 const SHORT = new Set(["sword", "dagger"]);
 const TWO_HAND = new Set(["axe", "pick"]);
-// (an axe carried across you from the side, in both hands, as a woodsman carries one: the head up by the right
-//  shoulder, the haft down across the body to the knob, low and left of the middle — both hands on it, in sight)
-const AXE_REST = [0.7, -1.1, -1.0, 0.14, -0.32, -0.48];
+// (an axe carried low across you from the side, in both hands, as a woodsman carries one: the head at your right
+//  side about level with your eye, its edge tipped a little down, the haft down across the body to the knob, low and
+//  left of the middle — both hands on it and wholly in sight)
+const AXE_REST = [0.35, -1.1, -0.4, 0.14, -0.32, -0.55];
 const _sawD = new THREE.Vector3(), _sawT = new THREE.Vector3(), _sawS = new THREE.Vector3(), _sawM = new THREE.Matrix4(), _sawC = new THREE.Vector3(), _sawH = new THREE.Vector3(), _sawP = new THREE.Vector3(), _sawQ = new THREE.Quaternion(), _sawQ2 = new THREE.Quaternion(), _sawY = new THREE.Vector3(0, 1, 0);
 const SAW_CANT = 0.35;
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
