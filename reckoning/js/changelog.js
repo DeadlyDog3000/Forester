@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.241", date: "29 October 2026", title: "The watchman in the hall, riders on the road",
+    items: [
+      "Papers and Torches: after Father is taken, a watchman stays to search the house. Keep low and out of his sight to take Father's letters from the counting-room and burn them in the hearth; sit still on the bench and he pays you no mind. Seen, and you try again.",
+      "Far, Far Away: two riders come along the road behind you. Get off the road and keep low until they've passed; seen, and you try again.",
+    ],
+  },
+  {
     v: "1.99.240", date: "29 October 2026", title: "The axe's edge tipped down",
     items: [
       "The axe is carried lower still, its head at about eye level, and its edge tipped a little down, with both hands wholly in view.",
