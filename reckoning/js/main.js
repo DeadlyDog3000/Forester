@@ -132,6 +132,8 @@ function relabelControls() {
 const PRESETS = {
   // (High keeps everything, and draws fewer pixels only when it must to keep up: on a Retina screen at full size even
   //  Apple's chips were drawing three times the pixels of an ordinary one, and ran at 35 a second, which is laggy)
+  // (Ultra: the cascaded shadows, and the full resolution kept even when it costs frames — for a strong graphics card)
+  ultra: { scale: 1, dynres: false, shadows: "ultra", draw: 1, trees: "full", post: true, ao: true },
   high: { scale: 1, dynres: true, shadows: "high", draw: 1, trees: "full", post: true, ao: true },
   balanced: { scale: 0.85, dynres: true, shadows: "low", draw: 0.75, trees: "medium", post: true, ao: false },
   performance: { scale: 0.65, dynres: true, shadows: "off", draw: 0.55, trees: "low", post: false, ao: false },
