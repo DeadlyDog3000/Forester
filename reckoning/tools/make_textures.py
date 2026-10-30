@@ -20,12 +20,18 @@ import pathlib
 import numpy as np
 from PIL import Image, ImageFilter
 
+import os
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-RAW = ROOT / "art" / "raw" / "tex"
+# (art/raw isn't in git: from a worktree, point FORESTER_RAW at the main checkout's art/raw)
+RAW_ROOT = pathlib.Path(os.environ.get("FORESTER_RAW", ROOT / "art" / "raw"))
+RAW = RAW_ROOT / "tex"
 # (real ones where there are: Poly Haven's scanned surfaces, CC0 — their colour, and their displacement for the grain,
 #  which is the surface's true height and not a guess at it from light and dark. See art/raw/tex_ph/SOURCES.json)
-PH = ROOT / "art" / "raw" / "tex_ph"
+#  (the 2K scans, tex_ph2k, when they're there: the same photographs at twice the size, for sharper surfaces up close)
+PH = RAW_ROOT / "tex_ph2k" if (RAW_ROOT / "tex_ph2k").exists() else RAW_ROOT / "tex_ph"
 OUT = ROOT / "reckoning" / "art" / "tex"
+# sizes: each surface's grain and colour, and the ground's own (full-colour) textures
+DETAIL_SZ, COLOUR_SZ, GROUND_SZ = 1024, 1024, 2048
 
 # which surface goes in which channel of which pack
 PACKS = {
@@ -55,7 +61,7 @@ def seamless(img):
     return Image.fromarray(np.clip(a * m + b * (1 - m), 0, 255).astype(np.uint8))
 
 
-def detail(img, size=512):
+def detail(img, size=DETAIL_SZ):
     g = img.convert("L").resize((size, size), Image.LANCZOS)
     a = np.asarray(g, dtype=np.float32) / 255
     # take out the broad light and dark, keep the grain
@@ -65,7 +71,7 @@ def detail(img, size=512):
     return np.clip(d, 0, 1)
 
 
-def colour(img, size=512):
+def colour(img, size=COLOUR_SZ):
     im = img.resize((size, size), Image.LANCZOS)
     a = np.asarray(im, dtype=np.float32) / 255
     broad = np.asarray(im.filter(ImageFilter.GaussianBlur(size / 5)), dtype=np.float32) / 255
@@ -91,10 +97,11 @@ def main():
         Image.fromarray((rgb * 255).astype(np.uint8)).save(OUT / name)
         print("wrote", name, chans)
     strip = np.concatenate([colour(load(n)) for n in COLOUR], axis=1)
-    Image.fromarray((strip * 255 + 0.5).astype(np.uint8)).save(OUT / "colour.jpg", quality=92)
+    Image.fromarray((strip * 255 + 0.5).astype(np.uint8)).save(OUT / "colour.jpg", quality=86)
     print("wrote colour.jpg", COLOUR)
     for n in GROUND:
-        load(n).resize((1024, 1024), Image.LANCZOS).save(OUT / f"{n}.jpg", quality=88)
+        im = load(n); sz = min(GROUND_SZ, im.width)
+        im.resize((sz, sz), Image.LANCZOS).save(OUT / f"{n}.jpg", quality=86)
         print("wrote", f"{n}.jpg")
 
 

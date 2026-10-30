@@ -88,7 +88,7 @@ const detailTex = ["a", "b", "c"].map(k => {
 // and each surface's own colour (art/tex/colour.jpg, twelve squares side by side: the eight stuffs, then meadow, forest floor, dirt and cobbles): how each brick, stone, board and
 // tile differs from the wall's own colour, so a wall shows its courses and its mortar, not only a grain on a flat
 // paint. Cut into the layers of one texture (one sampler for all twelve); a flat grey layer until it has loaded.
-const COLOUR_N = 12, COLOUR_SZ = 512;
+const COLOUR_N = 12;
 const colourTex = new THREE.DataArrayTexture(new Uint8Array(4 * 4 * COLOUR_N).fill(128), 2, 2, COLOUR_N);
 colourTex.wrapS = colourTex.wrapT = THREE.RepeatWrapping; colourTex.colorSpace = THREE.NoColorSpace;
 colourTex.magFilter = THREE.LinearFilter; colourTex.minFilter = THREE.LinearMipmapLinearFilter; colourTex.generateMipmaps = true; colourTex.anisotropy = 8;
@@ -96,10 +96,14 @@ colourTex.needsUpdate = true;
 {
   const img = new Image();
   img.onload = () => {
-    const S = COLOUR_SZ, c = document.createElement("canvas"); c.width = S * COLOUR_N; c.height = S;
-    const g = c.getContext("2d", { willReadFrequently: true }); g.drawImage(img, 0, 0, S * COLOUR_N, S);
+    // (a square at a time, through one canvas the size of a square: the whole strip at once in one wide canvas came back
+    //  mostly empty at 1024 a square)
+    const S = img.height, c = document.createElement("canvas"); c.width = c.height = S;
+    const g = c.getContext("2d", { willReadFrequently: true });
     const data = new Uint8Array(S * S * 4 * COLOUR_N);
-    for (let k = 0; k < COLOUR_N; k++) data.set(g.getImageData(k * S, 0, S, S).data, k * S * S * 4);
+    for (let k = 0; k < COLOUR_N; k++) { g.clearRect(0, 0, S, S); g.drawImage(img, k * S, 0, S, S, 0, 0, S, S); data.set(g.getImageData(0, 0, S, S).data, k * S * S * 4); }
+    // (the grey placeholder's storage let go first, so the texture is made again at its full size)
+    colourTex.dispose();
     colourTex.image = { data, width: S, height: S, depth: COLOUR_N };
     colourTex.needsUpdate = true;
   };
