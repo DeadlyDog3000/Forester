@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.238", date: "29 October 2026", title: "A cutpurse, an ambush, and rocks on the ground",
+    items: [
+      "The House by the Harbour: on the lane to the quay a cutpurse snatches Father's ledger and runs for it. Catch him to get it back; fall too far behind, and he drops it as he goes.",
+      "Seed Before Frost: on the road home from the burner's, two men step out ahead of you. Henning's new bow and your axe are what you have. Beaten off, they leave your arrows; beaten, you wake in the ditch with the turnips gone, and the story goes on.",
+      "Rocks rest on the ground: boulders lie with the slope and road stones sit down in the earth, instead of floating above it on a hillside.",
+      "Hares can be hit: an arrow allows for the drop to what you're aiming at, at any range, half drawn as well as full.",
+      "The cabin's doorway and window: the log ends no longer flicker through the posts.",
+      "An arm with nothing to hold is put away out of sight, instead of hanging at the bottom of the screen.",
+      "Battles open to Purcell's In Nomine, played on viols, and Pachelbel's Canon is the one played on a guitar: every piece of music in the game is a real one, played by people.",
+      "Smoother on big Retina screens: on High, the game draws fewer pixels only when it has to, to keep up.",
+    ],
+  },
+  {
     v: "1.99.237", date: "29 October 2026", title: "Only real music",
     items: [
       "The game's music is only real classical pieces, really played: Bach, Vivaldi, Purcell, Pachelbel, Corelli, Lully and Charpentier, in recordings their players gave to everyone. The tunes made in code (a lute, recorder and fiddle) that stood in whenever a recording didn't load are gone. If one doesn't load now, another piece is played.",
