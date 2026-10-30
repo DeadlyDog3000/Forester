@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.248", date: "30 October 2026", title: "Shade under the trees",
+    items: [
+      "In the woods it's shady under the trees, as it should be: trunks and undergrowth under the crowns are dim and a little green, birches no longer glare, and the wood looks deep from the open road. Far off, past where shadows are drawn, the forest floor under the trees stays shaded too.",
+    ],
+  },
+  {
     v: "1.99.247", date: "30 October 2026", title: "Soft needles, and an Ultra preset",
     items: [
       "Pine needles and leaves have soft edges against the sky, not stair-stepped ones.",
