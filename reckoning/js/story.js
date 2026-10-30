@@ -738,10 +738,77 @@ async function ch2(w) {
   await wait(0.8);
   await say(P.sib, "In the morning they'll take him to the square. Everyone will be there. We go. We see. And then we decide.");
   G.lockMove = false; look(null);
+  // ---- the papers: one of the watch comes back to search the house for them, and you burn them first ----
+  await searchedHouse(w, sib);
   await fade(1, 2.4);
   AUDIO.music(null);
   await narrate("No one in the house slept. At first light, the bell of St. Nikolai began to toll.", 4);
   return startChapter(3);
+}
+
+// PAPERS AND TORCHES: Father taken, one of the watch comes back with a lantern to search the house for his letters —
+// the ones from Lübeck, in his desk, that the Council would read however it liked. Take them from the counting room
+// and burn them in the hearth, and don't be seen doing it: crouch (C), keep the table and the doorways between you,
+// and go when his lantern turns away. Seen, you try again from where you stood when he came in.
+const HOUSE_TIPS = ["Crouch with C: his lamp reaches half as far for someone low.", "Wait at the table until he looks into the counting room and turns back — then go.", "The doorways hide you. Lean round them with Q and E before you step through.", "Watch the eye at the top of the screen — when it opens, get down and out of his light.", "Walk. A run is heard in a quiet house."];
+async function searchedHouse(w, sib) {
+  const pl = G.player, desk = SPOTS.ledger, hearth = SPOTS.hearth;
+  const start = { x: pl.pos.x, z: pl.pos.z, yaw: pl.yaw };
+  AUDIO.knock(2, 1);
+  await wait(0.8);
+  w.setDoor(true);
+  G.lockMove = true;
+  const g0 = spawn(GUARD(66), 13, -1.0, Math.PI);
+  lookAt(g0, 2);
+  await wait(0.6);
+  await say("Watchman", "Magistrate wants the merchant's letters. I'll find them myself — you two keep to that bench.");
+  g0.remove();
+  lookAt(sib, 2.5); sib.facePlayer();
+  await say(P.sib, "(low) The letters from Lübeck. In Father's desk. If he reads them the way the Council will, they'll hang him with his own hand.");
+  await say(P.sib, "Get them before he does. Burn them. Keep low — he can't see what the lamp doesn't reach.");
+  G.lockMove = false; look(null);
+  let tries = 0;
+  for (;;) {
+    tries++;
+    // (his search: the hall, the stairs' foot, and a long look into the counting room from its door, and round again)
+    const g = new Watchman(w, 66, [[13, -4.6], [12.7, -7.0], [11.1, -8.4], [12.7, -7.0], [14.6, -5.6]],
+      { wait: 3.2, speed: 0.75, range: 7, crouchDiv: 2.6, sweep: 0.9, light: w.pool[3], lines: ["Who's that?", "Hm? ...You, by the desk?", "What's that in your hand?"] });
+    g.a.place(13, -1.2, Math.PI); g.a.walk([[13, -4.6]], 0.9);
+    let have = false, burned = false;
+    UI.objective(tries === 1 ? "Take Father's letters from his desk, unseen" : "Take Father's letters from his desk — keep out of his lamp");
+    mark([desk[0], desk[1], 1.0]);
+    const take = w.addInteract({ x: desk[0], y: 1.0, z: desk[1], reach: 1.8, label: "Take the letters", can: () => !have, use: () => { have = true; SFX.pickup(); UI.carry("Father's letters"); UI.objective("Burn the letters in the hearth"); mark([hearth[0], hearth[1], 0.6]); } });
+    const burn = w.addInteract({ x: hearth[0], y: 0.7, z: hearth[1], reach: 1.9, label: "Burn the letters", can: () => have && !burned, use: () => { burned = true; UI.carry(null); AUDIO.whoosh && AUDIO.whoosh(0.25, false); } });
+    let hb = 0;
+    // (sat on the bench where he told you to keep, empty-handed, you're no matter to him)
+    const watch = onFrame(dt => { if (!have && Math.hypot(pl.pos.x - start.x, pl.pos.z - start.z) < 1.6) g.sus = 0; UI.eye(Math.min(1, g.sus)); hb -= dt; if (g.sus > 0.25 && hb <= 0) { hb = 1.1 - g.sus * 0.6; AUDIO.heartbeat(0.2 + g.sus * 0.4); } });
+    const res = await Promise.race([until(() => g.sus >= 1).then(() => "seen"), until(() => burned).then(() => "done")]);
+    watch(); UI.eye(0); w.removeInteract(take); w.removeInteract(burn); mark(null);
+    if (res === "done") {
+      // (the fire takes them; he finds an empty desk, and goes)
+      await wait(1.2);
+      g.a.walk([[12.7, -7.0]], 0.9);
+      bark("Watchman", "...Nothing. Ledgers, and grain, and more ledgers. A merchant with nothing to hide, or a clever one.", 3.5);
+      await wait(3.6);
+      g.a.walk([[13, -4.6], [13, -1.0], [13, 3.5]], 1.1);
+      await wait(3);
+      g.a.remove(); w.setDoor(false); w.pool[3].intensity = 0;
+      UI.objective(null);
+      lookAt(sib, 2); sib.facePlayer();
+      await say(P.sib, "Gone? ...Good. Whatever was in them, it's ash now. Let them try to read ash.");
+      look(null);
+      return;
+    }
+    // seen: he takes them off you (or finds you at it), and you're put back on the bench — and try again
+    G.lockMove = true; lookAt(g.a, 2.5); AUDIO.shout && AUDIO.shout();
+    await wait(0.6);
+    g.a.remove(); w.pool[3].intensity = 0; UI.carry(null);
+    { const fill = t => t.replace("{sib}", P.sibLower).replace("{Sib}", P.sib), [q, by] = QUOTES[(tries - 1) % QUOTES.length], gg = GEN;
+      await UI.caught("Seen", "The lamp swings round — onto you, and onto Father's letters in your hand.", `“${fill(q)}”`, "— " + fill(by), HOUSE_TIPS[(tries - 1) % HOUSE_TIPS.length]);
+      if (gg !== GEN) throw ABORT; }
+    pl.place(start.x, start.z, start.yaw); pl.crouched = false;
+    G.lockMove = false; look(null);
+  }
 }
 
 // ===========================================================================
