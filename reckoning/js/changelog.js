@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.240", date: "29 October 2026", title: "The axe's edge tipped down",
+    items: [
+      "The axe is carried lower still, its head at about eye level, and its edge tipped a little down, with both hands wholly in view.",
+    ],
+  },
+  {
     v: "1.99.239", date: "29 October 2026", title: "The axe carried lower",
     items: [
       "The axe is carried lower, its head just above the horizon, with both hands still on it and in view.",
