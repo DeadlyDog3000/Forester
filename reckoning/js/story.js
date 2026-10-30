@@ -763,7 +763,7 @@ async function ch2(w) {
 // the ones from Lübeck, in his desk, that the Council would read however it liked. Take them from the counting room
 // and burn them in the hearth, and don't be seen doing it: crouch (C), keep the table and the doorways between you,
 // and go when his lantern turns away. Seen, you try again from where you stood when he came in.
-const HOUSE_TIPS = ["Crouch with C: his lamp reaches half as far for someone low.", "Wait at the table until he looks into the counting room and turns back — then go.", "The doorways hide you. Lean round them with Q and E before you step through.", "Watch the eye at the top of the screen — when it opens, get down and out of his light.", "Walk. A run is heard in a quiet house."];
+const HOUSE_TIPS = ["Crouch with C: his lamp reaches half as far for someone low.", "He goes right round the house. Go the other way round, behind him — through the bedroom and the back rooms.", "The crates and sacks in the storeroom hide someone crouched behind them.", "The doorways hide you. Lean round them with Q and E before you step through.", "Watch the eye at the top of the screen — when it opens, get down and out of his light.", "Walk. A run is heard in a quiet house."];
 async function searchedHouse(w, sib) {
   const pl = G.player, desk = SPOTS.ledger, hearth = SPOTS.hearth;
   const start = { x: pl.pos.x, z: pl.pos.z, yaw: pl.yaw };
@@ -783,9 +783,10 @@ async function searchedHouse(w, sib) {
   let tries = 0;
   for (;;) {
     tries++;
-    // (his search: the hall, the stairs' foot, and a long look into the counting room from its door, and round again)
-    const g = new Watchman(w, 66, [[13, -4.6], [12.7, -7.0], [11.1, -8.4], [12.7, -7.0], [14.6, -5.6]],
-      { wait: 3.2, speed: 0.75, range: 7, crouchDiv: 2.6, sweep: 0.9, light: w.pool[3], lines: ["Who's that?", "Hm? ...You, by the desk?", "What's that in your hand?"] });
+    // (his search goes right round the house: the hall, into the counting room, through to the storeroom and the
+    //  kitchen at the back, out through the bedroom, and round again — so there's always a way round behind him)
+    const g = new Watchman(w, 66, [[13, -4.6], [12.7, -7.0], [11.1, -8.6], [10.6, -11.6], [9.1, -14.4], [10.6, -16.4], [12.6, -19.6], [14.6, -18.6], [15.9, -16.6], [15.9, -14.2], [15.6, -10.2], [15.6, -8.4], [14.6, -5.6]],
+      { wait: 1.6, speed: 0.75, range: 7, crouchDiv: 2.6, sweep: 0.9, light: w.pool[3], lines: ["Who's that?", "Hm? ...You, by the desk?", "What's that in your hand?"] });
     g.a.place(13, -1.2, Math.PI); g.a.walk([[13, -4.6]], 0.9);
     let have = false, burned = false;
     UI.objective(tries === 1 ? "Take Father's letters from his desk, unseen" : "Take Father's letters from his desk — keep out of his lamp");

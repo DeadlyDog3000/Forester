@@ -66,7 +66,7 @@ function roundRect(x, a, b, w, h, r) {
 // Every block is [x0, z0, x1, z1]; the gaps between them are the streets.
 const BLOCKS = [
   [-62, -38, -38, -3], [-32, -38, -3, -3],
-  [3, -28, 8, -3], [8, -28, 18, -15], [18, -28, 32, -3], [3, -38, 20, -28],
+  [3, -28, 8, -3], [8, -28, 18, -22], [18, -28, 32, -3], [3, -38, 20, -28],
   [38, -38, 62, -3],
   [-62, 3, -38, 66], [-32, 3, -15, 37], [-15, 3, -3, 30], [3, 3, 32, 30],
   [-32, 43, -26, 53.5], [-23.5, 43, -15, 64], [-32, 56, -23.5, 64],
@@ -78,7 +78,7 @@ const BRICK = [0x98543f, 0x8a4838, 0xa8644c, 0x7c4434];   // (the red-brown of H
 const ROOF = [0x7a3a2a, 0x6a3428, 0x4a4a52, 0x8a4a34, 0x5a3a30];
 const TIMBER = 0x3a2a20;
 
-export const HOME = { x0: 8, x1: 18, z0: -15, z1: -3, door: { x: 13, z: -3 } };
+export const HOME = { x0: 8, x1: 18, z0: -22, z1: -3, door: { x: 13, z: -3 } };   // (19 m deep: the hall, the counting room and the bedroom, and behind them the storeroom and the kitchen)
 export const SPOTS = {
   bedroomYou: [16.9, -11.2], bedroomSib: [14.9, -11.2],
   fatherDesk: [11, -14.0], deskFront: [11, -11.6], ledger: [11, -13.4],
@@ -484,7 +484,12 @@ export class Hamburg extends WorldBase {
 
     // inside: the partition walls
     this.wallX(b, H.x0 + 0.3, H.x1 - 0.3, -9, 0.2, ih, [[10.5, 11.7, 2.2], [15, 16.2, 2.2]], inner, ih);
-    this.wallZ(b, H.z0 + 0.3, -9, 14, 0.2, ih, [], inner, ih);
+    this.wallZ(b, -15, -9, 14, 0.2, ih, [], inner, ih);
+    // (and behind the counting room and the bedroom, the back of the house: a door from each into it — the counting
+    //  room's in its west corner, the bedroom's between the beds — and a storeroom and a kitchen there, open to each
+    //  other, so the house goes round in a ring: hall, counting room, storeroom, kitchen, bedroom, hall)
+    this.wallX(b, H.x0 + 0.3, H.x1 - 0.3, -15, 0.2, ih, [[8.6, 9.6, 2.2], [15.4, 16.4, 2.2]], inner, ih);
+    this.wallZ(b, H.z0 + 0.3, -15, 13.5, 0.2, ih, [[-19.2, -18.0, 2.2]], inner, ih);
     // inner faces of the outer walls, a paler plaster
     b.box(W - 0.62, ih, 0.02, cx, ih / 2, H.z0 + 0.31, inner);
     b.box(0.02, ih, D - 0.62, H.x0 + 0.31, ih / 2, cz, inner);
@@ -522,6 +527,17 @@ export class Hamburg extends WorldBase {
     this.col.addRect(11, -13.6, 1.8, 0.9, 0.85);
     this.col.addRect(9.1, -12.2, 0.4, 1.4, 2.2); this.col.addRect(12.6, -14.45, 1.6, 0.4, 2.2);
     this.col.addRect(9.9, -10.3, 1.3, 1.2, 0.6);
+    // the storeroom: the house's grain and goods — sacks stacked, barrels, crates; somewhere to keep low behind
+    for (const [x, z, n] of [[9.0, -16.0, 2], [9.0, -17.4, 1], [12.6, -16.2, 1], [9.2, -21.0, 2], [12.4, -20.6, 1]]) for (let k = 0; k < n; k++) P.sack(props, x + k * 0.15, z + k * 0.3, k * 0.4, k);
+    for (const [x, z] of [[10.8, -21.1], [11.6, -21.1], [12.8, -18.6]]) { P.barrel(props, x, z); this.col.addCircle(x, z, 0.35, 1); }
+    for (const [x, z, s2] of [[10.2, -17.8, 0.8], [10.9, -17.8, 0.7], [10.5, -18.5, 0.6], [11.9, -16.0, 0.7]]) P.crate(props, x, z, s2);
+    this.col.addRect(10.55, -18.1, 1.5, 1.2, 0.9); this.col.addRect(11.9, -16.0, 0.7, 0.7, 0.7);
+    this.col.addRect(9.0, -16.6, 0.9, 2.0, 0.6); this.col.addRect(9.2, -21.0, 1.0, 0.8, 0.6);
+    // the kitchen: a long work table, a dresser on the wall, a water butt by the back window
+    P.table(props, 15.9, -19.6, 2.0, 0.8); this.col.addRect(15.9, -19.6, 2.0, 0.8, 0.85);
+    P.shelf(props, 17.45, -17.2, 1.6, -Math.PI / 2); this.col.addRect(17.45, -17.2, 0.4, 1.6, 2.2);
+    P.barrel(props, 14.2, -21.1); this.col.addCircle(14.2, -21.1, 0.35, 1);
+    P.sack(props, 17.2, -21.0, 0, 0.3);
     // the bedroom
     // (a merchant's beds: carved and posted, the linen white — scanned (Poly Haven, CC0), where they're loaded)
     for (const x of [14.9, 16.9]) {
