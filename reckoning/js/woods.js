@@ -819,6 +819,32 @@ export class Woods extends WorldBase {
     pos.needsUpdate = true; col.needsUpdate = true; smoothNormals(geo); geo.computeBoundingSphere();
   }
   // the ground as it lies, before anyone dug into it
+  // the road's own level: the ground under it evened out over some metres either side, as a cart track is worn — the
+  // hills kept, the lumps gone (taken straight from the ground under it, it rose and fell by 5 to 20 cm every few
+  // metres, and you bobbed along it). Between two of its points, the level between theirs, so there's no step.
+  roadLevel(rd, x, z) {
+    const pts = rd.branch ? rd.branch.pts : this.road; if (!pts || !pts.length) return this.rawAt(rd.x, rd.z);
+    const key = rd.branch ? "_y" : "_roadY";
+    let Y = pts[key];
+    if (!Y) {
+      const raw = pts.map(p => this.rawAt(p.x, p.z)), n = raw.length;
+      // (the window by distance, about six metres each side, twice over for a gentle curve)
+      const smooth = a => { const out = new Array(n); for (let i = 0; i < n; i++) { let sum = 0, c = 0, d = 0;
+        for (let j = i; j >= 0 && d <= 6; j--) { sum += a[j]; c++; if (j > 0) d += Math.hypot(pts[j].x - pts[j - 1].x, pts[j].z - pts[j - 1].z); }
+        d = 0; for (let j = i + 1; j < n; j++) { d += Math.hypot(pts[j].x - pts[j - 1].x, pts[j].z - pts[j - 1].z); if (d > 6) break; sum += a[j]; c++; }
+        out[i] = sum / c; } return out; };
+      let ys = smooth(smooth(raw));
+      // (a fork leaves the road at the road's own level, and comes to its own over its first dozen metres: smoothed
+      //  apart, the two met at a step a quarter of a metre high)
+      if (rd.branch) { const p0 = pts[0], m = this.roadDist(p0.x, p0.z), off = this.roadLevel(m, p0.x, p0.z) - ys[0];
+        let d = 0; for (let i = 0; i < n; i++) { if (i) d += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z); const f = clamp(1 - d / 12, 0, 1); ys[i] += off * f * f * (3 - 2 * f); } }
+      Y = Object.defineProperty(pts, key, { value: ys, enumerable: false, configurable: true })[key];
+    }
+    const i = rd.i, a = pts[i], j = i + 1 < pts.length ? i + 1 : i - 1, b = pts[j];
+    if (!b || j < 0) return Y[i];
+    const ex = b.x - a.x, ez = b.z - a.z, L2 = ex * ex + ez * ez || 1, t = clamp(((x - a.x) * ex + (z - a.z) * ez) / L2, 0, 1);
+    return Y[i] + (Y[j] - Y[i]) * t;
+  }
   groundAt(x, z) {
     if (this.cave && this.cave.holds(x, z)) return this.cave.floorAt(x, z);
     let h = this.rawAt(x, z);
@@ -828,7 +854,7 @@ export class Woods extends WorldBase {
     const clearingH = this._ch ?? (this._ch = this.rawAt(CLEARING.x, CLEARING.z));
     if (rd) {
       const k = clamp((rd.d - 2) / 8, 0, 1);
-      const roadH = this.rawAt(rd.x, rd.z);
+      const roadH = this.roadLevel(rd, x, z);
       h = roadH + (h - roadH) * k;
     }
     h = clearingH + (h - clearingH) * flatC;
