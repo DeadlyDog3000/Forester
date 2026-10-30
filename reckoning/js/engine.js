@@ -2154,6 +2154,7 @@ function notch(t) {
     // its frame: x out toward you, y up, z across
     m.matrixAutoUpdate = false;
     m.matrix.makeBasis(new THREE.Vector3(Math.sin(a), 0, Math.cos(a)), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-Math.cos(a), 0, Math.sin(a))).setPosition(T.cx, Y, T.cz);
+    m.matrixWorldNeedsUpdate = true;
     m.userData = { k: 0, T, a, r: T.R(Y, Math.sin(a), Math.cos(a)), world: G.world };
     let s = NOTCH_SLOTS.findIndex(x => !x || !x.notch || !x.g.visible); if (s < 0) { s = 0; G.clearNotch(NOTCH_SLOTS[0]); }
     NOTCH_SLOTS[s] = t; m.userData.slot = s;
@@ -3087,7 +3088,7 @@ export function frame(dt, skipRender) {
 // ---- graphics: the FPS boosters in the settings ----
 // shadows: "high" soft and sharp, "low" hard-edged, smaller and redrawn every other frame, "off" none at all
 export function setGraphics({ shadows = "high", drawMul = 1 } = {}) {
-  const want = shadows !== "off", type = shadows === "low" ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap, size = shadows === "low" ? 1024 : 2048;
+  const want = shadows !== "off", type = THREE.PCFShadowMap, size = shadows === "low" ? 1024 : 2048;
   const changed = renderer.shadowMap.enabled !== want || renderer.shadowMap.type !== type;
   renderer.shadowMap.enabled = want; renderer.shadowMap.type = type;
   renderer.shadowMap.autoUpdate = shadows !== "low";

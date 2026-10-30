@@ -293,7 +293,7 @@ function openPreview() {
   const r = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
   r.setPixelRatio(Math.min(2, devicePixelRatio || 1)); r.setSize(W, H, false);
   r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
-  r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+  r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFShadowMap;
   const scene = new THREE.Scene(), cam = new THREE.PerspectiveCamera(24, W / H, 0.05, 50);
   // a portrait painter's light: a warm key from high on one side, a cool rim behind, a soft fill
   const key = new THREE.DirectionalLight(0xffe2b8, 2.6); key.position.set(-2.2, 4, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024);
