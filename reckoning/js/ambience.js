@@ -105,7 +105,8 @@ function tick() {
   const rain = w.rainK || 0;
   // the wind in the leaves: gusting, one side and then the other; quieter in winter's bare woods, muffled indoors
   bed.gust += (Math.random() - 0.5) * 0.12; bed.gust = Math.max(0.15, Math.min(1, bed.gust));
-  const leaves = (winter ? 0.022 : 0.04) * (0.5 + bed.gust) * (indoor ? 0.25 : 1) * (1 - rain * 0.4);
+  // (a breath under the birds, not a gale: at 0.04 it roared)
+  const leaves = (winter ? 0.014 : 0.025) * (0.5 + bed.gust) * (indoor ? 0.25 : 1) * (1 - rain * 0.4);
   bed.master.gain.setTargetAtTime(leaves, t, 1.2);
   bed.sides.forEach((s, i) => { s.g.gain.setTargetAtTime(0.4 + Math.random() * 0.6, t, 0.8 + i * 0.4); s.bp.frequency.setTargetAtTime(1500 + bed.gust * 1400 + Math.random() * 300, t, 1.5); });
   // the birds: thick at dawn, a song every few seconds by day, none at night, few in winter and the rain

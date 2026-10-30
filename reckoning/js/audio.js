@@ -870,7 +870,7 @@ export const AUDIO = {
   },
   wind(on, vol = 1) {
     loop("wind", on, a => {
-      const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.05 * vol, a.currentTime, 2); g.connect(bus);
+      const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.025 * vol, a.currentTime, 2); g.connect(bus);   // (half what it was: it drowned the woods)
       const s = noiseSrc(a), f = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
       s.playbackRate.value = 0.5;
       f.type = "bandpass"; f.frequency.value = 500; f.Q.value = 0.7; lfo.frequency.value = 0.07; lg.gain.value = 300;
