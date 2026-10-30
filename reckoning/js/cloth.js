@@ -3,9 +3,9 @@
 // ===========================================================================
 
 // CLOTH. Skirts, aprons and the skirts of a coat are cloth: a net of points from the waist to the hem — six rings of
-// twelve — the top ring sewn to the waist and the rest free, falling under their own weight, carried on by their own
-// momentum, each held to its neighbours so the cloth can't stretch (though it can bunch and fold), kept out of the legs,
-// the body and the ground. Standing, a little of the garment's own hang draws it back toward how it was cut; once its
+// twelve — the top ring sewn to the waist and the rest free, falling under their own weight (heavy, damped: no sway of
+// its own, no wind), each held to its neighbours so the cloth can't stretch (though it can bunch and fold), kept out of
+// the legs, the body, the things about its wearer and the ground. Standing, a little of the garment's own hang draws it back toward how it was cut; once its
 // wearer goes over, that lets go, and it falls, crumples and spreads like the cloth it is.
 //
 // Worked out once a frame for each person that is drawn (just before it is), from where the hips and the legs are; laid
@@ -13,7 +13,6 @@
 // around it. Each person's own: its clothes' materials are its own copies.
 
 import { THREE, addDetail, addHook, inheritHooks } from "./core.js";
-import { SWAY } from "./models.js";
 
 const R = 5, S = 12, N = (R + 1) * S;      // (rings below the waist; points round each ring)
 const PARTS = /_(skirt|apron|coat)$/;
@@ -196,6 +195,30 @@ function outOf(p, a, b, rad) {
   return true;
 }
 
+// a point kept out of a solid thing (a collider of the world: a box, a turned box, or a round post), pushed out sideways
+// the shortest way
+function offObject(p, o) {
+  if (p.y > o.y1 || p.y < o.y0) return;
+  const pad = 0.015;
+  if (o.type === "box") {
+    if (p.x <= o.x0 - pad || p.x >= o.x1 + pad || p.z <= o.z0 - pad || p.z >= o.z1 + pad) return;
+    const l = p.x - o.x0 + pad, r = o.x1 + pad - p.x, n = p.z - o.z0 + pad, f = o.z1 + pad - p.z, m = Math.min(l, r, n, f);
+    if (m > 0.25) return;   // (a thing he's stood inside of, not met: left alone, or the hem leapt to its edge)
+    if (m === l) p.x -= l; else if (m === r) p.x += r; else if (m === n) p.z -= n; else p.z += f;
+  } else if (o.type === "obox") {
+    const wx = p.x - o.x, wz = p.z - o.z, u = wx * o.c - wz * o.s, v = wx * o.s + wz * o.c, hu = o.hw + pad, hv = o.hd + pad;
+    if (Math.abs(u) >= hu || Math.abs(v) >= hv) return;
+    if (Math.min(hu - Math.abs(u), hv - Math.abs(v)) > 0.25) return;
+    let nu = u, nv = v;
+    if (hu - Math.abs(u) < hv - Math.abs(v)) nu = Math.sign(u || 1) * hu; else nv = Math.sign(v || 1) * hv;
+    p.x = o.x + nu * o.c + nv * o.s; p.z = o.z - nu * o.s + nv * o.c;
+  } else {
+    const dx = p.x - o.x, dz = p.z - o.z, d = Math.hypot(dx, dz), rr = o.r + pad;
+    if (d >= rr || rr - d > 0.25) return;
+    if (d > 1e-5) { p.x = o.x + dx / d * rr; p.z = o.z + dz / d * rr; } else p.x += rr;
+  }
+}
+
 // one step of the cloth, once a frame however many pieces of it are drawn
 const G_ = new THREE.Vector3(0, -9.8, 0);
 const _W = new THREE.Matrix4(), _T = new THREE.Matrix4();
@@ -237,16 +260,17 @@ function step(C, frame) {
   const g0 = gy ? gy(pelvis.x, pelvis.z) + 0.02 : null;
   const LR = 0.095 * scale, BR = 0.13 * scale, pull = (1 - Math.pow(0.3, dt)) * keep * keep;
   const minR = (0.45 + 0.43 * keep) / 1.06;
-  const wd = SWAY && SWAY.dir ? SWAY.dir.value : null, wt = SWAY ? SWAY.t.value : 0, wk = SWAY ? SWAY.k.value : 0;
-  // move: momentum (a little lost to the air), weight, the wind, and while standing the garment's own hang
+  // (and the things about him — a bench, a table, a barrel, a wall, a trunk: the cloth that meets one is pushed aside by it)
+  const col = Gw && Gw.world && Gw.world.col, objs = col && col.near ? [...col.near(pelvis.x, pelvis.z, 1)].filter(o => !o.disabled && o.y1 > (g0 ?? pelvis.y - 1) - 0.1 && o.y0 < pelvis.y) : [];
+  // (not sat on something, though: the seat under him is the seat's business, above)
+  if (seat) objs.length = 0;
+  // move: what is left of its last step, weight, and while standing the garment's own hang
   for (let r = 1; r <= R; r++) for (let s = 0; s < S; s++) {
     const i = id(r, s), p = P[i], q = Q[i];
-    _a.subVectors(p, q).multiplyScalar(0.97);
+    // (heavy wool, damped hard: it doesn't sway or flap of itself, in the wind or from the way you move — only a knee
+    //  or a thing it meets moves it, and it settles back)
+    _a.subVectors(p, q).multiplyScalar(0.45);
     q.copy(p); p.add(_a).addScaledVector(G_, dt * dt);
-    if (wd) {
-      const gust = 0.55 + 0.45 * Math.sin(wt * 0.55 - (p.x * wd.x + p.z * wd.y) * 0.07), w = (0.8 + 5 * wk) * gust * (1 + 0.45 * Math.sin(wt * 6.3 + s * 1.7 + r)) * dt * dt * (r / R);
-      p.x += wd.x * w; p.z += wd.y * w;
-    }
     if (pull > 0) p.lerp(TT[i], pull * (0.35 + 0.65 * r / R));
   }
   // hold it together: sewn to the waist; never longer than the cloth between neighbours (though free to bunch); out of
@@ -272,6 +296,7 @@ function step(C, frame) {
       outOf(p, pelvis, chest, BR);
       // (sitting — on a bench, a log, in the saddle — the seat under him: cloth over it rests on it and falls from its edge)
       if (seat && Math.hypot(p.x - pelvis.x, p.z - pelvis.z) < 0.3 * scale && p.y < seat) p.y = seat;
+      for (const o of objs) offObject(p, o);
       if (g0 !== null) { const g = g0; if (p.y < g) { p.y = g; const q = Q[id(r, s)]; q.x = p.x * 0.6 + q.x * 0.4; q.z = p.z * 0.6 + q.z * 0.4; } }
     }
   }
