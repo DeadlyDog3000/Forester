@@ -30,7 +30,7 @@ import { Artillery } from "./cannon.js";
 import { Tannery } from "./tannery.js";
 import { JOB_SKILL, SKILL_NAME } from "./people.js";
 import { FAITHS, faithOf } from "./faith.js";
-import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, makeStump, P as PROPS } from "./models.js";
+import { makeTorch, makeLantern, makeScroll, makeHalberd, makeLogs, makeStump, makeHorse, P as PROPS } from "./models.js";
 import { Town, BUILDINGS, JOBS, lieOn, YEAR, RATION, RYE_HARVEST } from "./town.js";
 import { battleById } from "./history.js";
 // (a door takes two logs off the stack: with fewer there, the objective says to bring them first — "hew a door" alone
@@ -808,6 +808,7 @@ async function searchedHouse(w, sib) {
       if (gg !== GEN) throw ABORT; }
     pl.place(start.x, start.z, start.yaw); pl.crouched = false;
     G.lockMove = false; look(null);
+    await fade(0, 1);          // (the caught screen leaves it dark)
   }
 }
 
@@ -1244,6 +1245,73 @@ async function ch4(w, opts) {
 // ===========================================================================
 //  V. FAR, FAR AWAY
 // ===========================================================================
+// THE ROAD NORTH-EAST: riders out of the city come up the road behind you — the watch, sent after the merchant's
+// children. You hear them first. Off the road and into the trees, and down (C), before they come round the bend;
+// on the road, or standing near it, they see you, and you try again from where you heard them.
+const RIDER = s => ({ model: "watchman", name: "A rider", coat: 0x7a2a26, legs: 0x2a2a30, vest: 0xc8b890, hat: "helmet", sash: 0xe0d8c0, seed: s });
+const ROAD_TIPS = ["Get well off the road — six paces at least — and crouch with C.", "Trees and bushes between you and the road hide you.", "Don't stand up until the hooves have gone by.", "Move as soon as you hear them: they come fast."];
+async function ridersPass(w, sib, barkQ) {
+  const pl = G.player, R = w.road;
+  let tries = 0;
+  for (;;) {
+    tries++;
+    const start = { x: pl.pos.x, z: pl.pos.z, yaw: pl.yaw };
+    // (where you are on the road, and where they come from: well back down it, out of sight)
+    const near = w.roadDist(pl.pos.x, pl.pos.z), i0 = near.i;
+    let back = i0, d = 0; while (back > 0 && d < 60) { d += Math.hypot(R[back].x - R[back - 1].x, R[back].z - R[back - 1].z); back--; }
+    let ahead = i0; d = 0; while (ahead < R.length - 1 && d < 110) { d += Math.hypot(R[ahead + 1].x - R[ahead].x, R[ahead + 1].z - R[ahead].z); ahead++; }
+    const route = []; for (let k = back; k <= ahead; k += 4) route.push([R[k].x, R[k].z]);
+    // hooves, far off
+    for (const t of [0, 0.9, 1.7]) setTimeout(() => FOLEY.hoof && FOLEY.hoof({ x: R[back].x, y: 0, z: R[back].z }, 0.5), t * 1000);
+    await barkQ(P.sib, tries === 1 ? "Horses. Behind us — on the road. Off it, into the trees — get down!" : "They're coming again — off the road, now! Down!");
+    UI.objective("Riders on the road — get into the trees, well off it, and crouch (C)");
+    sib.stopFollow();
+    { const px = -(R[Math.min(R.length - 1, i0 + 1)].z - R[i0].z), pz = R[Math.min(R.length - 1, i0 + 1)].x - R[i0].x, l = Math.hypot(px, pz) || 1; sib.walkTo(R[i0].x + px / l * 9, R[i0].z + pz / l * 9, 3.2); }
+    await wait(3.5);
+    // two of the watch, at a canter, one behind the other
+    const riders = [0, 1].map(k => { const a = spawn(RIDER(140 + k), route[0][0], route[0][1], 0); a.mountHorse(makeHorse([0x3a2a1a, 0x5a4030][k], 30 + k)); a.walk(route.slice(1), 4.2); return a; });
+    riders[1].place(route[0][0], route[0][1]); riders[1].path = []; setTimeout(() => riders[1].walk(route.slice(1), 4.2), 900);
+    let seen = false, passed = false, T = 0;
+    const tick = onFrame(dt => {
+      T += dt;
+      for (const a of riders) {
+        const dd = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z), off = w.anyRoadDist(pl.pos.x, pl.pos.z).d;
+        if ((T * 10 | 0) % 3 === 0 && FOLEY.hoof) FOLEY.hoof({ x: a.pos.x, y: a.pos.y, z: a.pos.z }, 0.55);
+        // (on the road, or near it and standing, as one comes by: seen)
+        if (dd < 16 && (off < 3.5 || (off < 6.5 && !pl.crouched) || (!pl.crouched && dd < 8))) seen = true;
+      }
+      // (both gone by and well on)
+      if (riders.every(a => !a.path.length || w.roadDist(a.pos.x, a.pos.z).i > i0 + 40)) passed = true;
+    });
+    await until(() => seen || passed);
+    tick();
+    if (passed && !seen) {
+      bark("A rider", tries > 1 ? "...Nothing on this stretch either. On to Lübeck." : "...Nobody. They'll not have come this far on foot. On!", 3);
+      await wait(2.5);
+      riders.forEach(a => a.remove());
+      UI.objective(`Follow the road north-east — your ${P.sibLower} knows the way at the forks`);
+      sib.followPlayer(2.2);
+      await barkQ(P.sib, "That was for us. They'll be on every road out of the city.");
+      await barkQ(YOU(), "Then we keep to this one, and we keep listening.");
+      return;
+    }
+    // seen: a shout, the horses wheeled round — and you try it again, from where you heard them
+    G.lockMove = true; riders.forEach(a => { a.path = []; a.faceTo(pl.pos.x, pl.pos.z); });
+    lookAt(riders[0], 2); AUDIO.shout && AUDIO.shout();
+    bark("A rider", "There! In the trees — the merchant's brats!", 2.2);
+    await wait(1.2);
+    { const fill = t => t.replace("{sib}", P.sibLower).replace("{Sib}", P.sib), [q, by] = QUOTES[(tries - 1) % QUOTES.length], gg = GEN;
+      await UI.caught("Seen", "A shout, and the horses wheeled round in the road.", `“${fill(q)}”`, "— " + fill(by), ROAD_TIPS[(tries - 1) % ROAD_TIPS.length]);
+      if (gg !== GEN) throw ABORT; }
+    riders.forEach(a => a.remove());
+    pl.place(start.x, start.z, start.yaw); pl.crouched = false;
+    sib.place(start.x + 1, start.z + 1.2); sib.followPlayer(2.2);
+    G.lockMove = false; look(null);
+    await fade(0, 1);          // (the caught screen leaves it dark)
+    await wait(1.5);
+  }
+}
+
 async function ch5(w) {
   setAtmo("afternoon"); G.bugs.setKind("flies");
   AUDIO.music("grief"); AUDIO.wind(true, 0.8);
@@ -1322,6 +1390,9 @@ async function ch5(w) {
   let stretch = 0;
   const run = async list => { const s = ++stretch; for (const [at, who, text] of list) { await until(() => w.progress() > at || s !== stretch); if (s !== stretch) return; await barkQ(who, text); } };
   run(lines).then(() => { if (stretch === 1) AUDIO.music("woods"); });
+  // ---- riders out of the city, up the road behind you: into the trees, and down ----
+  await until(() => w.progress() > 0.25);
+  await ridersPass(w, sib, barkQ);
   await until(() => w.progress() > 0.48);
   stretch++; AUDIO.music("woods");
   // three days pass
