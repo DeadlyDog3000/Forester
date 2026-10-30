@@ -472,12 +472,24 @@ function wanderer(route, seed, speed = 1.2) {
 // A CUTPURSE on the lane to the harbour: he comes past close, has Father's ledger out of your hands, and runs for the
 // quay. Run him down (Shift) and you have it back off him; fall too far behind and he throws it down to run the
 // lighter, and you pick it up off the cobbles. Either way the errand goes on.
-async function cutpurse(w) {
+async function cutpurse(w, onSnatch) {
   const pl = G.player;
-  // (he comes up the lane from the quay, the way he'll run back: a step to your right and a couple ahead of you)
-  const t = spawn(CUTPURSE, pl.pos.x + 1.0, pl.pos.z - 2.6, 0);
+  // (he comes round the corner off the quay, out of sight until then, and up the lane towards you at an idle stroll,
+  //  like anyone going about his business; only as he passes close does he take it)
+  const t = spawn(CUTPURSE, 7, -41.4, -Math.PI / 2);
+  t.walk([[0.9, -40.6], [0.9, -34]], 1.35);
+  let S = 0, near = false;
+  const stroll = onFrame(dt => {
+    S += dt;
+    if (!t.path.length || (S % 0.5) < dt) { if (S > 2.5) t.walk([[pl.pos.x + 0.7, pl.pos.z - 0.4]], 1.45); }
+    if (Math.hypot(pl.pos.x - t.pos.x, pl.pos.z - t.pos.z) < 1.5) near = true;
+  });
+  await until(() => near || S > 45);
+  stroll();
+  // (never met — you went down another way: he goes on, and the ledger with you)
+  if (!near) { t.walk([[0.9, -41], [-30, -41.4]], 1.4); setTimeout(() => t.remove(), 25000); return false; }
+  onSnatch && onSnatch();
   t.faceTo(pl.pos.x, pl.pos.z);
-  await wait(0.35);
   SFX.pickup(); UI.carry(null); AUDIO.whoosh && AUDIO.whoosh(0.3, false);
   bark("A cutpurse", "Obliged to you!", 1.6);
   // (down to the quay, along it west, and up the far street towards the walls)
@@ -525,6 +537,7 @@ async function cutpurse(w) {
     await until(() => got);
     w.removeInteract(it); w.root.remove(book); SFX.pickup(); UI.carry("Father's ledger");
   }
+  return true;
 }
 
 async function ch1(w) {
@@ -581,7 +594,7 @@ async function ch1(w) {
   let delivered = false, haveLedger = true, snatched = false;
   void doorMark;
   // (on the way down the lane to the quay, a cutpurse takes it off you: after him)
-  w.addTrigger({ x: 0, z: -19, r: 5, fn: () => { if (snatched) return; snatched = true; haveLedger = false; cutpurse(w).then(() => { haveLedger = true; mark(jakob); UI.objective("Take the ledger to Jakob at the harbour warehouse"); }); } });
+  w.addTrigger({ x: 0, z: -8, r: 6, fn: () => { if (snatched) return; snatched = true; cutpurse(w, () => { haveLedger = false; }).then(took => { if (!took) return; haveLedger = true; mark(jakob); UI.objective("Take the ledger to Jakob at the harbour warehouse"); }); } });
   const jIt = w.addInteract({ x: jakob.pos.x, y: 1.5, z: jakob.pos.z, reach: 2.6, label: "Give Jakob the ledger", can: () => haveLedger, use: () => { delivered = true; } });
   await until(() => delivered);
   doorMark();
