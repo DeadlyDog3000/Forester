@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.245", date: "30 October 2026", title: "A newer renderer, Ultra shadows, and metal that shows the sky",
+    items: [
+      "The game draws with a newer three.js (r186): light on rough surfaces like wood, cloth and earth falls a little more truly.",
+      "Ultra shadows, a new setting: one shadow sharp about you and a second reaching out to 150 m, so far trees, walls and men cast shade too. Soft stays the default; Ultra costs a little speed.",
+      "Musket barrels, blades and kettles reflect the sky that's really there, its sun, clouds and hour, not a painted stand-in.",
+      "Stamina is a slim lit bar just above the hotbar: it draws in from both ends as you tire, turns amber when low and pulses red when you're winded.",
+      "The cabin's chimney stones stand out from the back wall as a chimney breast, instead of the logs running through them.",
+    ],
+  },
+  {
     v: "1.99.244", date: "29 October 2026", title: "A bigger house, and the axe for the hunt",
     items: [
       "The family's house in Hamburg is bigger, with a storeroom and a kitchen; in Papers and Torches the watchman searches all of it.",
