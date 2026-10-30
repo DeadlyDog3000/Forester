@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.239", date: "29 October 2026", title: "The axe carried lower",
+    items: [
+      "The axe is carried lower, its head just above the horizon, with both hands still on it and in view.",
+    ],
+  },
+  {
     v: "1.99.238", date: "29 October 2026", title: "A cutpurse, an ambush, and rocks on the ground",
     items: [
       "The House by the Harbour: on the lane to the quay a cutpurse snatches Father's ledger and runs for it. Catch him to get it back; fall too far behind, and he drops it as he goes.",
