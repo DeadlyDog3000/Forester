@@ -40,7 +40,7 @@
   let bt = null, best = null;
   // the building the objective asks to be planned, if any (and not tried in the last half-minute)
   const wantBuild = o => {
-    if (!/\(B\)|press B/.test(o)) return null;
+    if (!/\(B\b|press B/.test(o)) return null;
     for (const part of o.split(" · ")) {
       if (!/^(Plan|Build|Dig)\b/.test(part)) continue;
       const k = Object.keys(BUILDINGS).sort((a, b) => BUILDINGS[b].name.length - BUILDINGS[a].name.length).find(k => part.toLowerCase().includes(BUILDINGS[k].name.toLowerCase()));
