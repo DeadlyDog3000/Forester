@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET, SKYLIT } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET, SKYLIT, SKYENV, setSkyEnv } from "./core.js";
 import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 import { reflectWater } from "./water.js";
@@ -273,7 +273,8 @@ const envBase = new THREE.Color(), ENV_IN = new THREE.Color(0.07, 0.055, 0.045);
 // (and the rim of sky light on things' edges: indoors there's no sky round them — a dark shelf in a candlelit room had a
 //  bright blue rim)
 const rimBase = new THREE.Color();
-function setEnvK() { ENVK.value.copy(envBase).lerp(ENV_IN, G.indoorK || 0); RIM.value.copy(rimBase).multiplyScalar(1 - 0.85 * (G.indoorK || 0)); }
+const ENV_LIVE = new THREE.Color(0.85, 0.85, 0.85);
+function setEnvK() { ENVK.value.copy(SKYENV.tex ? ENV_LIVE : envBase).lerp(ENV_IN, G.indoorK || 0); RIM.value.copy(rimBase).multiplyScalar(1 - 0.85 * (G.indoorK || 0)); }
 // (under the trees the sky's light comes down through the needles, green and less of it; and back off the floor of the
 //  wood, brown: lit by the open blue sky, every trunk in the woods stood navy-black and the forest floor went lavender.
 //  G.canopyK, from the world: 0 in the open, 1 deep in the wood)
@@ -329,6 +330,18 @@ function applyAtmo(a00) {
   u.moonPhase.value = G.town ? ((G.town.t / (G.town.dayLen || 480)) / 8) % 1 : 0.5;
   MAT.lit.emissiveIntensity = a.win;
   renderer.toneMappingExposure = a.exp;
+}
+// ---- the sky, as metal sees it: the live sky dome drawn into a small cube and blurred for every roughness (one texture,
+//  redrawn in place every half-second, so nothing has to be rebuilt as the hour and the clouds change) ----
+const envCubeRT = new THREE.WebGLCubeRenderTarget(128, { type: THREE.HalfFloatType });
+const envCam = new THREE.CubeCamera(1, 1000, envCubeRT);
+const envScene = new THREE.Scene(); envScene.add(new THREE.Mesh(sky.geometry, sky.material));
+const pmrem = new THREE.PMREMGenerator(renderer);
+let skyEnvRT = null;
+function updateSkyEnv() {
+  envCam.update(renderer, envScene);
+  skyEnvRT = pmrem.fromCubemap(envCubeRT.texture, skyEnvRT);
+  if (SKYENV.tex !== skyEnvRT.texture) { setSkyEnv(skyEnvRT.texture); setEnvK(); }
 }
 // (put the sky and light back as they were, after somewhere that overrode them — a cave)
 G.reAtmo = () => { if (G.atmoNow) applyAtmo(G.atmoNow); };
@@ -3091,7 +3104,10 @@ export function frame(dt, skipRender) {
   input.endFrame();
   // (hard shadows, the cheaper kind, are only redrawn every other frame)
   if (G.shadowEvery > 1) renderer.shadowMap.needsUpdate = (G.frameN = (G.frameN || 0) + 1) % G.shadowEvery === 0;
-  if (!skipRender) { reflectWater(renderer, G.scene, camera); renderFrame(G.scene, camera); }
+  if (!skipRender) {
+    if (!SKYENV.tex || (G.envN = (G.envN || 0) + 1) % 30 === 0) updateSkyEnv();
+    reflectWater(renderer, G.scene, camera); renderFrame(G.scene, camera);
+  }
 }
 
 // ---- graphics: the FPS boosters in the settings ----

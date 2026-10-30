@@ -537,6 +537,16 @@ export function noSnow(obj) {
 //  One small sky, light above, the horizon paler, the earth dark below, tinted and dimmed by the hour (ENVK, set
 //  in applyAtmo) so a blade at night isn't lit by a noon sky)
 export const ENVK = { value: new THREE.Color(0.4, 0.42, 0.46) };
+// (and once the game is running, the real sky instead: the one overhead, its sun and clouds and hour, rendered into a
+//  blurred environment every second or so — SKYENV.tex — so a blade or a pan shows the sky that's actually there, sharp
+//  on polished metal and soft on dull; every metal given the painted sky above moves over to it)
+export const SKYENV = { tex: null };
+const _shined = new Set();
+export function setSkyEnv(tex) {
+  SKYENV.tex = tex;
+  for (const m of _shined) { m.envMap = tex; m.needsUpdate = true; }
+  _shined.clear();
+}
 let _skyCube = null;
 function skyCube() {
   if (_skyCube) return _skyCube;
@@ -563,7 +573,8 @@ function metalShare(tex) {
 export function shine(m) {
   if (!m || !m.isMeshStandardMaterial || m.envMap || (m.metalness || 0) < 0.15) return m;
   if (m.metalnessMap && metalShare(m.metalnessMap) < 0.06) return m;
-  m.envMap = skyCube(); m.envMapIntensity = 1;
+  m.envMap = SKYENV.tex || skyCube(); m.envMapIntensity = 1;
+  if (!SKYENV.tex) _shined.add(m);
   return addHook(m, sh => {
     sh.uniforms.uEnvK = ENVK;
     // (once: a copy can run its source's hooks as well as its own)
