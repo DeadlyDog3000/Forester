@@ -274,6 +274,9 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         #if NUM_DIR_LIGHTS > 0
         { float tr = max(dot(-normalize(vViewPosition), directionalLights[0].direction), 0.0);
           reflectedLight.directDiffuse += diffuseColor.rgb * directionalLights[0].color * (0.24 + 0.55 * tr * tr * tr) * vec3(0.9, 1.05, 0.7); }
+        #elif NUM_SUN_LIGHTS > 0
+        { float tr = max(dot(-normalize(vViewPosition), sunLights[0].direction), 0.0);
+          reflectedLight.directDiffuse += diffuseColor.rgb * sunLights[0].color * (0.24 + 0.55 * tr * tr * tr) * vec3(0.9, 1.05, 0.7); }
         #endif
         #include <aomap_fragment>`);
     // (the rim: lit stuff only — a flat-coloured thing has no light to catch)

@@ -2087,6 +2087,9 @@ function leafLight(m) {
         #if NUM_DIR_LIGHTS > 0
         { float tr = max(dot(-normalize(vViewPosition), directionalLights[0].direction), 0.0);
           reflectedLight.directDiffuse += diffuseColor.rgb * directionalLights[0].color * (0.1 + 0.4 * tr * tr * tr) * vec3(0.85, 1.05, 0.6); }
+        #elif NUM_SUN_LIGHTS > 0
+        { float tr = max(dot(-normalize(vViewPosition), sunLights[0].direction), 0.0);
+          reflectedLight.directDiffuse += diffuseColor.rgb * sunLights[0].color * (0.1 + 0.4 * tr * tr * tr) * vec3(0.85, 1.05, 0.6); }
         #endif
         #include <aomap_fragment>`);
   }, "leaflight");

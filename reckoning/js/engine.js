@@ -11,6 +11,7 @@ import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, A
 import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 import { reflectWater } from "./water.js";
+import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
 import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
 import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
@@ -227,6 +228,13 @@ const hemi = new THREE.HemisphereLight(0xbfd4ff, 0x4a3f30, 0.8);
 // a low fill, so a room lit by one candle is dim rather than black
 const fill = new THREE.AmbientLight(0xffdcb8, 0.1);
 G.scene.add(sky, sun, sun.target, hemi, camera, fill);   // the camera too, so what it carries (the axe) is drawn
+// Ultra shadows: the same sun as three.js's cascaded SunLight — one shadow map sharp about you, a second out to 150 m —
+//  standing in for the single 90 m square (it takes its colour, strength and shade from the sun above every frame)
+const sunC = new SunLight(0xffffff, 2);
+sunC.castShadow = true; sunC.visible = false;
+sunC.shadow.mapSize.set(2048, 2048); sunC.shadow.camera.near = 0.5; sunC.shadow.camera.far = 150;
+sunC.shadow.bias = -0.0003; sunC.shadow.normalBias = 0.03;
+G.scene.add(sunC);
 G.scene.fog = new THREE.Fog(0xc9d6e0, 30, 260);
 G.sun = sun; G.hemi = hemi; G.sky = sky; G.fill = fill;
 
@@ -1736,6 +1744,7 @@ function updateCamera(dt) {
   const sd = G.sunDir || new THREE.Vector3(0, 1, 0);
   sun.position.set(p.pos.x + sd.x * 90, p.pos.y + sd.y * 90, p.pos.z + sd.z * 90);
   sun.target.position.set(p.pos.x, p.pos.y, p.pos.z);
+  if (sunC.visible) { sunC.position.copy(sd); sunC.color.copy(sun.color); sunC.intensity = sun.intensity; sunC.shadow.intensity = sun.shadow.intensity; }
   sky.position.copy(camera.position);
   // (a world's painted backdrop — a city kilometres off, see histmap's skyline — hung on the sky: its direction and size
   //  true from the field, drawn after the sky and before the world)
@@ -3086,10 +3095,12 @@ export function frame(dt, skipRender) {
 }
 
 // ---- graphics: the FPS boosters in the settings ----
-// shadows: "high" soft and sharp, "low" hard-edged, smaller and redrawn every other frame, "off" none at all
+// shadows: "ultra" cascaded (sharp near, far reaching), "high" soft and sharp, "low" hard-edged, smaller and redrawn
+//  every other frame, "off" none at all
 export function setGraphics({ shadows = "high", drawMul = 1 } = {}) {
-  const want = shadows !== "off", type = THREE.PCFShadowMap, size = shadows === "low" ? 1024 : 2048;
-  const changed = renderer.shadowMap.enabled !== want || renderer.shadowMap.type !== type;
+  const want = shadows !== "off", type = THREE.PCFShadowMap, size = shadows === "low" ? 1024 : 2048, ultra = shadows === "ultra";
+  const changed = renderer.shadowMap.enabled !== want || renderer.shadowMap.type !== type || sunC.visible !== ultra;
+  sunC.visible = ultra; sun.visible = !ultra;
   renderer.shadowMap.enabled = want; renderer.shadowMap.type = type;
   renderer.shadowMap.autoUpdate = shadows !== "low";
   G.shadowEvery = shadows === "low" ? 2 : 1;
