@@ -32,6 +32,7 @@ const TWO_HAND = new Set(["axe", "pick"]);
 //  side about level with your eye, its edge tipped a little down, the haft down across the body to the knob, low and
 //  left of the middle — both hands on it and wholly in sight)
 const AXE_REST = [0.35, -1.1, -0.4, 0.14, -0.32, -0.55];
+const SEAT_DROP = 0.37, SEAT_FWD = 0.38;   // (see Actor.sync: the sitting clip's seat brought down to a bench's)
 const _sawD = new THREE.Vector3(), _sawT = new THREE.Vector3(), _sawS = new THREE.Vector3(), _sawM = new THREE.Matrix4(), _sawC = new THREE.Vector3(), _sawH = new THREE.Vector3(), _sawP = new THREE.Vector3(), _sawQ = new THREE.Quaternion(), _sawQ2 = new THREE.Quaternion(), _sawY = new THREE.Vector3(0, 1, 0);
 const SAW_CANT = 0.35;
 // the materials of your own arms on the screen: one set, shared by every way you hold anything, painted to your body
@@ -2303,6 +2304,13 @@ export class Actor {
     const w = G.world;
     this.pos.y = (w ? w.heightAt(this.pos.x, this.pos.z) : 0) + (this.yOff || 0);
     this.root.position.copy(this.pos);
+    // (sat down: the rigged people's sitting clip sits them on a seat 0.9 m up, their hips 40 cm behind where they're
+    //  put — on a bench, a log or a stool half that height they hung in the air behind it, feet off the floor and a head
+    //  taller than you. Brought down and forward, so the hips are on the seat at the place they're set)
+    if (!this.horse && this.person && this.person.has && this.person.has("sit")) {
+      const k = Math.max(0, Math.min(1, ((this.person.sitting || 0) - 0.3) / 0.5));
+      if (k > 0) { this.root.position.y -= SEAT_DROP * k; this.root.position.x += Math.sin(this.yaw) * SEAT_FWD * k; this.root.position.z += Math.cos(this.yaw) * SEAT_FWD * k; }
+    }
     this.root.rotation.order = "YXZ";
     this.root.rotation.y = this.yaw;
     // asleep: on their back, the head toward where the back of the head was
