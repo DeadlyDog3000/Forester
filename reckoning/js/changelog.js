@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.242", date: "29 October 2026", title: "Server: robots kept out",
+    items: [
+      "The game's server tells search engines' crawlers to keep out, so none opens a checkout by following the Buy link.",
+    ],
+  },
+  {
     v: "1.99.241", date: "29 October 2026", title: "The watchman in the hall, riders on the road",
     items: [
       "Papers and Torches: after Father is taken, a watchman stays to search the house. Keep low and out of his sight to take Father's letters from the counting-room and burn them in the hearth; sit still on the bench and he pays you no mind. Seen, and you try again.",

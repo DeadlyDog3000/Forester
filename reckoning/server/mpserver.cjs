@@ -1464,6 +1464,8 @@ async function start(opts = {}) {
     // a licence key, checked with the shop (Lemon Squeezy's licence API) for a game that can't ask it itself
     if (u.pathname === "/licence") return licence(u, res, req);
     // the shop itself: the game sold through Stripe, and its own keys (see shop.cjs)
+    // (no crawler has any business here: following the Buy link, one would open a checkout at Stripe each time)
+    if (u.pathname === "/robots.txt") { res.setHeader("Content-Type", "text/plain; charset=utf-8"); return res.end("User-agent: *\nDisallow: /\n"); }
     if (u.pathname === "/hello") return counts.hello(u, req, res);
     if (u.pathname === "/visit") return counts.visit(u, req, res);
     if (u.pathname === "/stats") return counts.stats(u, res);
