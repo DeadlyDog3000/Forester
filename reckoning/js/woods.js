@@ -86,6 +86,21 @@ function smoothNormals(geo) {
   geo.setAttribute("normal", nor); nor.needsUpdate = true;
 }
 
+// the model's chimney: the inner face of its stack was laid in the line of the back wall, so above the firebox the logs
+//  ran straight through the stones. Those stones are brought forward into the room, a breast standing proud of the logs.
+//  (cabin frame: back-wall logs' inner face at z -2.85; the stack's in-wall course -2.97..-2.70; the firebox under 1.05 m)
+function chimneyOutOfLogs(scene) {
+  const st = scene.getObjectByName("cabin_stone"); if (!st || st.geometry.userData.outOfLogs) return;
+  scene.updateMatrixWorld(true);
+  const toScene = new THREE.Matrix4().copy(scene.matrixWorld).invert().multiply(st.matrixWorld), back = toScene.clone().invert();
+  const pos = st.geometry.attributes.position, v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(toScene);
+    if (v.y > 1.08 && v.x > -2.2 && v.x < -0.1 && v.z > -2.99 && v.z < -2.69) { v.z += 0.17; v.applyMatrix4(back); pos.setXYZ(i, v.x, v.y, v.z); }
+  }
+  pos.needsUpdate = true; st.geometry.computeBoundingBox(); st.geometry.computeBoundingSphere(); st.geometry.userData.outOfLogs = true;
+}
+
 export class Woods extends WorldBase {
   constructor() {
     super(Collision);
@@ -1026,7 +1041,7 @@ export class Woods extends WorldBase {
     const cm = cb.build(); cm.position.y = y0; this.cabin.add(cm);
     // a cabin made in Blender, if there is one, stands in for this one
     const cabinModel = modelCopy("cabin");
-    if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); cabinModel.scene.add(chinking()); this.cabinChimney = new THREE.Object3D(); this.cabinChimney.position.set(-1.2, 5.88, -3.3); cabinModel.scene.add(this.cabinChimney); }
+    if (cabinModel) { cm.visible = false; cabinModel.scene.position.set(CABIN.x, y0, CABIN.z); cabinModel.scene.rotation.y = CABIN.ry; this.cabin.add(cabinModel.scene); cabinModel.scene.add(chinking()); chimneyOutOfLogs(cabinModel.scene); this.cabinChimney = new THREE.Object3D(); this.cabinChimney.position.set(-1.2, 5.88, -3.3); cabinModel.scene.add(this.cabinChimney); }
     // the door hangs on its own hinge in the model, so it can be swung
     this.cabinY = y0;
     this.doorNode = cabinModel ? cabinModel.scene.getObjectByName("door") : null; this.cabinModelOn = !!cabinModel;
