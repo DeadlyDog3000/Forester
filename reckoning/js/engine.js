@@ -3124,6 +3124,7 @@ export function frame(dt, skipRender) {
 export function setGraphics({ shadows = "high", drawMul = 1 } = {}) {
   const want = shadows !== "off", type = THREE.PCFShadowMap, size = shadows === "low" ? 1024 : 2048, ultra = shadows === "ultra";
   const changed = renderer.shadowMap.enabled !== want || renderer.shadowMap.type !== type || sunC.visible !== ultra;
+  const wasUltra = sunC.visible;
   sunC.visible = ultra; sun.visible = !ultra;
   renderer.shadowMap.enabled = want; renderer.shadowMap.type = type;
   renderer.shadowMap.autoUpdate = shadows !== "low";
@@ -3134,6 +3135,15 @@ export function setGraphics({ shadows = "high", drawMul = 1 } = {}) {
   // shadows on or off, or soft or hard: every material has to be rebuilt to match
   if (changed) G.scene.traverse(o => { if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.needsUpdate = true); });
   if (G.drawMul !== drawMul) { G.drawMul = drawMul; if (G.atmoNow) applyAtmo(G.atmoNow); }
+  // (switched on: one frame drawn out of sight first, so the cascades' shadow maps exist before a lit frame samples
+  //  them — on some GPUs the first frame after the switch raised a texture-format error)
+  if (ultra && !wasUltra && G.scene) {
+    if (G.sunDir) sunC.position.copy(G.sunDir);
+    const rt = setGraphics._warm || (setGraphics._warm = new THREE.WebGLRenderTarget(1, 1)), prev = renderer.getRenderTarget();
+    const au = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = true;
+    renderer.setRenderTarget(rt); renderer.render(G.scene, camera); renderer.setRenderTarget(prev);
+    renderer.shadowMap.autoUpdate = au;
+  }
 }
 
 // Base for a map: the root group, its collision, and what lives in it.
