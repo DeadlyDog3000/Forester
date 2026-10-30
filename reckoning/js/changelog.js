@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.246", date: "30 October 2026", title: "Sharper ground and walls, and the sky's own light",
+    items: [
+      "Every surface is rebuilt from photographs at twice the detail: brick, stone, boards and plaster, and the forest floor, the dirt tracks and the cobbles at four times. (The download is about 8 MB bigger.)",
+      "Out in the open by day, the sky itself lights things from where it's bright, so faces turned away from the sun aren't flat. Cut log ends are wood-coloured instead of black. There's less of it under the trees, none indoors or underground, and little at night.",
+    ],
+  },
+  {
     v: "1.99.245", date: "30 October 2026", title: "A newer renderer, Ultra shadows, and metal that shows the sky",
     items: [
       "The game draws with a newer three.js (r186): light on rough surfaces like wood, cloth and earth falls a little more truly.",
