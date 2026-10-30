@@ -908,7 +908,9 @@ function weatheredSkin(m) {
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(1.05, 0.88, 0.85), smoothstep(0.62, 0.85, bl2) * 0.25);
           // (grime: smudges on the face, worked into the hands)
           float hands = 1.0 - head;
-          float sm = smoothstep(0.55, 0.85, skN(p * 24.0 + 7.0)) * (0.45 + hands * 0.4);
+          // (a face washed now and then: only a trace of it there — smudges four centimetres across, at the old strength,
+          //  read up close as lumps and blotches)
+          float sm = smoothstep(0.55, 0.85, skN(p * 24.0 + 7.0)) * (0.12 + hands * 0.73);
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.62, 0.55, 0.48), sm);
           skFace = head;
         }`)
@@ -917,12 +919,13 @@ function weatheredSkin(m) {
         { vec3 p = vSkP; float tz = exp(-pow(p.x / 0.03, 2.0) - pow((p.y - 1.64) / 0.06, 2.0)) * skFace;
           roughnessFactor = mix(0.74, 0.52, tz) + (skN(p * 40.0) - 0.5) * 0.08 + (1.0 - skFace) * 0.08; }`)
       .replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
-        // (pores and fine creases: a fine bump in the light)
-        { float hgt = skN(vSkP * 140.0); vec2 dh = vec2(dFdx(hgt), dFdy(hgt));
+        // (pores and fine creases: a fine bump in the light — pore-sized, a couple of millimetres: at seven, as it was, a
+        //  face seen close looked lumpy, dimpled all over)
+        { float hgt = skN(vSkP * 420.0); vec2 dh = vec2(dFdx(hgt), dFdy(hgt));
           float fw = abs(dh.x) + abs(dh.y);
           vec3 sx = dFdx(-vViewPosition), sy = dFdy(-vViewPosition), r1 = cross(sy, normal), r2 = cross(normal, sx);
           float det = dot(sx, r1); vec3 grad = sign(det) * (dh.x * r1 + dh.y * r2);
-          normal = normalize(abs(det) * normal - grad * 0.0025 * (1.0 - smoothstep(0.04, 0.12, fw))); }`);
+          normal = normalize(abs(det) * normal - grad * 0.0012 * (1.0 - smoothstep(0.04, 0.12, fw))); }`);
   }, "skin");
 }
 // ---- hair, not a painted cap: fine strands running down it, darker toward the roots, a greasy sheen caught along them
