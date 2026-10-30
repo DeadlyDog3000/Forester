@@ -298,6 +298,7 @@ export class Woods extends WorldBase {
     this.forest = list;
     // (where the trees stand thick: a grid of ten-metre cells, for how deep in the wood a place is — see canopyAt)
     this.treeGrid = new Map(); for (const t of list) { const k = Math.floor(t.x / 10) + "," + Math.floor(t.z / 10); let c = this.treeGrid.get(k); if (!c) this.treeGrid.set(k, c = []); c.push(t); }
+    this.bakeCanopy();
     this.mapTrees = list.map((t, i) => (t._mi = i, { x: t.x, z: t.z, k: t.kind }));
     this.treeCount = list.length;
 
@@ -1969,6 +1970,30 @@ export class Woods extends WorldBase {
   }
   // how deep in the wood (x, z) is: 0 in the open, 1 with a dozen trees standing round within nine metres (felled ones
   // don't count; nor, round the clearing, the ring you fell, while it stands — those are counted with the rest)
+  // the map of the shade under the trees (see CANOPY in core.js): three metres a texel, over the whole wood — how close the
+  //  crowns stand round each spot (red) and the ground's height there (green), for the light in under them
+  bakeCanopy() {
+    const list = this.forest; if (!list || !list.length) return;
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const t of list) { x0 = Math.min(x0, t.x); x1 = Math.max(x1, t.x); z0 = Math.min(z0, t.z); z1 = Math.max(z1, t.z); }
+    x0 -= 12; z0 -= 12; x1 += 12; z1 += 12;
+    const S = Math.max(3, Math.max(x1 - x0, z1 - z0) / 512), W = Math.ceil((x1 - x0) / S), H = Math.ceil((z1 - z0) / S);
+    const data = new Uint16Array(W * H * 2), half = THREE.DataUtils.toHalfFloat;
+    for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+      const x = x0 + (i + 0.5) * S, z = z0 + (j + 0.5) * S, cx = Math.floor(x / 10), cz = Math.floor(z / 10);
+      let sum = 0;
+      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+        const c = this.treeGrid.get((cx + a) + "," + (cz + b)); if (!c) continue;
+        for (const t of c) { const d2 = (t.x - x) ** 2 + (t.z - z) ** 2; if (d2 < 64) sum += 1 - Math.sqrt(d2) / 8; }
+      }
+      const o = (j * W + i) * 2;
+      data[o] = half(Math.max(0, Math.min(1, (sum - 0.3) / 2.2)));
+      data[o + 1] = half(this.heightAt(x, z));
+    }
+    const tex = new THREE.DataTexture(data, W, H, THREE.RGFormat, THREE.HalfFloatType);
+    tex.magFilter = tex.minFilter = THREE.LinearFilter; tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping; tex.needsUpdate = true;
+    this.canopyMap = { tex, box: new THREE.Vector4(x0, z0, W * S, H * S) };
+  }
   canopyAt(x, z) {
     if (!this.treeGrid) return 0;
     const cx = Math.floor(x / 10), cz = Math.floor(z / 10); let n = 0;

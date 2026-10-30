@@ -297,6 +297,31 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
     sh.uniforms.dGrain = { value: grain }; sh.uniforms.dGround = { value: ground };
     sh.uniforms.dWet = WET; sh.uniforms.dSnow = snow ? SNOW : { value: 0 }; sh.uniforms.dSnowK = { value: typeof snow === "number" ? snow : 1 }; sh.uniforms.dAutoFull = AUTO_FULL; sh.uniforms.dRoof = ROOFED; sh.uniforms.dRoofSize = ROOFSIZE; sh.uniforms.dRelief = RELIEF; sh.uniforms.dWeather = { value: weather ? 1 : 0 };
     sh.uniforms.dRim = RIM;
+    sh.uniforms.dCanopy = CANOPY.tex; sh.uniforms.dCanopyBox = CANOPY.box; sh.uniforms.dCanopyOn = CANOPY.on; sh.uniforms.dCanopyK = CANOPY.k; sh.uniforms.dCanopyFar = CANOPY.far;
+    sh.fragmentShader = sh.fragmentShader.replace("#include <lights_fragment_end>", `
+      float dUnder = 0.0, dDens = 0.0;
+      if (dCanopyOn > 0.5) {
+        vec2 cuv = (vDReal.xz - dCanopyBox.xy) / dCanopyBox.zw;
+        if (cuv.x > 0.0 && cuv.y > 0.0 && cuv.x < 1.0 && cuv.y < 1.0) {
+          vec2 cs = texture2D(dCanopy, cuv).rg;
+          // (in full under the crowns, from the ground up to where the boughs thin; the tops in the sun keep the sky)
+          dDens = cs.r * smoothstep(14.0, 5.0, vDReal.y - cs.g);
+          dUnder = dDens * dCanopyK;
+        }
+      }
+      #if defined( RE_IndirectDiffuse )
+      { vec3 shade = mix(vec3(1.0), vec3(0.4, 0.48, 0.34), dUnder);
+        irradiance *= shade;
+        #ifdef STANDARD
+          iblIrradiance *= shade; radiance *= mix(vec3(1.0), vec3(0.55), dUnder);
+        #endif
+      }
+      #endif
+      #include <lights_fragment_end>
+      // (and the sun, out past where the shadow map reaches: there the crowns' own shadows aren't drawn, and the floor of
+      //  the wood lay in full sun, pale as a field — so it's dimmed by how thick the wood stands, as the shadows would)
+      reflectedLight.directDiffuse *= 1.0 - 0.75 * dDens * smoothstep(dCanopyFar.x, dCanopyFar.y, distance(vDReal, cameraPosition));
+      reflectedLight.directSpecular *= 1.0 - 0.75 * dDens * smoothstep(dCanopyFar.x, dCanopyFar.y, distance(vDReal, cameraPosition));`);
     if (surface === "bark") { sh.uniforms.dNotchM = NOTCH_M; sh.uniforms.dNotchP = NOTCH_P; }
     sh.uniforms.dTexA = { value: detailTex[0] }; sh.uniforms.dTexB = { value: detailTex[1] }; sh.uniforms.dTexC = { value: detailTex[2] }; sh.uniforms.dTexCol = { value: colourTex };
     sh.vertexShader = sh.vertexShader
@@ -318,7 +343,7 @@ export function addDetail(material, { scale = 1, amount = 0.22, grain = 0.5, gro
         vDReal = (modelMatrix * dwp).xyz;
         ${local ? "vDWorld = dwp.xyz * 2.0; vDNormal = normalize(dn);" : "vDWorld = vDReal; vDNormal = normalize(mat3(modelMatrix) * dn);"}`);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; varying vec3 vDTrunk; uniform vec3 dRim; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear, dWet; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + (surface === "bark" ? "uniform mat4 dNotchM[4]; uniform vec4 dNotchP[4];" : "") + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
+      .replace("#include <common>", "#include <common>\nvarying vec3 vDWorld; varying vec3 vDNormal; varying vec3 vDReal; varying vec3 vDTrunk; uniform vec3 dRim; uniform sampler2D dCanopy; uniform vec4 dCanopyBox; uniform float dCanopyOn, dCanopyK; uniform vec2 dCanopyFar; uniform float dScale, dAmount, dGrain, dGround, dSnow, dAutoFull, dNear, dWet; uniform vec4 dRoof; uniform vec3 dRoofSize; uniform float dRelief, dWeather, dSnowK;" + (surface === "bark" ? "uniform mat4 dNotchM[4]; uniform vec4 dNotchP[4];" : "") + DETAIL_GLSL + SURF_GLSL + RELIEF_GLSL)
       .replace("#include <color_fragment>", `#include <color_fragment>
         float dHgt = 0.0, dHk = 0.0, dWetK = 0.0;
         ${surface === "bark" ? `for (int i = 0; i < 4; i++) if (dNotchP[i].w > 0.5) {
@@ -545,6 +570,13 @@ export const ENVK = { value: new THREE.Color(0.4, 0.42, 0.46) };
 //  blurred environment every second or so — SKYENV.tex — so a blade or a pan shows the sky that's actually there, sharp
 //  on polished metal and soft on dull; every metal given the painted sky above moves over to it)
 export const SKYENV = { tex: null };
+// ---- the shade under the trees: how thick the wood stands overhead at every spot (a map the woods bake when they're
+//  made: R how close the crowns stand, G the ground's height there), so the forest floor and the trunks and the
+//  undergrowth in under them get the dim green light that comes down through the needles, not the open sky's — wherever
+//  you stand. (dCanopyK eases it off as you go in under the trees yourself, where the whole sky light is already
+//  greened and dimmed for you — see canopyTint in engine.js)
+export const CANOPY = { tex: { value: new THREE.DataTexture(new Uint16Array(2), 1, 1, THREE.RGFormat, THREE.HalfFloatType) }, box: { value: new THREE.Vector4(0, 0, 1, 1) }, on: { value: 0 }, k: { value: 1 }, far: { value: new THREE.Vector2(35, 45) } };
+CANOPY.tex.value.needsUpdate = true;
 const _shined = new Set();
 export function setSkyEnv(tex) {
   SKYENV.tex = tex;

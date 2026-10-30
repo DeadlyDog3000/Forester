@@ -7,7 +7,7 @@
 // the one thing in front of you that E would do something to.
 
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
-import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET, SKYLIT, SKYENV, setSkyEnv } from "./core.js";
+import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET, SKYLIT, SKYENV, setSkyEnv, CANOPY } from "./core.js";
 import { Billboards } from "./billboards.js";
 import { renderFrame, post } from "./post.js";
 import { reflectWater } from "./water.js";
@@ -3063,6 +3063,8 @@ export function frame(dt, skipRender) {
     // (the world wet in the rain, drying slowly after; not seen from indoors, where everything round you is dry)
     { const want = (w.rainK || 0) * (1 - (G.indoorK || 0)); WET.value += (want - WET.value) * Math.min(1, dt * (want > WET.value ? 0.4 : 0.05)); }
     { const want = w.canopyAt ? w.canopyAt(G.player.pos.x, G.player.pos.z) * (1 - (G.indoorK || 0)) : 0; G.canopyK = (G.canopyK || 0) + (want - (G.canopyK || 0)) * Math.min(1, dt * 0.8); if (Math.abs(G.canopyK - canopyNow) > 0.01) canopyTint(); }
+    // (the shade under the trees, from the world's map of them, if it has one; eased off as you go in under them yourself)
+    { const cm = w.canopyMap; CANOPY.on.value = cm ? 1 : 0; if (cm) { CANOPY.tex.value = cm.tex; CANOPY.box.value.copy(cm.box); } CANOPY.k.value = 1 - 0.7 * (G.canopyK || 0); }
     G.bugs.update(dt, G.player, () => AUDIO.buzz());
     // triggers
     for (const t of w.triggers.slice()) {
@@ -3126,6 +3128,8 @@ export function setGraphics({ shadows = "high", drawMul = 1 } = {}) {
   const changed = renderer.shadowMap.enabled !== want || renderer.shadowMap.type !== type || sunC.visible !== ultra;
   const wasUltra = sunC.visible;
   sunC.visible = ultra; sun.visible = !ultra;
+  // (where the drawn shadows end, and the canopy map's own shade of the sun takes over: see CANOPY in core.js)
+  CANOPY.far.value.set(...(shadows === "off" ? [-1, 0] : ultra ? [120, 150] : [35, 45]));
   renderer.shadowMap.enabled = want; renderer.shadowMap.type = type;
   renderer.shadowMap.autoUpdate = shadows !== "low";
   G.shadowEvery = shadows === "low" ? 2 : 1;
