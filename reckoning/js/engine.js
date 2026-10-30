@@ -2170,6 +2170,32 @@ G.clearNotch = t => {
   const s = t.notch.userData.slot; if (NOTCH_SLOTS[s] === t) { NOTCH_SLOTS[s] = null; NOTCH_P.value[s].w = 0; }
   t.notch.parent && t.notch.parent.remove(t.notch); t.notch.geometry.dispose(); t.notch = null;
 };
+// a beast close in front of you, for the blade (the nearest), or none
+function beastInReach(pl) {
+  const H = G.hunt; if (!H || !H.animals) return null;
+  const f = pl.forward(), fl = Math.hypot(f.x, f.z) || 1;
+  let best = null, bd = 1e9;
+  for (const a of H.animals) {
+    if (!a.alive || !a.K || a.K.upright || a.puppet) continue;
+    const dx = a.pos.x - pl.pos.x, dz = a.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
+    // (within the haft's reach of its near side, along its length too — a deer side on is long — and before you)
+    const reach = 1.5 + a.K.r + (a.K.len || 0) * 0.5;
+    if (d > reach || d < 1e-3) continue;
+    if ((dx * f.x + dz * f.z) / (d * fl) < (d < 0.9 ? -0.2 : 0.45)) continue;
+    if (Math.abs((a.root ? a.root.position.y : a.pos.y) - pl.pos.y) > 1.6) continue;
+    if (d < bd) { bd = d; best = a; }
+  }
+  return best;
+}
+// the blade into a beast: as hard as a full-drawn arrow, and felt in the haft
+function axeBeast(a) {
+  a.hit(1, false, null, true);
+  G.impact && G.impact();
+  G.wear && (G.player.blade || "axe") === "axe" && G.wear("axe");
+  // (the blow, dull and heavy; and if it goes down, the weight of it meeting the ground)
+  if (!a.alive || a.state === "dead") AUDIO.killThud && AUDIO.killThud(); else window.__foley && window.__foley.thunk && window.__foley.thunk(a.pos, 0.45);
+  G.practise && G.practise("strength", 0.6);
+}
 // money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
 export const dm = n => { const v = Math.round((+n || 0) * 10) / 10; return Number.isInteger(v) ? String(v) : v.toFixed(1); };
 G.dm = dm;
@@ -3025,7 +3051,12 @@ export function frame(dt, skipRender) {
     // the axe swings on a click, when there is an axe
     // food in the hand: a click is a bite of it, not a swing
     if (input.click && G.foodInHand && G.foodInHand() && !UI.dialogOpen && !G.cine) { G.eatHeld(); input.click = false; }
-    if (input.click && G.player.axe && (!G.player.horse || G.arena) && !UI.dialogOpen && !G.cine && (G.onSwing || G.player.blade === "pick") && !(G.town && G.town.planning)) G.player.swing(G.player.blade === "pick" ? mineSwing : G.onSwing);
+    // (a beast within reach of the blade — a hare in the grass, a wounded deer, a boar on you — takes the blow, whatever
+    //  else the axe is for here: out of arrows, or never had any, you can still bring it down)
+    if (input.click && G.player.axe && (!G.player.horse || G.arena) && !UI.dialogOpen && !G.cine && !(G.town && G.town.planning)) {
+      const own = G.player.blade === "pick" ? mineSwing : G.onSwing;
+      if (own || beastInReach(G.player)) G.player.swing(() => { const b = beastInReach(G.player); if (b) axeBeast(b); else if (own) own(); });
+    }
     // move dialogue on
     if (UI.dialogOpen && (input.hit("Space") || input.hit("Enter") || input.hit("KeyF") || input.click)) UI.advance();
     }

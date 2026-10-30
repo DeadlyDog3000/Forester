@@ -141,14 +141,15 @@ class Animal {
   }
   // an arrow in it: power is how far the bow was drawn
   // (from: where the arrow came from, when it's a settler's, not yours — no practice for you, and nobody charged)
-  hit(power, head, from) {
+  // (melee: a blade, not an arrow — no practice at the bow for it)
+  hit(power, head, from, melee = false) {
     if (!this.alive) return;
     // (in someone else's colony this beast is theirs, shown here: the arrow's told to their game, which brings it down)
     if (this.puppet) { G.practise && G.practise("archery", 3); G.mp && G.mp.huntHit && G.mp.huntHit(this, power); return; }
     this.hp -= power > 0.7 ? 2 : 1;
     // (wounded, it bleeds as it runs: a trail of drops to follow)
     this.bleed = 40; this.bleedAt = null;
-    if (!from) G.practise && G.practise("archery", 3);
+    if (!from && !melee) G.practise && G.practise("archery", 3);
     if (this.hp <= 0) { this.byNpc = !!from; this.state = "dead"; this.slide = Math.min(6, this.speed || 0); this.fall = 0; this.speed = 0; this.hunt.onDown(this); if (this.kind === "boar") G.achEvent && G.achEvent("boar"); SFX.treeFall && SFX.treeFall(0.3); return; }
     // a wounded boar turns on whoever did it, if they are near enough to reach
     const pl = G.player;
