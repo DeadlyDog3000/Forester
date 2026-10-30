@@ -7,6 +7,20 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.244", date: "29 October 2026", title: "A bigger house, and the axe for the hunt",
+    items: [
+      "The family's house in Hamburg is bigger, with a storeroom and a kitchen; in Papers and Torches the watchman searches all of it.",
+      "Out of arrows? The axe brings down a hare, a deer or a boar close to: one blow for a hare or a deer, two for a boar.",
+      "In first person you never see a third hand, and the body no longer twists into a chop pose under you.",
+      "Less bobbing as you walk, and no jolt over small bumps in the ground.",
+      "Roads through the woods follow the ground smoothly, and their forks blend into the main road.",
+      "Your sister stays at the fire once the camp is rebuilt.",
+      "A small dot in the middle of the screen instead of a crosshair.",
+      "Skirts and coats move with the legs and with what they touch, not with the wind.",
+      "The wind is quieter.",
+    ],
+  },
+  {
     v: "1.99.243", date: "29 October 2026", title: "Sitting down, and smaller bricks",
     items: [
       "People sit on the bench or the log as you do, at your height: they used to float, their feet off the ground and their heads above yours.",
