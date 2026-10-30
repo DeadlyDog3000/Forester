@@ -269,7 +269,7 @@ export class Caves {
   }
   dark() {
     // (dark, and cool: the warm light is only the lantern's and the torches', and it falls away into the black)
-    G.sun.intensity = 0; G.hemi.intensity = 0.14; G.hemi.color.setHex(0x5a6470); G.hemi.groundColor.setHex(0x14120f);
+    G.sun.intensity = 0; G.scene.environment = null; G.hemi.intensity = 0.14; G.hemi.color.setHex(0x5a6470); G.hemi.groundColor.setHex(0x14120f);
     // (no even fill down here, and no night-time lift of the exposure: the rock is lit only where a light falls on it)
     if (G.fill) G.fill.intensity = 0.03;
     renderer.toneMappingExposure = 1.05;

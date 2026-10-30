@@ -292,6 +292,13 @@ function canopyTint() {
   //  sky's blue on every dark thing in the room)
   const ik = G.indoorK || 0;
   if (ik > 0) { hemi.color.lerp(ROOM_S.clone().multiplyScalar(l / 0.8), ik * 0.7); hemi.groundColor.lerp(ROOM_S.clone().multiplyScalar(l / 1.4), ik * 0.5); }
+  // (and out in the open by day, part of that flat sky-and-ground light is the real sky instead: the live dome over
+  //  you lighting everything from where it actually is bright — the sun's side of the sky, the clouds, the horizon —
+  //  and caught in every surface at a glancing angle. Less of it under the trees and none indoors, where the sky
+  //  doesn't reach; and little at night, when the dome is near black and the moonlight is the hemisphere's)
+  const share = SKYENV.tex && sky.visible ? 0.4 * (1 - ik) * (1 - 0.7 * k) * (G.envDay ?? 1) : 0;
+  hemi.intensity *= 1 - share;
+  G.scene.environment = share > 0.01 ? SKYENV.tex : null; G.scene.environmentIntensity = share * 1.5;
 }
 const ROOM_S = new THREE.Color(0xa08a70);
 function applyAtmo(a00) {
@@ -300,6 +307,7 @@ function applyAtmo(a00) {
   const dk = !!G.settings.dark;
   const a = dk ? { ...a0, fog: grim(a0.fog), top: grim(a0.top), mid: grim(a0.mid), bot: grim(a0.bot), sunC: grim(a0.sunC).multiplyScalar(1.5), sunI: a0.sunI * 0.7, hemiI: a0.hemiI * 0.7, near: a0.near * 0.6, far: a0.far * 0.7, exp: a0.exp * 0.8, stars: a0.stars * 0.5 } : a0;
   sun.color.copy(a.sunC); sun.intensity = a.sunI;
+  G.envDay = clamp((a.sunI - 0.5) / 1.2, 0, 1);
   G.sunDir = a.sun.clone ? a.sun.clone().normalize() : new THREE.Vector3(...a.sun).normalize();
   hemi.color.copy(a.hemiS); hemi.groundColor.copy(a.hemiG); hemi.intensity = a.hemiI;
   hemiBase.s.copy(hemi.color); hemiBase.g.copy(hemi.groundColor); hemiBase.i = hemi.intensity; canopyTint();
@@ -341,7 +349,7 @@ let skyEnvRT = null;
 function updateSkyEnv() {
   envCam.update(renderer, envScene);
   skyEnvRT = pmrem.fromCubemap(envCubeRT.texture, skyEnvRT);
-  if (SKYENV.tex !== skyEnvRT.texture) { setSkyEnv(skyEnvRT.texture); setEnvK(); }
+  if (SKYENV.tex !== skyEnvRT.texture) { setSkyEnv(skyEnvRT.texture); setEnvK(); canopyTint(); }
 }
 // (put the sky and light back as they were, after somewhere that overrode them — a cave)
 G.reAtmo = () => { if (G.atmoNow) applyAtmo(G.atmoNow); };
