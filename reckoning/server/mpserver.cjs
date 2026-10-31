@@ -1543,7 +1543,7 @@ async function start(opts = {}) {
   const licAsks = new Map();
   const reviews = require("./reviews.cjs")({ dataDir, log });
   const shop = require("./shop.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), log });
-  const mailList = require("./list.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), log });
+  const mailList = require("./list.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), tokenOk: t => shop.tokenOk(t), log });
   // (how many play: an anonymous count, see stats.cjs)
   const counts = require("./stats.cjs")({ dataDir, tokenOk: t => shop.tokenOk(t), log });
   function licence(u, res, req) {

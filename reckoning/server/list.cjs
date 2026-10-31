@@ -11,7 +11,7 @@
 //                                                               or not the address was already on: it tells no one who is)
 //   GET  /list/confirm?t=…                     → a page        on the list
 //   GET  /list/leave?t=…                       → a page        off the list, and forgotten
-//   GET  /list/all                (X-Admin)    → { people }    the confirmed, for the keeper of the site
+//   GET  /list/all                (X-Admin, or ?t= the sales token)    → { people }    the confirmed, for the keeper of the site
 //   POST /list/send               (X-Admin)    { subject, text, test } → { sent }   a letter to everyone on it (test: only
 //                                                               to the site's own address)
 //
@@ -27,7 +27,7 @@ const GAMES = { forester: "Forester", reckoning: "Forester: Reckoning", "standar
 const EMAIL_RX = /^[^\s@<>"',;]{1,64}@[^\s@<>"',;]{1,190}\.[A-Za-z]{2,24}$/;
 const PENDING_DAYS = 7;
 
-module.exports = function makeList({ dataDir, envFile, log = () => {} }) {
+module.exports = function makeList({ dataDir, envFile, tokenOk = () => false, log = () => {} }) {
   const file = dataDir ? path.join(dataDir, "list.json") : null;
   const adminFile = dataDir ? path.join(dataDir, "reviews.admin") : null;
   let db = { people: {} };
@@ -56,7 +56,9 @@ module.exports = function makeList({ dataDir, envFile, log = () => {} }) {
   const mail = (to, subject, text, html) => mailer.send({ host: cfg("SMTP_HOST") || "smtp.gmail.com", port: cfg("SMTP_PORT") || 465, secure: cfg("SMTP_TLS") !== "0",
     user: cfg("SMTP_USER"), pass: cfg("SMTP_PASS"), from: cfg("SMTP_FROM") || cfg("SMTP_USER"), fromName: "DeadlyDog Productions", to, subject, text, html });
 
-  const isAdmin = req => {
+  // (the keeper: the token in reviews.admin as X-Admin, or the shop's sales token as ?t=, which the admin panel holds)
+  const isAdmin = (req, u) => {
+    if (u && tokenOk(u.searchParams.get("t"))) return true;
     try {
       const want = adminFile && fs.existsSync(adminFile) ? fs.readFileSync(adminFile, "utf8").trim() : "";
       const got = String(req.headers["x-admin"] || "");
@@ -122,7 +124,7 @@ ${paras.map(p => `<p style="margin:0 0 14px">${p}</p>`).join("\n")}
       return page(res, "You're off the list", "Your address has been deleted, and nothing more will be sent to it.");
     }
     if (req.method === "GET" && route === "all") {
-      if (!isAdmin(req)) return send(res, 403, { error: "Not yours to see." });
+      if (!isAdmin(req, u)) return send(res, 403, { error: "Not yours to see." });
       const people = Object.entries(db.people).filter(([, p]) => p.confirmed).map(([email, p]) => ({ email, games: p.games, at: p.confirmed }));
       return send(res, 200, { people, pending: Object.values(db.people).filter(p => !p.confirmed).length });
     }
@@ -152,7 +154,7 @@ ${paras.map(p => `<p style="margin:0 0 14px">${p}</p>`).join("\n")}
       return send(res, 200, { ok: true });
     }
     if (route === "send") {
-      if (!isAdmin(req)) return send(res, 403, { error: "Not yours to do." });
+      if (!isAdmin(req, u)) return send(res, 403, { error: "Not yours to do." });
       const subject = String(b.subject || "").trim().slice(0, 140), text = String(b.text || "").trim().slice(0, 20000);
       if (!subject || text.length < 20) return send(res, 400, { error: "A letter needs a subject and a body." });
       if (!canMail()) return send(res, 503, { error: "No mail settings on the server." });
