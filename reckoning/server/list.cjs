@@ -6,6 +6,7 @@
 // only once its owner clicks the link in the letter that asks (so nobody can put somebody else on it), and every letter
 // carries a link that takes it off again at once.
 //
+//   GET  /list/open                            → { open }      whether letters can be sent (the website asks first)
 //   POST /list/join     { email, game }        → { ok }        a letter asking them to confirm (the same answer whether
 //                                                               or not the address was already on: it tells no one who is)
 //   GET  /list/confirm?t=…                     → a page        on the list
@@ -108,6 +109,7 @@ ${paras.map(p => `<p style="margin:0 0 14px">${p}</p>`).join("\n")}
     if (req.method === "OPTIONS") { res.statusCode = 204; return res.end(); }
     const route = u.pathname.slice("/list/".length);
 
+    if (req.method === "GET" && route === "open") return send(res, 200, { open: canMail() });   // (the website shows its form only when it can work)
     if (req.method === "GET" && route === "confirm") {
       const hit = byToken(u.searchParams.get("t"));
       if (!hit) return page(res, "That link has run out", "It may be more than a week old, or the address was taken off the list since. You can sign up again on any of the games' pages.");
