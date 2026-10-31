@@ -3801,7 +3801,7 @@ function hintAt(wx, wy) {
     if (selected === c) return `Let go of ${c.name}`;
     if (c.rebel && selected && isForce(selected)) return `Put down ${c.name}`;
     if (groupable(c) && selected && groupable(selected)) return `Add ${c.name} to the band`;
-    return `Pick ${c.name}${c.profession ? ` — ${c.profession}` : ""}`;
+    return `Pick ${c.name}${c.profession ? `, ${profLabel(c.profession)}` : ""}: ${doingWhat(c)}`;   // (what they are at, without opening them)
   }
   if (selected) {
     const best = resolveOrder(wx, wy);
