@@ -9117,6 +9117,7 @@ const CHANGELOG = [
       "A town you take is yours to the walls: the ground around it, its farms and its siege lines all change hands, and the men who took it stand garrison there. Men raised in a captured town have a roof over them.",
       "The jailed, the abed and the wounded being carried can no longer be marched off to war or sent to settle a new town.",
       "An old save that was researching archery picks up with the matchlock, instead of the research panel stopping dead.",
+      "The title and the end of a colony carry one small card for Forester: Reckoning, the 3D game this one grew into. Never during play.",
     ] },
   { v: 23, date: "31 October 2026", title: "The world can be held still and hurried along, and a dozen faults put right",
     lines: [
