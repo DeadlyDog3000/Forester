@@ -1578,3 +1578,9 @@ body.touch #touchPad   { display: flex; }
 .promo-card b { font-size:14px; color:#cfd8d3; font-weight:normal; letter-spacing:1px; }
 @media (max-width:640px) { .promo-card img { width:110px; } #menu .promo-card { left:18px; right:18px; width:auto; } }
 @media (max-height:560px) { #gameover .promo-card img { display:none; } #gameover .promo-card { margin-top:10px !important; } }
+
+/* the idle count: quiet at nought, gold when somebody is standing about */
+#hud .idleN { cursor: pointer; user-select: none; }
+#hud .idleN b { color: #6f7f74; }
+#hud .idleN.some b { color: var(--fx-gold); }
+#hud .idleN:hover, #hud .idleN:focus-visible { color: var(--fx-gold); outline: none; }

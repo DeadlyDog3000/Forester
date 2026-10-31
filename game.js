@@ -3179,6 +3179,8 @@ function syncSpeedUI() {
   if (stamp) stamp.style.display = gameState === "playing" && simSpeed === 0 && !paused ? "block" : "none";
 }
 $("rSpeed").addEventListener("click", e => { const b = e.target.closest("b[data-s]"); if (b) setSimSpeed(+b.dataset.s); });
+$("rIdle").addEventListener("click", () => { if (gameState === "playing") nextIdle(); });
+$("rIdle").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (gameState === "playing") nextIdle(); } });
 addEventListener("keydown", e => {
   if (typingInto(e)) {
     if (e.key === "Escape") e.target.blur();   // a way out that never traps the caret
@@ -3208,6 +3210,7 @@ addEventListener("keydown", e => {
     if (k === "1" || k === "2" || k === "3") setSimSpeed(+k);
     if (k === "c") openChronicle();
     if (k === "p") openFolk();
+    if (k === "i") nextIdle();
     // the action bar from the keyboard: each key presses its button, so a key does exactly what a click does
     const BAR_KEYS = { b: "buildToggle", t: "techToggle", m: "mapToggle", o: "govToggle", k: "milToggle" };
     if (BAR_KEYS[k] && $(BAR_KEYS[k]) && !$(BAR_KEYS[k]).disabled) $(BAR_KEYS[k]).click();
@@ -9037,6 +9040,23 @@ function doingWhat(c) {
     return INDUSTRY[c.task.target.type].doing;
   return busy[c.state] || "idle";
 }
+// ===== hands with nothing to do =====
+// Nobody in this colony finds work for himself: a man finishes the tree he was
+// sent to and stands there. With thirty of them that is the thing you most need
+// to know and the hardest to see. The top bar counts them; I (or a click on the
+// count) picks the next one and takes the camera to him.
+const isIdleHand = c => !c.child && !c.afield && !c.rebel && !c.post && !isForce(c) && !isJailed(c) && doingWhat(c) === "idle";
+let idleCursor = 0;
+function nextIdle() {
+  const list = civs.filter(isIdleHand);
+  if (!list.length) { toast("Everyone has something to do."); return; }
+  const at = selected ? list.indexOf(selected) : -1;
+  const c = list[at >= 0 ? (at + 1) % list.length : idleCursor++ % list.length];
+  selected = c; selectedBldg = null; selectedCamp = null; selectedGrave = null;
+  selGroup = groupable(c) ? [c] : [];
+  flyTo(c.x, c.y, Math.max(zoom, 1), 0.6);
+  syncUI();
+}
 function renderFolk() {
   const q = ($("folkSearch").value || "").trim().toLowerCase();
   const key = FOLK_SORTS[folkSort];
@@ -10609,6 +10629,7 @@ function syncUI() {
   $("rTools").textContent = hudTown ? 0 : buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0);
   setNum($("rDM"), Math.round((hr.dm || 0) * 10) / 10);
   setNum($("rPop"), hudTown ? hudTown.pop : civs.length);
+  { const n = hudTown ? 0 : civs.filter(isIdleHand).length; setNum($("rIdleN"), n); $("rIdle").classList.toggle("some", n > 0); $("rIdle").style.display = hudTown ? "none" : ""; }
   storeTrends(hr);
   $("rTax").textContent = taxRate;
   $("rSeason").textContent = (season() === "winter" ? "❄ WINTER " : "SUMMER ") + colonyYear;
