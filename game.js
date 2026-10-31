@@ -5781,7 +5781,7 @@ $("craftToggle").addEventListener("click", () => $("craftDrop").classList.toggle
 $("recruitToggle").addEventListener("click", () => $("recruitDrop").classList.toggle("open"));
 $("moveToggle").addEventListener("click", () => $("moveDrop").classList.toggle("open"));
 // move a civilian to another town (or back to the capital) any time after founding
-function townOf(b) { return nearerTown(b.x, b.y, 500); }
+function townOf(b) { return townAt(b.x, b.y); }   // (one reach for everything: 500 here and 700 for the stores and the mayor, and a cabin between the two belonged to both)
 // Goods belong to the storehouse they are set down in, not to whichever roof the
 // carrier sleeps under — hand a crate over in the capital and the capital keeps it.
 function ledgerOf(c) { return ledgerAt(c.x, c.y); }
@@ -8569,7 +8569,7 @@ function updateSettlements(dt) {
     stGrowT = 0;
     for (const st of settlements) {
       if (st.x !== undefined) {
-        st.pop = civs.filter(c => c.home && Math.hypot(c.home.x - st.x, c.home.y - st.y) < 500).length;
+        st.pop = civs.filter(c => c.home && townAt(c.home.x, c.home.y) === st).length;
         st.res = st.res || { logs: 0, stone: 0, bread: 0, meat: 0, dm: 0 };
         if (st.pop > 0 && season() !== "winter") {
           st.res.logs += Math.floor(Math.random() * st.pop) + 1;
