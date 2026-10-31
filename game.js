@@ -9391,7 +9391,7 @@ $("chronSearch").addEventListener("keydown", e => e.stopPropagation());
 // Everything the game knows about a person, for every person, on one screen —
 // and clicking a row takes you to them. Without this the only way to find out
 // who was sick or who was feuding was to click each figure in turn and hope.
-const FOLK_SORTS = ["name", "health", "hunger", "mood", "trade"];
+const FOLK_SORTS = ["name", "health", "hunger", "mood", "trade", "doing"];   // (doing: the idle first, the rest grouped by their work)
 let folkSort = 0;
 function doingWhat(c) {
   if (c.state === "abed") return "in a hospital bed";
@@ -9442,6 +9442,7 @@ function renderFolk() {
                     : key === "health" ? a.hp / a.maxHp - b.hp / b.maxHp
                     : key === "hunger" ? a.hunger - b.hunger
                     : key === "mood" ? a.happiness - b.happiness
+                    : key === "doing" ? ((doingWhat(a) === "idle" ? 0 : 1) - (doingWhat(b) === "idle" ? 0 : 1) || doingWhat(a).localeCompare(doingWhat(b)))
                     : profLabel(a.profession).localeCompare(profLabel(b.profession)));
   const sick = civs.filter(isSick).length, hurt = civs.filter(c => c.hp < c.maxHp * 0.6).length;
   const hungry = civs.filter(c => c.hunger < 30).length, homeless = civs.filter(c => !c.home).length;
