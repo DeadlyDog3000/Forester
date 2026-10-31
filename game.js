@@ -3208,7 +3208,13 @@ function syncSpeedUI() {
   const box = $("rSpeed");
   if (box) for (const b of box.querySelectorAll("b[data-s]")) b.classList.toggle("on", +b.dataset.s === simSpeed);
   const stamp = $("heldStamp");
-  if (stamp) stamp.style.display = gameState === "playing" && simSpeed === 0 && !paused ? "block" : "none";
+  if (stamp) {
+    stamp.style.display = gameState === "playing" && simSpeed === 0 && !paused ? "block" : "none";
+    // (just under the top bar on the left, however many rows the bar has wrapped to:
+    //  on the right it sat over the title of whoever's panel was open)
+    const hb = $("hud") && $("hud").getBoundingClientRect();
+    if (hb) stamp.style.top = Math.round(hb.bottom + 8) + "px";
+  }
 }
 $("rSpeed").addEventListener("click", e => { const b = e.target.closest("b[data-s]"); if (b) setSimSpeed(+b.dataset.s); });
 $("rIdle").addEventListener("click", () => { if (gameState === "playing") nextIdle(); });

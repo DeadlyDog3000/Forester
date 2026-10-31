@@ -1556,7 +1556,7 @@ body.touch #touchPad   { display: flex; }
 #hud .spd b { cursor: pointer; padding: 1px 6px; border: 1px solid rgba(201,168,106,0.25); color: #8a9a8e; user-select: none; }
 #hud .spd b:hover { color: var(--fx-gold); border-color: rgba(201,168,106,0.6); }
 #hud .spd b.on { color: #14110b; background: var(--fx-gold); border-color: var(--fx-gold); }
-#heldStamp { display: none; position: fixed; top: 62px; right: 14px; z-index: 40; pointer-events: none; /* (under the pace buttons, clear of the tutorial and the messages) */
+#heldStamp { display: none; position: fixed; top: 62px; left: 14px; z-index: 40; pointer-events: none; /* (top left, under the bar: clear of the tutorial, the messages and the panels on the right) */
   padding: 6px 18px; background: rgba(12,14,12,0.82); border: 1px solid rgba(201,168,106,0.55); color: var(--fx-gold);
   letter-spacing: 3px; font-size: 12px; text-transform: uppercase; }
 #heldStamp span { color: #8a9a8e; letter-spacing: 1px; }
