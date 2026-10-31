@@ -1472,6 +1472,8 @@ async function start(opts = {}) {
     if (u.pathname.startsWith("/shop/")) { shop.handle(u, req, res).catch(e => { log("shop:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the website's reviews: accounts, and two reviews each on every game (see reviews.cjs)
     if (u.pathname.startsWith("/reviews/")) { reviews.handle(u, req, res).catch(e => { log("reviews:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
+    // the mailing list: news of the games, for those who confirmed they want it (see list.cjs)
+    if (u.pathname.startsWith("/list/")) { mailList.handle(u, req, res).catch(e => { log("list:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the battles fought, as they were: sent in when each is over; listed (the latest, or a commander's best); fetched
     if (u.pathname === "/replays" || u.pathname.startsWith("/replays/")) return replays(u, res, req);
     res.statusCode = 404; res.end("{}");
@@ -1541,6 +1543,7 @@ async function start(opts = {}) {
   const licAsks = new Map();
   const reviews = require("./reviews.cjs")({ dataDir, log });
   const shop = require("./shop.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), log });
+  const mailList = require("./list.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), log });
   // (how many play: an anonymous count, see stats.cjs)
   const counts = require("./stats.cjs")({ dataDir, tokenOk: t => shop.tokenOk(t), log });
   function licence(u, res, req) {
