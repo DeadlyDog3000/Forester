@@ -10493,6 +10493,19 @@ function loadGame() {
 // The autosave failing used to be a line in the console and nothing else: the
 // browser's store full or shut, and the player went on building a colony that was
 // not being kept. Now they are told, once every five minutes while it lasts.
+// Time played, for the studio's own count: a beat a minute to the game server while a colony is being played (not on
+// the menu, not paused, not with the tab hidden), with the same random number the website's visit counter keeps in
+// this browser. Only that and the minute: nothing about the colony or the person. Never from a copy on a computer
+// being tested, nor from the owner's own browser. (The privacy page says so.)
+setInterval(() => {
+  try {
+    if (gameState !== "playing" || paused || document.hidden || !/\.github\.io$/.test(location.hostname)) return;
+    if (localStorage.getItem("dd-admin") === "1") return;
+    let i = localStorage.getItem("dd-v");
+    if (!/^[0-9a-f]{8,32}$/.test(i || "")) { i = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => ("0" + b.toString(16)).slice(-2)).join(""); localStorage.setItem("dd-v", i); }
+    fetch("https://45-76-245-44.sslip.io/play?g=forester&i=" + i, { mode: "no-cors", keepalive: true, credentials: "omit" }).catch(() => {});
+  } catch (e) {}
+}, 60000);
 let saveFailWarned = -1e9;
 setInterval(() => {
   if (saveGame() !== false) return;
