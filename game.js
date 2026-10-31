@@ -112,6 +112,20 @@ function swapGlyphText(node) {
   if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
   par.replaceChild(frag, node);
 }
+// the same marks for the map's canvas, which draws its floating words with fillText: one pixel bitmap per mark and colour
+const _glyphCv = new Map();
+function glyphCanvas(text, color) {
+  const name = GLYPH_OF[String(text).replace("\uFE0F", "")];
+  if (!name) return null;
+  const key = name + color;
+  let cv = _glyphCv.get(key);
+  if (cv) return cv;
+  cv = document.createElement("canvas"); cv.width = cv.height = 16;
+  const g = cv.getContext("2d"); g.fillStyle = color;
+  for (const m of GLYPH_SVG[name].matchAll(/x="(\d+)" y="(\d+)" width="(\d+)"/g)) g.fillRect(+m[1], +m[2], +m[3], 1);
+  _glyphCv.set(key, cv);
+  return cv;
+}
 function swapGlyphs(root) {
   if (root.nodeType === 3) return swapGlyphText(root);
   if (root.nodeType !== 1) return;
@@ -1759,10 +1773,13 @@ const SETTINGS_DEFAULT = Object.freeze({
   floaters: true, labels: true, smoke: true, night: true, shadows: true, motion: true,
   camSpeed: 1, edgePan: true, hints: true, marchTune: "grenadier",
 });
+// (the store is read and written guarded: a browser with storage turned off throws
+//  on the read, and a mangled settings string on the parse, and either left a blank page with no menu)
+const readStore = (key, fallback) => { try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; } };
 const settings = Object.assign({}, SETTINGS_DEFAULT,
-  JSON.parse(localStorage.getItem("forester_settings") || "{}"));
+  (() => { try { return JSON.parse(readStore("forester_settings", "{}")) || {}; } catch (e) { return {}; } })());
 window.FSET = settings;
-function saveSettings() { localStorage.setItem("forester_settings", JSON.stringify(settings)); }
+function saveSettings() { try { localStorage.setItem("forester_settings", JSON.stringify(settings)); } catch (e) {} }
 // One class on the body turns every transition and animation in the interface
 // off, which is the same switch prefers-reduced-motion throws — this is the
 // manual one, for people whose machine does not ask on their behalf.
@@ -2213,7 +2230,7 @@ function updateRaider(r, dt) {
   if (r.state === "climbWall") r.foe = null;      // both hands on the stone
   else if (!r.foe || (!civs.includes(r.foe))) {
     r.foe = null;
-    for (const c of civs) if (isForce(c) && !INDOORS.has(c.state) && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }
+    for (const c of civs) if (isForce(c) && !c.afield && !INDOORS.has(c.state) && Math.hypot(c.x - r.x, c.y - r.y) < 90) { r.foe = c; break; }   // (not a man away on campaign: he is only standing where he set out from)
   }
   if (r.foe) {
     const d = Math.hypot(r.foe.x - r.x, r.foe.y - r.y);
@@ -3063,6 +3080,7 @@ function houseCiv(c, nearX, nearY) {
 
 function killCiv(c, why) {
   if (!civs.includes(c)) return;
+  refundTask(c, null);   // (what he was paid out for and never made goes back to the store)
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
   corpses.push({ x: c.x, y: c.y, who: c.who, bearer: null,
                  deceased: { name: c.name, age: c.age || 20, profession: c.profession || "no trade",
@@ -3166,6 +3184,9 @@ addEventListener("keydown", e => {
     if (e.key === "Escape") e.target.blur();   // a way out that never traps the caret
     return;
   }
+  // (a shortcut with Cmd or Ctrl is the browser's or the system's: on a Mac the letter's keyup never comes while Cmd
+  //  is held, so Cmd+S used to leave S held down and the camera sliding south for good)
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   keys[e.key.toLowerCase()] = true;
   if (e.key.toLowerCase() === "r") {
     // R turns whatever you are holding — the thing you are about to build, or
@@ -3200,7 +3221,8 @@ addEventListener("keydown", e => {
     else if (isOpen("reignPanel")) { $("reignPanel").style.display = "none"; paused = pauseOpen; }
     else if (isOpen("chronPanel")) { $("chronPanel").style.display = "none"; syncUI(); }
     else if (isOpen("folkPanel")) { $("folkPanel").style.display = "none"; syncUI(); }
-    else if ($("settingsPanel").style.display === "block") { $("settingsPanel").style.display = "none"; saveSettings(); }
+    else if (isOpen("settingsPanel")) { $("settingsPanel").style.display = "none"; saveSettings(); }   // (it opens as flex, not block: Esc used to slip past it and run the colony underneath)
+    else if (moveBldg) cancelMove();                                       // (as the carrying prompt says)
     else if (buildMode) { buildMode = null; syncUI(); }
     else if (gameState === "playing" || pauseOpen) setPause(!pauseOpen);
   }
@@ -3245,7 +3267,10 @@ document.addEventListener("mouseleave", () => {
   edge.on = false;
   const tip = $("worldTip"); if (tip) tip.style.display = "none"; mapHover = null;
 });
-addEventListener("blur", () => { edge.on = false; });
+// a key held when the window loses the focus never sends its keyup: let them all go, or the camera runs on by itself
+const releaseKeys = () => { for (const k in keys) keys[k] = false; };
+addEventListener("blur", () => { edge.on = false; releaseKeys(); });
+document.addEventListener("visibilitychange", () => { if (document.hidden) releaseKeys(); });
 // How far back the camera may go is not a constant any more — it is the deepest
 // chart your scholars have bought. Push against the ceiling and the game says
 // which technology would lift it, once in a while, rather than silently refusing.
@@ -3771,7 +3796,7 @@ function worldClick(clientX, clientY) {
   if (buildMode) { tryPlace(buildMode, mouse.wx, mouse.wy); return; }
 
   {
-    const v = pickFigure(visitors, mouse.wx, mouse.wy);
+    const v = pickFigure(visitors.filter(v => !v.leaving), mouse.wx, mouse.wy);   // (one walking off has given his answer: no fresh four lines)
     if (v) return openDialogue(v);
   }
 
@@ -4177,7 +4202,31 @@ function tryPlace(type, wx, wy) {
 }
 
 // --- orders ---
+// What a job was paid for before it began (the logs for a door, the copper and tin
+// for bronze, the metal for a tool) goes back to the store it came from if the job
+// is never finished — another order, a raid, the cold or a death. Spent at the
+// start and lost on any interruption, a door ordered twice in a hurry cost ten
+// logs for one door.
+function refundTask(c, next) {
+  const t = c.task;
+  if (!t || !t.paid || t === next) return;
+  for (const [store, k, q] of t.paid) store[k] = (store[k] || 0) + q;
+  t.paid = null;
+}
 function order(c, task) {
+  // A prisoner and a patient are not at liberty to be sent anywhere: they are let
+  // out by the jail and the ward, which stand them up first. (Clicking the ground
+  // with one picked used to walk him out of his cell with his sentence still on him.)
+  if (isJailed(c) || c.state === "abed" || c.state === "borne") return false;   // (nor one being carried to a bed)
+  // What the last task had claimed is let go when the task is: a builder pulled off
+  // a site by the cold, a raid or an order kept his claim on it while he lived, and
+  // nobody else would raise it, ever. The same for a bearer's body and a mason's grave.
+  { const prev = c.task && c.task.target;
+    if (prev && prev !== task.target) {
+      if (prev.builder === c) prev.builder = null;
+      if (prev.mason === c) prev.mason = null;
+      if (prev.bearer === c && prev.carried !== c) prev.bearer = null;
+    } }
   // a bearer shoulders the dead until the grave: only fleeing or the cold may interrupt — and then the body is set down
   const held = corpses.find(cp => cp.carried === c);
   if (held && task.target !== held) {
@@ -4187,6 +4236,7 @@ function order(c, task) {
     else { toast(`${c.name} is bearing the dead — the burial comes first.`); return; }
   }
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
+  refundTask(c, task);
   c.task = task; c.tx = task.x; c.ty = task.y;
   c.state = "walking"; c.workT = 0;
   c.path = null; c.viaGate = false; c.replanned = false;
@@ -4508,14 +4558,14 @@ function autonomy(c, dt) {
     // colony cannot sell.
     if (has("alloys") && res.copper >= 1 && res.tin >= 1 && res.bronze < 4) {
       res.copper--; res.tin--;
-      order(c, { kind: "smith", make: "alloy", x: c.x, y: c.y });
+      order(c, { kind: "smith", make: "alloy", x: c.x, y: c.y, paid: [[res, "copper", 1], [res, "tin", 1]] });
       return;
     }
     const wantTool = toolsOnSale <= Math.min(3, res.weapons) || !canForgeWeapons();
     const tier = bestForgeable("tool");
     if (wantTool && tier && toolsOnSale < 3) {
       spendMats(tier, "tool");
-      order(c, { kind: "smith", make: "tool", tier: tier.id, x: c.x, y: c.y });
+      order(c, { kind: "smith", make: "tool", tier: tier.id, x: c.x, y: c.y, paid: matsFor(tier, "tool").map(([k, q]) => [res, k, q]) });
       return;
     }
     // The armoury is filled first — that is the colony's own iron, and no coin
@@ -4525,7 +4575,7 @@ function autonomy(c, dt) {
     if (wt && (res.weapons < 3 || armsOnSale < 3)) {
       spendMats(wt, "weapon");
       order(c, { kind: "smith", make: "weapon", tier: wt.id,
-                 forRacks: res.weapons >= 3, x: c.x, y: c.y });
+                 forRacks: res.weapons >= 3, x: c.x, y: c.y, paid: matsFor(wt, "weapon").map(([k, q]) => [res, k, q]) });
       return;
     }
   }
@@ -4903,7 +4953,7 @@ function runFromTheLaw(c, dt) {
 function feudAI(c) {
   const foe = civs.find(o => o.name === c.feudWith);
   if (!foe) return endFeud(c);
-  if (c.state !== "idle") return;
+  if (c.state !== "idle" || foe.afield) return;   // (the grudge waits for him to come home)
   const home = foe.home && buildings.includes(foe.home) && !foe.home.fire ? foe.home : null;
   // fire is the coward's way and the likelier one when the man is out of reach
   const reachable = !INDOORS.has(foe.state);
@@ -4919,7 +4969,7 @@ function socialTick(c, dt) {
   if (c.socT > 0) return;
   c.socT = 6 + Math.random() * 8;
   if (c.child || c.rebel) return;
-  const near = civs.filter(o => o !== c && !o.child && Math.hypot(o.x - c.x, o.y - c.y) < OP_KNOWN);
+  const near = civs.filter(o => o !== c && !o.child && !o.afield && Math.hypot(o.x - c.x, o.y - c.y) < OP_KNOWN);
   // Taken before the early return below, or a man who is genuinely alone would
   // keep whatever count he had when he last had company — and the solitary would
   // never once get the quiet they are owed.
@@ -5013,7 +5063,7 @@ function rebelAI(c) {
     for (const b of targets) { const d = Math.hypot(b.x - c.x, b.y - c.y); if (d < bd) { bd = d; best = b; } }
     order(c, { kind: "torch", target: best, x: best.x, y: best.y + 14 });
   } else {
-    const prey = civs.filter(o => o !== c && !o.rebel && !INDOORS.has(o.state));
+    const prey = civs.filter(o => o !== c && !o.rebel && !o.afield && !INDOORS.has(o.state));
     if (prey.length) {
       const p = prey[Math.floor(Math.random() * prey.length)];
       order(c, { kind: "attack", target: p, x: p.x, y: p.y });
@@ -5643,8 +5693,9 @@ document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
       if (!selected) return toast("Select a civilian first.");
       const dled = ledgerOf(selected);
       if ((dled.logs || 0) < doorCost()) return toast(`A door takes ${doorCost()} logs in storage. Stored: ${dled.logs || 0}.`);
-      dled.logs -= doorCost();
-      order(selected, { kind: "craft", x: selected.x, y: selected.y });
+      const cost = doorCost();
+      dled.logs -= cost;
+      order(selected, { kind: "craft", x: selected.x, y: selected.y, paid: [[dled, "logs", cost]] });
       toast(`${selected.name} starts hewing a door.`);
     }
   }));
@@ -5858,9 +5909,11 @@ $("pmSave").addEventListener("click", () => {
 $("pmSaveAs").addEventListener("click", () => {
   const free = firstFreeSlot();
   if (!free) return toast(`All ${SAVE_SLOTS} slots are full. Return to the main menu to burn one.`);
+  const was = saveSlot;
   useSlot(free);
   saveTrimmed = false;
   const ok = saveGame();
+  if (!ok) useSlot(was);   // (a copy that never landed must not leave you playing an empty slot)
   syncUI();
   toast(ok ? `Copied into slot ${free}. You are playing that one now — the other is untouched.`
            : "⚠ The save failed — this browser will not take another ledger.");
@@ -6360,6 +6413,8 @@ $("bpMove").addEventListener("click", () => { if (selectedBldg) beginMove(select
 $("bpDismantle").addEventListener("click", () => {
   const b = selectedBldg;
   if (!b) return;
+  // (a building lost with a town is not ours to pull down; its index of -1 used to splice out the last of ours instead)
+  if (!farms.includes(b) && !buildings.includes(b)) { selectedBldg = null; return syncUI(); }
   if (farms.includes(b)) {
     farms.splice(farms.indexOf(b), 1);
     ledgerAt(b.x, b.y).logs += 1;
@@ -6656,7 +6711,7 @@ let plagueActive = 0;                        // seconds left in the outbreak its
 const isSick = c => (c.sick || 0) > 0;
 const wells = () => buildings.filter(b => b.type === "well" && !b.fire && !b.site).length;
 function strikePlague() {
-  const well = Object.values(civs).filter(c => !c.child);
+  const well = Object.values(civs).filter(c => !c.child && !c.afield);   // (the army abroad is out of the plague's reach)
   if (well.length < 3) return;                       // too few souls to call it an outbreak
   // clean water keeps some of them standing
   const share = Math.max(0.15, 0.42 - wells() * 0.07);
@@ -6683,7 +6738,7 @@ function updatePlague(dt) {
   if (plagueActive > 0) plagueActive -= dt;
   let anySick = false;
   for (const c of civs) {
-    if (!isSick(c)) continue;
+    if (!isSick(c) || c.afield) continue;   // (a sick man on the march sickens again only once he is home)
     anySick = true;
     c.sick -= dt;
     // it wastes a man slowly; the fed and the housed weather it better
@@ -6736,7 +6791,7 @@ const spokenFor = p => p.state === "borne" || p.state === "abed" ||
 // is stretchered out of a fight they are still standing in. A man swinging at a
 // raider has not asked to be carried off, and taking him off the line mid-melee
 // would lose the wall while the ward gained a patient.
-const needsBed = c => !c.child && !c.rebel &&
+const needsBed = c => !c.child && !c.rebel && !c.afield &&
                       c.state !== "fighting" && c.state !== "sieging" &&
                       !(c.task && c.task.kind === "attack") &&
                       (isSick(c) || c.hp < c.maxHp * HURT_ENOUGH);
@@ -7636,7 +7691,7 @@ function updateOccupation(dt) {
     // under a roof is hiding, not holding. Indoor folk stand at the building's
     // own coordinates, so without this the whole town could shelter inside and
     // hold the ground forever without a soul in the street to contest it.
-    const defended = civs.some(d => !d.rebel && d.hp > 0 && !INDOORS.has(d.state) &&
+    const defended = civs.some(d => !d.rebel && !d.afield && d.hp > 0 && !INDOORS.has(d.state) &&
                                     Math.hypot(d.x - c.x, d.y - c.y) < 420);
     const cur = (t ? t.siegeT : capitalSiegeT) || 0;
     if (defended) { const v = Math.max(0, cur - dt * 2); if (t) t.siegeT = v; else capitalSiegeT = v; continue; }
@@ -8083,7 +8138,9 @@ function runMayor(st) {
   }
   // WORKS — and get the burned cleared away, which nobody has ever done for you
   if (roll("works")) {
-    const ruin = buildings.find(b => b.type === "burned" && townAt(b.x, b.y) === st);
+    // (only burned houses: a burned wall, gate or town hall is not a cottage waiting to happen, and a hall
+    //  left in ruins is kept so it can be restored as a hall)
+    const ruin = buildings.find(b => b.type === "burned" && (b.was || "cabin") === "cabin" && townAt(b.x, b.y) === st);
     const cost = 6;
     if (ruin && (st.res.logs || 0) >= cost) {
       st.res.logs -= cost;
@@ -9030,6 +9087,18 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 23, date: "31 October 2026", title: "The world can be held still and hurried along, and a dozen faults put right",
+    lines: [
+      "SPACE holds the world: the camera, the panels and every order still work, so a plan can be laid with the clock stopped. 1, 2 and 3 run it at one, two and three times its pace, and the top bar has HOLD 1x 2x 3x for the mouse. The faster paces step the world more than once a frame rather than in bigger strides, so nothing happens differently at three times — it only happens sooner.",
+      "The stores along the top are shown by the goods themselves now — the logs, the seed sack, the stone, the bread, the coin purse — instead of their names, and a plank door was drawn for the doors. Hover one for its name.",
+      "No emoji anywhere. The warnings, the roll's marks, the sun and moon on the clock, the plague and the frost over a man's head were symbols your own computer drew, and on most of them as glossy colour pictures from this century. They are small pixel marks drawn on the same grid as the action bar now, in the colour of the words around them.",
+      "A builder pulled off a site — by the cold, a raid or an order — kept his claim on it while he lived, and nobody else would ever raise it. Claims are let go when the work is. The same for the dead waiting to be carried and the graves waiting for a stone.",
+      "Men away on campaign were still standing where they set out, as far as the rest of the world could tell: raiders fought them, the plague took them and the doctor came looking for them. They are away now, all of it.",
+      "A mayor no longer turns every burned ruin into a cottage — a wall, a gate or a captured town hall stays what it was.",
+      "Jailed men and the abed can no longer be walked out of the jail and the ward with a click. The logs for a door, the copper and tin for bronze and the metal for a tool come back to the store if the work is never finished.",
+      "Esc closes the settings instead of resuming the colony behind them, and sets down a building you are carrying. Cmd+S and Ctrl shortcuts no longer leave the camera sliding off by itself, and nor does switching windows with a key held.",
+      "A wanderer walking off with his answer cannot be talked round again with a click; dismantling a building lost with a town no longer pulls down one of yours; a Save As that fails leaves you in the slot you were in; and a browser with its storage turned off gets a game instead of a blank page.",
+    ] },
   { v: 22, date: "7 September 2026", title: "The game asks you to keep a file, instead of telling you to",
     lines: [
       "Twenty minutes into a colony, a banner used to explain that browsers lose things and that Save to a File is in the pause menu. Every word of it was true and it asked nothing of anybody: you read it, you thought later, and later is exactly when the browser clears its store.",
@@ -9374,7 +9443,7 @@ const SAVE_V = 2;
 const FROM_FUTURE = "future";
 const slotKey = i => (i === 1 ? "forester_save" : `forester_save${i}`);
 const ACTIVE_SLOT_KEY = "forester_slot";
-let saveSlot = Math.min(SAVE_SLOTS, Math.max(1, +(localStorage.getItem(ACTIVE_SLOT_KEY) || 1) || 1));
+let saveSlot = Math.min(SAVE_SLOTS, Math.max(1, +(readStore(ACTIVE_SLOT_KEY, 1) || 1) || 1));
 let SAVE_KEY = slotKey(saveSlot);
 function useSlot(i) {
   saveSlot = Math.min(SAVE_SLOTS, Math.max(1, i | 0));
@@ -10896,7 +10965,10 @@ function update(dt) {
   updateFlight(dt);
 
   if (paused) return;
-  for (let i = 0; i < simSpeed; i++) simStep(dt);     // (none at all while the world is held)
+  for (let i = 0; i < simSpeed; i++) {     // (none at all while the world is held)
+    simStep(dt);
+    if (gameState !== "playing" || paused) break;   // (a step that ended the game or opened a question stops the rest of the frame)
+  }
 }
 function simStep(dt) {
   volleySounds = 0;      // the frame's ration of musket reports
@@ -14095,6 +14167,8 @@ function render(dt) {
   ctx.font = "12px monospace"; ctx.textAlign = "center";
   for (const f of settings.floaters ? floaters : []) {
     ctx.globalAlpha = Math.min(1, f.t / 0.5);
+    const mark = glyphCanvas(f.text, f.color);
+    if (mark) { ctx.drawImage(mark, f.x - 8, f.y - 14, 16, 16); continue; }   // (a symbol as its pixel mark, not the system's emoji)
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, f.x, f.y);
   }
