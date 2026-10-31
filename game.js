@@ -872,7 +872,7 @@ function faithWork(c) {
   if (c.profession && !["farmer", "hunter"].includes(c.profession)) return false;
   for (const tag of wants) {
     if (tag === "farm") {
-      const ripe = farms.find(f => f.ready && !f.workers.some(w => civs.includes(w)) &&
+      const ripe = farms.find(f => f.ready && !f.site && !f.workers.some(w => civs.includes(w)) &&
                                    Math.hypot(f.x - c.x, f.y - c.y) < 600);
       if (ripe) { order(c, { kind: "harvest", target: ripe, x: ripe.x, y: ripe.y + 10 }); return true; }
       if (res.seeds < farmSeedCost() * 4) {
@@ -2611,9 +2611,12 @@ function nearTerritoryWide(wx, wy, pad) {
 function legalToBuild(type, wx, wy, rot, ignore) {
   // A run already begun may always be continued: if the piece locked onto a wall
   // of yours, nothing but the cost may refuse it — the builders fell what is in
-  // the way. (snapWallPos is always called immediately before this.)
-  if (WALLLIKE.has(type) && wallSnapped) return true;
-  if (WALLLIKE.has(type)) {
+  // the way. (snapWallPos is always called immediately before this.) The trees
+  // and the stones, that is: a snapped piece used to skip every test, and could
+  // brick up a gate, sit on a piece already there (paid for twice) or on a cabin.
+  const snapped = WALLLIKE.has(type) && wallSnapped;
+  if (snapped) { /* the ground is the run's: territory and camps were judged for its first piece */ }
+  else if (WALLLIKE.has(type)) {
     if (!nearTerritoryWide(wx, wy, 5)) return false;                       // not too far from home
     for (const cp of camps) if (Math.hypot(cp.x - wx, cp.y - wy) < 520) return false;   // not at their door
   } else if (type !== "sapling" && !inTerritory(wx, wy)) return false;
@@ -2656,6 +2659,7 @@ function legalToBuild(type, wx, wy, rot, ignore) {
     if (!bWall && !isProp(b.type) && b.type !== "farm" && !placingWall && !placingProp) r.h += 26;
     if (rectsOverlap(cand, r)) return false;
   }
+  if (snapped) return true;                    // (the builders fell what is in the way: see tryPlace)
   for (const c of camps) if (Math.hypot(c.x - wx, c.y - wy) < 200) return false;
   for (const t of nearThings("trees", wx, wy, 160)) if (t.alive && pointInRect(t.x, t.y, inflate(cand, 10))) return false;
   for (const t of nearThings("stones", wx, wy, 160)) if (t.alive && pointInRect(t.x, t.y, inflate(cand, 10))) return false;
@@ -3233,8 +3237,8 @@ addEventListener("keydown", e => {
     // the building you have picked up and are looking for a spot for
     if (buildMode && CAN_TURN(buildMode)) turnBuild();
     else if (moveBldg && CAN_TURN(baseType(moveBldg))) {
-      moveBldg.rot = moveBldg.rot ? 0 : 1;
-      toast(`${BLDG_NAMES[baseType(moveBldg)] || baseType(moveBldg)} turned ${moveBldg.rot ? "side-on" : "front-on"}.`);
+      moveRot = moveRot ? 0 : 1;   // (the carried turn: it used to turn the building where it stood, and Esc never turned it back)
+      toast(`${BLDG_NAMES[baseType(moveBldg)] || baseType(moveBldg)} turned ${moveRot ? "side-on" : "front-on"}.`);
     }
   }
   // ===== orders from the keyboard =====
@@ -3349,7 +3353,7 @@ canvas.addEventListener("wheel", e => {
 function cancelAll() {
   cancelMove(true);
   buildMode = null; selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null;
-  selGroup = []; roadMode = false; roadDrag = false; roadGhost = []; roadStart = null;
+  selGroup = []; roadMode = false; roadDrag = false; roadGhost = []; roadStart = null; roadSpent = 0;
   lineStart = null; lineDrag = false; lineGhost = null;
   closeSiegeMenu();
   syncUI();
@@ -3362,12 +3366,15 @@ function layRoad(rx, ry) {
   if (roads.has(rkey(rx, ry))) return false;
   const wx = rx * ROAD + ROAD / 2, wy = ry * ROAD + ROAD / 2;
   const led = ledgerAt(wx, wy);
-  if ((led.dm || 0) + (led === res ? 0 : res.dm || 0) < ROAD_COST) return false;
+  // (paid the way everything else is: the town's own chest first, the capital the rest,
+  //  and never below the treasury's floor. It used to take the whole tile from the
+  //  capital when the town was a penny short, and could leave the treasury in the red)
+  if (!canPay({ dm: ROAD_COST }, led)) return false;
   if (!nearTerritoryWide(wx, wy, 6)) return false;            // roads keep near your own country
+  pay({ dm: ROAD_COST }, led);
   // kept to one decimal: 0.2 is not a clean binary fraction, and without the
   // rounding the treasury drifts into 0.6000000000000001 territory
-  if ((led.dm || 0) >= ROAD_COST) led.dm = Math.round((led.dm - ROAD_COST) * 10) / 10;
-  else res.dm = Math.round((res.dm - ROAD_COST) * 10) / 10;
+  led.dm = Math.round((led.dm || 0) * 10) / 10; res.dm = Math.round((res.dm || 0) * 10) / 10;
   roads.add(rkey(rx, ry));
   roadSpent = Math.round((roadSpent + ROAD_COST) * 10) / 10;
   return true;
@@ -4072,35 +4079,35 @@ function evictFromFootprint(b) {
 // true when the piece just placed locked onto a wall already standing. A run you
 // have started may always be continued — the builders clear whatever is in the way.
 let wallSnapped = false;
-function snapWallPos(type, wx, wy, ignore) {
+function snapWallPos(type, wx, wy, ignore, rot = wallRot) {   // (rot: a carried piece snaps by its own turn, not the build tool's)
   wallSnapped = false;
   if (!WALLLIKE.has(type)) return [wx, wy];
   let best = null, bd = 110;
   for (const b of buildings) {
     if (ignore && b === ignore) continue;      // a wall being carried does not snap to itself
     if (!WALLLIKE.has(b.type)) continue;
-    if ((b.rot || 0) !== wallRot) continue;
+    if ((b.rot || 0) !== rot) continue;
     const d = Math.hypot(b.x - wx, b.y - wy);
     if (d < bd) { bd = d; best = b; }
   }
   if (best) {
     wallSnapped = true;
     const span = (SMALL_BLDG[best.type] + SMALL_BLDG[type]) / 2 - 6;    // a hand's overlap: the run never shows daylight
-    if (wallRot) return [best.x, best.y + (wy > best.y ? span : -span)];
+    if (rot) return [best.x, best.y + (wy > best.y ? span : -span)];
     return [best.x + (wx > best.x ? span : -span), best.y];
   }
   // no same-orientation neighbour: corner onto a perpendicular one
   let perp = null, pd = 96;
   for (const b of buildings) {
     if (!WALLLIKE.has(b.type)) continue;
-    if ((b.rot || 0) === wallRot) continue;
+    if ((b.rot || 0) === rot) continue;
     const d = Math.hypot(b.x - wx, b.y - wy);
     if (d < pd) { pd = d; perp = b; }
   }
   if (!perp) return [wx, wy];
   const Ln = SMALL_BLDG[perp.type], Ls = SMALL_BLDG[type];
   wallSnapped = true;
-  if (wallRot) {
+  if (rot) {
     // placing upright against a flat run: hug its end, rising above or hanging below the line
     const x = perp.x + (wx > perp.x ? 1 : -1) * (Ln / 2 + 8);
     const y = wy < perp.y - 10 ? perp.y : perp.y + Ls - 20;
@@ -4121,7 +4128,7 @@ function snapWallPos(type, wx, wy, ignore) {
 // A building can be carried to a new spot instead. Its people, its stores and
 // its state come with it; what it costs is a quarter of what it cost to build,
 // which is the labour of taking it down and putting it up, and nothing else.
-let moveBldg = null;
+let moveBldg = null, moveRot = 0;   // (the turn it will have where it is set down; its own rot is untouched until then)
 const MOVE_SHARE = 0.25;
 // walls are cheap and go up in a moment; a keep is not yours to shift, and a
 // ruin has nothing left to carry
@@ -4140,7 +4147,7 @@ function beginMove(b) {
   const cost = moveCost(b);
   if (!canPay(cost, ledgerAt(b.x, b.y)))
     return toast(`Moving it costs ${costText(cost)} in labour and materials.`);
-  moveBldg = b;
+  moveBldg = b; moveRot = b.rot || 0;
   buildMode = null; roadMode = false;
   toast(`Carrying the ${BLDG_NAMES[baseType(b)] || baseType(b)} — click where it should stand. Right-click or Esc to set it back down.`);
   syncUI();
@@ -4153,21 +4160,28 @@ function cancelMove(quiet) {
 }
 // The same rules as raising one from nothing, minus the building itself.
 function moveLegal(b, wx, wy) {
-  return legalToBuild(baseType(b), wx, wy, b.rot, b);
+  return legalToBuild(baseType(b), wx, wy, b === moveBldg ? moveRot : b.rot, b);
 }
 function finishMove(wx, wy) {
   const b = moveBldg;
   if (!b || !buildings.includes(b)) { moveBldg = null; return; }
-  if (WALLLIKE.has(baseType(b))) [wx, wy] = snapWallPos(baseType(b), wx, wy, b);
+  if (WALLLIKE.has(baseType(b))) [wx, wy] = snapWallPos(baseType(b), wx, wy, b, moveRot);
   if (!moveLegal(b, wx, wy))
     return toast(inTerritory(wx, wy) ? "Not there — too close to another building, its doorway, or an obstacle."
                                      : "That ground is not yours.");
+  // (one hall to a town, carried or built: a hall walked from the capital into a
+  //  daughter town gave that town two and left the capital none)
+  if (baseType(b) === "townhall") {
+    const here = townAt(wx, wy);
+    if (buildings.some(o => o !== b && o.type === "townhall" && townAt(o.x, o.y) === here))
+      return toast(`${here ? here.name : "The capital"} has its town hall already.`);
+  }
   const cost = moveCost(b);
   const led = ledgerAt(b.x, b.y);
   if (!canPay(cost, led)) { cancelMove(true); return toast(`Moving it costs ${costText(cost)}.`); }
   pay(cost, led);
   const fromX = b.x, fromY = b.y;
-  b.x = wx; b.y = wy;
+  b.x = wx; b.y = wy; if (CAN_TURN(baseType(b))) b.rot = moveRot;
   // Anyone walking to it was walking to where it used to be, and anyone standing
   // inside it is now standing in a field. Both are put right here rather than
   // left to work it out, which they cannot.
@@ -4176,6 +4190,7 @@ function finishMove(wx, wy) {
     if (c.shelter === b || (c.home === b && INDOORS.has(c.state))) { c.x = wx; c.y = wy + 24; }
     if (c.post && Math.hypot(c.post.x - fromX, c.post.y - fromY) < 40) c.post = { x: wx, y: wy + 24 };
   }
+  evictFromFootprint(b);                        // (whoever was standing where it now stands steps out of it)
   if (!WALLLIKE.has(baseType(b)) && !isProp(baseType(b))) expandAround(wx, wy, 1);   // the ground under it is yours (a wall or a lamp claims none, moved or built: walked to the border a piece at a time, one wall was taking the whole forest)
   markChunkDirty(fromX, fromY); markChunkDirty(wx, wy);
   moveBldg = null;
@@ -4691,7 +4706,11 @@ function autonomy(c, dt) {
   }
 
   const home = c.home;
-  const homeFarms = farms.filter(f => Math.hypot(f.x - home.x, f.y - home.y) < 220).length;
+  // (a farm someone is already on his way to dig counts: a couple sharing a cabin both
+  //  set out for the same first spot, both paid, and the second found it taken)
+  const digging = civs.filter(o => o !== c && o.task && o.task.kind === "buildFarm");
+  const homeFarms = farms.filter(f => Math.hypot(f.x - home.x, f.y - home.y) < 220).length +
+                    digging.filter(o => Math.hypot(o.task.fx - home.x, o.task.fy - home.y) < 220).length;
   const wantsFarm = homeFarms === 0 || (c.profession === "farmer" && homeFarms < 2);
   // Only by the colony's leave may they break ground themselves — and the coin
   // comes out of their own purse. The treasury is the government's alone.
@@ -4702,10 +4721,13 @@ function autonomy(c, dt) {
     for (const r of [90, 120, 150]) for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
       const fx = home.x + Math.cos(a) * r, fy = home.y + Math.sin(a) * r * 0.8;
-      if (legalToBuild("farm", fx, fy)) {
+      if (legalToBuild("farm", fx, fy) && digging.every(o => Math.hypot(o.task.fx - fx, o.task.fy - fy) > FARM_SIZE * 1.5)) {
         pay(materials, fled);
         c.inv.dm -= fCoin;                    // they pay their own way
-        order(c, { kind: "buildFarm", x: fx, y: fy + 8, fx, fy });
+        // (and get it back if the farm is never dug: the cold, a raid, an order, or the ground taken first)
+        const paid = Object.entries(materials).filter(([, q]) => q > 0).map(([k, q]) => [fled, k, q]);
+        if (fCoin) paid.push([c.inv, "dm", fCoin]);
+        order(c, { kind: "buildFarm", x: fx, y: fy + 8, fx, fy, paid });
         return;
       }
     }
@@ -4713,7 +4735,7 @@ function autonomy(c, dt) {
 
   if (c.profession === "farmer") {
     // a farmer tends only the farms they are assigned to — no one else's
-    const mine = farms.find(f => f.ready && f.workers.includes(c));
+    const mine = farms.find(f => f.ready && !f.site && f.workers.includes(c));
     if (mine) { order(c, { kind: "harvest", target: mine, x: mine.x, y: mine.y + 10 }); return; }
   }
   // township trades keep the stores fed without orders
@@ -5761,6 +5783,9 @@ function syncBuildSheet() {
   }
 }
 function pickBuild(type) {
+  // (one tool in the hand at a time: with the road tool still on, every click bought
+  //  road and the building could never be set down; carrying one, the click moved that)
+  roadMode = false; roadDrag = false; roadGhost = []; roadStart = null; cancelMove(true);
   buildMode = type;
   closeBuildSheet();
   toast(WALLLIKE.has(type)
@@ -6539,6 +6564,19 @@ $("bpDismantle").addEventListener("click", () => {
   if (!b) return;
   // (a building lost with a town is not ours to pull down; its index of -1 used to splice out the last of ours instead)
   if (!farms.includes(b) && !buildings.includes(b)) { selectedBldg = null; return syncUI(); }
+  // A stake nobody has built on is a plan, not a building: taking it up gives back
+  // everything it was paid with, doors and coin included. (It was the only way to
+  // cancel one, and it kept half the timber, every door and all the silver.)
+  if (b.site && !(b.progress > 0)) {
+    const cost = costOf(farms.includes(b) ? "farm" : b.type) || {};
+    if (farms.includes(b)) farms.splice(farms.indexOf(b), 1);
+    else { for (const c of civs) if (c.task && c.task.target === b) { c.task = null; c.state = "idle"; } buildings.splice(buildings.indexOf(b), 1); }
+    const dl = ledgerAt(b.x, b.y);
+    for (const [k, n] of Object.entries(cost)) if (n > 0 && typeof n === "number") dl[k] = (dl[k] || 0) + n;
+    toast(`The stake is pulled up — ${costText(cost) || "nothing"} back in store.`);
+    selectedBldg = null;
+    return syncUI();
+  }
   if (farms.includes(b)) {
     farms.splice(farms.indexOf(b), 1);
     ledgerAt(b.x, b.y).logs += 1;
@@ -9542,7 +9580,7 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
-  { v: 26, date: "31 October 2026", title: "Twenty-two faults found by going through the game a part at a time, and put right",
+  { v: 26, date: "31 October 2026", title: "Thirty-two faults found by going through the game a part at a time, and put right",
     lines: [
       "After a reload, any building that had never been damaged fell to a single blow from an occupying company.",
       "A builder taken to hospital, jailed, sent to war or caught in a quarrel kept his claim on the site, and nobody else would ever raise it. A man carrying the dead when that happened refused every order after.",
@@ -9566,6 +9604,16 @@ const CHANGELOG = [
       "Wagons and a mayor's bread got into a town under siege, and a wagon loaded as a town was lost delivered into nowhere.",
       "When the scouts could find no clear ground, a new town was set down without any checks, sometimes on a camp or another town. It is never placed on a foreign town, a building or a farm now; if there is nowhere, the scouts say so.",
       "A second crown's siege ring round a town someone else had taken stood there for good. Signing the same trade terms again no longer forgives missed caravans. City walls breached in war, and sieges, are kept in the save.",
+      "A wall piece that locked onto a run skipped every check, so it could brick up a gate, sit on a piece already there (paid for twice) or go down on a cabin. Only the trees and stones in its way are let pass now.",
+      "Pressing R while carrying a building turned it where it stood, and setting it back down with Esc never turned it back. The turn now goes with it to where it is set down, and a carried wall piece snaps by its own turn.",
+      "Picking a building from the Build sheet while the road tool was on bought a stretch of road with every click, and the building could never be set down. Picking one now puts the road tool and anything being carried away.",
+      "With the browser's storage turned off, every save slot read as a damaged save, a new game could not be started, and loading left a blank screen. Now the slots read as empty and the game starts.",
+      "A farm a civilian broke ground on himself was paid for up front, and the payment was lost if the work was interrupted or the ground taken first. Two people sharing a cabin could set out for the same spot and both pay. The payment comes back now, and nobody picks ground someone else is already on the way to dig.",
+      "A staked farm that nobody had dug still grew, ripened and was reaped for free.",
+      "Pulling up a stake nobody had built on gave back half the timber and kept the door and the silver. It gives back everything now.",
+      "Carrying the town hall into a daughter town gave that town two halls and left the capital none. One hall to a town, moved or built.",
+      "A road laid from a daughter town could take the capital's treasury below nothing. It is paid the way everything else is: the town's own chest first, and never below the treasury's floor. People standing where a moved building is set down step out of it.",
+      "A daughter town's stores, its mayor, its head count and its buildings each judged who belonged to it at a different distance, so its numbers jumped about. They all agree now.",
     ] },
   { v: 25, date: "31 October 2026", title: "A map in the corner, the colony's books, and the hands with nothing to do",
     lines: [
@@ -9958,9 +10006,11 @@ function useSlot(i) {
 // What each slot holds, read cheaply enough to draw a menu from: the name of
 // the place, the year it had reached, how many souls, and how long it was played.
 function slotInfo(i) {
+  // (storage the browser will not open is empty, not damaged: every slot used to read
+  //  "damaged save", and with all six "full" a new game could not be started)
+  const raw = readStore(slotKey(i), null);
+  if (!raw || raw === "null") return null;
   try {
-    const raw = localStorage.getItem(slotKey(i));
-    if (!raw || raw === "null") return null;
     const d = JSON.parse(raw);
     return { i, name: d.settlementName || "Neu Hamburg", empire: d.empireName || "",
              year: d.colonyYear || 1683, pop: (d.civs || []).length,
@@ -10230,7 +10280,7 @@ function saveGame() {
 }
 
 function loadGame() {
-  const raw = localStorage.getItem(SAVE_KEY);
+  const raw = readStore(SAVE_KEY, null);    // (an unguarded read threw inside the loading screen and left a blank page)
   if (!raw) return false;
   // Read the stamp before a single field is touched. A colony from a newer
   // build is left exactly as it lies — not stashed, not replaced by the spare,
@@ -10982,7 +11032,7 @@ $("menuNew").addEventListener("click", () => {
   const free = firstFreeSlot();
   if (!free) return renderSaveList();             // the note already says why nothing happened
   useSlot(free);
-  localStorage.removeItem(SAVE_KEY);              // a fresh slot starts empty
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}   // a fresh slot starts empty
   doLoading(false);
 });
 // The other half: a file off the disk becomes a colony in a free slot. It is
@@ -11758,7 +11808,7 @@ function simStep(dt) {
   // growth is held, not lost, which is why a siege broken in time costs nothing
   // but the waiting.
   for (const f of farms)
-    if (!f.ready && season() !== "winter" && !townInvested(townAt(f.x, f.y)) &&
+    if (!f.ready && !f.site && season() !== "winter" && !townInvested(townAt(f.x, f.y)) &&   // (a stake in the ground grows nothing)
         (f.growT += dt) >= farmRipen()) f.ready = true;
   if (alarmToldT > 0) alarmToldT -= dt;          // the alarm may be cried again in a while
   SFX.fireLoop(buildings.some(b => b.fire > 0) || foreign.some(b => b.fire > 0));
@@ -12383,12 +12433,13 @@ function simStep(dt) {
           farms.push(f);
           evictFromFootprint({ type: "farm", x: t.fx, y: t.fy });
           toast(`${c.name} finished a little wheat farm.`);
-        }
+          t.paid = null;                        // (the seed is in the ground)
+        } else refundTask(c);                   // (the ground was taken first: what was paid goes back)
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "harvesting") {
       const f = c.task.target;
-      if (!f.ready || !farms.includes(f)) { c.state = "idle"; c.task = null; continue; }
+      if (!f.ready || f.site || !farms.includes(f)) { c.state = "idle"; c.task = null; continue; }
       c.workT += dt; f.progress = c.workT / harvestTime(c); c.anim += dt * 8;
       if ((c.workT % 0.45) < dt) SFX.rustle();
       if (c.workT >= harvestTime(c)) {
@@ -14890,11 +14941,11 @@ function render(dt) {
   // may be set down where you are pointing
   if (moveBldg && buildings.includes(moveBldg)) {
     const bt = baseType(moveBldg);
-    const [gx, gy] = WALLLIKE.has(bt) ? snapWallPos(bt, mouse.wx, mouse.wy, moveBldg)
+    const [gx, gy] = WALLLIKE.has(bt) ? snapWallPos(bt, mouse.wx, mouse.wy, moveBldg, moveRot)
                                       : [mouse.wx, mouse.wy];
     const ok = moveLegal(moveBldg, gx, gy);
     const gs = drawSizeOf(bt);
-    const vert = WALLLIKE.has(bt) && moveBldg.rot;
+    const vert = WALLLIKE.has(bt) && moveRot;
     ctx.globalAlpha = 0.5;
     const im = img[bt + (vert && img[bt + "v"] ? "v" : "")] || img[bt];
     if (im) drawSprite(im, gx, gy, gs, false);
