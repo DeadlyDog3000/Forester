@@ -8914,7 +8914,83 @@ $("reignEnd").addEventListener("click", () => {
 // deaths" in one press, and wants to see at a glance that a category exists at
 // all. Newest first — the question is almost always "what just happened?".
 let chronFilter = new Set();          // empty means everything
-let chronShowing = "log";          // "log" or "ambitions"
+let chronShowing = "log";          // "log", "ambitions" or "ledger"
+
+// ===== the ledger: the colony's numbers over the years =====
+// The top bar says what there is now and the store tooltips what it has done in
+// the last minute. Neither says whether the colony is better off than it was two
+// winters ago, which is the question a player actually asks. Every half a game
+// minute the books are written up — people, food, logs, stone, the treasury, the
+// mood — and kept with the save; the ledger draws them, winters shaded.
+// [worldT, pop, food, logs, stone, dm, happy]
+let ledgerHist = [];
+const LEDGER_EVERY = 30, LEDGER_MAX = 720;
+let ledgerNext = 0;
+function ledgerSample() {
+  if (worldT < ledgerNext) return;
+  ledgerNext = worldT + LEDGER_EVERY;
+  const happy = civs.length ? Math.round(civs.reduce((s, c) => s + c.happiness, 0) / civs.length) : 0;
+  ledgerHist.push([Math.round(worldT), civs.length, Math.round((res.bread || 0) + (res.meat || 0)),
+                   Math.round(res.logs || 0), Math.round(res.stone || 0), Math.round(res.dm || 0), happy]);
+  // past its length, the older half is kept at half the detail: the whole life of
+  // the colony stays on the page, and only the recent years in fine grain
+  if (ledgerHist.length > LEDGER_MAX) {
+    const half = LEDGER_MAX / 2;
+    ledgerHist = ledgerHist.slice(0, half).filter((_, i) => i % 2 === 0).concat(ledgerHist.slice(half));
+  }
+}
+const LEDGER_LINES = [
+  { i: 1, name: "People", unit: "souls" }, { i: 2, name: "Food in store", unit: "bread and meat" },
+  { i: 3, name: "Logs", unit: "logs" }, { i: 4, name: "Stone", unit: "stone" },
+  { i: 5, name: "The treasury", unit: "DM" }, { i: 6, name: "Mood", unit: "%" },
+];
+function renderLedger() {
+  const list = $("chronList");
+  $("chronFilters").style.display = "none";
+  $("chronCount").textContent = "";
+  if (ledgerHist.length < 3) {
+    list.innerHTML = `<div class="ledgerEmpty">The books are written up every half a minute. Come back once the colony has a little history to show.</div>`;
+    return;
+  }
+  const W = 460, H = 92, PL = 4, PR = 4, PT = 6, PB = 14;
+  const t0 = ledgerHist[0][0], t1 = ledgerHist[ledgerHist.length - 1][0], span = Math.max(1, t1 - t0);
+  const X = t => PL + (t - t0) / span * (W - PL - PR);
+  // the winters, as faint bands behind every chart
+  let bands = "";
+  for (let y0 = Math.floor(t0 / YEAR) * YEAR; y0 < t1; y0 += YEAR) {
+    const a = Math.max(t0, y0 + WINTER_AT), b = Math.min(t1, y0 + YEAR);
+    if (b > a) bands += `<rect class="lgWinter" x="${X(a).toFixed(1)}" y="${PT}" width="${(X(b) - X(a)).toFixed(1)}" height="${H - PT - PB}"/>`;
+  }
+  const yearOf = t => colonyYear + Math.floor(t / YEAR) - Math.floor(worldT / YEAR);
+  let ticks = "";
+  for (let y0 = Math.ceil(t0 / YEAR) * YEAR; y0 <= t1; y0 += YEAR)
+    ticks += `<text class="lgTick" x="${X(y0).toFixed(1)}" y="${H - 3}">${yearOf(y0)}</text>`;
+  list.innerHTML = `<div class="ledgerNote">Shaded: winter. Rest the pointer on a chart to read a day.</div>` + LEDGER_LINES.map(L => {
+    const vals = ledgerHist.map(r => r[L.i]);
+    const hi = Math.max(1, ...vals), lo = 0, now = vals[vals.length - 1];
+    const Y = v => PT + (1 - (v - lo) / (hi - lo)) * (H - PT - PB);
+    const pts = ledgerHist.map(r => `${X(r[0]).toFixed(1)},${Y(r[L.i]).toFixed(1)}`).join(" ");
+    return `<div class="ledgerRow" data-i="${L.i}"><div class="ledgerHead"><b>${esc(L.name)}</b><span>${now.toLocaleString()} ${esc(L.unit)} now &middot; most ${hi.toLocaleString()}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(L.name)} over time">${bands}
+        <line class="lgBase" x1="${PL}" x2="${W - PR}" y1="${Y(0)}" y2="${Y(0)}"/>
+        <polyline class="lgLine" points="${pts}"/>${ticks}
+        <line class="lgCursor" y1="${PT}" y2="${H - PB}" x1="-9" x2="-9"/></svg>
+      <div class="ledgerTip"></div></div>`;
+  }).join("");
+  for (const row of list.querySelectorAll(".ledgerRow")) {
+    const svg = row.querySelector("svg"), tip = row.querySelector(".ledgerTip"), cur = row.querySelector(".lgCursor"), i = +row.dataset.i;
+    const L = LEDGER_LINES.find(l => l.i === i);
+    svg.addEventListener("mousemove", e => {
+      const r = svg.getBoundingClientRect(), t = t0 + ((e.clientX - r.left) / r.width * W - PL) / (W - PL - PR) * span;
+      let best = ledgerHist[0];
+      for (const h of ledgerHist) if (Math.abs(h[0] - t) < Math.abs(best[0] - t)) best = h;
+      const x = X(best[0]); cur.setAttribute("x1", x); cur.setAttribute("x2", x);
+      tip.textContent = `${best[0] % YEAR >= WINTER_AT ? "Winter" : "Summer"} ${yearOf(best[0])}: ${best[i].toLocaleString()} ${L.unit}`;
+      tip.style.visibility = "visible";
+    });
+    svg.addEventListener("mouseleave", () => { tip.style.visibility = "hidden"; cur.setAttribute("x1", -9); cur.setAttribute("x2", -9); });
+  }
+}
 function renderAmbitions() {
   const list = $("chronList");
   $("chronFilters").style.display = "none";
@@ -8937,6 +9013,7 @@ function renderAmbitions() {
 }
 function renderChronicle() {
   if (chronShowing === "ambitions") return renderAmbitions();
+  if (chronShowing === "ledger") return renderLedger();
   $("chronFilters").style.display = "";
   const filters = $("chronFilters");
   if (!filters.dataset.built) {
@@ -8995,19 +9072,21 @@ function renderChronicle() {
 }
 function openChronicle() {
   const p = $("chronPanel");
-  const show = p.style.display !== "block";
+  const show = !isOpen(p.id);     // (it opens as flex: asking for "block" meant its key could open it but never close it)
   p.style.display = show ? "flex" : "none";
   if (show) { $("folkPanel").style.display = "none"; renderChronicle(); }
   syncUI();
 }
 $("chronToggle").addEventListener("click", openChronicle);
 $("chronClose").addEventListener("click", () => { $("chronPanel").style.display = "none"; syncUI(); });
-$("chronView").addEventListener("click", () => {
-  chronShowing = chronShowing === "log" ? "ambitions" : "log";
-  $("chronView").textContent = chronShowing === "log" ? "✦ Ambitions" : "☰ The record";
+function chronViewSync() {
+  $("chronView").textContent = chronShowing === "ambitions" ? "☰ The record" : "✦ Ambitions";
+  $("chronLedger").textContent = chronShowing === "ledger" ? "☰ The record" : "The ledger";
   $("chronSearch").style.display = chronShowing === "log" ? "" : "none";
   renderChronicle();
-});
+}
+$("chronView").addEventListener("click", () => { chronShowing = chronShowing === "ambitions" ? "log" : "ambitions"; chronViewSync(); });
+$("chronLedger").addEventListener("click", () => { chronShowing = chronShowing === "ledger" ? "log" : "ledger"; chronViewSync(); });
 $("chronSearch").addEventListener("input", renderChronicle);
 $("chronSearch").addEventListener("keydown", e => e.stopPropagation());
 
@@ -9342,7 +9421,7 @@ refreshLogBadges();
 
 function openFolk() {
   const p = $("folkPanel");
-  const show = p.style.display !== "block";
+  const show = !isOpen(p.id);     // (it opens as flex: asking for "block" meant its key could open it but never close it)
   p.style.display = show ? "flex" : "none";
   if (show) { $("chronPanel").style.display = "none"; renderFolk(); }
   syncUI();
@@ -9654,6 +9733,7 @@ function saveGame() {
       savedAt: Date.now(),          // so the menu can say when you were last here
       // the recent tail only: a history worth reading, at a size worth keeping
       chron: chronicle.slice(-CHRON_SAVED),
+      ledger: ledgerHist,
       res: { ...res }, taxRate, taxTimer, pedlarTimer, laws: { ...laws }, zoom, settlementName, arrears,
       stateFaith, dedicateTo,
       // which season the world was last seen in, and how bold the woods had grown.
@@ -9987,6 +10067,8 @@ function loadGame() {
     // that nobody in this world ever laid.
     invested.clear();
     chronicle = Array.isArray(d.chron) ? d.chron.slice(-CHRON_MAX) : [];
+    ledgerHist = Array.isArray(d.ledger) ? d.ledger.filter(r => Array.isArray(r) && r.length === 7).slice(-LEDGER_MAX) : [];
+    ledgerNext = 0;
     natWars = d.natWars || [];
     mapGrid = null;   // rebuilt with conquests on next use
     if (d.wars) {
@@ -11068,6 +11150,7 @@ function simStep(dt) {
   updatePlague(dt);
   updateWards(dt);
   checkAmbitions(dt);
+  ledgerSample();
   updateFuel(dt);
   updateFeuds(dt);
   updateJail(dt);
