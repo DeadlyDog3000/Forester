@@ -10521,6 +10521,35 @@ function gameOver(chosen) {
   go.style.opacity = "1";
 }
 
+// ===== which way the stores are going =====
+// The bar says how much there is; whether that is more or less than a minute ago
+// is what decides the next order — and it was the one thing nobody could see
+// without staring at the number. Each store's tooltip carries it: the count, and
+// what it has come to over the last minute of the world's own time (so at three
+// times the pace it is three times the work). Kept per ledger, so standing in a
+// daughter town reads that town's trend.
+const TREND_KEYS = [["rLogs", "logs", "Logs"], ["rSeeds", "seeds", "Seeds"], ["rStone", "stone", "Stone"],
+  ["rIronOre", "ironore", "Iron ore"], ["rCopperOre", "copperore", "Copper ore"], ["rTin", "tin", "Tin"],
+  ["rCopper", "copper", "Copper"], ["rBronze", "bronze", "Bronze"], ["rIron", "iron", "Iron"], ["rDoors", "doors", "Doors"],
+  ["rBread", "bread", "Bread"], ["rMeat", "meat", "Meat"], ["rWeapons", "weapons", "Weapons"], ["rDM", "dm", "Deutsche Marks (the treasury)"]];
+const _trends = new WeakMap();
+function storeTrends(ledger) {
+  let h = _trends.get(ledger);
+  if (!h) _trends.set(ledger, h = []);
+  if (h.length && worldT < h[h.length - 1].t) h.length = 0;   // (a new colony or a loaded one: the clock started again)
+  if (!h.length || worldT - h[h.length - 1].t >= 5) {
+    h.push({ t: worldT, v: Object.fromEntries(TREND_KEYS.map(([, k]) => [k, ledger[k] || 0])) });
+    while (h.length > 1 && worldT - h[1].t >= 60) h.shift();
+  }
+  const old = h[0], span = worldT - old.t;
+  for (const [id, k, name] of TREND_KEYS) {
+    const box = $(id) && $(id).parentElement; if (!box) continue;
+    const now = ledger[k] || 0, d = Math.round((now - old.v[k]) * 10) / 10;
+    const trend = span < 20 ? "" : d > 0 ? ` · up ${d} in the last minute` : d < 0 ? ` · down ${-d} in the last minute` : " · steady over the last minute";
+    const title = `${name}: ${Math.round(now * 10) / 10} in store${trend}`;
+    if (box.title !== title) box.title = title;
+  }
+}
 function syncUI() {
   syncSpeedUI();
   stratBarSync();                    // how high you are, and how high you may go
@@ -10550,6 +10579,7 @@ function syncUI() {
   $("rTools").textContent = hudTown ? 0 : buildings.filter(b => b.type === "forge").reduce((n, b) => n + ((b.shop || []).filter(i => i.kind === "tool").length), 0);
   setNum($("rDM"), Math.round((hr.dm || 0) * 10) / 10);
   setNum($("rPop"), hudTown ? hudTown.pop : civs.length);
+  storeTrends(hr);
   $("rTax").textContent = taxRate;
   $("rSeason").textContent = (season() === "winter" ? "❄ WINTER " : "SUMMER ") + colonyYear;
   $("rClock").textContent = (nightAmt() > 0.5 ? "☾ " : "☀ ") + clockText();
