@@ -2931,6 +2931,28 @@ const FRESH_TALLY = () => ({ born: 0, arrived: 0, died: 0, raised: 0, burned: 0,
                              winters: 0, taxDays: 0, billsPaid: 0, arrearDays: 0,
                              converted: 0, banished: 0, expulsions: 0 });
 let tally = FRESH_TALLY();
+// The tally as it stood at the last thaw, and how many souls there were: the year's
+// report at each spring is the difference. (null until the first spring.)
+let yearMark = null;
+function yearReport() {
+  const was = yearMark || { ...FRESH_TALLY(), pop: ledgerHist.length ? ledgerHist[0][1] : civs.length };
+  const d = k => (tally[k] || 0) - (was[k] || 0);
+  const bits = [];
+  const n = (x, one, many) => `${x} ${x === 1 ? one : many}`;
+  if (d("born")) bits.push(n(d("born"), "child born", "children born"));
+  if (d("arrived")) bits.push(n(d("arrived"), "newcomer", "newcomers"));
+  if (d("died")) bits.push(n(d("died"), "death", "deaths"));
+  if (d("raised")) bits.push(n(d("raised"), "building raised", "buildings raised"));
+  if (d("raids")) bits.push(n(d("raids"), "raid", "raids"));
+  if (d("plagues")) bits.push(n(d("plagues"), "plague", "plagues"));
+  const dp = civs.length - (was.pop || 0);
+  const pop = `${n(civs.length, "soul", "souls")} now, ${dp > 0 ? `${dp} more than` : dp < 0 ? `${-dp} fewer than` : "as many as"} ${yearMark ? "last spring" : "at the start"}.`;
+  const line = (bits.length ? bits.join(", ") + ". " : "A quiet year. ") + pop;
+  notify({ icon: "☰", cls: dp < 0 || d("died") > d("born") + d("arrived") ? "bad" : "you",
+           text: `The year ${colonyYear - 1} in the books.`, sub: line + " The Chronicle's ledger has the charts.",
+           x: CAPITAL_X, y: CAPITAL_Y, z: Math.max(zoomFloor(), 0.6) });
+  yearMark = { ...tally, pop: civs.length };
+}
 const CHRON_MAX = 400;                 // what the running game remembers
 const CHRON_SAVED = 90;                // what survives a reload, to keep saves small
 const CHRON_KINDS = {
@@ -9313,6 +9335,7 @@ const CHANGELOG = [
       "The Chronicle keeps the colony's books now. THE LEDGER charts people, food, logs, stone, the treasury and the mood over every year of the colony, with the winters shaded. Rest the pointer on a chart to read a day.",
       "The bread and meat on the top bar say how many days the food would feed everyone, counting what people carry. Under two days they turn red.",
       "Eight hours before every winter you are told who still has no roof, and whether the larder will hold out.",
+      "Each spring the year is written up: children born, newcomers, deaths, buildings raised, raids, and how many souls there are against last spring.",
       "Fixed: after a reload, any building that had never been damaged fell to a single blow from an occupying company.",
       "Fixed: a builder taken to hospital, jailed, sent to war or caught in a quarrel kept his claim on the site, and nobody else would ever raise it. A man carrying the dead when that happened refused every order after.",
       "Fixed: two people sent to rebuild the same ruin both paid for it, and the second to finish turned the rebuilt market into a cabin. Materials for a rebuild that is never finished go back to the store.",
@@ -9854,7 +9877,7 @@ function saveGame() {
       // colony saved in winter came back and was told winter had just fallen.
       lastSeason, lastTier, reckoningOpenedAt, blockade,
       // the reign's running totals and what it has set down
-      tally, achieved,
+      tally, achieved, yearMark,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
       // the far map: what you have charted, how the cities of Europe stand, and
@@ -10170,6 +10193,7 @@ function loadGame() {
     // place: the fallback for an older save computes them from the world itself,
     // and computing them from the world we are about to replace is worthless.
     tally = Object.assign(FRESH_TALLY(), d.tally || {});
+    yearMark = d.yearMark && typeof d.yearMark === "object" ? d.yearMark : null;
     achieved = d.achieved || {};
     lastSeason = d.lastSeason || season();
     lastTier = d.lastTier || Math.max(1, difficulty());
@@ -11414,6 +11438,7 @@ function simStep(dt) {
       }
     } else {
       tell("land", "The thaw comes — the fields wake, and the woods turn green again.");
+      yearReport();
       // Through a winter is the first thing here that feels earned, and so the
       // first moment a colony is worth the trouble of keeping.
       askKeepFile("winter");
