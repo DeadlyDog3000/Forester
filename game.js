@@ -3786,8 +3786,37 @@ function resolveOrder(wx, wy) {
 function orderAtPoint(wx, wy) {
   const best = resolveOrder(wx, wy);
   if (!best) return false;
+  // Shift + click queues the job behind the one in hand: fell these three trees,
+  // then break that stone, without standing over him between each. The order is
+  // caught on its way to order() and kept; he takes the next as he comes free.
+  const c = selected;
+  // (only the work that has no claim to stake: felling, quarrying, gathering. A
+  //  site or a farm is claimed the moment it is ordered, and a claim held in a
+  //  queue is one nobody else can take up)
+  if (keys["shift"] && best.pri === 3 && c && c.isCiv && (c.task || (c.queue && c.queue.length))) {
+    queueCatch = { civ: c, tasks: [] };
+    try { best.run(); } finally { const got = queueCatch.tasks; queueCatch = null;
+      if (got.length) {
+        c.queue = (c.queue || []).concat(got).slice(0, QUEUE_MAX);
+        toast(`${c.name}: ${c.queue.length} job${c.queue.length === 1 ? "" : "s"} waiting after this one.`);
+      } }
+    return true;
+  }
   best.run();
   return true;
+}
+const QUEUE_MAX = 8;
+let queueCatch = null, queueRunning = false;
+// the next job in his queue that can still be done, given him now
+function runQueue(c) {
+  if (!c.queue || !c.queue.length || c.task || c.state !== "idle") return false;
+  while (c.queue.length) {
+    const t = c.queue.shift();
+    if (t.target && (t.target.alive === false || (t.target.type && !buildings.includes(t.target) && !farms.includes(t.target)))) continue;
+    queueRunning = true;
+    try { if (order(c, t) !== false) return true; } finally { queueRunning = false; }
+  }
+  return false;
 }
 
 // ===== what this click will do, said before you make it =====
@@ -4273,6 +4302,9 @@ function dropClaims(c, keep) {
   for (const cp of corpses) if (cp !== keep && (cp.carried === c || cp.bearer === c)) { cp.carried = null; cp.bearer = null; }
 }
 function order(c, task) {
+  if (queueCatch && queueCatch.civ === c) { queueCatch.tasks.push(task); return true; }
+  // (any order given by hand, not from his queue, clears what was queued)
+  if (!queueRunning && c.queue && c.queue.length && c === selected && !task.flee && task.kind !== "warmUp") c.queue = null;
   // A prisoner and a patient are not at liberty to be sent anywhere: they are let
   // out by the jail and the ward, which stand them up first. (Clicking the ground
   // with one picked used to walk him out of his cell with his sentence still on him.)
@@ -9439,6 +9471,7 @@ const CHANGELOG = [
       "Above the map in the corner, a short list of what needs seeing to, worst first: a fire, raiders inside your borders, the starving, the sick out of bed, anyone without a roof, sites with no builder, ruins. Click a line to go to the next one of them.",
       "Rest the pointer on someone and the hint says what they are doing.",
       "F follows the picked person with the camera, zoom and all, until you move the camera yourself.",
+      "Hold Shift and click to queue work behind the job in hand: fell these trees, then break that stone, up to eight. The queue is drawn as numbered marks while they are picked, and any order given by hand clears it. Felling, quarrying and gathering only, since a building site or a farm is claimed the moment it is ordered.",
       "A new switch in Settings holds the world the moment raiders cross your border, a building catches fire or a plague begins, so a raid at three times the pace is not over before you find it. It starts off.",
       "The Chronicle keeps the colony's books now. THE LEDGER charts people, food, logs, stone, the treasury and the mood over every year of the colony, with the winters shaded. Rest the pointer on a chart to read a day.",
       "The bread and meat on the top bar say how many days the food would feed everyone, counting what people carry. Under two days they turn red.",
@@ -12577,7 +12610,7 @@ function simStep(dt) {
     } else {
       c.anim = 1;
       if (Math.random() < dt * 0.25) c.facing = -c.facing;
-      autonomy(c, dt);
+      if (!runQueue(c)) autonomy(c, dt);
     }
   }
 }
@@ -14322,6 +14355,24 @@ function render(dt) {
   // the dissolve: the country fades up through the grass, and for a few notches
   // of the wheel you can see the town and the continent it stands in at once
   if (sAmt > 0) drawStratGround(sAmt);
+  if (selected && selected.queue && selected.queue.length) {  // the jobs he has queued, numbered, in the order he will take them
+    const pts = [[selected.x, selected.y]];
+    if (selected.task) pts.push([selected.task.x, selected.task.y]);
+    for (const t of selected.queue) pts.push([t.x, t.y]);
+    ctx.save();
+    ctx.strokeStyle = "rgba(201,168,106,0.7)"; ctx.lineWidth = 1.5 / zoom; ctx.setLineDash([5 / zoom, 4 / zoom]);
+    ctx.beginPath(); pts.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = `${Math.round(11 / zoom)}px monospace`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const r = 8 / zoom, off = selected.task ? 2 : 1;
+    selected.queue.forEach((t, i) => {
+      const [x, y] = pts[i + off];
+      ctx.fillStyle = "rgba(13,18,16,0.85)"; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#c9a86a"; ctx.stroke();
+      ctx.fillStyle = "#e8d8a8"; ctx.fillText(String(i + 1), x, y + 0.5 / zoom);
+    });
+    ctx.restore();
+  }
   if (lineDrag && lineGhost) {                                // the battle line being drawn
     ctx.globalAlpha = 0.8;
     ctx.strokeStyle = "#c9a86a"; ctx.lineWidth = 1.5 / zoom;
