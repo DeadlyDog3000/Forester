@@ -3987,7 +3987,9 @@ function finishConstruction(b) {
   // once the market stands they have a colony rather than a camp, and the
   // comforts are worth mentioning
   if (b.type === "market") lesson("comfort");
-  if (b.type === "cabin") for (const c of civs) if (!c.home && houseCiv(c)) toast(`${c.name} moves into the new cabin.`);
+  // (the homeless are offered the roof nearest the cabin just raised — without a place to start from they were
+  //  given the first cabin with room anywhere, a daughter town's or a conquered one's, and walked off to it)
+  if (b.type === "cabin") for (const c of civs) if (!c.home && houseCiv(c, b.x, b.y)) toast(`${c.name} moves into the new cabin.`);
 }
 function evictFromFootprint(b) {
   const r = inflate(bldgRect(b), 10);
@@ -5444,6 +5446,7 @@ function updateResearch(dt) {
   if (!research) return;
   research.t += dt;
   const t = TECH[research.id];
+  if (!t) { research = null; return; }
   if (research.t >= techTime(t)) {
     t.done = true;
     SFX.research();
@@ -6638,12 +6641,12 @@ const CALAMITIES = [
     line: n => `The peasantry of ${n.name} rises in revolt.`,
     sub: "Their armies are turned inward, and their borders lie open",
     hit: 4, years: 400,
-    fall: n => { n.atWar = false; n.warT = 0; n.revolt = true; } },
+    fall: n => { n.atWar = false; n.warT = 0; n.revolt = true; standDown(n); } },
   { id: "bankrupt", name: "Bankruptcy",
     line: n => `The treasury of ${n.name} is empty — the crown cannot pay its soldiers.`,
     sub: "Their war parties disband and go home",
     hit: 3, years: 330,
-    fall: n => { n.atWar = false; n.warT = 0; for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].nation === n.id && !raiders[i].garrison) raiders.splice(i, 1); } },
+    fall: n => { n.atWar = false; n.warT = 0; standDown(n); } },
   { id: "succession", name: "Succession",
     line: n => `The king of ${n.name} is dead, and the heir is disputed.`,
     sub: "Old friendships end and old grudges are remembered",
@@ -6929,13 +6932,9 @@ function updateCalamities(dt) {
   n.calT = cal.years;
   n.calName = cal.name.toLowerCase();
   cal.fall(n);
-  // a nation on its knees loses ground to its neighbours
-  if (cal.hit >= 3 && n.blobs && n.blobs.length) {
-    n.captured = n.captured || [];
-    const [bx, by] = n.blobs[0];
-    n.captured.push((bx + n.captured.length) + "," + by);
-    mapGrid = null;
-  }
+  // (a nation on its knees used to 'lose ground to its neighbours' by having a cell written into the list of the
+  //  ground YOU have taken — so a plague in Muscovy painted a patch of Russia in your colours and made it your
+  //  neighbour. The blow is in its strength, above; the map is no longer handed to you for it.)
   eventCard(cal.line(n), "event_war", cal.sub);
   mapInfoSync(); renderMap();
 }
@@ -6995,11 +6994,20 @@ function startNatWar() {
 function remainingCells(id) {
   return cellCount(id) - ((NATIONS[id].captured || []).length);
 }
+// A war that ends ends on your ground too: the crown's men in the field — a siege
+// ring round a town, a party marching on the gate, men holding a town they meant
+// to take — go home. Only bankruptcy used to do this, so peace bought for good
+// coin left the ring standing for ever, and a crown just paid off could still
+// annex the town it had been sitting outside. Garrisons of towns it holds stay.
+function standDown(n) {
+  for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].nation === n.id && !raiders[i].garrison) raiders.splice(i, 1);
+}
 function checkDefeated(id) {
   const n = NATIONS[id];
   if (n.defeated || remainingCells(id) > 0) return false;
   n.defeated = true;
   n.atWar = false;
+  standDown(n);
   natWars = natWars.filter(w => w.a !== id && w.b !== id);
   eventCard(`${n.name} has been destroyed.`, "event_defeat", "Its name passes into history");
   return true;
@@ -7010,10 +7018,11 @@ function cellCount(id) {
   return n;
 }
 
-function resolveBattle(war) {
+function resolveBattle(war, victor) {
   if (!mapGrid) buildMapGrid();
   const sa = natStrength(NATIONS[war.a]), sb = natStrength(NATIONS[war.b]);
-  const aWins = Math.random() < sa / (sa + sb);
+  // (a battle already won — a city stormed — is not rolled for again: the loser could take land off the victor)
+  const aWins = victor !== undefined ? victor === war.a : Math.random() < sa / (sa + sb);
   const winner = aWins ? war.a : war.b, loser = aWins ? war.b : war.a;
   // find loser cells on the mutual border
   const frontier = [];
@@ -7258,7 +7267,7 @@ document.getElementById("miWar").addEventListener("click", () => {
 document.getElementById("miPeace").addEventListener("click", () => {
   const n = NATIONS[mapSelNation];
   if (res.dm - 60 < treasuryFloor()) return toast("Peace costs 60 DM in reparations. The treasury cannot bear it.");
-  res.dm -= 60; n.atWar = false;
+  res.dm -= 60; n.atWar = false; standDown(n);
   toast(`Peace with ${n.name}, bought for 60 DM.`);
   mapInfoSync(); renderMap(); syncUI();
 });
@@ -7778,9 +7787,13 @@ function townLostTo(t, natId) {
     taken++;
   }
   if (!town.keep && foreign.length) { town.keep = foreign[foreign.length - 1]; town.keep.keep = true; }
+  for (let i = farms.length - 1; i >= 0; i--) if (townAt(farms[i].x, farms[i].y) === t) farms.splice(i, 1);   // (its fields go with it)
   // their soldiers stay as its garrison; your folk there are driven out
-  for (const r of raiders) if (r.nation === natId && Math.hypot(r.x - c.x, r.y - c.y) < 500) {
-    r.garrison = town; r.state = "patrol"; r.target = null; r.wallTarget = null;
+  // (the ring that took it stands at the edge of the clearing, past the old 500: every one of them is the garrison
+  //  now, and the town is off the list of the invested — it kept ringing 'still under siege' for a town not yours)
+  invested.delete(t);
+  for (const r of raiders) if (r.nation === natId && (r.investTown === t || Math.hypot(r.x - c.x, r.y - c.y) < 500)) {
+    r.garrison = town; r.state = "patrol"; r.target = null; r.wallTarget = null; r.investTown = undefined;
     r.camp = { x: t.x, y: t.y }; r.wpx = r.x; r.wpy = r.y;
   }
   for (const d of civs) if (Math.hypot(d.x - c.x, d.y - c.y) < 420) {
@@ -7868,11 +7881,13 @@ function foreignTownFalls(town) {
                      ...worldCell(town.x, town.y) });
   // and if it was one of the named cities of Europe, that city has fallen
   if (town.city) { const cc = cityById(town.city); if (cc) { cc.fallen = true; cc.siege = 0; cc.town = null; } }
-  for (const c of civs) if (!c.home) houseCiv(c);
+  for (const c of civs) if (!c.home) houseCiv(c, c.x, c.y);   // (each in the roof nearest where he stands)
   n.lost = (n.lost || 0) + 1;
+  // the ground round the town itself is yours (it was counted off the nation's first blob, so a second town
+  //  repeated cells of the first and some lay outside the country altogether)
   n.captured = n.captured || [];
-  const [bx, by] = n.blobs[0];
-  for (let i = 0; i < 4; i++) n.captured.push((bx + i % 2 + n.lost) + "," + (by + Math.floor(i / 2)));
+  { const wc = worldCell(town.x, town.y), have = new Set(n.captured);
+    for (let i = 0; i < 4; i++) { const k = (wc.mx + i % 2) + "," + (wc.my + Math.floor(i / 2)); if (!have.has(k)) { have.add(k); n.captured.push(k); } } }
   expandAround(town.x, town.y, 5);            // the ground is yours now
   SFX.coin();
   float(town.x, town.y - 90, `+${town.dm} DM +${town.weapons} wpn`, "#7da083");
@@ -8244,6 +8259,9 @@ function maybeOfferSettlement() {
     const list = document.getElementById("settleList");
     list.innerHTML = "";
     civs.forEach((c, i) => {
+      // (not a man away with the army, in a cell or a hospital bed, nor another town's sitting mayor: picked, they
+      //  became settlers of a town they could never walk to, and the other town lost its mayor)
+      if (c.afield || !canMarch(c) || settlements.some(st => st.mayor === c)) return;
       const row = document.createElement("label");
       row.style.cssText = "display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer;font-size:12px";
       row.innerHTML = `<input type="checkbox" data-idx="${i}"> ${esc(c.name)} — ${esc(profLabel(c.profession))}${c.home ? "" : " (homeless)"}`;
@@ -8263,7 +8281,7 @@ document.getElementById("settleNo").addEventListener("click", () => {
   toast("The scouts are told to wait. They will ask again.");
 });
 document.getElementById("settleGo").addEventListener("click", () => {
-  const chosen = [...document.querySelectorAll("#settleList input:checked")].map(i => civs[+i.dataset.idx]).filter(Boolean);
+  const chosen = [...document.querySelectorAll("#settleList input:checked")].map(i => civs[+i.dataset.idx]).filter(c => c && !c.afield && canMarch(c));
   if (!chosen.length) return toast("Someone has to go.");
   if (chosen.length >= civs.length) return toast("Someone has to stay behind, too.");
   const name = document.getElementById("settleName").value.trim() || "New Settlement";
@@ -9092,6 +9110,14 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 24, date: "31 October 2026", title: "Wars on the map end the way they should",
+    lines: [
+      "A column that breaks the enemy on the road, or loses the trail, marches itself home now. It used to stand in the wilds where it finished, with no city near it to recall it from, and those men were lost to the colony for good.",
+      "Making peace, a revolt or a court gone bankrupt calls that nation's raiders off your land. They used to fight on for a war that was over.",
+      "A town you take is yours to the walls: the ground around it, its farms and its siege lines all change hands, and the men who took it stand garrison there. Men raised in a captured town have a roof over them.",
+      "The jailed, the abed and the wounded being carried can no longer be marched off to war or sent to settle a new town.",
+      "An old save that was researching archery picks up with the matchlock, instead of the research panel stopping dead.",
+    ] },
   { v: 23, date: "31 October 2026", title: "The world can be held still and hurried along, and a dozen faults put right",
     lines: [
       "SPACE holds the world: the camera, the panels and every order still work, so a plan can be laid with the clock stopped. 1, 2 and 3 run it at one, two and three times its pace, and the top bar has HOLD 1x 2x 3x for the mouse. The faster paces step the world more than once a frame rather than in bigger strides, so nothing happens differently at three times — it only happens sooner.",
@@ -9768,7 +9794,10 @@ function loadGame() {
     zoom = Math.max(zoomFloor(), Math.min(2.4, zoom));
     if (d.tech.archery) TECH.matchlock.done = true;   // the bows of older colonies became muskets
     TECH.foraging.done = TECH.ownership.done = TECH.forging.done = true;
-    research = d.research;
+    // (research saved under a name the tree no longer has — the bows of older colonies — would throw on every
+    //  frame and freeze the game; the bow is the musket now, and anything else unknown is simply dropped)
+    { const rid = d.research && (d.research.id === "archery" ? "matchlock" : d.research.id);
+      research = rid && TECH[rid] && !TECH[rid].done ? Object.assign({}, d.research, { id: rid }) : null; }
     usedNames.clear(); for (const n of d.usedNames) usedNames.add(n);
     civs.length = 0;
     for (const cd of d.civs) {
@@ -11769,7 +11798,7 @@ function simStep(dt) {
         tell("build", `The ${bldgLabel(b)} stands whole again. ${c.name} rebuilt it.`);
         vignette("cabinDone");
         c.state = "idle"; c.task = null;
-        for (const cc of civs) if (!cc.home) houseCiv(cc);
+        for (const cc of civs) if (!cc.home) houseCiv(cc, b.x, b.y);
       }
     } else if (c.state === "buildingFarm") {
       c.workT += dt; c.anim += dt * 8;
@@ -12475,7 +12504,7 @@ function natColumnArrives(m) {
     dst.pop = Math.max(2, Math.round(dst.pop * 0.88));
     dst.wealth = Math.round(dst.wealth * 0.7);
     dst.siege = 0;
-    if (war) resolveBattle(war);
+    if (war) resolveBattle(war, m.nation);
     if (seen) notify({ icon: "⚔", cls: "war",
       text: `${NATIONS[m.nation].name} storms ${dst.name}.`,
       sub: `${NATIONS[dst.owner] ? NATIONS[dst.owner].name : "The defender"} loses the field — the walls are breached`,
@@ -12522,12 +12551,15 @@ const leagues = m => Math.max(1, Math.round(Math.hypot(m.tx - m.x, m.ty - m.y) /
 // `where` is either a city, which stands still and waits to be besieged, or an
 // enemy column, which does not — a chase is aimed at where the enemy is THIS
 // second, and is re-aimed every second until contact or until he is lost.
+// a man in a cell, a hospital bed or on a stretcher is not at liberty to march
+const canMarch = c => !isJailed(c) && c.state !== "abed" && c.state !== "borne";
 function sendArmy(where, men) {
+  men = (men || []).filter(canMarch);
   if (!where || !men.length) return null;
   const city = where.mx !== undefined ? where : null;
   const foe = city ? null : where;
   const q = city ? cityWorld(city) : { x: foe.x, y: foe.y };
-  for (const c of men) { c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
+  for (const c of men) { turnOut(c, true); c.afield = true; c.task = null; c.state = "idle"; c.post = null; }   // (out of any shelter first: his roof kept his name)
   const m = mkMarch({ kind: "army", side: "you", nation: null, x: CAPITAL_X, y: CAPITAL_Y,
                       tx: q.x, ty: q.y, men, str: men.length * 4,
                       target: city ? city.id : undefined, chase: foe ? foe.id : undefined,
@@ -12573,6 +12605,18 @@ function recallColumn(wx, wy, r = 900) {
   return m;
 }
 
+// A column whose work in the field is done (the enemy broken, the trail gone
+// cold) turns for home on its own, rather than standing about in the wilds
+// until somebody thinks to send for it.
+function marchHome(men, x, y) {
+  men = (men || []).filter(c => civs.includes(c) && canMarch(c));
+  if (!men.length) return null;
+  for (const c of men) { c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
+  return mkMarch({ kind: "army", side: "you", x, y, tx: CAPITAL_X, ty: CAPITAL_Y,
+                   men, str: men.length * 4, homeward: true,
+                   name: `your column, ${men.length} strong` });
+}
+
 // --- the road under them, one frame at a time ---
 function landMen(m, x, y) {
   (m.men || []).forEach((c, i) => {
@@ -12587,7 +12631,8 @@ function landMen(m, x, y) {
 }
 function arriveArmy(m) {
   // a column that lost every man on the way is not an army arriving anywhere
-  if (m.men && !m.men.some(c => civs.includes(c))) { m.men = null; return; }
+  // (a column with no one left in it — even one reloaded with its roll empty — arrives nowhere)
+  if (m.kind === "army" ? !m.men || !m.men.some(c => civs.includes(c)) : m.men && !m.men.some(c => civs.includes(c))) { m.men = null; return; }
   const city = m.target ? cityById(m.target) : null;
   if (m.homeward || !city) {
     landMen(m, m.tx, m.ty);
@@ -12617,10 +12662,10 @@ function fieldClash(m, foe) {
   // No enemy here, or he was last seen here and has since moved on — and a
   // company with nobody left in it has no business fighting anybody.
   if (!foe || Math.hypot(foe.x - m.x, foe.y - m.y) > CELL_W * 0.5 || !men.length) {
-    landMen(m, m.x, m.y);
-    if (men.length)
+    if (men.length && marchHome(men, m.x, m.y))
       notify({ icon: "⚑", cls: "you", text: "The trail is cold.",
-               sub: "Whoever you were chasing has gone on without them", x: m.x, y: m.y, z: 0.55 });
+               sub: "Whoever you were chasing has gone on; your men turn for home", x: m.x, y: m.y, z: 0.55 });
+    else landMen(m, m.x, m.y);
     return;
   }
   const mine = men.length * 4, theirs = foe.str;
@@ -12630,21 +12675,20 @@ function fieldClash(m, foe) {
     // a third of the company falls even in a victory
     const lost = Math.floor(men.length * (0.15 + Math.random() * 0.25));
     for (let i = 0; i < lost; i++) { const c = men[i]; c.afield = false; killCiv(c, `fell fighting ${nat ? nat.name : "the enemy"} on the road`); }
-    m.men = men.slice(lost);
-    landMen(m, m.x, m.y);
+    const home = marchHome(men.slice(lost), m.x, m.y);
+    if (!home) { m.men = men.slice(lost); landMen(m, m.x, m.y); }
     marches.splice(marches.indexOf(foe), 1);
     notify({ icon: "⚔", cls: "you", text: `The column of ${nat ? nat.name : "the enemy"} is broken.`,
-             sub: lost ? `${lost} of yours fell; the rest hold the road` : "Not a man of yours lost",
+             sub: (lost ? `${lost} of yours fell` : "Not a man of yours lost") + "; the rest march home",
              x: m.x, y: m.y, z: 0.5 });
     SFX.warHorn();
   } else {
     const lost = Math.max(1, Math.floor(men.length * (0.55 + Math.random() * 0.35)));
     for (let i = 0; i < lost; i++) { const c = men[i]; c.afield = false; killCiv(c, `fell fighting ${nat ? nat.name : "the enemy"} on the road`); }
-    m.men = men.slice(lost);
-    landMen(m, m.x, m.y);
+    if (!marchHome(men.slice(lost), m.x, m.y)) { m.men = men.slice(lost); landMen(m, m.x, m.y); }
     foe.str = Math.max(1, foe.str - Math.round(mine / 3));
     notify({ icon: "☠", cls: "bad", text: "Your column is thrown back.",
-             sub: `${lost} dead on the road; ${nat ? nat.name : "the enemy"} marches on`,
+             sub: `${lost} dead on the road; the rest fall back home`,
              x: m.x, y: m.y, z: 0.5 });
   }
   stratDirty = true;
@@ -12687,9 +12731,10 @@ function updateMarches(dt) {
       const foe = marchById(m.chase);
       if (foe && marchVisible(foe)) { m.tx = foe.x; m.ty = foe.y; m.lost = false; }
       else if (!foe) {
-        landMen(m, m.x, m.y);
+        const men = (m.men || []).filter(c => civs.includes(c));
+        if (!marchHome(men, m.x, m.y)) landMen(m, m.x, m.y);
         notify({ icon: "⚑", cls: "you", text: "The column you were chasing is gone.",
-                 sub: "Your men stand where the trail ended — order them home", x: m.x, y: m.y, z: 0.55 });
+                 sub: "Your men turn for home", x: m.x, y: m.y, z: 0.55 });
         marches.splice(marches.indexOf(m), 1); continue;
       } else if (!m.lost) { m.lost = true; }
     }
@@ -13311,7 +13356,7 @@ function cityLines(c) {
                              : `${n ? n.name : "—"}${c.cap ? " · capital" : ""}`);
   if (c.owner !== c.nation && NATIONS[c.nation]) out.push(`Built by ${NATIONS[c.nation].name} — taken since`);
   out.push(`${thousands(c.pop)} souls · ${WALL_WORD[Math.min(3, c.walls)]}`);
-  if (c.owner === "you") out.push("Its people pay your taxes now");
+  if (c.owner === "you") out.push("Its people are yours now");   // (it said they paid your taxes; nothing ever collected them)
   else if (knowsArmies(c.owner)) out.push(`Garrison ${c.garrison} · ${c.wealth} DM in the treasury`);
   else out.push("Garrison unknown — no agent in their country");
   if (knowsArts(c.owner)) out.push("Arts: " + nationArts(c.owner).join(", "));
@@ -13510,7 +13555,7 @@ function stratBarSync() {
 // ===== putting men on the road =====
 let marchTarget = null, marchChase = null;
 function openMarchModal(target) {
-  const men = civs.filter(c => !c.afield && isForce(c) && c.profession !== "police" && !c.rebel);
+  const men = civs.filter(c => !c.afield && isForce(c) && c.profession !== "police" && !c.rebel && canMarch(c));
   if (men.length < 4) return toast("A column needs at least 4 fighting men — soldiers, line infantry or cavalry.");
   const city = target.mx !== undefined ? target : null;
   marchTarget = city ? city.id : null;
