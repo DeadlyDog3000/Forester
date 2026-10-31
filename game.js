@@ -3236,6 +3236,7 @@ addEventListener("keydown", e => {
     if (k === "p") openFolk();
     if (k === "i") nextIdle();
     if (k === "n") toggleMinimap();
+    if (k === "f") toggleFollow();
     // the action bar from the keyboard: each key presses its button, so a key does exactly what a click does
     const BAR_KEYS = { b: "buildToggle", t: "techToggle", m: "mapToggle", o: "govToggle", k: "milToggle" };
     if (BAR_KEYS[k] && $(BAR_KEYS[k]) && !$(BAR_KEYS[k]).disabled) $(BAR_KEYS[k]).click();
@@ -3324,6 +3325,7 @@ function zoomAt(sx, sy, factor) {
   cam.x = wx - sx / zoom;
   cam.y = wy - sy / zoom;
   cancelFlight();
+  if (follow) { followCam.x = cam.x; followCam.y = cam.y; }   // (zooming in on the one you follow is not letting them go)
   stratBarSync();
 }
 canvas.addEventListener("wheel", e => {
@@ -9032,6 +9034,13 @@ addEventListener("mousemove", e => { if (MINI.drag) miniLook(e); });
 addEventListener("mouseup", () => { MINI.drag = false; });
 $("minimap").addEventListener("contextmenu", e => e.preventDefault());
 $("minimap").addEventListener("wheel", e => { e.preventDefault(); zoomAt(innerWidth / 2, innerHeight / 2, e.deltaY < 0 ? 1.12 : 0.89); }, { passive: false });
+let follow = null; const followCam = { x: 0, y: 0 };
+function toggleFollow() {
+  if (follow) { follow = null; return toast("The camera is your own again."); }
+  if (!selected || !civs.includes(selected) || selected.afield) return toast("Pick someone first, then F to follow them.");
+  follow = selected; cancelFlight(); followCam.x = cam.x; followCam.y = cam.y;
+  toast(`Following ${selected.name}. Move the camera or press F to stop.`);
+}
 // ===== the steward's list =====
 // The colony's troubles were all there to be found, each in its own place: a fire
 // on the map, a fever in the roll, a man without a roof in his own panel. The
@@ -9375,6 +9384,7 @@ const CHANGELOG = [
       "IDLE on the top bar counts the people with nothing to do, and I (or a click on the count) picks the next one and takes the camera to them.",
       "Above the map in the corner, a short list of what needs seeing to, worst first: a fire, raiders inside your borders, the starving, the sick out of bed, anyone without a roof, sites with no builder, ruins. Click a line to go to the next one of them.",
       "Rest the pointer on someone and the hint says what they are doing.",
+      "F follows the picked person with the camera, zoom and all, until you move the camera yourself.",
       "The Chronicle keeps the colony's books now. THE LEDGER charts people, food, logs, stone, the treasury and the mood over every year of the colony, with the winters shaded. Rest the pointer on a chart to read a day.",
       "The bread and meat on the top bar say how many days the food would feed everyone, counting what people carry. Under two days they turn red.",
       "Eight hours before every winter you are told who still has no roof, and whether the larder will hold out.",
@@ -11320,7 +11330,19 @@ function update(dt) {
   if (dn) cam.y += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   if (lf) cam.x -= CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   if (rt) cam.x += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
+  if (follow && (up || dn || lf || rt)) follow = null;
   edgePan(dt, fast);
+  // F: the camera keeps to the picked person until the camera is moved by hand,
+  // someone else is picked, or they leave the colony
+  if (follow) {
+    if (cam.x !== followCam.x || cam.y !== followCam.y || selected !== follow || !civs.includes(follow) || follow.afield || flight) follow = null;
+    else {
+      const k = 1 - Math.exp(-dt * 6);
+      cam.x += (follow.x - canvas.width / zoom / 2 - cam.x) * k;
+      cam.y += (follow.y - canvas.height / zoom / 2 - cam.y) * k;
+      followCam.x = cam.x; followCam.y = cam.y;
+    }
+  }
   if ((MINI.t += dt) >= MINI.every || !miniShown() !== ($("minimap").style.display === "none")) { MINI.t = 0; drawMinimap(); }
   if ((STEWARD.t += dt) >= 1 || (!stewardShown() && $("steward").style.display !== "none")) { STEWARD.t = 0; stewardSync(); }
   mouse.wx = cam.x + mouse.x / zoom;
