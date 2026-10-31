@@ -63,6 +63,78 @@ addEventListener("DOMContentLoaded", () => {
   if (foot) foot.textContent = VERSION_LABEL;
 });
 
+// ===== no emoji =====
+// The messages, the roll and the clock marked things with symbols — a warning
+// triangle, crossed swords, a skull, the sun and the moon — and every one of those
+// is drawn by the player's own system, which on a Mac and a phone means as a
+// glossy colour emoji from this century in the middle of a page of 1683. They are
+// swapped as they appear for small pixel marks drawn in the same grid as the
+// action bar's icons, which take the colour of the text around them. One watch on
+// the page catches them wherever they come from (a message, a label rebuilt every
+// second, a button) instead of every place that writes one remembering to. A
+// tooltip cannot hold a picture, so there the symbol is simply dropped.
+const GLYPH_SVG = {
+  warn: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="7" y="0" width="2" height="1"/><rect x="6" y="1" width="4" height="1"/><rect x="6" y="2" width="4" height="1"/><rect x="5" y="3" width="2" height="1"/><rect x="9" y="3" width="2" height="1"/><rect x="5" y="4" width="2" height="1"/><rect x="9" y="4" width="2" height="1"/><rect x="4" y="5" width="2" height="1"/><rect x="7" y="5" width="2" height="1"/><rect x="10" y="5" width="2" height="1"/><rect x="4" y="6" width="2" height="1"/><rect x="7" y="6" width="2" height="1"/><rect x="10" y="6" width="2" height="1"/><rect x="3" y="7" width="2" height="1"/><rect x="7" y="7" width="2" height="1"/><rect x="11" y="7" width="2" height="1"/><rect x="3" y="8" width="2" height="1"/><rect x="7" y="8" width="2" height="1"/><rect x="11" y="8" width="2" height="1"/><rect x="2" y="9" width="2" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="12" y="9" width="2" height="1"/><rect x="2" y="10" width="2" height="1"/><rect x="12" y="10" width="2" height="1"/><rect x="1" y="11" width="2" height="1"/><rect x="7" y="11" width="2" height="1"/><rect x="13" y="11" width="2" height="1"/><rect x="1" y="12" width="2" height="1"/><rect x="7" y="12" width="2" height="1"/><rect x="13" y="12" width="2" height="1"/><rect x="0" y="13" width="2" height="1"/><rect x="14" y="13" width="2" height="1"/><rect x="0" y="14" width="16" height="1"/><rect x="0" y="15" width="16" height="1"/></svg>',
+  swords: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="0" y="0" width="2" height="1"/><rect x="14" y="0" width="2" height="1"/><rect x="0" y="1" width="3" height="1"/><rect x="13" y="1" width="3" height="1"/><rect x="1" y="2" width="3" height="1"/><rect x="12" y="2" width="3" height="1"/><rect x="2" y="3" width="3" height="1"/><rect x="11" y="3" width="3" height="1"/><rect x="3" y="4" width="3" height="1"/><rect x="10" y="4" width="3" height="1"/><rect x="4" y="5" width="3" height="1"/><rect x="9" y="5" width="3" height="1"/><rect x="5" y="6" width="6" height="1"/><rect x="6" y="7" width="4" height="1"/><rect x="6" y="8" width="4" height="1"/><rect x="5" y="9" width="6" height="1"/><rect x="4" y="10" width="3" height="1"/><rect x="9" y="10" width="3" height="1"/><rect x="1" y="11" width="2" height="1"/><rect x="4" y="11" width="2" height="1"/><rect x="10" y="11" width="2" height="1"/><rect x="13" y="11" width="2" height="1"/><rect x="1" y="12" width="4" height="1"/><rect x="11" y="12" width="4" height="1"/><rect x="2" y="13" width="2" height="1"/><rect x="12" y="13" width="2" height="1"/><rect x="1" y="14" width="4" height="1"/><rect x="11" y="14" width="4" height="1"/><rect x="1" y="15" width="2" height="1"/><rect x="13" y="15" width="2" height="1"/></svg>',
+  snow: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="7" y="0" width="2" height="1"/><rect x="4" y="1" width="1" height="1"/><rect x="7" y="1" width="2" height="1"/><rect x="11" y="1" width="1" height="1"/><rect x="5" y="2" width="1" height="1"/><rect x="7" y="2" width="2" height="1"/><rect x="10" y="2" width="1" height="1"/><rect x="2" y="3" width="1" height="1"/><rect x="6" y="3" width="4" height="1"/><rect x="13" y="3" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="7" y="4" width="2" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="7" y="5" width="2" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="1" y="6" width="2" height="1"/><rect x="7" y="6" width="2" height="1"/><rect x="13" y="6" width="2" height="1"/><rect x="0" y="7" width="16" height="1"/><rect x="0" y="8" width="16" height="1"/><rect x="1" y="9" width="2" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="13" y="9" width="2" height="1"/><rect x="4" y="10" width="1" height="1"/><rect x="7" y="10" width="2" height="1"/><rect x="11" y="10" width="1" height="1"/><rect x="3" y="11" width="1" height="1"/><rect x="7" y="11" width="2" height="1"/><rect x="12" y="11" width="1" height="1"/><rect x="2" y="12" width="1" height="1"/><rect x="6" y="12" width="4" height="1"/><rect x="13" y="12" width="1" height="1"/><rect x="5" y="13" width="1" height="1"/><rect x="7" y="13" width="2" height="1"/><rect x="10" y="13" width="1" height="1"/><rect x="4" y="14" width="1" height="1"/><rect x="7" y="14" width="2" height="1"/><rect x="11" y="14" width="1" height="1"/><rect x="7" y="15" width="2" height="1"/></svg>',
+  skull: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="4" y="0" width="8" height="1"/><rect x="2" y="1" width="12" height="1"/><rect x="1" y="2" width="14" height="1"/><rect x="1" y="3" width="14" height="1"/><rect x="1" y="4" width="2" height="1"/><rect x="7" y="4" width="2" height="1"/><rect x="13" y="4" width="2" height="1"/><rect x="1" y="5" width="2" height="1"/><rect x="7" y="5" width="2" height="1"/><rect x="13" y="5" width="2" height="1"/><rect x="1" y="6" width="3" height="1"/><rect x="6" y="6" width="4" height="1"/><rect x="12" y="6" width="3" height="1"/><rect x="2" y="7" width="12" height="1"/><rect x="3" y="8" width="3" height="1"/><rect x="10" y="8" width="3" height="1"/><rect x="4" y="9" width="2" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="10" y="9" width="2" height="1"/><rect x="4" y="10" width="8" height="1"/><rect x="0" y="12" width="2" height="1"/><rect x="14" y="12" width="2" height="1"/><rect x="1" y="13" width="3" height="1"/><rect x="12" y="13" width="3" height="1"/><rect x="3" y="14" width="10" height="1"/><rect x="1" y="15" width="3" height="1"/><rect x="12" y="15" width="3" height="1"/></svg>',
+  scales: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="7" y="0" width="2" height="1"/><rect x="2" y="1" width="12" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="7" y="2" width="2" height="1"/><rect x="13" y="2" width="1" height="1"/><rect x="1" y="3" width="3" height="1"/><rect x="7" y="3" width="2" height="1"/><rect x="12" y="3" width="3" height="1"/><rect x="1" y="4" width="1" height="1"/><rect x="3" y="4" width="1" height="1"/><rect x="7" y="4" width="2" height="1"/><rect x="12" y="4" width="1" height="1"/><rect x="14" y="4" width="1" height="1"/><rect x="0" y="5" width="1" height="1"/><rect x="4" y="5" width="1" height="1"/><rect x="7" y="5" width="2" height="1"/><rect x="11" y="5" width="1" height="1"/><rect x="15" y="5" width="1" height="1"/><rect x="0" y="6" width="5" height="1"/><rect x="7" y="6" width="2" height="1"/><rect x="11" y="6" width="5" height="1"/><rect x="1" y="7" width="3" height="1"/><rect x="7" y="7" width="2" height="1"/><rect x="12" y="7" width="3" height="1"/><rect x="7" y="8" width="2" height="1"/><rect x="7" y="9" width="2" height="1"/><rect x="7" y="10" width="2" height="1"/><rect x="7" y="11" width="2" height="1"/><rect x="7" y="12" width="2" height="1"/><rect x="5" y="13" width="6" height="1"/><rect x="4" y="14" width="8" height="1"/></svg>',
+  hammer: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="1" width="12" height="1"/><rect x="0" y="2" width="14" height="1"/><rect x="0" y="3" width="14" height="1"/><rect x="1" y="4" width="5" height="1"/><rect x="8" y="4" width="5" height="1"/><rect x="6" y="5" width="2" height="1"/><rect x="6" y="6" width="2" height="1"/><rect x="6" y="7" width="2" height="1"/><rect x="6" y="8" width="2" height="1"/><rect x="6" y="9" width="2" height="1"/><rect x="6" y="10" width="2" height="1"/><rect x="6" y="11" width="2" height="1"/><rect x="6" y="12" width="2" height="1"/><rect x="6" y="13" width="2" height="1"/><rect x="5" y="14" width="4" height="1"/></svg>',
+  sun: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="7" y="0" width="2" height="1"/><rect x="1" y="1" width="1" height="1"/><rect x="7" y="1" width="2" height="1"/><rect x="14" y="1" width="1" height="1"/><rect x="2" y="2" width="1" height="1"/><rect x="7" y="2" width="2" height="1"/><rect x="13" y="2" width="1" height="1"/><rect x="3" y="3" width="1" height="1"/><rect x="6" y="3" width="4" height="1"/><rect x="12" y="3" width="1" height="1"/><rect x="5" y="4" width="6" height="1"/><rect x="4" y="5" width="8" height="1"/><rect x="3" y="6" width="10" height="1"/><rect x="0" y="7" width="4" height="1"/><rect x="5" y="7" width="8" height="1"/><rect x="14" y="7" width="2" height="1"/><rect x="0" y="8" width="2" height="1"/><rect x="3" y="8" width="10" height="1"/><rect x="14" y="8" width="2" height="1"/><rect x="3" y="9" width="10" height="1"/><rect x="4" y="10" width="8" height="1"/><rect x="5" y="11" width="6" height="1"/><rect x="3" y="12" width="1" height="1"/><rect x="6" y="12" width="4" height="1"/><rect x="12" y="12" width="1" height="1"/><rect x="2" y="13" width="1" height="1"/><rect x="7" y="13" width="2" height="1"/><rect x="13" y="13" width="1" height="1"/><rect x="1" y="14" width="1" height="1"/><rect x="7" y="14" width="2" height="1"/><rect x="14" y="14" width="1" height="1"/><rect x="7" y="15" width="2" height="1"/></svg>',
+  moon: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="5" y="0" width="6" height="1"/><rect x="3" y="1" width="5" height="1"/><rect x="2" y="2" width="4" height="1"/><rect x="1" y="3" width="4" height="1"/><rect x="1" y="4" width="3" height="1"/><rect x="0" y="5" width="4" height="1"/><rect x="0" y="6" width="4" height="1"/><rect x="0" y="7" width="4" height="1"/><rect x="0" y="8" width="4" height="1"/><rect x="0" y="9" width="4" height="1"/><rect x="1" y="10" width="3" height="1"/><rect x="1" y="11" width="4" height="1"/><rect x="2" y="12" width="4" height="1"/><rect x="3" y="13" width="5" height="1"/><rect x="5" y="14" width="6" height="1"/></svg>',
+  flag: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="0" width="2" height="1"/><rect x="1" y="1" width="12" height="1"/><rect x="1" y="2" width="13" height="1"/><rect x="1" y="3" width="14" height="1"/><rect x="1" y="4" width="13" height="1"/><rect x="1" y="5" width="12" height="1"/><rect x="1" y="6" width="10" height="1"/><rect x="1" y="7" width="2" height="1"/><rect x="1" y="8" width="2" height="1"/><rect x="1" y="9" width="2" height="1"/><rect x="1" y="10" width="2" height="1"/><rect x="1" y="11" width="2" height="1"/><rect x="1" y="12" width="2" height="1"/><rect x="1" y="13" width="2" height="1"/><rect x="0" y="14" width="4" height="1"/><rect x="0" y="15" width="4" height="1"/></svg>',
+  fire: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="7" y="0" width="1" height="1"/><rect x="6" y="1" width="2" height="1"/><rect x="6" y="2" width="3" height="1"/><rect x="5" y="3" width="4" height="1"/><rect x="12" y="3" width="1" height="1"/><rect x="5" y="4" width="5" height="1"/><rect x="11" y="4" width="2" height="1"/><rect x="4" y="5" width="9" height="1"/><rect x="3" y="6" width="10" height="1"/><rect x="3" y="7" width="4" height="1"/><rect x="8" y="7" width="6" height="1"/><rect x="2" y="8" width="4" height="1"/><rect x="9" y="8" width="5" height="1"/><rect x="2" y="9" width="3" height="1"/><rect x="10" y="9" width="4" height="1"/><rect x="2" y="10" width="3" height="1"/><rect x="7" y="10" width="1" height="1"/><rect x="10" y="10" width="4" height="1"/><rect x="2" y="11" width="3" height="1"/><rect x="6" y="11" width="3" height="1"/><rect x="10" y="11" width="3" height="1"/><rect x="3" y="12" width="2" height="1"/><rect x="6" y="12" width="3" height="1"/><rect x="10" y="12" width="2" height="1"/><rect x="4" y="13" width="7" height="1"/><rect x="5" y="14" width="5" height="1"/></svg>',
+  climb: '<svg class="gl" viewBox="0 0 16 16" aria-hidden="true" shape-rendering="crispEdges" fill="currentColor"><rect x="1" y="0" width="2" height="1"/><rect x="11" y="0" width="2" height="1"/><rect x="1" y="1" width="12" height="1"/><rect x="1" y="2" width="2" height="1"/><rect x="11" y="2" width="2" height="1"/><rect x="1" y="3" width="2" height="1"/><rect x="11" y="3" width="2" height="1"/><rect x="1" y="4" width="12" height="1"/><rect x="1" y="5" width="2" height="1"/><rect x="11" y="5" width="2" height="1"/><rect x="1" y="6" width="2" height="1"/><rect x="11" y="6" width="2" height="1"/><rect x="1" y="7" width="12" height="1"/><rect x="1" y="8" width="2" height="1"/><rect x="11" y="8" width="2" height="1"/><rect x="1" y="9" width="2" height="1"/><rect x="11" y="9" width="2" height="1"/><rect x="1" y="10" width="12" height="1"/><rect x="1" y="11" width="2" height="1"/><rect x="11" y="11" width="2" height="1"/><rect x="1" y="12" width="2" height="1"/><rect x="11" y="12" width="2" height="1"/><rect x="1" y="13" width="12" height="1"/><rect x="1" y="14" width="2" height="1"/><rect x="11" y="14" width="2" height="1"/><rect x="1" y="15" width="2" height="1"/><rect x="11" y="15" width="2" height="1"/></svg>'
+};
+const GLYPH_OF = { "\u26A0": "warn", "\u2694": "swords", "\u2744": "snow", "\u2620": "skull", "\u2696": "scales",
+  "\u2692": "hammer", "\u2600": "sun", "\u263E": "moon", "\u2691": "flag", "\u{1F525}": "fire", "\u{1F9B5}": "climb" };
+const GLYPH_TEXT = { "\u25B6": "\u00BB", "\u25C0": "\u00AB" };      // the play arrows, as plain guillemets
+const GLYPH_RE = /(?:\u26A0|\u2694|\u2744|\u2620|\u2696|\u2692|\u2600|\u263E|\u2691|\u{1F525}|\u{1F9B5}|\u25B6|\u25C0)\uFE0F?/gu;
+function swapGlyphText(node) {
+  const t = node.nodeValue;
+  GLYPH_RE.lastIndex = 0;
+  if (!GLYPH_RE.test(t)) return;
+  const par = node.parentNode;
+  if (!par || par.nodeName === "SCRIPT" || par.nodeName === "STYLE" || par.nodeName === "TEXTAREA" || par.nodeName === "OPTION" || par.nodeName === "TITLE") {
+    node.nodeValue = t.replace(GLYPH_RE, m => GLYPH_TEXT[m[0]] || "");
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  let last = 0;
+  t.replace(GLYPH_RE, (m, at) => {
+    if (at > last) frag.appendChild(document.createTextNode(t.slice(last, at)));
+    const ch = m.replace("\uFE0F", "");
+    if (GLYPH_TEXT[ch]) frag.appendChild(document.createTextNode(GLYPH_TEXT[ch]));
+    else { const i = document.createElement("i"); i.className = "glw"; i.innerHTML = GLYPH_SVG[GLYPH_OF[ch]]; frag.appendChild(i); }
+    last = at + m.length;
+    return m;
+  });
+  if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+  par.replaceChild(frag, node);
+}
+function swapGlyphs(root) {
+  if (root.nodeType === 3) return swapGlyphText(root);
+  if (root.nodeType !== 1) return;
+  for (const el of [root, ...root.querySelectorAll("[title]")]) {
+    const ti = el.getAttribute && el.getAttribute("title");
+    if (ti) { GLYPH_RE.lastIndex = 0; if (GLYPH_RE.test(ti)) el.setAttribute("title", ti.replace(GLYPH_RE, m => GLYPH_TEXT[m[0]] || "").replace(/^\s+/, "")); }
+  }
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const hits = [];
+  for (let n = w.nextNode(); n; n = w.nextNode()) { GLYPH_RE.lastIndex = 0; if (GLYPH_RE.test(n.nodeValue)) hits.push(n); }
+  for (const n of hits) swapGlyphText(n);
+}
+addEventListener("DOMContentLoaded", () => {
+  swapGlyphs(document.body);
+  new MutationObserver(muts => {
+    for (const m of muts) {
+      if (m.type === "characterData") swapGlyphText(m.target);
+      else if (m.type === "attributes") swapGlyphs(m.target);
+      else for (const n of m.addedNodes) swapGlyphs(n);
+    }
+  }).observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["title"] });
+});
+
 const esc = s => String(s).replace(/[&<>"']/g,
   ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
@@ -1791,6 +1863,17 @@ const soldierGroup = () =>
     ? selGroup.filter(s => civs.includes(s) && groupable(s))
     : (selected ? [selected] : []);
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
+// ===== the pace of the world =====
+// A colony sim lives or dies by being able to wait: for a field to ripen, a wall
+// to rise, a winter to pass. The world only ever ran at one speed, so the long
+// stretches of a colony that is simply working were sat through in real time.
+// SPACE holds the world still (the camera, the panels and every order still
+// work, so a plan can be laid with the clock stopped) and 1, 2 and 3 run it at
+// one, two and three times its pace. The faster paces step the simulation more
+// than once a frame rather than with a longer step, so nothing in it — a
+// musket's reload, a fire's spread, a walk across a doorway — behaves any
+// differently at three times than at one; it just happens sooner.
+let simSpeed = 1, simSpeedHeld = 1;
 // ===== the clock of the world =====
 // An hour is a minute. The day is twenty-four of them: twelve hours of working
 // light from six in the morning, the sun going down through six, full dark from
@@ -3063,6 +3146,21 @@ const typingInto = e => {
   return t.isContentEditable === true || t.tagName === "INPUT" ||
          t.tagName === "TEXTAREA" || t.tagName === "SELECT";
 };
+function setSimSpeed(n) {
+  n = Math.max(0, Math.min(3, n | 0));
+  if (n > 0) simSpeedHeld = n;
+  if (n === simSpeed) return;
+  simSpeed = n;
+  syncSpeedUI();
+  try { SFX.click(); } catch (e) {}
+}
+function syncSpeedUI() {
+  const box = $("rSpeed");
+  if (box) for (const b of box.querySelectorAll("b[data-s]")) b.classList.toggle("on", +b.dataset.s === simSpeed);
+  const stamp = $("heldStamp");
+  if (stamp) stamp.style.display = gameState === "playing" && simSpeed === 0 && !paused ? "block" : "none";
+}
+$("rSpeed").addEventListener("click", e => { const b = e.target.closest("b[data-s]"); if (b) setSimSpeed(+b.dataset.s); });
 addEventListener("keydown", e => {
   if (typingInto(e)) {
     if (e.key === "Escape") e.target.blur();   // a way out that never traps the caret
@@ -3085,6 +3183,8 @@ addEventListener("keydown", e => {
   // as the buttons — a picked company is ordered as a company.
   if (gameState === "playing" && !paused) {
     const k = e.key.toLowerCase();
+    if (e.code === "Space") { e.preventDefault(); setSimSpeed(simSpeed ? 0 : simSpeedHeld); }
+    if (k === "1" || k === "2" || k === "3") setSimSpeed(+k);
     if (k === "c") openChronicle();
     if (k === "p") openFolk();
     if (k === "?" || k === "/") openHelp();
@@ -10348,6 +10448,7 @@ function gameOver(chosen) {
 }
 
 function syncUI() {
+  syncSpeedUI();
   stratBarSync();                    // how high you are, and how high you may go
 
   clearFaithCensus();          // whatever just changed, the panels read it fresh
@@ -10795,7 +10896,9 @@ function update(dt) {
   updateFlight(dt);
 
   if (paused) return;
-
+  for (let i = 0; i < simSpeed; i++) simStep(dt);     // (none at all while the world is held)
+}
+function simStep(dt) {
   volleySounds = 0;      // the frame's ration of musket reports
   worldT += dt;
   rescueStuck(dt);

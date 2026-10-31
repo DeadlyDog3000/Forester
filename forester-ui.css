@@ -1550,3 +1550,21 @@ body.touch #touchPad   { display: flex; }
 #pactVerdict.pactYes { color: var(--fx-ink-bright); border-left-color: var(--fx-line-live); }
 #pactVerdict.pactNo  { color: var(--fx-ink-3);      border-left-color: #8e5a5a; }
 #pactStock { margin-top: 6px; font-size: var(--fx-t-small); color: var(--fx-ink-5); line-height: 1.45; }
+
+/* ===== the pace of the world: HOLD 1x 2x 3x in the top bar, and the stamp while it is held ===== */
+#hud .spd { display: inline-flex; gap: 2px; margin-left: 6px; }
+#hud .spd b { cursor: pointer; padding: 1px 6px; border: 1px solid rgba(201,168,106,0.25); color: #8a9a8e; user-select: none; }
+#hud .spd b:hover { color: var(--fx-gold); border-color: rgba(201,168,106,0.6); }
+#hud .spd b.on { color: #14110b; background: var(--fx-gold); border-color: var(--fx-gold); }
+#heldStamp { display: none; position: fixed; top: 62px; right: 14px; z-index: 40; pointer-events: none; /* (under the pace buttons, clear of the tutorial and the messages) */
+  padding: 6px 18px; background: rgba(12,14,12,0.82); border: 1px solid rgba(201,168,106,0.55); color: var(--fx-gold);
+  letter-spacing: 3px; font-size: 12px; text-transform: uppercase; }
+#heldStamp span { color: #8a9a8e; letter-spacing: 1px; }
+
+/* ===== the stores in the top bar: each by its own picture (the same goods the colonists carry), the name on hover ===== */
+#hud .res { display: inline-flex; align-items: center; gap: 3px; cursor: default; }
+#hud .ri { width: 18px; height: 18px; object-fit: contain; flex: none; filter: drop-shadow(0 1px 0 rgba(0,0,0,0.6)); }
+
+/* the pixel marks that stand in for emoji in text: the size of a capital, the colour of the words */
+.glw { display: inline-block; width: 1em; height: 1em; vertical-align: -0.14em; line-height: 0; }
+.glw .gl { width: 100%; height: 100%; display: block; }
