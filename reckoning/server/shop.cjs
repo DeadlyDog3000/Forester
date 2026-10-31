@@ -140,6 +140,7 @@ module.exports = function makeShop({ dataDir, envFile, log = () => {} }) {
   // (a full refund, or a dispute, takes the key back)
   async function paid(key, force = false) {
     const r = book.keys[key]; if (!r) return false;
+    if (r.press) return !r.revoked;   // (a key given away, to the press or a player who makes videos: nothing at Stripe to ask)
     const wait = r.paid ? 86400000 : 5000;
     if (!force && Date.now() - (r.checked || 0) < wait) return r.paid && !r.revoked;
     r.checked = Date.now();
@@ -284,6 +285,17 @@ button,a.b{display:inline-block;margin:4px;padding:9px 16px;border:1px solid #c8
       if (tooMany(req, "x", 30, 60000)) return json(res, 429, { error: "too many" }), true;
       if (!tokenOk(u.searchParams.get("t"))) return json(res, 403, { error: "no" }), true;
       res.setHeader("Cache-Control", "no-store"); backfill(); return json(res, 200, sales()), true;
+    }
+    // (keys given away, to creators and the press: made, listed and taken back by the shop's keeper alone. Never sales —
+    //  they carry no Stripe checkout, so the counter never sees them)
+    if (p === "/shop/press") {
+      if (tooMany(req, "x", 30, 60000)) return json(res, 429, { error: "too many" }), true;
+      if (!tokenOk(u.searchParams.get("t"))) return json(res, 403, { error: "no" }), true;
+      res.setHeader("Cache-Control", "no-store");
+      const who = String(u.searchParams.get("who") || "").replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 80), off = String(u.searchParams.get("revoke") || "").trim().toUpperCase();
+      if (off) { const r = book.keys[off]; if (!r || !r.press) return json(res, 404, { error: "no such key" }), true; r.revoked = true; save(); return json(res, 200, { revoked: off }), true; }
+      if (who) { const key = mintKey(); book.keys[key] = { s: "press", press: who, at: Date.now(), paid: true, checked: 0, insts: [] }; save(); log(`shop: a key given to ${who}`); return json(res, 200, { key, who }), true; }
+      return json(res, 200, { keys: Object.entries(book.keys).filter(([, r]) => r.press).map(([key, r]) => ({ key, who: r.press, at: r.at, used: (r.insts || []).length, revoked: !!r.revoked })) }), true;
     }
     if (!p.startsWith("/shop/")) return false;
     if (!isOn()) { if (p === "/shop/buy" || p === "/shop/key") page(res, 503, "The shop isn't open yet", `<h1>The shop isn't open yet</h1><p>Forester: Reckoning can't be bought just yet. Check back soon.</p>`); else json(res, 503, { error: "the shop isn't open" }); return true; }
