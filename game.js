@@ -10674,12 +10674,23 @@ function storeTrends(ledger) {
     while (h.length > 1 && worldT - h[1].t >= 60) h.shift();
   }
   const old = h[0], span = worldT - old.t;
+  // How long the larder lasts: everyone eats three meals a day (a meal is a loaf
+  // or a cut of meat, see eat()), and what they carry in their packs counts too.
+  // The number that matters before a winter, worked out for you.
+  const home = ledger === res, mouths = home ? civs.length : 0;
+  const food = (ledger.bread || 0) + (ledger.meat || 0) + (home ? civs.reduce((n, c) => n + (c.inv.bread || 0) + (c.inv.meat || 0), 0) : 0);
+  const days = mouths ? food / (mouths * HUNGER_PER_DAY / 35) : Infinity;
+  const larder = mouths ? (days < 1 ? " · the larder is nearly bare: under a day's food for everyone"
+                                    : ` · with what is carried, bread and meat feed everyone about ${days < 10 ? Math.floor(days * 2) / 2 : Math.round(days)} days`) : "";
   for (const [id, k, name] of TREND_KEYS) {
     const box = $(id) && $(id).parentElement; if (!box) continue;
     const now = ledger[k] || 0, d = Math.round((now - old.v[k]) * 10) / 10;
     const trend = span < 20 ? "" : d > 0 ? ` · up ${d} in the last minute` : d < 0 ? ` · down ${-d} in the last minute` : " · steady over the last minute";
-    const title = `${name}: ${Math.round(now * 10) / 10} in store${trend}`;
+    const title = `${name}: ${Math.round(now * 10) / 10} in store${trend}${k === "bread" || k === "meat" ? larder : ""}`;
     if (box.title !== title) box.title = title;
+    // (under two days of food, the bread and the meat on the bar go red —
+    //  not on the first day, though: every colony begins with an empty larder and two people foraging)
+    if (k === "bread" || k === "meat") box.classList.toggle("short", home && mouths > 0 && days < 2 && worldT > 3 * HOUR + DAY);
   }
 }
 function syncUI() {

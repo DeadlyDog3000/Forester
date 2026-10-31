@@ -1598,3 +1598,10 @@ body.touch #touchPad   { display: flex; }
 .lgCursor { stroke: #9ab0a2; stroke-width: 1; stroke-dasharray: 2 2; vector-effect: non-scaling-stroke; }
 .lgTick { fill: #5a6b60; font-size: 9px; text-anchor: middle; }
 .ledgerTip { visibility: hidden; position: absolute; right: 4px; top: 22px; padding: 2px 6px; font-size: 11px; color: #cfd8d3; background: rgba(13,18,16,0.92); border: 1px solid #3a5243; pointer-events: none; }
+
+/* under two days of food left: the bread and meat on the bar say so */
+#hud .res.short b { color: #d86a5a; }
+#hud .res.short { animation: shortPulse 2.4s ease-in-out infinite; }
+@keyframes shortPulse { 50% { background: rgba(216,106,90,0.14); } }
+@media (prefers-reduced-motion: reduce) { #hud .res.short { animation: none; background: rgba(216,106,90,0.14); } }
+body.noMotion #hud .res.short { animation: none; background: rgba(216,106,90,0.14); }
