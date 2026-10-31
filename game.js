@@ -9342,6 +9342,7 @@ const CHANGELOG = [
       "Fixed: a quarrel or a rising could stand a prisoner up in his cell, never to be released, or a patient out of his bed.",
       "Fixed: on a fast screen, people wading through snow were taken for stuck and dropped their work, and patrols turned twice as often.",
       "Fixed: moving a wall or a lamp no longer claims new ground.",
+      "Fixed: when the browser refused to keep the save (its storage full or turned off), you were never told. Now a notice says so and points to Save to a File.",
       "Fixed: a reload forgot an offended court, a request still being weighed, missed caravans, and how cold a man had grown.",
       "C and P close the Chronicle and the Roll again, as well as opening them.",
     ] },
@@ -10248,7 +10249,18 @@ function loadGame() {
   }
 }
 
-setInterval(saveGame, 10000);
+// The autosave failing used to be a line in the console and nothing else: the
+// browser's store full or shut, and the player went on building a colony that was
+// not being kept. Now they are told, once every five minutes while it lasts.
+let saveFailWarned = -1e9;
+setInterval(() => {
+  if (saveGame() !== false) return;
+  if (performance.now() - saveFailWarned < 300000) return;
+  saveFailWarned = performance.now();
+  notify({ icon: "⚠", cls: "bad", text: "The browser would not keep the save.",
+           sub: "Its storage is full or turned off. Save to a File (in the pause menu) to keep this colony.",
+           x: CAPITAL_X, y: CAPITAL_Y, z: Math.max(zoomFloor(), 0.6) });
+}, 10000);
 addEventListener("pagehide", saveGame);
 
 // --- milestone vignettes: the story writes itself as the colony grows ---
