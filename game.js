@@ -1771,7 +1771,7 @@ const SETTINGS_DEFAULT = Object.freeze({
   master: 0.5, musicVol: 1, sfxVol: 1,
   music: true, battle: true, sfx: true, ambient: true, march: true,
   floaters: true, labels: true, smoke: true, night: true, shadows: true, motion: true,
-  camSpeed: 1, edgePan: true, hints: true, marchTune: "grenadier",
+  camSpeed: 1, edgePan: true, hints: true, marchTune: "grenadier", minimap: true,
 });
 // (the store is read and written guarded: a browser with storage turned off throws
 //  on the read, and a mangled settings string on the parse, and either left a blank page with no menu)
@@ -3211,6 +3211,7 @@ addEventListener("keydown", e => {
     if (k === "c") openChronicle();
     if (k === "p") openFolk();
     if (k === "i") nextIdle();
+    if (k === "n") toggleMinimap();
     // the action bar from the keyboard: each key presses its button, so a key does exactly what a click does
     const BAR_KEYS = { b: "buildToggle", t: "techToggle", m: "mapToggle", o: "govToggle", k: "milToggle" };
     if (BAR_KEYS[k] && $(BAR_KEYS[k]) && !$(BAR_KEYS[k]).disabled) $(BAR_KEYS[k]).click();
@@ -5844,7 +5845,7 @@ const SET_SLIDERS = [["setMaster", "master", 100], ["setMusicVol", "musicVol", 1
 const SET_TOGGLES = [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
                      ["setShadows","shadows"],["setNight","night"],["setSmoke","smoke"],["setLabels","labels"],
                      ["setFloaters","floaters"],["setMotion","motion"],
-                     ["setEdgePan","edgePan"],["setHints","hints"]];
+                     ["setEdgePan","edgePan"],["setHints","hints"],["setMinimap","minimap"]];
 function syncSettings() {
   for (const [id, key, mul] of SET_SLIDERS) {
     const el = $(id); if (!el) continue;
@@ -8916,6 +8917,73 @@ $("reignEnd").addEventListener("click", () => {
 let chronFilter = new Set();          // empty means everything
 let chronShowing = "log";          // "log", "ambitions" or "ledger"
 
+// ===== the minimap =====
+// The camera shows a clearing; the colony is a parish. Wolves, raiders and the
+// tree line all live just off the edge of the screen, and the only way to look
+// was to go there. The corner map shows four views' worth of ground around the
+// camera: woods, your borders, your buildings and people, and in red anyone who
+// means you harm. A click (or a drag) on it moves the camera there. N hides it.
+const MINI = { w: 200, h: 140, every: 0.25, t: 0, drag: false };
+function miniSpan() { const vw = canvas.width / zoom; return Math.max(2400, vw * 3); }
+function miniShown() { return settings.minimap && gameState === "playing" && stratAmt() < 0.05; }
+function drawMinimap() {
+  const cv = $("minimap"); if (!cv) return;
+  const show = miniShown();
+  cv.style.display = show ? "block" : "none";
+  if (!show) return;
+  const dpr = Math.min(2, devicePixelRatio || 1), W = MINI.w, H = MINI.h;
+  if (cv.width !== W * dpr) { cv.width = W * dpr; cv.height = H * dpr; }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const span = miniSpan(), k = W / span, spanY = H / k;
+  const cx = cam.x + canvas.width / zoom / 2, cy = cam.y + canvas.height / zoom / 2;
+  const x0 = cx - span / 2, y0 = cy - spanY / 2;
+  const P = (x, y) => [(x - x0) * k, (y - y0) * k];
+  g.fillStyle = "#1a2a1e"; g.fillRect(0, 0, W, H);
+  // your ground
+  g.fillStyle = "rgba(125,160,131,0.16)";
+  const tc = TCELL * k;
+  for (const key of territory) {
+    const [tx, ty] = key.split(",").map(Number), [px, py] = P(tx * TCELL, ty * TCELL);
+    if (px > -tc && py > -tc && px < W && py < H) g.fillRect(px, py, tc + 0.5, tc + 0.5);
+  }
+  // the woods: only chunks the world has already made (the map never invents ground)
+  g.fillStyle = "#2f4a35";
+  const [ca, cb] = chunkOf(x0, y0), [cc, cd] = chunkOf(x0 + span, y0 + spanY);
+  for (let j = cb; j <= cd; j++) for (let i = ca; i <= cc; i++) {
+    const ch = chunks.get(chunkKey(i, j)); if (!ch) continue;
+    for (const t of ch.trees) if (t.alive) { const [px, py] = P(t.x, t.y); g.fillRect(px - 0.75, py - 0.75, 1.5, 1.5); }
+    g.fillStyle = "#6f7a74";
+    for (const st of ch.stones) if (st.alive) { const [px, py] = P(st.x, st.y); g.fillRect(px - 0.75, py - 0.75, 1.5, 1.5); }
+    g.fillStyle = "#2f4a35";
+  }
+  const dot = (x, y, r, col) => { const [px, py] = P(x, y); if (px < -4 || py < -4 || px > W + 4 || py > H + 4) return; g.fillStyle = col; g.fillRect(px - r, py - r, r * 2, r * 2); };
+  for (const f of farms) dot(f.x, f.y, 2, "#9a8a4a");
+  for (const b of buildings) dot(b.x, b.y, b.type === "wall" || b.type === "gate" ? 1.2 : 2.2, b.fire ? "#e07a3a" : b.type === "wall" || b.type === "gate" ? "#9aa49e" : "#c9a86a");
+  for (const b of foreign) dot(b.x, b.y, 2.2, "#b0564a");
+  for (const cp of camps) dot(cp.x, cp.y, 3, "#d86a5a");
+  for (const c of civs) if (!c.afield) dot(c.x, c.y, 1.2, isForce(c) ? "#8fb4d8" : "#e8e2d0");
+  for (const r of raiders) dot(r.x, r.y, 1.6, "#ff6a55");
+  // where the camera is looking
+  const [vx, vy] = P(cam.x, cam.y);
+  g.strokeStyle = "rgba(232,226,208,0.85)"; g.lineWidth = 1;
+  g.strokeRect(Math.round(vx) + 0.5, Math.round(vy) + 0.5, Math.round(canvas.width / zoom * k), Math.round(canvas.height / zoom * k));
+}
+function miniLook(e) {
+  const cv = $("minimap"), r = cv.getBoundingClientRect();
+  const span = miniSpan(), k = r.width / span, spanY = r.height / k;
+  const cx = cam.x + canvas.width / zoom / 2, cy = cam.y + canvas.height / zoom / 2;
+  const wx = cx - span / 2 + (e.clientX - r.left) / k, wy = cy - spanY / 2 + (e.clientY - r.top) / k;
+  cancelFlight();
+  cam.x = wx - canvas.width / zoom / 2; cam.y = wy - canvas.height / zoom / 2;
+  drawMinimap();
+}
+$("minimap").addEventListener("mousedown", e => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); MINI.drag = true; miniLook(e); });
+addEventListener("mousemove", e => { if (MINI.drag) miniLook(e); });
+addEventListener("mouseup", () => { MINI.drag = false; });
+$("minimap").addEventListener("contextmenu", e => e.preventDefault());
+$("minimap").addEventListener("wheel", e => { e.preventDefault(); zoomAt(innerWidth / 2, innerHeight / 2, e.deltaY < 0 ? 1.12 : 0.89); }, { passive: false });
+function toggleMinimap() { settings.minimap = !settings.minimap; saveSettings(); syncSettings(); drawMinimap(); toast(settings.minimap ? "The map in the corner is back. N hides it." : "The map in the corner is put away. N brings it back."); }
+
 // ===== the ledger: the colony's numbers over the years =====
 // The top bar says what there is now and the store tooltips what it has done in
 // the last minute. Neither says whether the colony is better off than it was two
@@ -11120,6 +11188,7 @@ function update(dt) {
   if (lf) cam.x -= CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   if (rt) cam.x += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   edgePan(dt, fast);
+  if ((MINI.t += dt) >= MINI.every || !miniShown() !== ($("minimap").style.display === "none")) { MINI.t = 0; drawMinimap(); }
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
   // The woods have a voice now, and it answers to the season, the hour, the

@@ -57,6 +57,7 @@
     <div id="hint">WASD / arrows: camera &middot; SPACE: hold the world &middot; 1 2 3: its pace &middot; B T O K M: the bar &middot; I: the next idle hand &middot; + &minus;: zoom &middot; P: the roll of the colony &middot; C: the chronicle &middot; H: send the hurt to hospital &middot; G: hand goods to storage &middot; right-click: cancel &amp; deselect</div>
   </div>
 
+  <canvas id="minimap" width="200" height="140" title="The country around you. Click or drag to look there; N hides it" style="display:none"></canvas>
   <div id="heldStamp">THE WORLD IS HELD &middot; <span>SPACE to let it run</span></div>
 
   <div id="eventCard">
@@ -345,6 +346,7 @@
     <div class="helpRow deskOnly"><b>1 2 3</b><span>Run the world at one, two or three times its pace.</span></div>
     <div class="helpRow deskOnly"><b>B T O K M</b><span>Build, Research, Government, Military and the Map, as the buttons along the bottom.</span></div>
     <div class="helpRow deskOnly"><b>I</b><span>Go to the next person with nothing to do, and pick them. The IDLE count on the top bar does the same with a click.</span></div>
+    <div class="helpRow deskOnly"><b>N</b><span>Show or hide the map in the corner: the country around the camera, your people, your buildings and anyone coming for them, in red. Click or drag on it to look somewhere else.</span></div>
     <div class="helpRow deskOnly"><b>H</b><span>Send the picked civilian to a hospital bed.</span></div>
     <div class="helpRow deskOnly"><b>G</b><span>Hand what they are carrying to the town store.</span></div>
     <div class="helpRow deskOnly"><b>C</b><span>The Chronicle — everything that has happened here.</span></div>
@@ -398,6 +400,7 @@
       <div class="setRow"><span>Camera speed</span><span class="setVal"><input type="range" id="setCam" min="50" max="200" value="100"><b id="setCamN">100</b></span></div>
       <label><input type="checkbox" id="setEdgePan" checked> Scroll the map at the screen edge</label>
       <label><input type="checkbox" id="setHints" checked> Hints at the cursor and in play</label>
+      <label><input type="checkbox" id="setMinimap" checked> The map in the corner (N)</label>
 
     </div>
     <div id="setFoot">

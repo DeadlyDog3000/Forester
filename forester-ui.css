@@ -1605,3 +1605,9 @@ body.touch #touchPad   { display: flex; }
 @keyframes shortPulse { 50% { background: rgba(216,106,90,0.14); } }
 @media (prefers-reduced-motion: reduce) { #hud .res.short { animation: none; background: rgba(216,106,90,0.14); } }
 body.noMotion #hud .res.short { animation: none; background: rgba(216,106,90,0.14); }
+
+/* the minimap: bottom left, above the action bar, out of the way of the notices on the right */
+#minimap { position: fixed; left: 10px; bottom: 58px; width: 200px; height: 140px; z-index: 40;
+  border: 1px solid #3a5243; box-shadow: 0 2px 0 #000; image-rendering: auto; cursor: crosshair; }
+@media (max-width: 760px), (max-height: 520px) { #minimap { width: 140px; height: 98px; } }
+@media (pointer: coarse) { #minimap { display: none !important; } }
