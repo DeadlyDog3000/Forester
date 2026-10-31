@@ -4832,6 +4832,7 @@ function moodReasons(c) {
   const nw = wells();
   if (nw) r.push(["clean water", Math.min(2, nw) * 3]);
   if (c.hunger > 60) r.push(["well fed", 4]);
+  if (worldT - feastAt < DAY && !c.child) r.push(["the harvest feast", FEAST_LIFT]);
   if (c.hunger < 30) r.push(["hungry", -12]);
   if (!c.home) r.push(["no roof of their own", -8]);
   if (c.sick > 0) r.push(["stricken with the plague", -18]);
@@ -9133,6 +9134,38 @@ function dangerWatch(dt) {
   DANGER.fire = fire; DANGER.foe = foe; DANGER.plague = plague;
   if (why && settings.holdOnDanger && simSpeed > 0 && gameState === "playing") { setSimSpeed(0); toast(`The world is held: ${why}. SPACE to let it run.`); }
 }
+// ===== the harvest feast =====
+// Once a year, in the last weeks of summer, the capital may spend two meals a
+// head on a feast before the cold. Everyone's spirits rise by a good measure,
+// which is the one thing a governor cannot otherwise buy outright: happiness
+// has only ever been the absence of grievances. The food is the price, and the
+// food is what the winter wanted.
+let feastYear = -1, feastAt = -1e9;   // (the feast is a reason for good spirits for a day after it: see moodReasons)
+const FEAST_MEALS = 2, FEAST_LIFT = 12;
+function feastState(town) {
+  const inYear = worldT % YEAR, yr = Math.floor(worldT / YEAR), mouths = civs.filter(c => !c.afield).length;
+  const need = mouths * FEAST_MEALS, have = (res.bread || 0) + (res.meat || 0);
+  if (town) return { ok: false, why: "Feasts are held in the capital." };
+  if (feastYear === yr) return { ok: false, why: "This year's feast has been held." };
+  if (inYear >= WINTER_AT) return { ok: false, why: "Not in winter: the feast comes before the cold, in the last weeks of summer." };
+  if (inYear < WINTER_AT * 0.6) return { ok: false, why: `Too soon: the feast is held in the last weeks of summer, in about ${Math.ceil((WINTER_AT * 0.6 - inYear) / HOUR)} hours.` };
+  if (have < need) return { ok: false, why: `It needs ${need} bread and meat in the capital's store (two meals a head); there are ${Math.floor(have)}.` };
+  return { ok: true, why: `${need} bread and meat for ${mouths} people, and everyone's spirits are up by ${FEAST_LIFT} for a day.` };
+}
+function feastSync(town) { const st = feastState(town); $("feastBtn").disabled = !st.ok; $("feastNote").textContent = st.why; }
+$("feastBtn").addEventListener("click", () => {
+  const st = feastState(null); if (!st.ok) return toast(st.why);
+  const here = civs.filter(c => !c.afield);
+  let need = here.length * FEAST_MEALS;
+  const fromBread = Math.min(need, Math.floor(res.bread || 0)); res.bread -= fromBread; need -= fromBread;
+  res.meat -= Math.min(need, Math.floor(res.meat || 0));
+  for (const c of here) { c.happiness = Math.min(100, c.happiness + FEAST_LIFT / 2); if (c.hunger !== undefined) c.hunger = Math.min(100, c.hunger + 35); }
+  feastYear = Math.floor(worldT / YEAR); feastAt = worldT; tally.feasts = (tally.feasts || 0) + 1;
+  notify({ icon: "☙", cls: "you", text: `The harvest feast of ${colonyYear}.`, sub: `${here.length} at the tables. Spirits are up, and the winter's larder is lighter for it.`,
+           x: CAPITAL_X, y: CAPITAL_Y, z: Math.max(zoomFloor(), 0.6) });
+  SFX.eat();
+  syncUI();
+});
 // ===== the steward's list =====
 // The colony's troubles were all there to be found, each in its own place: a fire
 // on the map, a fever in the roll, a man without a roof in his own panel. The
@@ -9483,6 +9516,7 @@ const CHANGELOG = [
       "The bread and meat on the top bar say how many days the food would feed everyone, counting what people carry. Under two days they turn red.",
       "Eight hours before every winter you are told who still has no roof, and whether the larder will hold out.",
       "Each spring the year is written up: children born, newcomers, deaths, buildings raised, raids, and how many souls there are against last spring.",
+      "The harvest feast: once a year, in the last weeks of summer, the Government panel can spend two meals a head from the capital's store on a feast. Everyone is fed, and their spirits are up by twelve for a day. It is the one thing a governor can do to raise spirits outright, and it costs food the winter wanted.",
       "Fixed: after a reload, any building that had never been damaged fell to a single blow from an occupying company.",
       "Fixed: a builder taken to hospital, jailed, sent to war or caught in a quarrel kept his claim on the site, and nobody else would ever raise it. A man carrying the dead when that happened refused every order after.",
       "Fixed: two people sent to rebuild the same ruin both paid for it, and the second to finish turned the rebuilt market into a cabin. Materials for a rebuild that is never finished go back to the store.",
@@ -10032,7 +10066,7 @@ function saveGame() {
       // colony saved in winter came back and was told winter had just fallen.
       lastSeason, lastTier, reckoningOpenedAt, blockade,
       // the reign's running totals and what it has set down
-      tally, achieved, yearMark,
+      tally, achieved, yearMark, feastYear, feastAt: worldT - feastAt < DAY ? r1(feastAt) : undefined,
       cam: { x: cam.x, y: cam.y },
       hunterTimer, raidTimer, campRespawnTimer, worldT,
       // the far map: what you have charted, how the cities of Europe stand, and
@@ -10349,6 +10383,8 @@ function loadGame() {
     // and computing them from the world we are about to replace is worthless.
     tally = Object.assign(FRESH_TALLY(), d.tally || {});
     yearMark = d.yearMark && typeof d.yearMark === "object" ? d.yearMark : null;
+    feastYear = typeof d.feastYear === "number" ? d.feastYear : -1;
+    feastAt = typeof d.feastAt === "number" ? d.feastAt : -1e9;
     achieved = d.achieved || {};
     lastSeason = d.lastSeason || season();
     lastTier = d.lastTier || Math.max(1, difficulty());
@@ -11069,6 +11105,7 @@ function syncUI() {
     $("govHomes").innerHTML = homeless
       ? `<b style="color:#d86a5a">${homeless} homeless</b> · ${spare} bed(s) free`
       : `all housed · ${spare} bed(s) free`;
+    feastSync(hudTown);
     // the word that draws this forest, so a good one can be written down
     $("govWorldRow").style.display = worldLabel ? "" : "none";
     if (worldLabel) { $("govWorld").textContent = worldLabel; $("govWorldTell").textContent = worldTell(); }
