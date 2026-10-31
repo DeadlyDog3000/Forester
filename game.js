@@ -715,6 +715,7 @@ function updateFaithDrift(c, dt) {
 // to be given the name.
 function banish(c, quiet) {
   if (!civs.includes(c)) return;
+  refundTask(c, null); dropClaims(c);   // (materials paid for his work went with him, and his claims stayed behind)
   const f = faithOf(c);
   // a half-finished job does not keep its progress bar once the hands are gone
   if (c.task && c.task.target && c.task.target.progress !== undefined) c.task.target.progress = -1;
@@ -1875,9 +1876,11 @@ function worldTell() {
 let selected = null, selectedBldg = null, selectedCamp = null, selectedGrave = null, buildMode = null;
 let selGroup = [];   // soldier multi-select: click several soldiers, order them as one
 const groupable = c => c.profession === "soldier" || c.profession === "cavalry" || c.profession === "musketeer";
+// (on campaign, in a bed or in the jail: not in the band, or they were given posts they walked back across the map to)
+const atHand = c => !c.afield && c.state !== "abed" && c.state !== "borne" && !isJailed(c);
 const soldierGroup = () =>
   (selected && groupable(selected) && selGroup.includes(selected))
-    ? selGroup.filter(s => civs.includes(s) && groupable(s))
+    ? selGroup.filter(s => civs.includes(s) && groupable(s) && atHand(s))
     : (selected ? [selected] : []);
 let toastTimer = 0, hunterTimer = 40, visitorSeq = 0, paused = false;
 // ===== the pace of the world =====
@@ -2487,7 +2490,12 @@ function strikeUnit(a, b, dmg) {
       toast(b.nation && NATIONS[b.nation] ? `A soldier of ${NATIONS[b.nation].name} has been cut down.` : "A raider has been cut down.");
     } else if (civs.includes(b)) {
       if (b.rebel && has("court") && Math.random() < 0.5) {
+        // (subdued means the fight is over: his own work stops, the weapon he drew goes
+        //  back to the armoury, and nobody else goes on beating a loyal man to death)
+        if (b.armed && typeof b.armed === "string") armouryAdd(b.armed);
+        dropClaims(b); b.task = null; b.state = "idle";
         b.rebel = false; b.armed = false; b.hp = 30; b.happiness = 60;
+        for (const o of civs) if (o !== a && o.task && o.task.target === b) { o.task = null; o.state = "idle"; if (o.foe === b) o.foe = null; }
         toast(`${b.name} is beaten down, subdued, and hauled before the court.`);
       } else killCiv(b, b.rebel ? "died resisting the law" : "was slain");
     }
@@ -5504,6 +5512,11 @@ function updateResearch(dt) {
     t.done = true;
     SFX.research();
     tell("work", `Research complete: ${t.name} — ${t.desc}.`);
+    // (the health it promises reaches the men already serving, not only the next recruits)
+    const lift = (who, by) => { for (const c of civs) if (who(c)) { c.maxHp += by; c.hp += by; } };
+    if (t.id === "cavalry") lift(c => ["police", "soldier", "musketeer"].includes(c.profession), 50);
+    if (t.id === "petarmour") lift(c => c.profession === "police", 25);
+    if (t.id === "hussars") lift(c => c.profession === "cavalry", 40);
     research = null;
     if (TECH.slavery.done) $("lawForcedRow").style.display = "flex";
     // a chart bought is country you have never walked and can nonetheless see
@@ -5765,6 +5778,12 @@ document.querySelectorAll("#craftMenu .menu-item").forEach(item =>
 // `selected` on purpose so the rite reads the recruit, not the selection.
 function recruitAs(selected, prof) {
     if (!selected) return;
+    // (from a roster drawn a minute ago, or with a rebel picked: the dead were charged
+    //  for, and a rebel was paid to soldier and stayed a rebel)
+    if (!civs.includes(selected)) return toast("They are no longer of the colony.");
+    if (selected.rebel) return toast(`${selected.name} is in revolt. Put the rising down first.`);
+    if (isJailed(selected)) return toast(`${selected.name} is in the jail.`);
+    if (selected.afield) return toast(`${selected.name} is away with the army.`);
     if (selected.child) return toast(`${selected.name} is a child — give them a few more springs.`);
     // and no rank in your army is worth a Mennonite's conscience
     if (F(selected).pacifist && ["police", "soldier", "musketeer", "cavalry"].includes(prof))
@@ -5846,6 +5865,10 @@ function recruitAs(selected, prof) {
       selected.profession = "farmer";
       toast(`${selected.name} takes up farming. Assign them to a farm by clicking it.`);
     }
+    // A man who leaves the ranks leaves his post (a farmer still "holding the line"
+    // never worked again) and the soldier's constitution with it.
+    if (!isForce(selected)) { selected.post = null; selected.maxHp = 100; }
+    selected.hp = Math.min(selected.hp, selected.maxHp);
     refreshAvatar(selected);
     syncUI();
 }
@@ -6147,7 +6170,8 @@ $("cpHeal").addEventListener("click", () => {
 });
 $("cpGiveWeapon").addEventListener("click", () => {
   const c = selected;
-  if (!c) return;
+  if (!c || !civs.includes(c)) return;
+  if (c.rebel) return toast(`${c.name} is in revolt. The armoury does not arm a rising.`);
   if (!forgeBuilt()) return toast("Weapons are handed out at the forge — build one first.");
   if (c.armed) return toast(`${c.name} is already armed.`);
   // Nonresistance is not a preference and it is not the player's to overrule:
@@ -8577,7 +8601,7 @@ function renderMilitary() {
 }
 $("milSearch").addEventListener("input", renderMilitary);
 $("milSelectAll").addEventListener("click", () => {
-  const army = civs.filter(groupable);
+  const army = civs.filter(c => groupable(c) && atHand(c));
   if (!army.length) return toast("No soldiers, line infantry or cavalry to muster.");
   selGroup = [...army];
   selected = army[0];
@@ -9410,7 +9434,13 @@ const CHANGELOG = [
       "Fixed: moving a wall or a lamp no longer claims new ground.",
       "Fixed: when the browser refused to keep the save (its storage full or turned off), you were never told. Now a notice says so and points to Save to a File.",
       "Fixed: a reload forgot an offended court, a request still being weighed, missed caravans, and how cold a man had grown.",
-      "C and P close the Chronicle and the Roll again, as well as opening them.",
+      "C and P close the Chronicle and the Roll again, as well as opening them. K closes the Military panel too.",
+      "Fixed: a rebel subdued by the court went on being beaten by everyone else in the fight, usually to death, and kept the weapon he had taken. Now the fight stops and the weapon goes back to the armoury.",
+      "Fixed: a soldier retrained to a civilian trade while holding a post stood there for good. Leaving the ranks now leaves the post, and the soldier's extra health.",
+      "Fixed: recruiting from an old roster could charge for a man already dead, and a rebel could be paid to soldier, or armed. The roster now keeps itself current.",
+      "Fixed: research that gives your forces more health (Cavalry, Pet Armour, Hussars) now reaches the men already serving, not only new recruits.",
+      "Fixed: mustering the army picked up men away on campaign or in hospital, and gave them posts they later walked back across the map to.",
+      "Fixed: banishing someone threw away the materials already paid for their work.",
     ] },
   { v: 24, date: "31 October 2026", title: "Wars on the map end the way they should",
     lines: [
@@ -9738,7 +9768,7 @@ for (const d of document.querySelectorAll(".dropdown")) {
   }).observe(d, { attributes: true, attributeFilter: ["class"] });
 }
 
-$("milToggle").addEventListener("click", openMilitary);
+$("milToggle").addEventListener("click", () => isOpen("militaryPanel") ? $("milClose").click() : openMilitary());   // (K opened it and never closed it)
 $("milClose").addEventListener("click", () => { MUSIC.march(false); $("militaryPanel").style.display = "none"; saveSettings(); });
 $("milColor").addEventListener("input", e => setUniform(e.target.value));
 $("milMarch").addEventListener("change", e => { MUSIC.setMarch(e.target.value); settings.marchTune = e.target.value; saveSettings(); });
@@ -11358,6 +11388,7 @@ function update(dt) {
   }
   if ((MINI.t += dt) >= MINI.every || !miniShown() !== ($("minimap").style.display === "none")) { MINI.t = 0; drawMinimap(); }
   if (gameState === "playing") dangerWatch(dt);
+  if (STEWARD.t + dt >= 1 && isOpen("militaryPanel")) renderMilitary();   // (the roster kept the dead on it, and charged to recruit them)
   if ((STEWARD.t += dt) >= 1 || (!stewardShown() && $("steward").style.display !== "none")) { STEWARD.t = 0; stewardSync(); }
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
@@ -12998,7 +13029,7 @@ function landMen(m, x, y) {
   (m.men || []).forEach((c, i) => {
     if (!civs.includes(c)) return;
     const a = (i / Math.max(1, m.men.length)) * Math.PI * 2;
-    c.afield = false; c.state = "idle"; c.task = null;
+    c.afield = false; c.state = "idle"; c.task = null; c.post = null;
     c.x = x + Math.cos(a) * (40 + (i % 3) * 26);
     c.y = y + Math.sin(a) * (34 + (i % 3) * 22);
     c.wpx = c.x; c.wpy = c.y;
