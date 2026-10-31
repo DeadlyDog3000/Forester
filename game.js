@@ -8450,6 +8450,23 @@ function renderCargo() {
 }
 $("cargoSwap").addEventListener("click", () => { cargoDir = -cargoDir; renderCargo(); });
 $("cargoNo").addEventListener("click", () => { $("cargoModal").style.display = "none"; cargoTown = null; });
+// Weapons travel as what they are made of. The wagon used to move a bare count,
+// and the capital's armoury filed whatever came back as stone: iron blades sent to
+// a daughter town and home again returned as knapped flints.
+function cargoWeapons(from, to, n) {
+  const box = led => led.armoury || (led.armoury = { stone: 0, bronze: 0, iron: 0 });
+  if (from === res) {
+    for (let i = 0; i < n; i++) { const id = armouryTake() || "stone"; box(to)[id]++; to.weapons = (to.weapons || 0) + 1; }
+    return;
+  }
+  const a = box(from);
+  for (let i = 0; i < n; i++) {
+    let id = "stone";
+    for (let j = MATERIALS.length - 1; j >= 0; j--) if (a[MATERIALS[j].id] > 0) { id = MATERIALS[j].id; a[id]--; break; }
+    from.weapons -= 1;
+    if (to === res) armouryAdd(id); else { box(to)[id]++; to.weapons = (to.weapons || 0) + 1; }
+  }
+}
 $("cargoGo").addEventListener("click", () => {
   if (!cargoTown) return;
   const [from, to] = cargoLedgers();
@@ -8458,6 +8475,7 @@ $("cargoGo").addEventListener("click", () => {
     const k = inp.dataset.kind;
     const n = Math.max(0, Math.min(Math.floor(+inp.value || 0), Math.floor(from[k] || 0)));
     if (!n) continue;
+    if (k === "weapons") { cargoWeapons(from, to, n); moved += n; parts.push(`${n} ${k}`); continue; }
     from[k] -= n; to[k] = (to[k] || 0) + n;
     moved += n; parts.push(`${n} ${k}`);
   }
@@ -9441,6 +9459,7 @@ const CHANGELOG = [
       "Fixed: research that gives your forces more health (Cavalry, Pet Armour, Hussars) now reaches the men already serving, not only new recruits.",
       "Fixed: mustering the army picked up men away on campaign or in hospital, and gave them posts they later walked back across the map to.",
       "Fixed: banishing someone threw away the materials already paid for their work.",
+      "Fixed: weapons sent by wagon to a daughter town and back came home as stone, whatever they were made of. They travel as what they are now.",
     ] },
   { v: 24, date: "31 October 2026", title: "Wars on the map end the way they should",
     lines: [
