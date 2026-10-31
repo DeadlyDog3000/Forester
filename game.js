@@ -8997,14 +8997,14 @@ function drawMinimap() {
     if (px > -tc && py > -tc && px < W && py < H) g.fillRect(px, py, tc + 0.5, tc + 0.5);
   }
   // the woods: only chunks the world has already made (the map never invents ground)
-  g.fillStyle = "#2f4a35";
+  g.fillStyle = "#3d6447";
   const [ca, cb] = chunkOf(x0, y0), [cc, cd] = chunkOf(x0 + span, y0 + spanY);
   for (let j = cb; j <= cd; j++) for (let i = ca; i <= cc; i++) {
     const ch = chunks.get(chunkKey(i, j)); if (!ch) continue;
-    for (const t of ch.trees) if (t.alive) { const [px, py] = P(t.x, t.y); g.fillRect(px - 0.75, py - 0.75, 1.5, 1.5); }
+    for (const t of ch.trees) if (t.alive) { const [px, py] = P(t.x, t.y); g.fillRect(px - 1, py - 1, 2, 2); }
     g.fillStyle = "#6f7a74";
     for (const st of ch.stones) if (st.alive) { const [px, py] = P(st.x, st.y); g.fillRect(px - 0.75, py - 0.75, 1.5, 1.5); }
-    g.fillStyle = "#2f4a35";
+    g.fillStyle = "#3d6447";
   }
   const dot = (x, y, r, col) => { const [px, py] = P(x, y); if (px < -4 || py < -4 || px > W + 4 || py > H + 4) return; g.fillStyle = col; g.fillRect(px - r, py - r, r * 2, r * 2); };
   for (const f of farms) dot(f.x, f.y, 2, "#9a8a4a");
@@ -10629,7 +10629,12 @@ function assetsReady() {
     // to walk straight past. Only when there is genuinely something new, and
     // only after the menu has painted — opened any earlier it would be covered
     // by the title screen it is supposed to be sitting on top of.
-    if (logUnread()) setTimeout(openLog, 700);
+    // (but never on a first visit: someone who has not played yet has nothing for
+    //  it to be new against, and it sat over the opening of their very first game)
+    let anySave = false; for (let i = 1; i <= SAVE_SLOTS; i++) if (slotInfo(i)) anySave = true;
+    const firstVisit = !logSeen() && !anySave;
+    if (firstVisit) { markLogSeen(); refreshLogBadges(); }
+    else if (logUnread()) setTimeout(openLog, 700);
   }
 }
 // how long ago, in words a person would use
@@ -10749,6 +10754,7 @@ const LOAD_LINES = ["Felling trees…", "Warming the hearth…", "Counting Deuts
 function doLoading(fromSave) {
   gameState = "loading";
   $("menu").style.display = "none";
+  closeLog();                       // (left open on the menu, it sat over the game as it began)
   $("loading").style.display = "flex";
   let p = 0;
   const iv = setInterval(() => {
