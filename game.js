@@ -6715,6 +6715,7 @@ function warsReset() {
   for (const n of Object.values(NATIONS)) {
     Object.assign(n, WAR_DEFAULTS);
     n.captured = []; n.calName = undefined; n.pact = undefined;
+    n.tradeMeter = undefined; n.tradeUsed = undefined; n.tradeT = undefined;   // (a half-won audience in one save carried into the next)
   }
 }
 
@@ -7111,7 +7112,12 @@ function startNatWar() {
 }
 
 function remainingCells(id) {
-  return cellCount(id) - ((NATIONS[id].captured || []).length);
+  // (the crown's cells on the grid that have not been taken, not the count less every key ever pushed)
+  if (!mapGrid) buildMapGrid();
+  const taken = new Set(NATIONS[id].captured || []);
+  let n = 0;
+  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) if (mapGrid[r][c] === id && !taken.has(c + "," + r)) n++;
+  return n;
 }
 // A war that ends ends on your ground too: the crown's men in the field — a siege
 // ring round a town, a party marching on the gate, men holding a town they meant
@@ -7119,7 +7125,11 @@ function remainingCells(id) {
 // coin left the ring standing for ever, and a crown just paid off could still
 // annex the town it had been sitting outside. Garrisons of towns it holds stay.
 function standDown(n) {
-  for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].nation === n.id && !raiders[i].garrison) raiders.splice(i, 1);
+  // (by the crown's own key: n.id was only ever set by a calamity, and never saved,
+  //  so peace with France sent the bandits home and left France's men fighting)
+  const id = Object.keys(NATIONS).find(k => NATIONS[k] === n);
+  if (!id) return;
+  for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].nation === id && !raiders[i].garrison) raiders.splice(i, 1);
 }
 function checkDefeated(id) {
   const n = NATIONS[id];
@@ -7915,6 +7925,9 @@ function townLostTo(t, natId) {
     r.garrison = town; r.state = "patrol"; r.target = null; r.wallTarget = null; r.investTown = undefined;
     r.camp = { x: t.x, y: t.y }; r.wpx = r.x; r.wpy = r.y;
   }
+  // (another crown's ring round the same town has nothing left to besiege: it goes home,
+  //  or it stood "BESIEGING" a town nobody held, for good)
+  for (let i = raiders.length - 1; i >= 0; i--) if (raiders[i].nation !== natId && raiders[i].investTown === t) raiders.splice(i, 1);
   for (const d of civs) if (Math.hypot(d.x - c.x, d.y - c.y) < 420) {
     // Take them off the roll of whatever roof they had as well as clearing it.
     // Every other place a home is lost does both; this one only did half, and
@@ -8005,8 +8018,14 @@ function foreignTownFalls(town) {
   // the ground round the town itself is yours (it was counted off the nation's first blob, so a second town
   //  repeated cells of the first and some lay outside the country altogether)
   n.captured = n.captured || [];
+  if (!mapGrid) buildMapGrid();
   { const wc = worldCell(town.x, town.y), have = new Set(n.captured);
-    for (let i = 0; i < 4; i++) { const k = (wc.mx + i % 2) + "," + (wc.my + Math.floor(i / 2)); if (!have.has(k)) { have.add(k); n.captured.push(k); } } }
+    // (only cells that are that crown's: sea or a neighbour's land counted against it, and a
+    //  small crown was "destroyed" with its cities still standing)
+    for (let i = 0; i < 4; i++) {
+      const mx = wc.mx + i % 2, my = wc.my + Math.floor(i / 2), k = mx + "," + my;
+      if (!have.has(k) && mapGrid && mapGrid[my] && mapGrid[my][mx] === town.nation) { have.add(k); n.captured.push(k); }
+    } }
   expandAround(town.x, town.y, 5);            // the ground is yours now
   SFX.coin();
   float(town.x, town.y - 90, `+${town.dm} DM +${town.weapons} wpn`, "#7da083");
@@ -8245,7 +8264,7 @@ function runMayor(st) {
   // to the capital for bread; one who does not, does not, and the town starves
   // exactly as it would have with nobody in the office.
   const fed = (st.res.bread || 0) + (st.res.meat || 0);
-  if (folk.length && fed < folk.length * 2) {
+  if (folk.length && fed < folk.length * 2 && !townInvested(st)) {   // (a town under siege gets nothing in: the siege says so)
     if (roll("care")) {
       const want = Math.min(folk.length * 4, Math.floor(res.bread));
       if (want > 0) {
@@ -8406,15 +8425,20 @@ document.getElementById("settleGo").addEventListener("click", () => {
   const name = document.getElementById("settleName").value.trim() || "New Settlement";
   // find a clear patch of woods a few screens out, away from camps and other towns
   let site = null, angle = Math.random() * Math.PI * 2;
-  for (let tries = 0; tries < 24 && !site; tries++) {
+  // (further out the more it has to look; and never on a foreign town, an outlying
+  //  building or a farm: the old fallback after 24 tries skipped every test, and could
+  //  set the new cabins down on top of a camp or another town)
+  for (let tries = 0; tries < 60 && !site; tries++) {
     angle = Math.random() * Math.PI * 2;
-    const dist = 1800 + Math.random() * 600;
+    const dist = 1800 + Math.random() * 600 + tries * 40;
     const x = Math.round(Math.cos(angle) * dist), y = Math.round(Math.sin(angle) * dist);
     if (camps.every(cp => Math.hypot(cp.x - x, cp.y - y) > 800) &&
         Math.hypot(x - CAPITAL_X, y - CAPITAL_Y) > 1400 &&           // never crowd the capital's own clearing
-        settlements.every(s => s.x === undefined || Math.hypot(s.x - x, s.y - y) > 1200)) site = { x, y };
+        settlements.every(s => s.x === undefined || Math.hypot(s.x - x, s.y - y) > 1200) &&
+        foreignTowns.every(t => Math.hypot(t.x - x, t.y - y) > 1200) &&
+        buildings.every(b => Math.hypot(b.x - x, b.y - y) > 500) && farms.every(f => Math.hypot(f.x - x, f.y - y) > 500)) site = { x, y };
   }
-  if (!site) site = { x: Math.round(Math.cos(angle) * 2500), y: Math.round(Math.sin(angle) * 2500) };
+  if (!site) return toast("The scouts find no clear ground for a town. Try again another time.");
   // raise the first cabins and claim the clearing
   const newCabins = [];
   for (let i = 0; i < Math.max(1, Math.ceil(chosen.length / 2)); i++) {
@@ -8508,6 +8532,10 @@ function cargoWeapons(from, to, n) {
 }
 $("cargoGo").addEventListener("click", () => {
   if (!cargoTown) return;
+  // (lost while the window was open, the goods went into a town that no longer was;
+  //  under siege, "nothing goes in or out" meant everything but the wagon)
+  if (!settlements.includes(cargoTown)) { $("cargoModal").style.display = "none"; cargoTown = null; return toast("That town is no longer yours."); }
+  if (townInvested(cargoTown)) return toast(`${cargoTown.name} is under siege. No wagon gets through.`);
   const [from, to] = cargoLedgers();
   let moved = 0, parts = [];
   for (const inp of document.querySelectorAll("#cargoRows input")) {
@@ -9544,6 +9572,13 @@ const CHANGELOG = [
       "Fixed: mustering the army picked up men away on campaign or in hospital, and gave them posts they later walked back across the map to.",
       "Fixed: banishing someone threw away the materials already paid for their work.",
       "Fixed: weapons sent by wagon to a daughter town and back came home as stone, whatever they were made of. They travel as what they are now.",
+      "Fixed: peace with a crown, its revolt or its defeat sent the bandits home and left that crown's own men fighting. Now it is the crown's men who go.",
+      "Fixed: taking a town near a border counted sea and a neighbour's land against the crown it belonged to, so a small crown could be declared destroyed with its cities still standing.",
+      "Fixed: a column that arrived after peace was made, or at a city already fallen or yours, laid siege anyway. It turns for home.",
+      "Fixed: an agent arriving at a city that had fallen in the meantime caused an error. He comes home instead.",
+      "Fixed: wagons and a mayor's bread got into a town under siege, and a wagon loaded as a town was lost delivered into nowhere.",
+      "Fixed: when the scouts could find no clear ground, a new town was set down without any checks, sometimes on a camp or another town. It is never placed on a foreign town, a building or a farm now; if there is nowhere, the scouts say so.",
+      "Fixed: a second crown's siege ring round a town someone else had taken stood there for good. Signing the same trade terms again no longer forgives missed caravans. City walls breached in war, and sieges, are kept in the save.",
     ] },
   { v: 24, date: "31 October 2026", title: "Wars on the map end the way they should",
     lines: [
@@ -13161,6 +13196,16 @@ function arriveArmy(m) {
              x: m.tx, y: m.ty, z: 0.6 });
     return;
   }
+  // (peace made, or the city gone to a crown you are not fighting, while they were on
+  //  the road: they turn for home rather than sack a town at peace)
+  const owner = NATIONS[city.owner];
+  if (city.fallen || !owner || !owner.atWar) {
+    const men = (m.men || []).filter(c => civs.includes(c));
+    if (!marchHome(men, m.tx, m.ty)) landMen(m, m.tx, m.ty);
+    else m.men = null;
+    notify({ icon: "⚑", cls: "you", text: `No war at ${city.name}.`, sub: "Your column turns for home", x: m.tx, y: m.ty, z: 0.6 });
+    return;
+  }
   // the city may already be standing because the camera is on it; if not, it is
   // raised out of its own books, the same as if you had flown there to look
   const town = city.town || materialiseCity(city);
@@ -13285,6 +13330,12 @@ function updateMarches(dt) {
       if (m.kind === "spy") {
         const city = cityById(m.target);
         if (!city) { killOperative(m, "The city he was sent to no longer stands"); continue; }
+        // (taken by you, or burned, while he was on the road: there is no court there to serve)
+        if (city.fallen || !NATIONS[city.owner]) {
+          notify({ icon: "✧", cls: "you", text: `Your agent finds ${city.name} in other hands.`, sub: "There is no court there to take service with. He comes home",
+                   x: m.x, y: m.y, z: zoomFloor() * 3 });
+          marches.splice(marches.indexOf(m), 1); stratDirty = true; continue;
+        }
         m.state = "resident"; m.t = 0; m.nation = city.owner;
         intel[city.owner] = { armies: true, arts: true, by: m.id, city: city.id };
         chartAround(city.mx, city.my, 3);
@@ -14169,7 +14220,7 @@ function worldSave(ci) {
     // deterministic, and the count is checked on the way back in: if it does not
     // match — a new city added to some crown in a later build — the lot is
     // discarded and Europe starts the run again rather than reading wrong.
-    cities: CITIES.map(c => [Math.round(c.pop), c.garrison, c.wealth]),
+    cities: CITIES.map(c => [Math.round(c.pop), c.garrison, c.wealth, c.walls, c.siege || 0]),   // (walls and siege too: a breach came back whole after a reload)
     fallen: CITIES.map((c, i) => c.fallen ? i : -1).filter(i => i >= 0),
     marches: marches.map(m => ({
       id: m.id, side: m.side, kind: m.kind, nation: m.nation, state: m.state,
@@ -14198,15 +14249,18 @@ function worldNewGame() {
 function worldLoad(d) {
   marches = []; notifs = []; flight = null; mapSelCity = null; mapSelMarch = null; scoutArmed = false;
   for (const k of Object.keys(intel)) delete intel[k];
+  CITIES = [];        // (fresh, not carried from whatever was open before: another slot's breaches and sieges came along)
   buildCities();
   chartedUnpack(d && d.chart);
   if (!charted.size) chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
   // the numbers are positional, so a save whose Europe had a different number of
   // cities in it — or one written before they were numbers at all — is not read
   if (d && d.cities && d.cities.length === CITIES.length && typeof d.cities[0][0] === "number") {
-    d.cities.forEach(([pop, gar, wealth], i) => {
+    d.cities.forEach(([pop, gar, wealth, walls, siege], i) => {
       const c = CITIES[i];
       c.pop = pop; c.garrison = gar; c.wealth = wealth; c.fallen = false;
+      if (typeof walls === "number") c.walls = walls;
+      if (typeof siege === "number") c.siege = siege;
     });
     for (const i of (d.fallen || [])) if (CITIES[i]) CITIES[i].fallen = true;
   }
@@ -14277,8 +14331,8 @@ $("pactPropose").addEventListener("click", () => {
   const n = NATIONS[id], t = pactTerms();
   if (!pactVerdict(id, t.give, t.get).ok) return toast(`${n.name} will not sign that.`);
   const fresh = !n.trade;
-  n.pact = t; n.trade = true; n.dues = 0;
-  if (fresh) n.tradeT = 30;
+  n.pact = t; n.trade = true;
+  if (fresh) { n.tradeT = 30; n.dues = 0; }   // (signing the same terms again no longer forgives the caravans that went home empty)
   closePactModal();
   eventCard(fresh ? `A trade route opens with ${n.name}.` : `New terms with ${n.name}.`,
             "event_caravan", `${pactLine(n.pact)}, every caravan`);
