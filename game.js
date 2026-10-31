@@ -8924,6 +8924,7 @@ let chronShowing = "log";          // "log", "ambitions" or "ledger"
 // mood — and kept with the save; the ledger draws them, winters shaded.
 // [worldT, pop, food, logs, stone, dm, happy]
 let ledgerHist = [];
+let winterWarned = -1;            // the year the colony was last told winter was coming
 const LEDGER_EVERY = 30, LEDGER_MAX = 720;
 let ledgerNext = 0;
 function ledgerSample() {
@@ -11263,6 +11264,24 @@ function simStep(dt) {
   for (const ch of visibleChunks(CHUNK * 2))
     for (const t of ch.trees)
       if (t.alive && t.growth < 1) t.growth = Math.min(1, t.growth + dt / (SAPLING_GROW * (has("replanting") ? 0.5 : 1)));
+  // A warning while there is still time to act on it. The frost used to arrive
+  // unannounced, and the first anyone heard of a cabin short was the first man
+  // frozen in the street. Eight hours before it falls, the colony is told what
+  // it has in store and who has no roof; once a year.
+  { const inYear = worldT % YEAR, warnAt = WINTER_AT - 8 * HOUR, yr = Math.floor(worldT / YEAR);
+    if (inYear >= warnAt && inYear < WINTER_AT && winterWarned !== yr && civs.length) {
+      winterWarned = yr;
+      const here = civs.filter(c => !c.afield), roofless = here.filter(c => !c.home).length;
+      const food = (res.bread || 0) + (res.meat || 0) + here.reduce((n, c) => n + (c.inv.bread || 0) + (c.inv.meat || 0), 0);
+      const days = food / Math.max(1, here.length * HUNGER_PER_DAY / 35);
+      const winterDays = (YEAR - WINTER_AT) / DAY;
+      const fed = days >= winterDays, bad = roofless > 0 || !fed;
+      notify({ icon: "❄", cls: bad ? "bad" : "you", text: "Winter comes in eight hours.",
+               sub: (roofless ? `${roofless} without a roof. ` : "Everyone has a roof. ") +
+                    (fed ? "The larder holds out the whole winter."
+                         : `${days * 24 < 1 ? "Nothing in the larder" : `Food for ${Math.floor(days * 24)} hours`}; the winter lasts ${Math.round(winterDays * 24)}.`),
+               x: CAPITAL_X, y: CAPITAL_Y, z: Math.max(zoomFloor(), 0.6) });
+    } }
   if (season() !== lastSeason) {
     lastSeason = season();
     if (lastSeason === "winter") {
