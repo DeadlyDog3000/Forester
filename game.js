@@ -1771,7 +1771,7 @@ const SETTINGS_DEFAULT = Object.freeze({
   master: 0.5, musicVol: 1, sfxVol: 1,
   music: true, battle: true, sfx: true, ambient: true, march: true,
   floaters: true, labels: true, smoke: true, night: true, shadows: true, motion: true,
-  camSpeed: 1, edgePan: true, hints: true, marchTune: "grenadier", minimap: true,
+  camSpeed: 1, edgePan: true, hints: true, marchTune: "grenadier", minimap: true, holdOnDanger: false,
 });
 // (the store is read and written guarded: a browser with storage turned off throws
 //  on the read, and a mangled settings string on the parse, and either left a blank page with no menu)
@@ -5894,7 +5894,7 @@ const SET_SLIDERS = [["setMaster", "master", 100], ["setMusicVol", "musicVol", 1
 const SET_TOGGLES = [["setMusic","music"],["setBattle","battle"],["setSfx","sfx"],["setAmbient","ambient"],
                      ["setShadows","shadows"],["setNight","night"],["setSmoke","smoke"],["setLabels","labels"],
                      ["setFloaters","floaters"],["setMotion","motion"],
-                     ["setEdgePan","edgePan"],["setHints","hints"],["setMinimap","minimap"]];
+                     ["setEdgePan","edgePan"],["setHints","hints"],["setMinimap","minimap"],["setHoldDanger","holdOnDanger"]];
 function syncSettings() {
   for (const [id, key, mul] of SET_SLIDERS) {
     const el = $(id); if (!el) continue;
@@ -9041,6 +9041,18 @@ function toggleFollow() {
   follow = selected; cancelFlight(); followCam.x = cam.x; followCam.y = cam.y;
   toast(`Following ${selected.name}. Move the camera or press F to stop.`);
 }
+// ===== hold on danger =====
+// At three times the pace a raid is over before you have found it. With the switch
+// on, the world holds itself the moment raiders cross your border, a building
+// catches, or a plague begins, and says why. Off unless you turn it on.
+const DANGER = { t: 0, fire: 0, foe: 0, plague: 0 };
+function dangerWatch(dt) {
+  if ((DANGER.t += dt) < 0.5) return; DANGER.t = 0;
+  const fire = buildings.filter(b => b.fire > 0).length, foe = raiders.filter(r => nearTerritory(r.x, r.y)).length, plague = plagueActive > 0 ? 1 : 0;
+  const why = fire > DANGER.fire ? "a building has caught fire" : foe && !DANGER.foe ? "raiders have crossed your border" : plague && !DANGER.plague ? "a plague has begun" : null;
+  DANGER.fire = fire; DANGER.foe = foe; DANGER.plague = plague;
+  if (why && settings.holdOnDanger && simSpeed > 0 && gameState === "playing") { setSimSpeed(0); toast(`The world is held: ${why}. SPACE to let it run.`); }
+}
 // ===== the steward's list =====
 // The colony's troubles were all there to be found, each in its own place: a fire
 // on the map, a fever in the roll, a man without a roof in his own panel. The
@@ -9385,6 +9397,7 @@ const CHANGELOG = [
       "Above the map in the corner, a short list of what needs seeing to, worst first: a fire, raiders inside your borders, the starving, the sick out of bed, anyone without a roof, sites with no builder, ruins. Click a line to go to the next one of them.",
       "Rest the pointer on someone and the hint says what they are doing.",
       "F follows the picked person with the camera, zoom and all, until you move the camera yourself.",
+      "A new switch in Settings holds the world the moment raiders cross your border, a building catches fire or a plague begins, so a raid at three times the pace is not over before you find it. It starts off.",
       "The Chronicle keeps the colony's books now. THE LEDGER charts people, food, logs, stone, the treasury and the mood over every year of the colony, with the winters shaded. Rest the pointer on a chart to read a day.",
       "The bread and meat on the top bar say how many days the food would feed everyone, counting what people carry. Under two days they turn red.",
       "Eight hours before every winter you are told who still has no roof, and whether the larder will hold out.",
@@ -11344,6 +11357,7 @@ function update(dt) {
     }
   }
   if ((MINI.t += dt) >= MINI.every || !miniShown() !== ($("minimap").style.display === "none")) { MINI.t = 0; drawMinimap(); }
+  if (gameState === "playing") dangerWatch(dt);
   if ((STEWARD.t += dt) >= 1 || (!stewardShown() && $("steward").style.display !== "none")) { STEWARD.t = 0; stewardSync(); }
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
