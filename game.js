@@ -9058,7 +9058,7 @@ let chronShowing = "log";          // "log", "ambitions" or "ledger"
 // means you harm. A click (or a drag) on it moves the camera there. N hides it.
 const MINI = { w: 200, h: 140, every: 0.25, t: 0, drag: false };
 function miniSpan() { const vw = canvas.width / zoom; return Math.max(2400, vw * 3); }
-function miniShown() { return settings.minimap && gameState === "playing" && stratAmt() < 0.05; }
+function miniShown() { return settings.minimap && !IS_TOUCH && gameState === "playing" && stratAmt() < 0.05; }
 function drawMinimap() {
   const cv = $("minimap"); if (!cv) return;
   const show = miniShown();
@@ -9101,18 +9101,20 @@ function drawMinimap() {
   g.strokeStyle = "rgba(232,226,208,0.85)"; g.lineWidth = 1;
   g.strokeRect(Math.round(vx) + 0.5, Math.round(vy) + 0.5, Math.round(canvas.width / zoom * k), Math.round(canvas.height / zoom * k));
 }
-function miniLook(e) {
+function miniLook(e, start) {
   const cv = $("minimap"), r = cv.getBoundingClientRect();
   const span = miniSpan(), k = r.width / span, spanY = r.height / k;
-  const cx = cam.x + canvas.width / zoom / 2, cy = cam.y + canvas.height / zoom / 2;
-  const wx = cx - span / 2 + (e.clientX - r.left) / k, wy = cy - spanY / 2 + (e.clientY - r.top) / k;
+  // (the map's corner is fixed when the press starts: measured afresh each move,
+  //  from a camera the last move had just shifted, a drag ran the view away)
+  if (start || MINI.ox === undefined) { const cx = cam.x + canvas.width / zoom / 2, cy = cam.y + canvas.height / zoom / 2; MINI.ox = cx - span / 2; MINI.oy = cy - spanY / 2; }
+  const wx = MINI.ox + (e.clientX - r.left) / k, wy = MINI.oy + (e.clientY - r.top) / k;
   cancelFlight();
   cam.x = wx - canvas.width / zoom / 2; cam.y = wy - canvas.height / zoom / 2;
   drawMinimap();
 }
-$("minimap").addEventListener("mousedown", e => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); MINI.drag = true; miniLook(e); });
+$("minimap").addEventListener("mousedown", e => { if (e.button !== 0) return; e.preventDefault(); e.stopPropagation(); MINI.drag = true; miniLook(e, true); });
 addEventListener("mousemove", e => { if (MINI.drag) miniLook(e); });
-addEventListener("mouseup", () => { MINI.drag = false; });
+addEventListener("mouseup", () => { MINI.drag = false; MINI.ox = undefined; });
 $("minimap").addEventListener("contextmenu", e => e.preventDefault());
 $("minimap").addEventListener("wheel", e => { e.preventDefault(); zoomAt(innerWidth / 2, innerHeight / 2, e.deltaY < 0 ? 1.12 : 0.89); }, { passive: false });
 let follow = null; const followCam = { x: 0, y: 0 };
@@ -9127,10 +9129,13 @@ function toggleFollow() {
 // on, the world holds itself the moment raiders cross your border, a building
 // catches, or a plague begins, and says why. Off unless you turn it on.
 const DANGER = { t: 0, fire: 0, foe: 0, plague: 0 };
+const MIL_KEY = { v: "" };
 function dangerWatch(dt) {
   if ((DANGER.t += dt) < 0.5) return; DANGER.t = 0;
-  const fire = buildings.filter(b => b.fire > 0).length, foe = raiders.filter(r => nearTerritory(r.x, r.y)).length, plague = plagueActive > 0 ? 1 : 0;
-  const why = fire > DANGER.fire ? "a building has caught fire" : foe && !DANGER.foe ? "raiders have crossed your border" : plague && !DANGER.plague ? "a plague has begun" : null;
+  const fire = buildings.filter(b => b.fire > 0).length, foe = raiders.filter(r => !r.garrison && nearTerritory(r.x, r.y)).length, plague = plagueActive > 0 ? 1 : 0;
+  // (a fire is news when the first building catches, not each time it spreads; raiders
+  //  are news when more of them come in; a town's garrison standing in it is not news)
+  const why = fire && !DANGER.fire ? "a building has caught fire" : foe > DANGER.foe ? "raiders have crossed your border" : plague && !DANGER.plague ? "a plague has begun" : null;
   DANGER.fire = fire; DANGER.foe = foe; DANGER.plague = plague;
   if (why && settings.holdOnDanger && simSpeed > 0 && gameState === "playing") { setSimSpeed(0); toast(`The world is held: ${why}. SPACE to let it run.`); }
 }
@@ -9177,7 +9182,7 @@ function stewardItems() {
   const people = (key, list, one, many, sev) => { if (list.length) out.push({ key, sev, n: list.length, text: `${list.length} ${list.length === 1 ? one : many}`, list }); };
   const fires = buildings.filter(b => b.fire > 0);
   if (fires.length) out.push({ key: "fire", sev: 0, text: `${fires.length === 1 ? "A building is" : fires.length + " buildings are"} on fire`, list: fires });
-  const foes = raiders.filter(r => nearTerritory(r.x, r.y));
+  const foes = raiders.filter(r => !r.garrison && nearTerritory(r.x, r.y));
   if (foes.length) out.push({ key: "foe", sev: 0, text: `${foes.length === 1 ? "A raider" : foes.length + " raiders"} inside your borders`, list: foes });
   people("starving", here.filter(c => c.hunger < 20 && !isJailed(c)), "starving", "starving", 1);
   people("sick", here.filter(c => isSick(c) && c.state !== "abed" && c.state !== "borne"), "sick and not in a bed", "sick and not in a bed", 1);
@@ -9190,7 +9195,7 @@ function stewardItems() {
     out.push({ key: "feast", sev: 4, text: "The harvest feast can be held", list: [{ x: CAPITAL_X, y: CAPITAL_Y, open: "govToggle" }] });
   return out.sort((a, b) => a.sev - b.sev).slice(0, 5);
 }
-const stewardShown = () => gameState === "playing" && stratAmt() < 0.05;
+const stewardShown = () => !IS_TOUCH && gameState === "playing" && stratAmt() < 0.05;
 function stewardSync() {
   const box = $("steward"); if (!box) return;
   const items = stewardShown() ? stewardItems() : [];
@@ -9258,7 +9263,9 @@ function renderLedger() {
     const a = Math.max(t0, y0 + WINTER_AT), b = Math.min(t1, y0 + YEAR);
     if (b > a) bands += `<rect class="lgWinter" x="${X(a).toFixed(1)}" y="${PT}" width="${(X(b) - X(a)).toFixed(1)}" height="${H - PT - PB}"/>`;
   }
-  const yearOf = t => colonyYear + Math.floor(t / YEAR) - Math.floor(worldT / YEAR);
+  // (the year turns when winter falls, not at the turn of the world's clock)
+  const yr = t => Math.floor(t / YEAR) + (t % YEAR >= WINTER_AT ? 1 : 0);
+  const yearOf = t => colonyYear - yr(worldT) + yr(t);
   let ticks = "";
   for (let y0 = Math.ceil(t0 / YEAR) * YEAR; y0 <= t1; y0 += YEAR)
     ticks += `<text class="lgTick" x="${X(y0).toFixed(1)}" y="${H - 3}">${yearOf(y0)}</text>`;
@@ -10386,7 +10393,9 @@ function loadGame() {
     // place: the fallback for an older save computes them from the world itself,
     // and computing them from the world we are about to replace is worthless.
     tally = Object.assign(FRESH_TALLY(), d.tally || {});
-    yearMark = d.yearMark && typeof d.yearMark === "object" ? d.yearMark : null;
+    // (a save from before the spring reports starts counting from the day it was loaded,
+    //  not from the founding, or the first report claimed the colony's whole history as one year)
+    yearMark = d.yearMark && typeof d.yearMark === "object" ? d.yearMark : { ...tally, pop: (d.civs || []).length };
     feastYear = typeof d.feastYear === "number" ? d.feastYear : -1;
     feastAt = typeof d.feastAt === "number" ? d.feastAt : -1e9;
     achieved = d.achieved || {};
@@ -11487,7 +11496,12 @@ function update(dt) {
   }
   if ((MINI.t += dt) >= MINI.every || !miniShown() !== ($("minimap").style.display === "none")) { MINI.t = 0; drawMinimap(); }
   if (gameState === "playing") dangerWatch(dt);
-  if (STEWARD.t + dt >= 1 && isOpen("militaryPanel")) renderMilitary();   // (the roster kept the dead on it, and charged to recruit them)
+  // (the roster kept the dead on it, and charged to recruit them; it is redrawn when
+  //  who is on it changes, not every second, or its scroll and its buttons jumped)
+  if (STEWARD.t + dt >= 1 && isOpen("militaryPanel")) {
+    const key = civs.map(c => c.name + c.profession + (c.rebel ? 1 : 0) + (c.afield ? 1 : 0) + (isJailed(c) ? 1 : 0)).join("|");
+    if (key !== MIL_KEY.v) { MIL_KEY.v = key; renderMilitary(); }
+  }
   if ((STEWARD.t += dt) >= 1 || (!stewardShown() && $("steward").style.display !== "none")) { STEWARD.t = 0; stewardSync(); }
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
