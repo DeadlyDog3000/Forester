@@ -1468,6 +1468,7 @@ async function start(opts = {}) {
     if (u.pathname === "/robots.txt") { res.setHeader("Content-Type", "text/plain; charset=utf-8"); return res.end("User-agent: *\nDisallow: /\n"); }
     if (u.pathname === "/hello") return counts.hello(u, req, res);
     if (u.pathname === "/visit") return counts.visit(u, req, res);
+    if (u.pathname === "/play") return counts.play(u, req, res);      // (time played, a beat a minute: see stats.cjs)
     if (u.pathname === "/stats") return counts.stats(u, res);
     if (u.pathname.startsWith("/shop/")) { shop.handle(u, req, res).catch(e => { log("shop:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the website's reviews: accounts, and two reviews each on every game (see reviews.cjs)

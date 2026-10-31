@@ -10,7 +10,9 @@
 //   GET /hello?i=<8–32 hex>&v=<version>&p=<mac|win|web>&f=<1|0>   204
 //   GET /visit?s=<site|forester|smoke>&p=<path>&r=<referrer host>&i=<8–32 hex>[&e=buy|demo-mac|demo-win|play]   204   — a view of the website or a
 //       browser game, from a random number the page keeps in its own storage: kept the same way, hashed, tallied by day
-//   GET /stats?t=<the shop's sales token>                         { installs, today, week, launches, byVersion, …, web }
+//   GET /play?g=<reckoning|forester|smoke>&i=<8–32 hex>             204   — a beat a minute from a game while it is being
+//       played (a game open, its window in front): the same random number, hashed; kept as minutes a day for each game
+//   GET /stats?t=<the shop's sales token>                         { installs, today, week, launches, byVersion, …, web, play }
 
 const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const ipOf = require("./ipof.cjs");
@@ -19,8 +21,8 @@ const KEEP_DAYS = 90;
 
 module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
   const file = dataDir ? path.join(dataDir, "stats.json") : null;
-  let S = { salt: "", seen: {}, days: {}, web: {} };
-  try { if (file && fs.existsSync(file)) S = { salt: "", seen: {}, days: {}, web: {}, ...JSON.parse(fs.readFileSync(file, "utf8")) }; } catch (e) { log("stats: unreadable:", e.message); }
+  let S = { salt: "", seen: {}, days: {}, web: {}, play: {} };
+  try { if (file && fs.existsSync(file)) S = { salt: "", seen: {}, days: {}, web: {}, play: {}, ...JSON.parse(fs.readFileSync(file, "utf8")) }; } catch (e) { log("stats: unreadable:", e.message); }
   if (!S.salt) S.salt = crypto.randomBytes(24).toString("hex");
   let dirty = true;
   const save = () => {
@@ -30,7 +32,7 @@ module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
   setInterval(save, 30000).unref();
 
   const day = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
-  const trim = () => { const cut = day(Date.now() - KEEP_DAYS * 86400000); for (const d of Object.keys(S.days)) if (d < cut) delete S.days[d]; for (const W of Object.values(S.web)) for (const d of Object.keys(W)) if (d < cut) delete W[d]; };
+  const trim = () => { const cut = day(Date.now() - KEEP_DAYS * 86400000); for (const d of Object.keys(S.days)) if (d < cut) delete S.days[d]; for (const W of Object.values(S.web)) for (const d of Object.keys(W)) if (d < cut) delete W[d]; for (const P of Object.values(S.play || {})) for (const d of Object.keys(P.days || {})) if (d < cut) delete P.days[d]; };
 
   // (a few hellos an hour from one place at most: the address is used for that and forgotten, never written down)
   const asks = new Map();
@@ -71,6 +73,35 @@ module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
     trim(); dirty = true;
     res.end();
   }
+  // ---- time played: one beat a minute from a game being played; a beat sooner than 50 seconds after the last from the
+  //  same player and game is not counted again (in memory only), so a minute is a minute however the game is opened ----
+  const PLAYED = ["reckoning", "forester", "smoke"];
+  const lastBeat = new Map();
+  function play(u, req, res) {
+    res.statusCode = 204;
+    const g = u.searchParams.get("g"), i = String(u.searchParams.get("i") || "");
+    if (!PLAYED.includes(g) || !/^[0-9a-f]{8,32}$/i.test(i) || tooMany(req, "p", 240)) return res.end();
+    const h = crypto.createHash("sha256").update("play:" + i.toLowerCase() + S.salt).digest("hex").slice(0, 24);
+    const t = Date.now(), k = g + h;
+    if (t - (lastBeat.get(k) || 0) < 50000) return res.end();
+    lastBeat.set(k, t); if (lastBeat.size > 20000) lastBeat.clear();
+    S.play = S.play || {};
+    const P = S.play[g] || (S.play[g] = { total: 0, since: day(), days: {} }), d = day(), D = P.days[d] || (P.days[d] = { m: 0, ids: {} });
+    P.total++; D.m++; D.ids[h] = 1;
+    trim(); dirty = true;
+    res.end();
+  }
+  function playStats() {
+    const out = {}, today = day(), weekCut = day(Date.now() - 6 * 86400000);
+    for (const g of PLAYED) {
+      const P = (S.play || {})[g] || { total: 0, days: {} }, wk = new Set(); let week = 0;
+      for (const [d, D] of Object.entries(P.days)) if (d >= weekCut) { week += D.m; for (const h of Object.keys(D.ids)) wk.add(h); }
+      const days = [];
+      for (let k = 29; k >= 0; k--) { const d = day(Date.now() - k * 86400000), D = P.days[d]; days.push({ d, minutes: D ? D.m : 0, players: D ? Object.keys(D.ids).length : 0 }); }
+      out[g] = { total: P.total, since: P.since || null, today: P.days[today] ? P.days[today].m : 0, week, players7: wk.size, days };
+    }
+    return out;
+  }
   function webStats() {
     const out = {}, today = day(), weekCut = day(Date.now() - 6 * 86400000);
     for (const sid of SITES) {
@@ -92,8 +123,8 @@ module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
     for (const r of Object.values(S.seen)) { byVersion[r.v] = (byVersion[r.v] || 0) + 1; byPlatform[r.p] = (byPlatform[r.p] || 0) + 1; if (r.f) full++; else demo++; launches += r.n || 0; }
     const days = [];
     for (let k = KEEP_DAYS - 1; k >= 0; k--) { const d = day(Date.now() - k * 86400000), D = S.days[d]; days.push({ d, players: D ? Object.keys(D.ids).length : 0, launches: D ? D.launches : 0 }); }
-    res.end(JSON.stringify({ installs: Object.keys(S.seen).length, today: S.days[today] ? Object.keys(S.days[today].ids).length : 0, week: week.size, launches, byVersion, byPlatform, full, demo, days, web: webStats() }));
+    res.end(JSON.stringify({ installs: Object.keys(S.seen).length, today: S.days[today] ? Object.keys(S.days[today].ids).length : 0, week: week.size, launches, byVersion, byPlatform, full, demo, days, web: webStats(), play: playStats() }));
   }
 
-  return { hello, visit, stats, save };
+  return { hello, visit, play, stats, save };
 };

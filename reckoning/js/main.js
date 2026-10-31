@@ -595,6 +595,15 @@ if (location.protocol === "app:") setTimeout(() => {
     fetch(`${SHOP.server}/hello?i=${id}&v=${encodeURIComponent(CHANGELOG[0] ? CHANGELOG[0].v : "?")}&p=${p}&f=${full() ? 1 : 0}`, { mode: "no-cors", cache: "no-store" }).catch(() => {});
   } catch (e) {}
 }, 5000);
+// (and how long it is played: a beat a minute with the same number while a game is open and the window in front — not
+//  on the title screen, not paused, not hidden. Only minutes, nothing about the game itself. See server/stats.cjs)
+if (location.protocol === "app:") setInterval(() => {
+  try {
+    if (G.mode !== "play" || document.hidden) return;
+    const id = localStorage.getItem("reckoning.anon.id"); if (!/^[0-9a-f]{16}$/.test(id || "")) return;
+    fetch(`${SHOP.server}/play?g=reckoning&i=${id}`, { mode: "no-cors", cache: "no-store" }).catch(() => {});
+  } catch (e) {}
+}, 60000);
 function buildChapters() {
   const s = loadSave() || {}, u = s.unlocked || 1;
   const list = $("chapterList");
