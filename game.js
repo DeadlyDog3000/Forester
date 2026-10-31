@@ -2415,7 +2415,7 @@ function updateRaider(r, dt) {
       if (near.length) {
         const b = near[Math.floor(Math.random() * near.length)];
         r.facing = b.x < r.x ? -1 : 1;
-        b.hp = (b.hp === undefined ? 100 : b.hp) - 7;
+        b.hp = (b.hp == null ? 100 : b.hp) - 7;
         b.maxHp = b.maxHp || 100;
         float(b.x, b.y - 74, "-7", "#d86a5a");
         SFX.chop();
@@ -2856,7 +2856,7 @@ function findPath(sx, sy, gx, gy, roadAware) {
   }
   return out;
 }
-function collideMove(c, nx, ny) {
+function collideMove(c, nx, ny, dt = 1 / 60) {
   const blocked = (x, y) => allStructures().some(b => (b.type === "wall" || b.type === "stonewall") && !b.site && pointInRect(x, y, inflate(bldgRect(b), 6)));
   const ox = c.x, oy = c.y;
   const stepLen = Math.hypot(nx - c.x, ny - c.y);
@@ -2879,8 +2879,10 @@ function collideMove(c, nx, ny) {
     if (!blocked(c.x + ax, c.y + ay)) { c.x += ax; c.y += ay; }
     else if (!blocked(c.x - ax, c.y - ay)) { c.x -= ax; c.y -= ay; c.sideBias = -side; }
   }
-  if (Math.hypot(c.x - ox, c.y - oy) < 0.5) {
-    c.stuckT += 1 / 60;
+  // (stuck is "made under a third of the step", in the world's own seconds: a fixed
+  //  half-pixel a frame read a man wading through snow on a 144 Hz screen as stuck)
+  if (stepLen > 0 && Math.hypot(c.x - ox, c.y - oy) < stepLen * 0.3) {
+    c.stuckT += dt;
     if (c.stuckT > 1.2) {
       c.stuckT = 0;
       // replan the route from here before cruder measures
@@ -4107,7 +4109,7 @@ function finishMove(wx, wy) {
     if (c.shelter === b || (c.home === b && INDOORS.has(c.state))) { c.x = wx; c.y = wy + 24; }
     if (c.post && Math.hypot(c.post.x - fromX, c.post.y - fromY) < 40) c.post = { x: wx, y: wy + 24 };
   }
-  expandAround(wx, wy, 1);                       // the ground under it is yours
+  if (!WALLLIKE.has(baseType(b)) && !isProp(baseType(b))) expandAround(wx, wy, 1);   // the ground under it is yours (a wall or a lamp claims none, moved or built: walked to the border a piece at a time, one wall was taking the whole forest)
   markChunkDirty(fromX, fromY); markChunkDirty(wx, wy);
   moveBldg = null;
   SFX.build();
@@ -4224,6 +4226,20 @@ function refundTask(c, next) {
   for (const [store, k, q] of t.paid) store[k] = (store[k] || 0) + q;
   t.paid = null;
 }
+// What a man had claimed (the site he was raising, the grave he was cutting, the
+// body he was bearing) is let go whenever his work is taken off him. order() did
+// this for itself, but a stretcher, a quarrel, a rising, the jail and a march all
+// cleared the task by hand and left the claim behind: the site was never raised
+// by anyone, and a man still "bearing the dead" refused every order after.
+function dropClaims(c, keep) {
+  const prev = c.task && c.task.target;
+  if (prev && prev !== keep) {
+    if (prev.builder === c) prev.builder = null;
+    if (prev.mason === c) prev.mason = null;
+    if (prev.bearer === c && prev.carried !== c) prev.bearer = null;
+  }
+  for (const cp of corpses) if (cp !== keep && (cp.carried === c || cp.bearer === c)) { cp.carried = null; cp.bearer = null; }
+}
 function order(c, task) {
   // A prisoner and a patient are not at liberty to be sent anywhere: they are let
   // out by the jail and the ward, which stand them up first. (Clicking the ground
@@ -4237,7 +4253,7 @@ function order(c, task) {
       if (prev.builder === c) prev.builder = null;
       if (prev.mason === c) prev.mason = null;
       if (prev.bearer === c && prev.carried !== c) prev.bearer = null;
-    } }
+    } }   // (the same as dropClaims, but a body he is carrying is dealt with just below)
   // a bearer shoulders the dead until the grave: only fleeing or the cold may interrupt — and then the body is set down
   const held = corpses.find(cp => cp.carried === c);
   if (held && task.target !== held) {
@@ -4298,7 +4314,7 @@ function arrive(c) {
     if (!civs.includes(p) || !needsBed(p) || spokenFor(p)) return;
     if (INDOORS.has(p.state) && !nightCall(p)) return;
     if (p.shelter) turnOut(p, true);              // fetched out of whatever roof they were under
-    p.task = null; p.state = "borne"; p.bearer = c; c.bearing = p;
+    dropClaims(p); p.task = null; p.state = "borne"; p.bearer = c; c.bearing = p;
     toast(`☤ ${c.name} lifts ${p.name} onto the stretcher.`);
     return;
   }
@@ -4379,9 +4395,16 @@ function arrive(c) {
     // rebuilt. It matters now that every burnt building leaves one.
     const b = t.target;
     if (!buildings.includes(b)) { c.state = "idle"; c.task = null; return; }
+    // (two sent to the same ruin both paid, and the second to finish turned the
+    //  market the first had just rebuilt into a cabin: one pair of hands a ruin)
+    if (b.type !== "burned") { c.state = "idle"; c.task = null; return; }
+    if (civs.some(o => o !== c && o.state === "repairing" && o.task && o.task.target === b)) {
+      toast(`${c.name} finds the ruin already being rebuilt.`); c.state = "idle"; c.task = null; return;
+    }
     const rled = ledgerAt(b.x, b.y);
     if (!canPay(REPAIR_COST, rled)) { toast("Materials gone — repair cancelled."); c.state = "idle"; c.task = null; return; }
     pay(REPAIR_COST, rled);
+    t.paid = Object.entries(REPAIR_COST).map(([k, q]) => [rled, k, q]);   // (given back if the work is never finished)
     c.state = "repairing"; c.workT = 0;
   } else if (t.kind === "attack") {
     c.state = "fighting"; c.workT = 0;
@@ -4796,6 +4819,7 @@ const REBEL_RATE = 0.015;                      // ~1 in 67 seconds at the very b
 function maybeRebel(c, dt) {
   if (!has("policing")) return;
   if (c.rebel || isForce(c) || c.child || civs.length < 2) return;
+  if (isJailed(c) || c.state === "abed" || c.state === "borne") return;   // (a cell or a sickbed is no place to rise from: it knocked them out of both for good)
   // Luther told them to obey the magistrate and the Anabaptists renounced the
   // sword outright. Neither will rise, however wretched you make them — which
   // means a colony built on those two creeds is quiet, and pays for the quiet
@@ -4806,7 +4830,7 @@ function maybeRebel(c, dt) {
     c.rebel = true;
     const lawAllows = !F(c).pacifist && (laws.civWeapons || (laws.hunterWeapons && c.profession === "hunter"));
     if (lawAllows && forgeBuilt() && res.weapons > 0) c.armed = armouryTake() || false;
-    c.task = null; c.state = "idle";
+    dropClaims(c); c.task = null; c.state = "idle";
     tell("law", `⚠ ${c.name} has turned against the colony${c.armed ? " — and took a weapon" : ""}!`);
   }
 }
@@ -4849,10 +4873,11 @@ function fallOut(a, b, by) { nudgeOpinion(a, b, by); nudgeOpinion(b, a, by * 0.6
 function startFeud(c, o) {
   if (c.rebel || c.child || !civs.includes(o) || o.child) return;
   if (c.feudWith) return;                       // one quarrel at a time
+  if (isJailed(c) || c.state === "abed" || c.state === "borne") return;   // (it stood a prisoner up in his cell, never to be jailed again, to freeze there)
   // and the colony as a whole only carries so many before it is just a massacre
   if (civs.filter(x => x.feudWith).length >= MAX_FEUDS) return;
   c.feudWith = o.name; c.feudT = FEUD_LEN; c.feudLethal = undefined;
-  c.task = null; c.state = "idle";
+  dropClaims(c); c.task = null; if (!INDOORS.has(c.state)) c.state = "idle";
   tally.feuds++;
   tell("law", `⚠ ${c.name} has fallen out with ${o.name} for good — and means to settle it.`);
 }
@@ -4876,7 +4901,7 @@ function jailCiv(c, jail, byWhom) {
   endFeud(c);
   c.jail = jail; c.jailT = SENTENCE;
   setMark(c, "disgraced", "they have been held in the colony's jail.");
-  c.state = "jailed"; c.task = null;
+  dropClaims(c); c.state = "jailed"; c.task = null;
   c.x = jail.x; c.y = jail.y + 18;
   c.happiness = Math.max(0, c.happiness - 12);
   tally.arrests++;
@@ -4955,7 +4980,7 @@ function runFromTheLaw(c, dt) {
   c.ty = c.y + (dy / d) * 300;
   c.facing = dx < 0 ? -1 : 1;
   collideMove(c, c.x + (dx / d) * walkSpeed(c) * FLEE_HASTE * dt,
-                 c.y + (dy / d) * walkSpeed(c) * FLEE_HASTE * dt);
+                 c.y + (dy / d) * walkSpeed(c) * FLEE_HASTE * dt, dt);
   c.anim += dt * 11;
   return true;
 }
@@ -5082,7 +5107,7 @@ function rebelAI(c) {
   }
 }
 
-function forceAI(c) {
+function forceAI(c, dt = 1 / 60) {
   if (c.state !== "idle") return;
   // arm up from the armoury once Defending is known (line infantry bring their own gun)
   if (c.profession !== "musketeer" && !c.armed && has("defending") && forgeBuilt() && res.weapons > 0) {
@@ -5151,7 +5176,7 @@ function forceAI(c) {
     return;
   }
   // no trouble: walk the beat along the borders
-  c.patrolT = (c.patrolT || 0) - 1 / 60;
+  c.patrolT = (c.patrolT || 0) - dt;   // (game seconds, not frames: patrols ran twice as often on a 120 Hz screen)
   if (c.patrolT <= 0) {
     c.patrolT = 6 + Math.random() * 8;
     const cells = [...territory];
@@ -6582,7 +6607,10 @@ function n_wars_init() { for (const n of Object.values(NATIONS)) { if (n.atWar =
 // rest is filled in from these defaults on the way back. The skills already
 // worked this way, and for the same reason.
 const WAR_DEFAULTS = { atWar: false, warT: 0, lost: 0, defeated: false, trade: false,
-                       mod: 0, calT: 0, hungry: false, revolt: false, refugees: 0 };
+                       mod: 0, calT: 0, hungry: false, revolt: false, refugees: 0,
+                       // (an offended court, a request still being weighed and the caravans gone home
+                       //  empty: a save used to forget all three, so a reload mended any quarrel)
+                       tradeCool: 0, reqCool: 0, dues: 0 };
 function warSave(n) {
   const o = {};
   for (const k of Object.keys(WAR_DEFAULTS)) {
@@ -6749,7 +6777,7 @@ function strikePlague() {
 function updatePlague(dt) {
   if (plagueActive > 0) plagueActive -= dt;
   let anySick = false;
-  for (const c of civs) {
+  for (const c of [...civs]) {   // (a copy: a death splices civs, and the next man missed his turn)
     if (!isSick(c) || c.afield) continue;   // (a sick man on the march sickens again only once he is home)
     anySick = true;
     c.sick -= dt;
@@ -6819,7 +6847,7 @@ function nearestWard(x, y, needBed) {
 // A patient laid in a bed. Called from the doctor's arrival and from a man who
 // walked himself in — both ways in go through here, so both ways out are alike.
 function admit(p, b) {
-  p.task = null; p.bearer = null;
+  dropClaims(p); p.task = null; p.bearer = null;
   p.ward = b; p.state = "abed"; p.wardT = 0;
   p.x = b.x + (Math.random() * 26 - 13); p.y = b.y + 18;
   syncUI();
@@ -9278,6 +9306,22 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 25, date: "31 October 2026", title: "A map in the corner, the colony's books, and the hands with nothing to do",
+    lines: [
+      "A map in the corner shows four views' worth of country around the camera: the woods, your borders, every building and person of yours, and in red the raiders and their camps. Click or drag on it to look there. N hides it, as does a switch in Settings.",
+      "IDLE on the top bar counts the people with nothing to do, and I (or a click on the count) picks the next one and takes the camera to them.",
+      "The Chronicle keeps the colony's books now. THE LEDGER charts people, food, logs, stone, the treasury and the mood over every year of the colony, with the winters shaded. Rest the pointer on a chart to read a day.",
+      "The bread and meat on the top bar say how many days the food would feed everyone, counting what people carry. Under two days they turn red.",
+      "Eight hours before every winter you are told who still has no roof, and whether the larder will hold out.",
+      "Fixed: after a reload, any building that had never been damaged fell to a single blow from an occupying company.",
+      "Fixed: a builder taken to hospital, jailed, sent to war or caught in a quarrel kept his claim on the site, and nobody else would ever raise it. A man carrying the dead when that happened refused every order after.",
+      "Fixed: two people sent to rebuild the same ruin both paid for it, and the second to finish turned the rebuilt market into a cabin. Materials for a rebuild that is never finished go back to the store.",
+      "Fixed: a quarrel or a rising could stand a prisoner up in his cell, never to be released, or a patient out of his bed.",
+      "Fixed: on a fast screen, people wading through snow were taken for stuck and dropped their work, and patrols turned twice as often.",
+      "Fixed: moving a wall or a lamp no longer claims new ground.",
+      "Fixed: a reload forgot an offended court, a request still being weighed, missed caravans, and how cold a man had grown.",
+      "C and P close the Chronicle and the Roll again, as well as opening them.",
+    ] },
   { v: 24, date: "31 October 2026", title: "Wars on the map end the way they should",
     lines: [
       "A column that breaks the enemy on the road, or loses the trail, marches itself home now. It used to stand in the wilds where it finished, with no city near it to recall it from, and those men were lost to the colony for good.",
@@ -9843,12 +9887,14 @@ function saveGame() {
         // as the right answer rather than as missing data.
         faith: c.faith && c.faith !== DEFAULT_FAITH ? c.faith : undefined,
         doubt: c.doubt ? Math.round(c.doubt * 1000) / 1000 : undefined,
+        coldT: c.coldT ? r1(c.coldT) : undefined,          // (a man nearly frozen came back warm from a reload)
+        feudLethal: c.feudLethal || undefined,
         inv: { ...c.inv },
       })),
       buildings: buildings.map(b => ({
         type: b.type, was: b.was || undefined, faith: b.faith || undefined,
         x: r1(b.x), y: r1(b.y), fire: r1(b.fire), placed: b.placed,
-        hp: r1(b.hp), maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
+        hp: b.hp == null ? undefined : r1(b.hp), maxHp: b.maxHp, rot: b.rot, shop: b.shop || [], site: !!b.site,
         occupants: b.occupants.map(ci),
         workers: b.workers ? b.workers.map(ci) : undefined, smelt: b.smelt,
       })),
@@ -9882,7 +9928,7 @@ function saveGame() {
       foreignTowns: foreignTowns.map(t => ({ nation: t.nation, name: t.name, x: r1(t.x), y: r1(t.y),
                                              dm: t.dm, weapons: t.weapons, city: t.city,
                                              houses: t.houses, garrisonRaised: t.garrisonRaised })),
-      foreign: foreign.map(b => ({ type: b.type, x: r1(b.x), y: r1(b.y), hp: r1(b.hp), maxHp: b.maxHp,
+      foreign: foreign.map(b => ({ type: b.type, x: r1(b.x), y: r1(b.y), hp: b.hp == null ? undefined : r1(b.hp), maxHp: b.maxHp,
                                    rot: b.rot, keep: !!b.keep, town: foreignTowns.indexOf(b.town) })),
       garrisons: raiders.filter(r => r.garrison).map(r => ({ x: r1(r.x), y: r1(r.y), hp: r1(r.hp), maxHp: r.maxHp,
                                    dmg: r.dmg, nation: r.nation, town: foreignTowns.indexOf(r.garrison) })),
@@ -9982,6 +10028,7 @@ function loadGame() {
         conquered: cd.conquered || 0 });
       c.sick = cd.sick || 0;
       c.op = cd.op || {}; c.feudWith = cd.feudWith || null; c.feudT = cd.feudT || 0;
+      c.coldT = cd.coldT || 0; c.feudLethal = cd.feudLethal || undefined;
       c.jailT = cd.jailT || 0;
       c.grief = cd.grief || null;
       // A colony saved before temperaments existed keeps the fresh roll mkCiv
@@ -10012,7 +10059,7 @@ function loadGame() {
                        // the rota comes back with the work; the civs are already loaded above
                        workers: isWork(bd.type) ? (bd.workers || []).map(i => civs[i]).filter(Boolean) : undefined,
                        smelt: bd.type === "smelter" ? (bd.smelt || "iron") : undefined,
-                       hp: bd.type === "wall" ? Math.min(bd.hp ?? 100, 100) : bd.type === "gate" ? Math.min(bd.hp ?? 60, 60) : bd.hp,
+                       hp: bd.type === "wall" ? Math.min(bd.hp ?? 100, 100) : bd.type === "gate" ? Math.min(bd.hp ?? 60, 60) : (bd.hp ?? undefined),
                        maxHp: bd.type === "wall" ? 100 : bd.type === "gate" ? 60 : bd.maxHp });
     d.civs.forEach((cd, i) => {
       if (cd.state === "inside" && cd.shelter !== undefined && buildings[cd.shelter] && civs[i]) {
@@ -10102,6 +10149,7 @@ function loadGame() {
     for (const b of (d.foreign || [])) {
       const town = foreignTowns[b.town];
       if (!town) continue;
+      if (b.hp == null) delete b.hp;   // (a save from before 25 wrote an unhurt building's health as null: it read as nothing left)
       const fb = { ...b, town, foreign: true, progress: -1, occupants: [], fire: 0, torchP: -1, placed: true, bakeT: 0 };
       foreign.push(fb);
       if (fb.keep) town.keep = fb;
@@ -11821,7 +11869,7 @@ function simStep(dt) {
     if (c.feudWith && runFromTheLaw(c, dt)) continue;
     if (c.feudWith) feudAI(c);
     if (c.rebel) rebelAI(c);
-    if (isForce(c) && !c.rebel) forceAI(c);
+    if (isForce(c) && !c.rebel) forceAI(c, dt);
 
     // a constable answering a disturbance runs; he is not strolling to it,
     // and a man carrying another on a stretcher does not run at all
@@ -11881,7 +11929,7 @@ function simStep(dt) {
         }
       }
       else {
-        collideMove(c, c.x + (dx / d) * speed * dt, c.y + (dy / d) * speed * dt);
+        collideMove(c, c.x + (dx / d) * speed * dt, c.y + (dy / d) * speed * dt, dt);
         c.facing = dx < 0 ? -1 : 1;
         c.anim += dt * 8;
         c.stepT = (c.stepT || 0) - dt;
@@ -11990,7 +12038,7 @@ function simStep(dt) {
       }
     } else if (c.state === "repairing") {
       const b = c.task.target;
-      if (!buildings.includes(b)) { c.state = "idle"; c.task = null; continue; }
+      if (!buildings.includes(b) || b.type !== "burned") { refundTask(c); c.state = "idle"; c.task = null; continue; }
       c.workT += dt; b.progress = c.workT / repairTime(c); c.anim += dt * 10;
       if ((c.workT % 0.55) < dt) SFX.hammer();
       if (c.workT >= repairTime(c)) {
@@ -11998,6 +12046,7 @@ function simStep(dt) {
         const back = b.was && RUINS.has(b.was) ? b.was : "cabin";
         b.type = back; b.was = null; b.progress = -1; b.placed = false;
         b.maxHp = b.maxHp || 100; b.hp = b.maxHp;
+        c.task.paid = null;                     // (the materials are in the walls now)
         tally.rebuilt++;
         tell("build", `The ${bldgLabel(b)} stands whole again. ${c.name} rebuilt it.`);
         vignette("cabinDone");
@@ -12200,12 +12249,12 @@ function simStep(dt) {
         // working — rather than letting the fight come to fists
         if (!bayonet && d < MUSKET_KEEP_AWAY) {
           collideMove(c, c.x - ((foe.x - c.x) / d) * speed * 0.85 * dt,
-                         c.y - ((foe.y - c.y) / d) * speed * 0.85 * dt);
+                         c.y - ((foe.y - c.y) / d) * speed * 0.85 * dt, dt);
           c.anim += dt * 5;
         }
         if (c.reloadT > 0) continue;
         if (d > MUSKET_RANGE + 70) { c.state = "walking"; c.tx = foe.x; c.ty = foe.y; continue; }
-        if (d > MUSKET_RANGE) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
+        if (d > MUSKET_RANGE) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt, dt);
         c.anim += dt * 2;
         if (c.loaded && c.fireT <= 0 && d <= MUSKET_RANGE + 10) {
           // shouldered, mark taken — now wait on the men beside him
@@ -12233,7 +12282,7 @@ function simStep(dt) {
       if (d > 130) { c.state = "walking"; c.tx = foe.x; c.ty = foe.y; continue; }
       const lance = c.profession === "cavalry" && has("lances");   // distance cavalry: strike from lance reach
       const stand = lance ? 74 : 30, reach = lance ? 92 : 48;
-      if (d > stand) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt);
+      if (d > stand) collideMove(c, c.x + ((foe.x - c.x) / d) * speed * dt, c.y + ((foe.y - c.y) / d) * speed * dt, dt);
       c.facing = foe.x < c.x ? -1 : 1;
       c.anim += dt * 9;
       c.atkT -= dt;
@@ -12763,7 +12812,7 @@ function sendArmy(where, men) {
   const city = where.mx !== undefined ? where : null;
   const foe = city ? null : where;
   const q = city ? cityWorld(city) : { x: foe.x, y: foe.y };
-  for (const c of men) { turnOut(c, true); c.afield = true; c.task = null; c.state = "idle"; c.post = null; }   // (out of any shelter first: his roof kept his name)
+  for (const c of men) { turnOut(c, true); dropClaims(c); c.afield = true; c.task = null; c.state = "idle"; c.post = null; }   // (out of any shelter first: his roof kept his name)
   const m = mkMarch({ kind: "army", side: "you", nation: null, x: CAPITAL_X, y: CAPITAL_Y,
                       tx: q.x, ty: q.y, men, str: men.length * 4,
                       target: city ? city.id : undefined, chase: foe ? foe.id : undefined,
@@ -12800,7 +12849,7 @@ function sendSpy(city) {
 function recallColumn(wx, wy, r = 900) {
   const men = civs.filter(c => !c.afield && isForce(c) && Math.hypot(c.x - wx, c.y - wy) < r);
   if (!men.length) return null;
-  for (const c of men) { c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
+  for (const c of men) { dropClaims(c); c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
   const m = mkMarch({ kind: "army", side: "you", x: wx, y: wy, tx: CAPITAL_X, ty: CAPITAL_Y,
                       men, str: men.length * 4, homeward: true,
                       name: `your column, ${men.length} strong` });
@@ -12815,7 +12864,7 @@ function recallColumn(wx, wy, r = 900) {
 function marchHome(men, x, y) {
   men = (men || []).filter(c => civs.includes(c) && canMarch(c));
   if (!men.length) return null;
-  for (const c of men) { c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
+  for (const c of men) { dropClaims(c); c.afield = true; c.task = null; c.state = "idle"; c.post = null; }
   return mkMarch({ kind: "army", side: "you", x, y, tx: CAPITAL_X, ty: CAPITAL_Y,
                    men, str: men.length * 4, homeward: true,
                    name: `your column, ${men.length} strong` });
