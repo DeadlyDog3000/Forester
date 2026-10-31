@@ -3208,6 +3208,11 @@ addEventListener("keydown", e => {
     if (k === "1" || k === "2" || k === "3") setSimSpeed(+k);
     if (k === "c") openChronicle();
     if (k === "p") openFolk();
+    // the action bar from the keyboard: each key presses its button, so a key does exactly what a click does
+    const BAR_KEYS = { b: "buildToggle", t: "techToggle", m: "mapToggle", o: "govToggle", k: "milToggle" };
+    if (BAR_KEYS[k] && $(BAR_KEYS[k]) && !$(BAR_KEYS[k]).disabled) $(BAR_KEYS[k]).click();
+    if (k === "=" || k === "+") zoomAt(innerWidth / 2, innerHeight / 2, 1.12);
+    if (k === "-" || k === "_") zoomAt(innerWidth / 2, innerHeight / 2, 0.89);
     if (k === "?" || k === "/") openHelp();
     if (k === "h" || k === "g") {
       if (!selected) toast("Select a civilian first — then H to send them to the hospital, G to hand their goods over.");
