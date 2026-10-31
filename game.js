@@ -9032,6 +9032,47 @@ addEventListener("mousemove", e => { if (MINI.drag) miniLook(e); });
 addEventListener("mouseup", () => { MINI.drag = false; });
 $("minimap").addEventListener("contextmenu", e => e.preventDefault());
 $("minimap").addEventListener("wheel", e => { e.preventDefault(); zoomAt(innerWidth / 2, innerHeight / 2, e.deltaY < 0 ? 1.12 : 0.89); }, { passive: false });
+// ===== the steward's list =====
+// The colony's troubles were all there to be found, each in its own place: a fire
+// on the map, a fever in the roll, a man without a roof in his own panel. The
+// steward reads them all every second and lists the ones that need you now,
+// worst first. A click on a line goes to the next one of that kind.
+const STEWARD = { t: 0, rot: {} };
+function stewardItems() {
+  const out = [], here = civs.filter(c => !c.afield);
+  const people = (key, list, one, many, sev) => { if (list.length) out.push({ key, sev, n: list.length, text: `${list.length} ${list.length === 1 ? one : many}`, list }); };
+  const fires = buildings.filter(b => b.fire > 0);
+  if (fires.length) out.push({ key: "fire", sev: 0, text: `${fires.length === 1 ? "A building is" : fires.length + " buildings are"} on fire`, list: fires });
+  const foes = raiders.filter(r => nearTerritory(r.x, r.y));
+  if (foes.length) out.push({ key: "foe", sev: 0, text: `${foes.length === 1 ? "A raider" : foes.length + " raiders"} inside your borders`, list: foes });
+  people("starving", here.filter(c => c.hunger < 20 && !isJailed(c)), "starving", "starving", 1);
+  people("sick", here.filter(c => isSick(c) && c.state !== "abed" && c.state !== "borne"), "sick and not in a bed", "sick and not in a bed", 1);
+  people("roof", here.filter(c => !c.home && !c.child && !isJailed(c) && c.state !== "abed"), "without a roof", "without a roof", season() === "winter" ? 1 : 2);
+  const sites = buildings.filter(b => b.site && !(b.builder && civs.includes(b.builder)));
+  if (sites.length) out.push({ key: "site", sev: 3, text: `${sites.length} ${sites.length === 1 ? "site waits" : "sites wait"} for a builder`, list: sites });
+  const ruins = buildings.filter(b => b.type === "burned");
+  if (ruins.length) out.push({ key: "ruin", sev: 3, text: `${ruins.length} ${ruins.length === 1 ? "ruin" : "ruins"} to rebuild`, list: ruins });
+  return out.sort((a, b) => a.sev - b.sev).slice(0, 5);
+}
+const stewardShown = () => gameState === "playing" && stratAmt() < 0.05;
+function stewardSync() {
+  const box = $("steward"); if (!box) return;
+  const items = stewardShown() ? stewardItems() : [];
+  box.style.display = items.length ? "block" : "none";
+  box.classList.toggle("low", !settings.minimap);      // (with the map put away, it drops into its place)
+  STEWARD.items = items;
+  const html = items.map((it, i) => `<div class="stw sev${it.sev}" data-i="${i}" role="button" tabindex="0">${esc(it.text)}</div>`).join("");
+  if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = `<div class="stwHead">Needs seeing to</div>` + html; }
+}
+function stewardGo(i) {
+  const it = STEWARD.items && STEWARD.items[i]; if (!it) return;
+  const k = (STEWARD.rot[it.key] = ((STEWARD.rot[it.key] || 0) + 1)) % it.list.length;
+  const o = it.list[k];
+  if (civs.includes(o)) { selected = o; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = groupable(o) ? [o] : []; syncUI(); }
+  flyTo(o.x, o.y, Math.max(zoom, 0.9), 0.6);
+}
+$("steward").addEventListener("click", e => { const l = e.target.closest(".stw"); if (l) stewardGo(+l.dataset.i); });
+$("steward").addEventListener("keydown", e => { const l = e.target.closest(".stw"); if (l && e.key === "Enter") { e.stopPropagation(); stewardGo(+l.dataset.i); } });
 function toggleMinimap() { settings.minimap = !settings.minimap; saveSettings(); syncSettings(); drawMinimap(); toast(settings.minimap ? "The map in the corner is back. N hides it." : "The map in the corner is put away. N brings it back."); }
 
 // ===== the ledger: the colony's numbers over the years =====
@@ -9332,6 +9373,8 @@ const CHANGELOG = [
     lines: [
       "A map in the corner shows four views' worth of country around the camera: the woods, your borders, every building and person of yours, and in red the raiders and their camps. Click or drag on it to look there. N hides it, as does a switch in Settings.",
       "IDLE on the top bar counts the people with nothing to do, and I (or a click on the count) picks the next one and takes the camera to them.",
+      "Above the map in the corner, a short list of what needs seeing to, worst first: a fire, raiders inside your borders, the starving, the sick out of bed, anyone without a roof, sites with no builder, ruins. Click a line to go to the next one of them.",
+      "Rest the pointer on someone and the hint says what they are doing.",
       "The Chronicle keeps the colony's books now. THE LEDGER charts people, food, logs, stone, the treasury and the mood over every year of the colony, with the winters shaded. Rest the pointer on a chart to read a day.",
       "The bread and meat on the top bar say how many days the food would feed everyone, counting what people carry. Under two days they turn red.",
       "Eight hours before every winter you are told who still has no roof, and whether the larder will hold out.",
@@ -11279,6 +11322,7 @@ function update(dt) {
   if (rt) cam.x += CAM_SPEED * settings.camSpeed * fast / zoom * dt;
   edgePan(dt, fast);
   if ((MINI.t += dt) >= MINI.every || !miniShown() !== ($("minimap").style.display === "none")) { MINI.t = 0; drawMinimap(); }
+  if ((STEWARD.t += dt) >= 1 || (!stewardShown() && $("steward").style.display !== "none")) { STEWARD.t = 0; stewardSync(); }
   mouse.wx = cam.x + mouse.x / zoom;
   mouse.wy = cam.y + mouse.y / zoom;
   // The woods have a voice now, and it answers to the season, the hour, the
