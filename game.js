@@ -9186,6 +9186,8 @@ function stewardItems() {
   if (sites.length) out.push({ key: "site", sev: 3, text: `${sites.length} ${sites.length === 1 ? "site waits" : "sites wait"} for a builder`, list: sites });
   const ruins = buildings.filter(b => b.type === "burned");
   if (ruins.length) out.push({ key: "ruin", sev: 3, text: `${ruins.length} ${ruins.length === 1 ? "ruin" : "ruins"} to rebuild`, list: ruins });
+  if (feastState(townAt(cam.x + canvas.width / zoom / 2, cam.y + canvas.height / zoom / 2)).ok)
+    out.push({ key: "feast", sev: 4, text: "The harvest feast can be held", list: [{ x: CAPITAL_X, y: CAPITAL_Y, open: "govToggle" }] });
   return out.sort((a, b) => a.sev - b.sev).slice(0, 5);
 }
 const stewardShown = () => gameState === "playing" && stratAmt() < 0.05;
@@ -9202,6 +9204,7 @@ function stewardGo(i) {
   const it = STEWARD.items && STEWARD.items[i]; if (!it) return;
   const k = (STEWARD.rot[it.key] = ((STEWARD.rot[it.key] || 0) + 1)) % it.list.length;
   const o = it.list[k];
+  if (o.open) { if (!isOpen("govPanel")) $(o.open).click(); return; }
   if (civs.includes(o)) { selected = o; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = groupable(o) ? [o] : []; syncUI(); }
   flyTo(o.x, o.y, Math.max(zoom, 0.9), 0.6);
 }

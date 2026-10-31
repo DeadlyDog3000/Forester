@@ -1623,3 +1623,4 @@ body.noMotion #hud .res.short { animation: none; background: rgba(216,106,90,0.1
 @media (max-width: 760px), (max-height: 520px) { #steward { bottom: 164px; width: 140px; } }
 @media (pointer: coarse) { #steward { display: none !important; } }
 #steward.low { bottom: 58px; }
+#steward .stw.sev4 { border-left-color: #7da083; color: #a8c4ad; }
