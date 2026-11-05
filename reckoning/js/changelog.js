@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.249", date: "5 November 2026", title: "Faster in Hamburg and the woods",
+    items: [
+      "Hamburg's streets run about a third faster. Stacks of crates and barrels are drawn all at once instead of one by one, and townsfolk more than about thirty yards away no longer cast shadows too small to see. A busy street went from about 1,050 draws a frame to about 200.",
+      "Ore rocks in the woods are drawn in one piece instead of seventeen, so the road north-east and the clearing are lighter on the graphics card.",
+      "Eyes and resting hands no longer cast shadows of their own inside a head's or an arm's.",
+    ],
+  },
+  {
     v: "1.99.248", date: "30 October 2026", title: "Shade under the trees",
     items: [
       "In the woods it's shady under the trees, as it should be: trunks and undergrowth under the crowns are dim and a little green, birches no longer glare, and the wood looks deep from the open road. Far off, past where shadows are drawn, the forest floor under the trees stays shaded too.",
