@@ -683,6 +683,27 @@ export function rockGeo(r = 1, seed) {
   return ROCKS[i].clone().scale(r, r, r);
 }
 
+// the same scanned prop many times over — a quay stacked with crates, a cellar of barrels — drawn as one: every copy of a
+// piece of it gathered into an InstancedMesh, rather than a draw of its own each (and another for its shadow). Only
+// props marked as standing still (userData.prop) are gathered; anything a story moves or opens stays as it was
+function instanceProps(m, shadow, receive) {
+  const byKey = new Map();
+  for (const o of m.children) {
+    if (!o.userData.prop) continue;
+    o.updateMatrix(); o.updateMatrixWorld(true);   // (m has no parent yet: o's world is m's own space)
+    o.traverse(c => { if (c.isMesh && !c.isSkinnedMesh && !c.isInstancedMesh && !Array.isArray(c.material) && c.visible) { const k = c.geometry.uuid + "|" + c.material.uuid; (byKey.get(k) || byKey.set(k, []).get(k)).push(c); } });
+  }
+  const _m = new THREE.Matrix4(), inv = new THREE.Matrix4().copy(m.matrixWorld).invert();
+  for (const list of byKey.values()) {
+    if (list.length < 3) continue;
+    const im = new THREE.InstancedMesh(list[0].geometry, list[0].material, list.length);
+    list.forEach((c, i) => { im.setMatrixAt(i, _m.multiplyMatrices(inv, c.matrixWorld)); c.parent.remove(c); });
+    im.castShadow = shadow; im.receiveShadow = receive; im.name = list[0].name; im.computeBoundingSphere(); m.add(im);
+  }
+  // (a prop left with nothing of its own to draw goes too)
+  for (const o of m.children.slice()) if (o.userData.prop) { let any = false; o.traverse(c => { if (c.isMesh) any = true; }); if (!any) m.remove(o); }
+}
+
 export class Builder {
   constructor() { this.parts = []; this.objects = []; }
   // (a whole model alongside the merged pieces — a real barrel, a real table — set at its place, and carried by the
@@ -717,6 +738,7 @@ export class Builder {
     m.castShadow = shadow; m.receiveShadow = receive;
     for (const o of this.objects) { o.traverse(c => { if (c.isMesh) { c.castShadow = shadow; c.receiveShadow = receive; } }); m.add(o); }
     this.objects = [];
+    instanceProps(m, shadow, receive);
     return m;
   }
   get empty() { return this.parts.length === 0 && this.objects.length === 0; }

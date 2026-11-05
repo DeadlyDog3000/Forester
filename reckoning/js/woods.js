@@ -5,7 +5,7 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, rockGeo, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs, skyLit } from "./core.js";
+import { THREE, rockGeo, mergeGeos, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs, skyLit } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway, realPart, realMany, makeLogs } from "./models.js";
 import { grassTexture } from "./hamburg.js";
@@ -553,10 +553,31 @@ export class Woods extends WorldBase {
           m.castShadow = m.receiveShadow = true; g.add(m);
         }
         // the ore shows in the rock: flecks set into its faces all round
-        if (FLECK[kind]) for (let j = 0; j < 14; j++) {
-          const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09 + r() * 0.05, 0), FLECK[kind][j % 2]);
-          const u = r() * TAU, v = r() * 1.1;
-          f.position.set(Math.cos(u) * Math.cos(v) * big * 0.92, Math.sin(v) * big * 0.62, Math.sin(u) * Math.cos(v) * big * 0.92); main.add(f);   // (on the stone itself, so they lie as it lies)
+        //  (fourteen of them in two colours, each colour made one mesh: two draws for a stone's flecks, not fourteen)
+        if (FLECK[kind]) {
+          const two = [[], []];
+          for (let j = 0; j < 14; j++) {
+            const f = new THREE.IcosahedronGeometry(0.09 + r() * 0.05, 0);
+            const u = r() * TAU, v = r() * 1.1;
+            f.translate(Math.cos(u) * Math.cos(v) * big * 0.92, Math.sin(v) * big * 0.62, Math.sin(u) * Math.cos(v) * big * 0.92); two[j % 2].push(f);
+          }
+          two.forEach((list, k) => {
+            let n = 0; for (const f of list) n += f.attributes.position.count;
+            const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+            for (const f of list) { pos.set(f.attributes.position.array, o * 3); nor.set(f.attributes.normal.array, o * 3); o += f.attributes.position.count; f.dispose(); }
+            const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+            main.add(new THREE.Mesh(geo, FLECK[kind][k]));   // (on the stone itself, so they lie as it lies)
+          });
+        }
+        // (the three stones made one mesh, and the flecks set where the first stone put them: a rock is one draw, and two
+        //  more for its ore, rather than three and fourteen)
+        {
+          const stones = g.children.slice();
+          for (const f of main.children.slice()) { main.updateMatrix(); f.geometry.applyMatrix4(main.matrix); main.remove(f); g.add(f); }
+          const geos = stones.map(m => { m.updateMatrix(); return (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()).applyMatrix4(m.matrix); });
+          const one = new THREE.Mesh(mergeGeos(geos), rockMat); one.castShadow = one.receiveShadow = true;
+          geos.forEach(q => q.dispose()); for (const m of stones) { g.remove(m); m.geometry.dispose(); }
+          g.add(one);
         }
         this.root.add(g);
         const rock = { kind, x, z, y, g, hp: ROCKS[kind].hp, gone: 0, col: this.col.addCircle(x, z, big * 0.9, y + 1.4) };

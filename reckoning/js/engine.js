@@ -2359,6 +2359,12 @@ function personalSpace(list, dt) {
 }
 // (how high a rider's seat is lifted: the seated clip's hips stand 0.9 over its feet, and the horse's back is 1.5 up)
 const SADDLE = 0.68;
+
+// (whether a piece of a body throws a shadow: as it was made, while the body is near enough; never the small parts of a
+//  face and hands, which sit inside the head's and the arms' own)
+const TINY_PART = /_(eyes|iris|handrest[LR]_skin|teeth|tongue|brows?|lashes)$/;
+function castSet(o, cast) { if (!o.isMesh) return; if (o.userData.cs0 === undefined) o.userData.cs0 = o.castShadow && !TINY_PART.test(o.name || ""); o.castShadow = cast && o.userData.cs0; }
+
 export class Actor {
   constructor(opts, x, z, yaw = 0) {
     this.person = makePerson(opts);
@@ -2566,10 +2572,12 @@ export class Actor {
     const every = G.arena && !this.lying ? (far2 > 6400 ? 6 : far2 > 1225 ? 3 : 1) : 1;
     this._animAcc = (this._animAcc || 0) + dt; this._animN = (this._animN || 0) + 1;
     if (this._animN % every === 0) { this.person.update(this._animAcc, this.horse ? 0 : stepTurn ? Math.max(this.speed, 0.65) : this.speed); this._animAcc = 0; }
-    if (G.arena && (this._shT = (this._shT || 0) - dt) <= 0) {
+    //  (in a town or the woods as well as a battle: thirty-odd yards off, a man's shadow is a smudge the map can't hold;
+    //  and the small parts of a face and hands — eyes, irises, the hands at rest — never throw one: they're inside the head's)
+    if ((this._shT = (this._shT || 0) - dt) <= 0) {
       this._shT = 0.5 + Math.random() * 0.2;
-      const cast = far2 < 900;
-      if (cast !== this._cast) { this._cast = cast; this.root.traverse(o => { if (o.isMesh) o.castShadow = cast; }); if (this.horse) this.horse.root.traverse(o => { if (o.isMesh) o.castShadow = cast; }); }
+      const cast = far2 < (G.arena ? 900 : 1100);
+      if (cast !== this._cast) { this._cast = cast; this.root.traverse(o => castSet(o, cast)); if (this.horse) this.horse.root.traverse(o => castSet(o, cast)); }
     }
     if (this.onUpdate) this.onUpdate(dt);
     // (the saddle where the horse has it: up with it when it rears)

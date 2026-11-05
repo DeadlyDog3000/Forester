@@ -2408,7 +2408,7 @@ export const P = {
         m.scene.position.set(px, py, pz); m.scene.rotation.y = (((x * 13.7 + z * 5.3 + k++ * 2.9) % 1) - 0.5) * 0.08; g.add(m.scene);
       }
       if (ok) {
-        b.object(g, x, y, z, ry, 1);
+        b.object(g, x, y, z, ry, 1); g.userData.prop = true;
         if (big) g.scale.set(s / 1.06, s / 0.92, s / 1.16); else g.scale.setScalar(s / 0.83);
         return;
       }
@@ -2419,7 +2419,7 @@ export const P = {
   },
   barrel(b, x, z, y = 0) {
     // (a real one, scanned — its staves and iron hoops — where it's loaded)
-    { const m = b.object && modelCopy("prop_barrel"); if (m) { b.object(m.scene, x, y, z, (x * 7.3 + z * 3.1) % 6.283, 0.82); return; } }
+    { const m = b.object && modelCopy("prop_barrel"); if (m) { b.object(m.scene, x, y, z, (x * 7.3 + z * 3.1) % 6.283, 0.82); m.scene.userData.prop = true; return; } }
     b.add(new THREE.CylinderGeometry(0.34, 0.3, 0.95, 10), 0x7a5634, x, y + 0.475, z, 0, 0, 0, 1, 1, 1, 0.08);
     b.add(new THREE.CylinderGeometry(0.355, 0.355, 0.05, 10), 0x3a3a3a, x, y + 0.2, z);
     b.add(new THREE.CylinderGeometry(0.355, 0.355, 0.05, 10), 0x3a3a3a, x, y + 0.75, z);
