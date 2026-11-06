@@ -2321,9 +2321,10 @@ function loop(now) {
   //  ordinary steps one after another, only the last of them drawn, so a hurried world moves as the real one does)
   // (and nothing drawn behind the menu's painted backdrop, which covers the whole window: the title drew the empty
   //  scene and its finishing passes a hundred times a second, unseen, warming the computer while you chose)
-  // (paused on your own, the world holds still: drawn a couple of times and then left as it is under the menu, until a
-  //  setting changes or the window does — the same picture had been drawn over again every frame)
-  const still = G.mode === "pause" && !G.mp && !(G.arena && G.arena.net);
+  // (paused on your own, or reading a lesson's card, the world holds still: drawn a couple of times and then left as it
+  //  is under the menu or the card, until a setting changes or the window does — the same picture had been drawn over
+  //  again every frame)
+  const still = (G.mode === "pause" || G.mode === "lesson") && !G.mp && !(G.arena && G.arena.net);
   if (!still) stillDrawn = 0;
   const held = still && stillDrawn >= 2 && !G.redraw;
   if (still && !held) { stillDrawn++; G.redraw = false; }
