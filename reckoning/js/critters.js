@@ -30,7 +30,8 @@ function squirrelMesh() {
     p.position.set(0, Math.sin(a) * 0.1, -Math.cos(a) * 0.05 - 0.02); p.scale.set(0.8, 1.2, 0.9); tail.add(p);
   }
   g.userData.tail = tail; g.userData.body = body; g.userData.head = head;
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  // (the body and the tail throw the shadow; the eyes, ears, chest and head are within it, each a draw of its own for nothing)
+  g.traverse(o => { if (o.isMesh) o.castShadow = (o.geometry.parameters && o.geometry.parameters.radius || 0) >= 0.04; });
   return g;
 }
 
