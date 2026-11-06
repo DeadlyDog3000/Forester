@@ -2306,6 +2306,7 @@ renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !
 const URL_SPEED = +(new URLSearchParams(location.search).get("speed") || 0);
 let last = performance.now();
 let lastDrawn = 0;
+let menusEl = null;
 function loop(now) {
   // (a frame cap skips frames that come too soon, and the time they would have had goes to the next)
   const cap = G.settings.cap || 0;
@@ -2316,7 +2317,10 @@ function loop(now) {
   last = now;
   // (tests step the game themselves; the developer's panel, or ?speed=N on the address, hurries it — as so many
   //  ordinary steps one after another, only the last of them drawn, so a hurried world moves as the real one does)
-  if (!window.__manual) { const k = Math.max(1, Math.min(8, Math.round(G.devSpeed || URL_SPEED || 1))); for (let i = 1; i < k; i++) frame(dt, true); frame(dt); }
+  // (and nothing drawn behind the menu's painted backdrop, which covers the whole window: the title drew the empty
+  //  scene and its finishing passes a hundred times a second, unseen, warming the computer while you chose)
+  const M = menusEl || (menusEl = document.getElementById("menus")), covered = !!M && M.classList.contains("backdrop") && !M.classList.contains("hidden");
+  if (!window.__manual) { const k = Math.max(1, Math.min(8, Math.round(G.devSpeed || URL_SPEED || 1))); for (let i = 1; i < k; i++) frame(dt, true); frame(dt, covered); }
   requestAnimationFrame(loop);
 }
 
