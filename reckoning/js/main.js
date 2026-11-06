@@ -98,6 +98,7 @@ function applySettings() {
   G.treeNear = { full: 55, medium: 22, low: 0 }[s.trees || "full"] ?? 55;
   if (!s.dynres) dynScale = 1;
   applyScale();
+  G.redraw = true;   // (seen at once even with the game held still behind the menu)
   $("sensVal").textContent = (+s.sens).toFixed(2); $("fovVal").textContent = s.fov + "°"; $("volVal").textContent = Math.round(s.volume * 100) + "%";
 }
 for (const [id, key, num] of [["setSens", "sens", true], ["setFov", "fov", true], ["setVol", "volume", true], ["setSat", "sat", true], ["setPix", "pix", true]]) {
@@ -2306,7 +2307,8 @@ renderer.domElement.addEventListener("click", () => { if (G.mode === "play" && !
 const URL_SPEED = +(new URLSearchParams(location.search).get("speed") || 0);
 let last = performance.now();
 let lastDrawn = 0;
-let menusEl = null;
+let menusEl = null, stillDrawn = 0;
+addEventListener("resize", () => { G.redraw = true; });
 function loop(now) {
   // (a frame cap skips frames that come too soon, and the time they would have had goes to the next)
   const cap = G.settings.cap || 0;
@@ -2319,7 +2321,13 @@ function loop(now) {
   //  ordinary steps one after another, only the last of them drawn, so a hurried world moves as the real one does)
   // (and nothing drawn behind the menu's painted backdrop, which covers the whole window: the title drew the empty
   //  scene and its finishing passes a hundred times a second, unseen, warming the computer while you chose)
-  const M = menusEl || (menusEl = document.getElementById("menus")), covered = !!M && M.classList.contains("backdrop") && !M.classList.contains("hidden");
+  // (paused on your own, the world holds still: drawn a couple of times and then left as it is under the menu, until a
+  //  setting changes or the window does — the same picture had been drawn over again every frame)
+  const still = G.mode === "pause" && !G.mp && !(G.arena && G.arena.net);
+  if (!still) stillDrawn = 0;
+  const held = still && stillDrawn >= 2 && !G.redraw;
+  if (still && !held) { stillDrawn++; G.redraw = false; }
+  const M = menusEl || (menusEl = document.getElementById("menus")), covered = held || (!!M && M.classList.contains("backdrop") && !M.classList.contains("hidden"));
   if (!window.__manual) { const k = Math.max(1, Math.min(8, Math.round(G.devSpeed || URL_SPEED || 1))); for (let i = 1; i < k; i++) frame(dt, true); frame(dt, covered); }
   requestAnimationFrame(loop);
 }
