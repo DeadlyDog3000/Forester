@@ -991,9 +991,13 @@ function strandHair(m) {
         roughnessFactor = clamp(mix(0.85, 0.42, smoothstep(0.55, 0.85, hrS)), 0.3, 1.0);`);
   }, "hair");
 }
+// (a hidden thing's place left as it was: three works out every object's place each frame, seen or not)
+function freeze(o, on) { o.matrixAutoUpdate = !on; o.matrixWorldAutoUpdate = !on; if (!on) o.matrixWorldNeedsUpdate = true; }
 function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
-  P.root.traverse(o => { if (o.isMesh) o.visible = false; });
+  // (the shapes built in code, hidden under the model for good: their places no longer worked out every frame either —
+  //  sixty-odd a man, which in a battle of a hundred was most of the scene's work of placing things)
+  P.root.traverse(o => { if (o.isMesh) { o.visible = false; freeze(o, true); } });
   P.body.add(m.scene); P.modelScene = m.scene;
   // (each hand twice in the model — at rest, and closed to hold: shown as the hand needs, see P.update — found by name
   //  before the colours below rename their materials)
@@ -3444,11 +3448,11 @@ export function mergeRig(root) {
     sk.castShadow = true; sk.receiveShadow = true; sk.frustumCulled = false;
     list[0].parent.add(sk); sk.bind(list[0].skeleton, bind);
     if (sim) { geo.setAttribute("aCloth", new THREE.BufferAttribute(acl, 2)); sk.userData.unCloth = clothMerged(sim, sk); }
-    for (const o of list) o.visible = false;
+    for (const o of list) { o.visible = false; freeze(o, true); }
     made.push(sk); made.hidden = (made.hidden || []).concat(list);
   }
   if (!made.length) return null;
   root.userData.merged = made;
   // (and made many again, if anything ever needs the pieces themselves)
-  return () => { root.userData.merged = null; for (const m of made) { if (m.userData.unCloth) m.userData.unCloth(); m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) o.visible = true; };
+  return () => { root.userData.merged = null; for (const m of made) { if (m.userData.unCloth) m.userData.unCloth(); m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) { o.visible = true; freeze(o, false); } };
 }

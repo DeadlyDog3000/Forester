@@ -251,4 +251,5 @@ export function reflectWater(renderer, scene, camera) {
   try { renderer.setRenderTarget(REF.rt); renderer.clear(); renderer.render(scene, cam); }
   finally { renderer.setRenderTarget(prevT); renderer.shadowMap.autoUpdate = prevS; for (const [m, v] of hid) m.visible = v; }
   best.wm.uni.uRefl.value = REF.rt.texture; best.wm.uni.uReflOn.value = 1;
+  return true;   // (drawn: the scene's places are worked out for this frame)
 }

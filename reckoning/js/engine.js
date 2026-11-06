@@ -2363,7 +2363,16 @@ const SADDLE = 0.68;
 // (whether a piece of a body throws a shadow: as it was made, while the body is near enough; never the small parts of a
 //  face and hands, which sit inside the head's and the arms' own)
 const TINY_PART = /_(eyes|iris|handrest[LR]_skin|teeth|tongue|brows?|lashes)$/;
-function castSet(o, cast) { if (!o.isMesh) return; if (o.userData.cs0 === undefined) o.userData.cs0 = o.castShadow && !TINY_PART.test(o.name || ""); o.castShadow = cast && o.userData.cs0; }
+// (and what a man holds or wears at his side — a musket and its bayonet, a sword, a dagger — throws its shadow only from
+//  a few yards off: further, a barrel a finger thick is thinner than one grain of the sun's shadow map and can't be seen
+//  in it, yet a battle's hundred muskets, each of seven or eight pieces, were four hundred draws of the shadow alone)
+const HELD_PART = /^(musket|pistol)_|dagger|estoc|sword/;
+const heldPart = o => { if (HELD_PART.test(o.name || "")) return true; for (let p = o.parent; p; p = p.parent) if (p.userData && p.userData.grips) return true; return false; };
+function castSet(o, cast, near = true) {
+  if (!o.isMesh) return;
+  if (o.userData.cs0 === undefined) { o.userData.cs0 = o.castShadow && !TINY_PART.test(o.name || ""); o.userData.held = heldPart(o); }
+  o.castShadow = cast && o.userData.cs0 && (near || !o.userData.held);
+}
 
 export class Actor {
   constructor(opts, x, z, yaw = 0) {
@@ -2576,8 +2585,8 @@ export class Actor {
     //  and the small parts of a face and hands — eyes, irises, the hands at rest — never throw one: they're inside the head's)
     if ((this._shT = (this._shT || 0) - dt) <= 0) {
       this._shT = 0.5 + Math.random() * 0.2;
-      const cast = far2 < (G.arena ? 900 : 1100);
-      if (cast !== this._cast) { this._cast = cast; this.root.traverse(o => castSet(o, cast)); if (this.horse) this.horse.root.traverse(o => castSet(o, cast)); }
+      const cast = far2 < (G.arena ? 900 : 1100), near = far2 < 144;
+      if (cast !== this._cast || near !== this._castNear) { this._cast = cast; this._castNear = near; this.root.traverse(o => castSet(o, cast, near)); if (this.horse) this.horse.root.traverse(o => castSet(o, cast, near)); }
     }
     // (standing still, they're stepped round too, not walked into: you could walk into your brother or sister as they
     //  crouched in the trees, and look out from inside them)
@@ -2655,12 +2664,32 @@ function pickInteract() {
 const crossEl = () => document.getElementById("crosshair");
 let crossFlash = 0;
 // something that can be hunted, under the middle of the screen: a live animal, in reach of an arrow and in plain sight
-const _ray = new THREE.Raycaster();
+const _ray = new THREE.Raycaster(), _huntAt = new THREE.Vector3(), _huntFoot = new THREE.Vector3(), _huntHead = new THREE.Vector3(), _huntOn = new THREE.Vector3();
 function huntTarget() {
-  const alive = G.hunt.animals.filter(a => a.alive && a.root.parent);
-  if (!alive.length) return null;
   _ray.setFromCamera({ x: 0, y: 0 }, camera); _ray.far = 70;
-  const hit = _ray.intersectObjects(alive.map(a => a.root), true)[0];
+  // (only those anywhere near the line of sight are tried against their bodies: tried shape by shape, a skinned beast
+  //  is posed point by point to be hit, and a battle's horses were tried so, every one, every frame)
+  const R = _ray.ray, alive = G.hunt.animals.filter(a => {
+    if (!a.alive || !a.root.parent) return false;
+    _huntAt.setFromMatrixPosition(a.root.matrixWorld); _huntAt.y += 0.8;
+    return R.origin.distanceToSquared(_huntAt) < 80 * 80 && R.distanceSqToPoint(_huntAt) < 16;
+  });
+  if (!alive.length) return null;
+  // (a man — a battle's soldier, a raider — is tried as he stands, a body from his feet to the crown of his head (on a
+  //  horse, from the saddle): the cross only turns red over him, and his body tried shape by shape, his every point
+  //  posed, was most of a frame with a company round you. A beast is tried by its own shape)
+  let hit = null;
+  const beasts = [];
+  for (const a of alive) {
+    const A = a.a && a.a.person ? a.a : null;
+    if (!A && !a.man) { beasts.push(a.root); continue; }
+    // (the line through him from a hand above his feet to his brow, as thick as he is: feet to the crown of a hat. A
+    //  rider's place is his saddle)
+    const lo = A && A.horse ? 0.05 : 0.28, hi = A && A.horse ? 0.85 : 1.5;
+    _huntFoot.setFromMatrixPosition(a.root.matrixWorld); _huntHead.copy(_huntFoot); _huntFoot.y += lo; _huntHead.y += hi;
+    if (R.distanceSqToSegment(_huntFoot, _huntHead, _huntOn) < 0.28 * 0.28) { const d = _huntOn.distanceTo(R.origin); if (d <= _ray.far && (!hit || d < hit.distance)) hit = { point: _huntOn.clone(), distance: d, object: a.root }; }
+  }
+  if (beasts.length) { const h = _ray.intersectObjects(beasts, true)[0]; if (h && (!hit || h.distance < hit.distance)) hit = h; }
   if (!hit) return null;
   const from = camera.getWorldPosition(new THREE.Vector3());
   return G.world.col.lineOfSight(from, hit.point.clone().addScaledVector(_ray.ray.direction, -0.3)) ? hit : null;
@@ -3130,7 +3159,11 @@ export function frame(dt, skipRender) {
   if (G.shadowEvery > 1) renderer.shadowMap.needsUpdate = (G.frameN = (G.frameN || 0) + 1) % G.shadowEvery === 0;
   if (!skipRender) {
     if (!SKYENV.tex || (G.envN = (G.envN || 0) + 1) % 30 === 0) updateSkyEnv();
-    reflectWater(renderer, G.scene, camera); renderFrame(G.scene, camera);
+    // (the mirror, when it's drawn, has just worked out the place of everything in the scene: the frame itself doesn't
+    //  go through all of it again straight after — in a battle, sixteen thousand things)
+    const placed = reflectWater(renderer, G.scene, camera);
+    if (placed) G.scene.matrixWorldAutoUpdate = false;
+    try { renderFrame(G.scene, camera); } finally { G.scene.matrixWorldAutoUpdate = true; }
     // (eight frames into a new world, its light settled: the rest of it looked at once, out of sight — see warmViews)
     if (G.warmViews > 0 && --G.warmViews === 0) warmViews(G.scene, camera);
   }
@@ -3195,3 +3228,4 @@ export class WorldBase {
     });
   }
 }
+export { huntTarget };   // (for the test scripts)
