@@ -1149,7 +1149,45 @@ export class Woods extends WorldBase {
       root.add(g);
       ownGrainAll(g); fadeLimbs(g);
       const t = { g, x: tx, z: tz, y: ty, h, hp: 4, state: "up", angle: a, col: this.col.addCircle(tx, tz, 0.32, ty + 12), fall: 0, claimed: null };
+      if (sm) t.ringOwn = sm.scene;
       this.fellable.push(t);
+    }
+    this.buildRingInst(root);
+  }
+  // the ring drawn as one: while a tree of it stands untouched it's an instance of the two meshes every spruce is made of
+  // (its bark and its needles), and its own copy is hidden; struck, falling, felled or cleared, its own copy takes over.
+  // (forty-odd trees were two draws each, and two more for their shadows)
+  buildRingInst(root) {
+    this.ringInst = null;
+    const all = this.fellable.filter(t => t.ringOwn); if (all.length < 4) return;
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const lists = all.map(t => { const a = []; t.ringOwn.traverse(o => { if (o.isMesh) a.push(o); }); return a; }), first = lists[0];
+    if (!first.length || !lists.every(a => a.length === first.length && a.every((o, k) => o.geometry === first[k].geometry && o.material === first[k].material && !o.isSkinnedMesh))) return;
+    all.forEach((t, i) => { t.ringM = lists[i].map(o => new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); t._prox = undefined; });
+    // (in six arcs round the clearing, each its own instances, so the trees behind you aren't drawn: the ring was made
+    //  in order round it)
+    const ARCS = 6, per = Math.ceil(all.length / ARCS), groups = [];
+    for (let a = 0; a < all.length; a += per) {
+      const trees = all.slice(a, a + per);
+      const ims = first.map(o => { const im = new THREE.InstancedMesh(o.geometry, o.material, trees.length); im.castShadow = o.castShadow; im.receiveShadow = o.receiveShadow; im.name = o.name + "_ring"; for (let i = 0; i < trees.length; i++) im.setMatrixAt(i, ZERO); root.add(im); return im; });
+      trees.forEach((t, i) => { t.ringI = i; });
+      groups.push({ ims, trees });
+    }
+    this.ringInst = groups;
+    this.syncRingInst();
+  }
+  syncRingInst() {
+    if (!this.ringInst) return;
+    for (const R of this.ringInst) {
+      let dirty = false;
+      for (const t of R.trees) {
+        const prox = t.state === "up" && t.g.visible && t.g.parent != null && !t.g.rotation.x && !t.g.rotation.z;
+        if (prox === t._prox) continue;
+        t._prox = prox; dirty = true; t.ringOwn.visible = !prox;
+        R.ims.forEach((im, k) => im.setMatrixAt(t.ringI, prox ? t.ringM[k] : ZERO));
+      }
+      if (dirty) for (const im of R.ims) { im.instanceMatrix.needsUpdate = true; im.computeBoundingSphere(); }
     }
   }
   // ---- the settlement grows: a ring of the forest past the edge becomes trees to fell ----
@@ -2135,6 +2173,7 @@ export class Woods extends WorldBase {
   }
   update(dt) {
     this.tickRocks(dt);
+    this.syncRingInst();
     if (this.dirtyGround) this.reshapeGround();
     // tiles of forest past the haze are not drawn at all
     if ((this.tileT = (this.tileT || 0) - dt) <= 0 && this.forestTiles && G.player) {
