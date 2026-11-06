@@ -10,6 +10,7 @@ export const CHANGELOG = [
     v: "1.99.249", date: "6 November 2026", title: "Faster in Hamburg, the woods and battle",
     items: [
       "Battles run smoother, about a fifth faster in a fight of a hundred men. Checking whether your sights were on an enemy used to test every soldier's body, point by point, every frame; now each man is checked against a simple outline of his body, and only those near your line of sight.",
+      "The moment a battle's opening pictures end and the field is yours, the game no longer stops for about a sixth of a second: your arms and gun are made ready while the field loads.",
       "Muskets, swords and daggers more than about twelve yards away no longer cast shadows, which were too thin to see at that range anyway.",
       "The game no longer keeps working out where the hidden parts under each person are every frame, and when water reflects the scene it no longer places everything twice.",
       "Hamburg's streets run about a third faster. Stacks of crates and barrels, and the plates in the merchant's house, are drawn all at once instead of one by one, and townsfolk more than about thirty yards away no longer cast shadows too small to see. A busy street went from about 1,050 draws a frame to about 200.",

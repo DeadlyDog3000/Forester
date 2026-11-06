@@ -9,7 +9,7 @@
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET, SKYLIT, SKYENV, setSkyEnv, CANOPY } from "./core.js";
 import { Billboards } from "./billboards.js";
-import { renderFrame, post, warmViews } from "./post.js";
+import { renderFrame, post, warmViews, warmOnce } from "./post.js";
 import { reflectWater } from "./water.js";
 import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
@@ -1691,6 +1691,19 @@ G.toggleFreecam = () => {
   document.body.classList.add("freecam");
   return true;
 };
+// (a scene seen from outside — a battle's opening pictures — with your own view still to come: at the start, while the
+//  field is being made ready anyway, one frame of it drawn out of sight as you'll see it, your arms and gun in front of you, so the graphics card has them
+//  ready. The first moment the pictures ended and the battle was yours, it stopped for a sixth of a second for them)
+function warmFirstPerson() {
+  const p = G.player; if (!p || !G.forceThird || G.freecam) return;
+  // (the pictures' own camera, which steers the eye through deathCam, set aside for the one frame and given back)
+  const pos = camera.position.clone(), q = camera.quaternion.clone(), up = camera.up.clone(), fov = camera.fov, dc = G.deathCam, was = G.wasDeathCam, vmv = vm.visible;
+  try { G.deathCam = null; G.wasDeathCam = false; vm.visible = true; G.forceThird = false; updateCamera(1 / 60); camera.updateMatrixWorld(); warmOnce(G.scene, camera); }
+  finally {
+    G.forceThird = true; updateCamera(1 / 60); G.deathCam = dc; G.wasDeathCam = was; vm.visible = vmv;
+    camera.position.copy(pos); camera.quaternion.copy(q); camera.up.copy(up); camera.fov = fov; camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+  }
+}
 function updateCamera(dt) {
   const p = G.player;
   // (dead: the eye goes where the head goes, as the body falls — see pvp.js — and nothing in your hands)
@@ -3166,6 +3179,7 @@ export function frame(dt, skipRender) {
     try { renderFrame(G.scene, camera); } finally { G.scene.matrixWorldAutoUpdate = true; }
     // (eight frames into a new world, its light settled: the rest of it looked at once, out of sight — see warmViews)
     if (G.warmViews > 0 && --G.warmViews === 0) warmViews(G.scene, camera);
+    if (G.warmFP > 0 && --G.warmFP === 0) warmFirstPerson();
   }
 }
 

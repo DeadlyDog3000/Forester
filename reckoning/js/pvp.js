@@ -2185,6 +2185,7 @@ class Arena {
     ];
     const t0 = this.introT0 = performance.now(), sm = new Smooth(); let cur = -1, ended = false;
     G.forceThird = true; UI.show("hud", false); FILM.bars(true); FILM.note(""); document.body.classList.add("cine");
+    G.warmFP = 2;   // (your own view made ready while the pictures play: see warmFirstPerson in engine.js)
     if (!this.introMusic) { this.introMusic = true; AUDIO.score(battle ? 12.5 : 16, { vol: battle ? 0.8 : 0.6, fade: 1.8 }); }
     const done = () => {
       if (ended) return; ended = true;

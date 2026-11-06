@@ -260,6 +260,11 @@ export function warmViews(scene, camera) {
     camera.quaternion.copy(_q0); camera.updateMatrixWorld(); renderer.setRenderTarget(prev);
   } catch (e) {}
 }
+// (and the scene drawn once as the camera has it, out of sight: see warmFirstPerson in engine.js)
+export function warmOnce(scene, camera) {
+  if (!post.on || post.failed) return;
+  try { ensure(); const prev = renderer.getRenderTarget(); renderer.setRenderTarget(rt); renderer.render(scene, camera); renderer.setRenderTarget(prev); } catch (e) {}
+}
 // (for the tests: what each stage holds at the middle of the picture)
 export function postProbe() {
   const px = (t, w, h) => { const b = new Uint16Array(4); try { renderer.readRenderTargetPixels(t, w >> 1, h >> 1, 1, 1, b); } catch (e) { return String(e.message); } return Array.from(b).map(v => +THREE.DataUtils.fromHalfFloat(v).toFixed(3)); };
