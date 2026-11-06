@@ -2120,8 +2120,16 @@ export function realPart(key, sway = false) {
   return { geo: mesh.geometry, mat: mesh.material };
 }
 // many of one real thing, set down where `list` says ([{x, y, z, ry, s, sy?}]): one draw for all of them
-export function realMany(key, list, { shadow = false } = {}) {
+export function realMany(key, list, { shadow = false, cell = 0 } = {}) {
   const P = realPart(key); if (!P || !list.length) return null;
+  // (given a cell size, made in squares of ground that size, each its own: so those behind you or past the fog aren't
+  //  drawn — the woods' nettles, six thousand facets a plant, were all drawn the length of the road from anywhere on it)
+  if (cell > 0) {
+    const by = new Map(); for (const q of list) { const k = Math.floor(q.x / cell) + "," + Math.floor(q.z / cell); (by.get(k) || by.set(k, []).get(k)).push(q); }
+    const g = new THREE.Group(); g.userData.cells = [];
+    for (const l of by.values()) { const m = realMany(key, l, { shadow }); if (m) { g.add(m); m.boundingSphere && g.userData.cells.push(m); } }
+    return g;
+  }
   const m = new THREE.InstancedMesh(P.geo, P.mat, list.length), d = new THREE.Object3D();
   list.forEach((q, i) => { d.position.set(q.x, q.y, q.z); d.rotation.set(q.rx || 0, q.ry || 0, q.rz || 0); d.scale.set(q.s, q.sy ?? q.s, q.sz ?? q.s); d.updateMatrix(); m.setMatrixAt(i, d.matrix); });
   m.castShadow = shadow; m.receiveShadow = true; m.computeBoundingSphere();

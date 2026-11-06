@@ -15,6 +15,7 @@ export const CHANGELOG = [
       "Muskets, swords and daggers more than about twelve yards away no longer cast shadows, which were too thin to see at that range anyway.",
       "The game no longer keeps working out where the hidden parts under each person are every frame, and when water reflects the scene it no longer places everything twice.",
       "Hamburg's streets run about a third faster. Stacks of crates and barrels, and the plates in the merchant's house, are drawn all at once instead of one by one, and townsfolk more than about thirty yards away no longer cast shadows too small to see. A busy street went from about 1,050 draws a frame to about 200.",
+      "The nettles along the road north-east are drawn only near you, not the whole length of the road at once, so the woods run a little faster on every graphics setting.",
       "Ore rocks in the woods are drawn in one piece instead of seventeen, and the ring of spruces round the clearing is drawn together while they stand, so the road north-east and the clearing are lighter on the graphics card.",
       "The woods load in a fraction of the time: the chapters on the road north-east and in the clearing start about two seconds sooner.",
       "Turning round for the first time in a new place no longer stutters: as each place loads, the game quietly looks all the way round it once, so the graphics card is ready for everything in it. (The worst hitch turning round in Hamburg went from about a tenth of a second to a thirtieth.)",

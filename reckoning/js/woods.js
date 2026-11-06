@@ -5,7 +5,7 @@
 // The old woods, far from Hamburg: a road that goes on long enough to leave
 // the bells behind, and at the end of it a clearing with a burned cabin.
 
-import { THREE, rockGeo, mergeGeos, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs, skyLit } from "./core.js";
+import { THREE, rockGeo, mergeGeos, Builder, Collision, MAT, mat, rng, prismGeo, makeFlame, TAU, clamp, addDetail, SNOW, ROOFED, ROOFSIZE, ownGrainAll, fadeLimbs, skyLit, camera } from "./core.js";
 import { WorldBase, G } from "./engine.js";
 import { P, forestInstances, makeSpruce, TREE, FOL, modelCopy, ensureModel, SWAY, swayGeo, addSway, realPart, realMany, makeLogs } from "./models.js";
 import { grassTexture } from "./hamburg.js";
@@ -342,7 +342,7 @@ export class Woods extends WorldBase {
         else herbs2.push({ x, y: y - 0.01, z, ry: r() * 6.28, s: 1.6 + r() * 1.6 });
       }
       // (no stumps: the user wants none anywhere in the game)
-      for (const m of [realMany("log_a", logs, { shadow: true }), realMany("nettle", herbs), realMany("nettle", herbs2.map(q => ({ ...q, s: q.s * 0.7 })))]) if (m) root.add(m);
+      for (const m of [realMany("log_a", logs, { shadow: true }), realMany("nettle", herbs, { cell: 80 }), realMany("nettle", herbs2.map(q => ({ ...q, s: q.s * 0.7 })), { cell: 80 })]) if (m) { root.add(m); if (m.userData.cells) (this.farCells || (this.farCells = [])).push(...m.userData.cells); }
       // (dry branches down among the trees and along the tracks' edges, grey and barked — scanned; their own draw, so
       //  the rest of the wood's places stay where they were)
       { const rb = rng(9137), BR = [[], [], []];
@@ -2186,6 +2186,12 @@ export class Woods extends WorldBase {
   update(dt) {
     this.tickRocks(dt);
     this.syncRingInst();
+    // (the nettles, square by square: only those within eighty yards or so are drawn — knee-high, among the trunks, they
+    //  are lost past that)
+    if (this.farCells && (this.cellT = (this.cellT || 0) - dt) <= 0) {
+      this.cellT = 0.5; const c = camera.position;
+      for (const m of this.farCells) { const b = m.boundingSphere; m.visible = Math.hypot(b.center.x - c.x, b.center.z - c.z) - b.radius < 80; }
+    }
     if (this.dirtyGround) this.reshapeGround();
     // tiles of forest past the haze are not drawn at all
     if ((this.tileT = (this.tileT || 0) - dt) <= 0 && this.forestTiles && G.player) {
