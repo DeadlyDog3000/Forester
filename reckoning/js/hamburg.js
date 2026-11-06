@@ -360,7 +360,7 @@ export class Hamburg extends WorldBase {
       lampB.box(0.31, 0.03, 0.31, hx, 3.2, hz, 0x2a2622); lampB.box(0.3, 0.02, 0.3, hx, 3.04, hz, 0x2a2622);
       lampB.box(0.26, 0.04, 0.26, hx, 2.89, hz, 0x2a2622);
       this.col.addCircle(x, z, 0.12, 3.4);
-      const gl = new THREE.Mesh(glowGeo, this.glowMat); gl.position.set(hx, 0.03, hz); gl.renderOrder = 1; root.add(gl);
+      const gl = new THREE.Mesh(glowGeo, this.glowMat); gl.position.set(hx, 0.03, hz); gl.renderOrder = 1; root.add(gl); (this.lampGlows ||= []).push(gl);
     }
     root.add(lampB.build(MAT.solid));
     this.lampHeadMat = new THREE.MeshBasicMaterial({ vertexColors: true, color: 0x4a4038 });
@@ -511,7 +511,7 @@ export class Hamburg extends WorldBase {
       else props.add(new THREE.SphereGeometry(0.15, 16, 10, 0, TAU, 0, Math.PI / 2), 0x7a4a26, 13.55, 0.85, -6.45, 0, 0.3, 0, 1.15, 0.62, 0.95); }
     // (a turned and carved wooden plate, scanned (Poly Haven, CC0), where it's loaded; the pewter where not)
     for (const [x, z] of [[12.0, -5.85], [13.4, -5.85], [12.7, -6.6]]) {
-      { const m = modelCopy("prop_plate"); if (m) { props.object(m.scene, x, 0.826, z, x * 3.1, 1.05); continue; } }
+      { const m = modelCopy("prop_plate"); if (m) { props.object(m.scene, x, 0.826, z, x * 3.1, 1.05); m.scene.userData.prop = true; continue; } }
       props.add(new THREE.CylinderGeometry(0.115, 0.09, 0.018, 16), 0x9c9a90, x, 0.835, z);
       props.add(new THREE.CylinderGeometry(0.07, 0.07, 0.004, 16), 0xb4b2a8, x, 0.845, z);
     }
@@ -574,7 +574,7 @@ export class Hamburg extends WorldBase {
     for (const y of [1.2, 1.6]) { props.box(0.34, 0.03, 1.46, 17.48, y - 0.21, -6.4, 0x4a3220); for (let i = 0; i < 4; i++) {
       // (the carved wooden plates stood on edge along it, leaning back on the boards (Poly Haven, CC0), or pewter)
       const m = modelCopy("prop_plate");
-      if (m) { props.object(m.scene, 17.29, y - 0.195 + 0.13, -6.95 + i * 0.36, 0, 1.25); m.scene.rotation.set(0, 0, Math.PI / 2 - 0.22); }
+      if (m) { props.object(m.scene, 17.29, y - 0.195 + 0.13, -6.95 + i * 0.36, 0, 1.25); m.scene.rotation.set(0, 0, Math.PI / 2 - 0.22); m.scene.userData.prop = true; }
       else props.add(new THREE.CylinderGeometry(0.15, 0.15, 0.02, 12), 0x9a9c98, 17.38, y - 0.04, -6.95 + i * 0.36, 0, 0, Math.PI / 2 - 0.25);
     } }
     // (brass goblets on it, scanned (Poly Haven, CC0), where they're loaded; a pewter flagon where not)
@@ -800,6 +800,9 @@ export class Hamburg extends WorldBase {
   inHome(x = G.player.pos.x, z = G.player.pos.z) { return x > HOME.x0 && x < HOME.x1 && z > HOME.z0 && z < HOME.z1; }
 
   update(dt) {
+    // (the pools of lamplight on the cobbles left out while the lamps are out: by day they were twenty-odd see-through
+    //  squares drawn for nothing, and again in the water's reflection)
+    { const on = this.glowMat && this.glowMat.opacity > 0.001; if (on !== this._glowOn) { this._glowOn = on; for (const g of this.lampGlows || []) g.visible = on; } }
     // (the window glass: the colour of the day outside, bright at noon and gone dark at night)
     if (this.winGlass) { const f = G.scene.fog.color; this.winGlass.color.setRGB(f.r, f.g, f.b).multiplyScalar(0.8).lerp(new THREE.Color(0.75, 0.82, 0.9), 0.15 * Math.min(1, f.r * 2)); }
     this.t += dt;

@@ -9,9 +9,10 @@ export const CHANGELOG = [
   {
     v: "1.99.249", date: "5 November 2026", title: "Faster in Hamburg and the woods",
     items: [
-      "Hamburg's streets run about a third faster. Stacks of crates and barrels are drawn all at once instead of one by one, and townsfolk more than about thirty yards away no longer cast shadows too small to see. A busy street went from about 1,050 draws a frame to about 200.",
+      "Hamburg's streets run about a third faster. Stacks of crates and barrels, and the plates in the merchant's house, are drawn all at once instead of one by one, and townsfolk more than about thirty yards away no longer cast shadows too small to see. A busy street went from about 1,050 draws a frame to about 200.",
       "Ore rocks in the woods are drawn in one piece instead of seventeen, and the ring of spruces round the clearing is drawn together while they stand, so the road north-east and the clearing are lighter on the graphics card.",
       "Eyes and resting hands no longer cast shadows of their own inside a head's or an arm's.",
+      "Torches and fires far off are drawn with just their main flame and glow; their smaller flames, sparks and smoke are too small to see from there anyway.",
     ],
   },
   {

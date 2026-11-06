@@ -1187,6 +1187,7 @@ export const SKYLIT = { value: 1 };
 export function skyLit(m) {
   return addHook(m, sh => { sh.uniforms.uSkyLit = SKYLIT; sh.fragmentShader = "uniform float uSkyLit;\n" + sh.fragmentShader.replace("outgoingLight = diffuseColor.rgb;", "outgoingLight = diffuseColor.rgb * uSkyLit;"); }, "skylit");
 }   // (sky: how much daylight there is to see smoke by)
+const _flameAt = new THREE.Vector3();
 export function flicker(g, dt) {
   const f = g.userData.flame; if (!f) return;
   f.t += dt;
@@ -1194,8 +1195,13 @@ export function flicker(g, dt) {
   const s = f.size || 1;
   // (out: a fire with no light left in it shows no flame either)
   const lit = !f.light || f.base > 0.01;
+  // (far off, a fire is drawn plainer: past thirty-odd yards a torch keeps its main flame and its glow, the smaller
+  //  flames, the sparks and then the smoke let go — sprites a few pixels high, each a draw of its own; a bigger fire
+  //  keeps them further)
+  g.getWorldPosition(_flameAt); const d = _flameAt.distanceTo(camera.position) / Math.max(1, s), near = d < 32, mid = d < 64;
+  let fi = 0;
   for (const sp of f.faces || []) {
-    const u = sp.userData; sp.visible = lit; if (!lit) continue;
+    const u = sp.userData; sp.visible = lit && (near || fi++ === 0); if (!sp.visible) continue;
     const fr = Math.floor(u.ph + f.t * u.fps) % FRAMES, map = sp.material.map;
     map.offset.set((fr % 4) * 0.25 + (u.flip ? 0.25 : 0), 0.75 - Math.floor(fr / 4) * 0.25);
     const breathe = 0.9 + (k - 0.85) * 1.2 + 0.06 * Math.sin(f.t * 3.1 + u.ph);
@@ -1210,13 +1216,13 @@ export function flicker(g, dt) {
     if (u.t > 1) { u.t = 0; u.dx = (Math.random() - 0.5) * 0.5 * s; u.dz = (Math.random() - 0.5) * 0.5 * s; u.sp = 0.3 + Math.random() * 0.4; }
     const t = u.t;
     sp.position.set(u.dx * t + Math.sin(t * 7 + u.sw) * 0.06 * s, 0.12 * s + t * (0.8 + u.sp) * s, u.dz * t + Math.cos(t * 6 + u.sw) * 0.05 * s);
-    sp.visible = lit && t < 0.92;
+    sp.visible = lit && near && t < 0.92;
     sp.material.opacity = (1 - t) * (0.6 + 0.4 * Math.sin(f.t * 20 + u.sw));
   }
   for (const m of f.smoke || []) {
     const u = m.userData; u.t += dt * 0.16; if (u.t > 1) u.t -= 1;
     const t = u.t;
-    m.visible = lit;
+    m.visible = lit && mid;
     m.position.set(Math.sin(t * 3 + u.rot * 9) * 0.15 * s, 0.35 * s + t * 1.6 * s, Math.cos(t * 2.4 + u.rot * 7) * 0.12 * s);
     m.scale.setScalar((0.25 + t * 0.9) * s);
     m.material.opacity = Math.sin(Math.min(1, t * 1.3) * Math.PI) * 0.22;
