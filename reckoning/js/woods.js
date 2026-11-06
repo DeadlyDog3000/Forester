@@ -516,7 +516,8 @@ export class Woods extends WorldBase {
   // ---- rocks to break with a pick: grey stone near the clearing, copper farther out, iron deep in ----
   buildRocks(r) {
     this.rocks = [];
-    const rockMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
+    // (a weathered granite grey: at full white the stone's own colours stood out near white in the shade of the wood)
+    const rockMat = addDetail(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, color: 0x9a9890 }), { scale: 2, amount: 0.25, grain: 0.6, surface: "rock" });
     // a boulder: a rough ball of facets, each a slightly different grey
     const boulder = (size, pale = false) => {
       const geo = rockGeo(size, Math.floor(r() * 6)), sh = geo.attributes.shade, col = geo.attributes.color;
