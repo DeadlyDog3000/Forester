@@ -14,6 +14,7 @@ export const CHANGELOG = [
       "The woods load in a fraction of the time: the chapters on the road north-east and in the clearing start about two seconds sooner.",
       "Turning round for the first time in a new place no longer stutters: as each place loads, the game quietly looks all the way round it once, so the graphics card is ready for everything in it. (The worst hitch turning round in Hamburg went from about a tenth of a second to a thirtieth.)",
       "Eyes and resting hands no longer cast shadows of their own inside a head's or an arm's.",
+      "You can no longer walk into your brother or sister, or anyone else, while they stand or crouch still; you step round them instead of seeing out from inside them.",
       "The breakable stones and ore rocks in the woods and caves are a weathered grey instead of almost white, so they no longer glare in the shade of the trees.",
       "Torches and fires far off are drawn with just their main flame and glow; their smaller flames, sparks and smoke are too small to see from there anyway.",
     ],

@@ -2579,6 +2579,11 @@ export class Actor {
       const cast = far2 < (G.arena ? 900 : 1100);
       if (cast !== this._cast) { this._cast = cast; this.root.traverse(o => castSet(o, cast)); if (this.horse) this.horse.root.traverse(o => castSet(o, cast)); }
     }
+    // (standing still, they're stepped round too, not walked into: you could walk into your brother or sister as they
+    //  crouched in the trees, and look out from inside them)
+    { const pl = G.player; if (G.mode === "play" && !G.cine && pl && pl.pos && !this.lying && !this.ragdoll && !this.horse && !this.person.sitting && this.root.visible) {
+      const dx = p.x - pl.pos.x, dz = p.z - pl.pos.z, rr = NPC_R + (pl.radius || 0.3);
+      if (dx * dx + dz * dz < rr * rr && Math.abs(p.y - pl.pos.y) < 1.2) this.collide(); } }
     if (this.onUpdate) this.onUpdate(dt);
     // (the saddle where the horse has it: up with it when it rears)
     if (this.horse) this.yOff = SADDLE + (this.horse.lift || 0);
