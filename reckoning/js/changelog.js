@@ -17,6 +17,7 @@ export const CHANGELOG = [
       "You can no longer walk into your brother or sister, or anyone else, while they stand or crouch still; you step round them instead of seeing out from inside them.",
       "The breakable stones and ore rocks in the woods and caves are a weathered grey instead of almost white, so they no longer glare in the shade of the trees.",
       "Torches and fires far off are drawn with just their main flame and glow; their smaller flames, sparks and smoke are too small to see from there anyway.",
+      "Each person's clothes, skin, hair and eyes now move on one shared skeleton instead of a skeleton per piece, so a street of townsfolk costs the computer much less work every frame (in the house on the night the watch comes, nine people went from 159 skeletons to 9). The swell on the Elbe and the chimney smoke over the town take less working out, too.",
     ],
   },
   {

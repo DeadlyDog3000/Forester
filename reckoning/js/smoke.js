@@ -74,7 +74,18 @@ export class Smoke {
     this.t += dt;
     const P = this.pos, S = this.size, A = this.alpha;
     // the nearest chimneys only, when there are a great many
-    if (sources.length > MAX && cam) sources = sources.slice().sort((a, b) => (a.x - cam.x) ** 2 + (a.z - cam.z) ** 2 - (b.x - cam.x) ** 2 - (b.z - cam.z) ** 2).slice(0, MAX);
+    //  (which they are is chosen again only when you've gone a few yards or the chimneys themselves change — the
+    //  places, not how hard each is smoking — instead of every frame; the town hands over fresh ones each frame)
+    if (sources.length > MAX && cam) {
+      let sig = sources.length; for (const c of sources) sig += c.x * 1.3 + c.z * 0.7;
+      const N = this._near;
+      if (!N || N.sig !== sig || (N.x - cam.x) ** 2 + (N.z - cam.z) ** 2 > 16) {
+        const idx = sources.map((c, k) => k).sort((a, b) => (sources[a].x - cam.x) ** 2 + (sources[a].z - cam.z) ** 2 - (sources[b].x - cam.x) ** 2 - (sources[b].z - cam.z) ** 2).slice(0, MAX);
+        this._near = { sig, x: cam.x, z: cam.z, idx, list: [] };
+      }
+      const L = this._near.list; L.length = 0; for (const k of this._near.idx) L.push(sources[k]);
+      sources = L;
+    }
     let i = 0;
     for (let s = 0; s < sources.length; s++) {
       const c = sources[s], seed = c.x * 0.37 + c.z * 0.71;

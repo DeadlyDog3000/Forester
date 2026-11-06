@@ -1198,7 +1198,8 @@ export function flicker(g, dt) {
   // (far off, a fire is drawn plainer: past thirty-odd yards a torch keeps its main flame and its glow, the smaller
   //  flames, the sparks and then the smoke let go — sprites a few pixels high, each a draw of its own; a bigger fire
   //  keeps them further)
-  g.getWorldPosition(_flameAt); const d = _flameAt.distanceTo(camera.position) / Math.max(1, s), near = d < 32, mid = d < 64;
+  //  (where it is as last drawn: asking afresh worked out every parent's place again, for every flame, every frame)
+  _flameAt.setFromMatrixPosition(g.matrixWorld); const d = _flameAt.distanceTo(camera.position) / Math.max(1, s), near = d < 32, mid = d < 64;
   let fi = 0;
   for (const sp of f.faces || []) {
     const u = sp.userData; sp.visible = lit && (near || fi++ === 0); if (!sp.visible) continue;

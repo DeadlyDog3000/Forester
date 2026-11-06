@@ -829,18 +829,22 @@ export class Hamburg extends WorldBase {
       const f = G.scene.fog, sun = G.sun ? Math.min(1, G.sun.intensity / 2.4) : 1, k = 0.3 + (1 - sun) * 0.3;
       const src = this._smk || (this._smk = this.chimneys.map(c => ({ x: c.x, y: c.y, z: c.z, k })));
       for (const c of src) c.k = k;
-      this.smoke.update(dt, src, { x: 0.6, z: 0.25 }, G.player && G.player.pos, { color: new THREE.Color(0x77736f).multiplyScalar(0.35 + sun * 0.65).lerp(f.color, 0.18), fog: f.color, near: f.near, far: f.far });
+      const sc = (this._smkC || (this._smkC = new THREE.Color())).set(0x77736f).multiplyScalar(0.35 + sun * 0.65).lerp(f.color, 0.18);
+      this.smoke.update(dt, src, { x: 0.6, z: 0.25 }, G.player && G.player.pos, { color: sc, fog: f.color, near: f.near, far: f.far });
       this.smoke.mat.uniforms.uScale.value = innerHeight * (window.devicePixelRatio || 1) / (2 * Math.tan(camera.fov * Math.PI / 360));
     }
     if (Math.floor(this.t * 20) !== this._wt) {
       this._wt = Math.floor(this.t * 20);
-      const a = this.water.geometry.attributes.position, base = this._wbase;
+      const a = this.water.geometry.attributes.position, nm = this.water.geometry.attributes.normal, base = this._wbase, N = nm.array;
+      // (its slope worked out with the swell, not measured afterwards off the triangles: the same normals, for a
+      //  fraction of the work, twenty times a second)
       for (let i = 0; i < a.count; i++) {
-        const x = base[i * 3], y = base[i * 3 + 1];
-        a.array[i * 3 + 2] = Math.sin(x * 0.18 + this.t * 1.1) * 0.12 + Math.cos(y * 0.23 + this.t * 0.8) * 0.1;
+        const x = base[i * 3], y = base[i * 3 + 1], u = x * 0.18 + this.t * 1.1, v = y * 0.23 + this.t * 0.8;
+        a.array[i * 3 + 2] = Math.sin(u) * 0.12 + Math.cos(v) * 0.1;
+        const nx = -Math.cos(u) * 0.0216, ny = Math.sin(v) * 0.023, l = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+        N[i * 3] = nx * l; N[i * 3 + 1] = ny * l; N[i * 3 + 2] = l;
       }
-      a.needsUpdate = true;
-      this.water.geometry.computeVertexNormals();
+      a.needsUpdate = true; nm.needsUpdate = true;
     }
     if (this.posternGlow.visible) {
       // (it fades as you come up to it — close by, you can see the door itself, and it isn't a sheet of light over the screen)

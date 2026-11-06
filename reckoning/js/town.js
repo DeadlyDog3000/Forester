@@ -540,7 +540,7 @@ export class Town {
     const f = this.frac, cold = this.winter ? 1 : this.season === "autumn" ? 0.4 : 0, work = f > 0.03 && f < 0.62;
     const home = (f < 0.12 || f > 0.55 ? 0.5 : 0.08) + cold * 0.4;
     const K = { cabin: home, bakery: work ? 0.85 : 0.15, forge: work ? 0.8 : 0.05, smelter: work ? 1 : 0.1, brickworks: work ? 0.7 : 0.3, hospital: 0.2 + cold * 0.3, townhall: cold * 0.45 };
-    const src = this._smokeSrc || (this._smokeSrc = []), v = new THREE.Vector3(); src.length = 0;
+    const src = this._smokeSrc || (this._smokeSrc = []), v = this._smokeV || (this._smokeV = new THREE.Vector3()); src.length = 0;
     for (const [b, g] of this.vis) {
       const mk = g.userData.chimney; if (!mk || !g.visible) continue;
       const k = Math.min(1, K[b.type] ?? 0); if (k < 0.03) continue;
@@ -551,7 +551,7 @@ export class Town {
     // your own cabin, and more of it when the hearth is lit
     if (w.cabinChimney && w.cabinUp && w.cabin && w.cabin.visible) { w.cabinChimney.getWorldPosition(v); src.push({ x: v.x, y: v.y, z: v.z, k: w.hearth ? 0.85 : home }); }
     const sun = G.sun ? clamp(G.sun.intensity / 2.4, 0, 1) : 1, fog = G.scene.fog;
-    const col = new THREE.Color(0x77736f).multiplyScalar(0.35 + sun * 0.65).lerp(fog.color, 0.18);
+    const col = (this._smokeC || (this._smokeC = new THREE.Color())).set(0x77736f).multiplyScalar(0.35 + sun * 0.65).lerp(fog.color, 0.18);
     const wind = G.windV || { x: 0.5, z: 0.2 };
     // (the trees lean on the same wind, easing into a change of it)
     { const wl = Math.hypot(wind.x, wind.z) || 1, kWant = clamp((wl - 0.3) / 1.6, 0.1, 1);

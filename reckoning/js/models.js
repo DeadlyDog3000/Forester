@@ -813,7 +813,20 @@ export function modelCopy(key) {
   const g = MODELS[key]; if (!g) return null;
   const scene = _clone ? _clone(g.scene) : g.scene.clone(true);
   scene.traverse(m => { if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+  shareSkeletons(scene);
   return { scene, animations: g.animations || [] };
+}
+// (a rigged person's pieces — coat, cuffs, hat, skin, hair, eyes — came each with a skeleton of its own over the same
+//  bones: twenty-odd pieces a person, each worked out and sent to the graphics card every frame, half the time a
+//  frame took in a street of nine. Pieces over the very same bones, bound the same, now share one)
+function shareSkeletons(root) {
+  const seen = [];
+  const same = (a, b) => a.bones.length === b.bones.length && a.bones.every((x, i) => x === b.bones[i]) && a.boneInverses.every((m, i) => m.equals(b.boneInverses[i]));
+  root.traverse(o => {
+    if (!o.isSkinnedMesh || !o.skeleton) return;
+    const sk = seen.find(s => s !== o.skeleton && same(s, o.skeleton));
+    if (sk) o.skeleton = sk; else if (!seen.includes(o.skeleton)) seen.push(o.skeleton);
+  });
 }
 // Swap a built person for a Blender one. The code-built skeleton keeps working
 // underneath, unseen, so held things and poses still have somewhere to hang;
