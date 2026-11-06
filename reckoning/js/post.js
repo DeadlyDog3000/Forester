@@ -247,6 +247,19 @@ export function renderFrame(scene, camera) {
     post.failed = true; renderer.setRenderTarget(null); renderer.render(scene, camera);
   }
 }
+// a new world looked at once all round, out of sight (into the finish's own target, never the screen): every material
+// in it is made ready as it will really be drawn, so turning round in a new place for the first time doesn't stutter
+// while the graphics card learns each one
+const _q0 = new THREE.Quaternion(), _qy = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0);
+export function warmViews(scene, camera) {
+  if (!post.on || post.failed) return;
+  try {
+    ensure();
+    const prev = renderer.getRenderTarget(); _q0.copy(camera.quaternion);
+    for (let k = 1; k < 4; k++) { camera.quaternion.copy(_q0).premultiply(_qy.setFromAxisAngle(_up, k * Math.PI / 2)); camera.updateMatrixWorld(); renderer.setRenderTarget(rt); renderer.render(scene, camera); }
+    camera.quaternion.copy(_q0); camera.updateMatrixWorld(); renderer.setRenderTarget(prev);
+  } catch (e) {}
+}
 // (for the tests: what each stage holds at the middle of the picture)
 export function postProbe() {
   const px = (t, w, h) => { const b = new Uint16Array(4); try { renderer.readRenderTargetPixels(t, w >> 1, h >> 1, 1, 1, b); } catch (e) { return String(e.message); } return Array.from(b).map(v => +THREE.DataUtils.fromHalfFloat(v).toFixed(3)); };

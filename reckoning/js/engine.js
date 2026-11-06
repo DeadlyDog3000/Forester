@@ -9,7 +9,7 @@
 import "./keys.js";   // (first: your own keys turned into the game's before anything else hears them)
 import { THREE, renderer, camera, clamp, lerp, angDiff, makeSky, flicker, MAT, AUTO_FULL, noSnow, RELIEF, RIM, addDetail, ownGrain, NOTCH_M, NOTCH_P, FLAMES, ENVK, FIREDAY, WET, SKYLIT, SKYENV, setSkyEnv, CANOPY } from "./core.js";
 import { Billboards } from "./billboards.js";
-import { renderFrame, post } from "./post.js";
+import { renderFrame, post, warmViews } from "./post.js";
 import { reflectWater } from "./water.js";
 import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
@@ -3042,6 +3042,7 @@ export function setWorld(w) {
   AUTO_FULL.value = w.name === "hamburg" ? 1 : 0;
   G.scene.add(w.root);
   G.interactTarget = null;
+  G.warmViews = 8;
 }
 
 // ---------------------------------------------------------------------------
@@ -3125,6 +3126,8 @@ export function frame(dt, skipRender) {
   if (!skipRender) {
     if (!SKYENV.tex || (G.envN = (G.envN || 0) + 1) % 30 === 0) updateSkyEnv();
     reflectWater(renderer, G.scene, camera); renderFrame(G.scene, camera);
+    // (eight frames into a new world, its light settled: the rest of it looked at once, out of sight — see warmViews)
+    if (G.warmViews > 0 && --G.warmViews === 0) warmViews(G.scene, camera);
   }
 }
 
