@@ -945,14 +945,25 @@ export class Woods extends WorldBase {
   }
   anyRoadDist(x, z) {
     const m = this.roadDist(x, z);
-    let best = { d: m.d, x: m.x, z: m.z, branch: null, i: m.i };
+    // (measured squared, with nothing made until the end, and a fork whose bounds are further off than the nearest
+    //  point yet found passed over whole: this was asked for every height in the woods, and took over a second of a
+    //  chapter's building)
+    let bh = m.d, bd = m.d * m.d, bb = null, bi = m.i, bx = m.x, bz = m.z;
     for (const b of this.branches || []) {
-      for (let i = 0; i < b.pts.length; i++) {
-        const p = b.pts[i], d = Math.hypot(p.x - x, p.z - z);
-        if (d < best.d) best = { d, x: p.x, z: p.z, branch: b, i };
+      const P = b.pts; if (!P.length) continue;
+      let q = b._bounds;
+      if (!q || q.n !== P.length) { q = b._bounds = { n: P.length, x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity }; for (const p of P) { q.x0 = Math.min(q.x0, p.x); q.x1 = Math.max(q.x1, p.x); q.z0 = Math.min(q.z0, p.z); q.z1 = Math.max(q.z1, p.z); } }
+      const ox = x < q.x0 ? q.x0 - x : x > q.x1 ? x - q.x1 : 0, oz = z < q.z0 ? q.z0 - z : z > q.z1 ? z - q.z1 : 0;
+      if (ox * ox + oz * oz > bd * (1 + 1e-9)) continue;
+      for (let i = 0; i < P.length; i++) {
+        const p = P[i], dx = p.x - x, dz = p.z - z, d = dx * dx + dz * dz;
+        // (the squares only to pass over what's plainly further; the nearest decided by the distance itself, as it always
+        //  was, so where two points sit on one another the same one wins)
+        if (d > bd * (1 + 1e-9)) continue;
+        const h = Math.hypot(dx, dz); if (h < bh) { bh = h; bd = d; bb = b; bi = i; bx = p.x; bz = p.z; }
       }
     }
-    return best;
+    return { d: bh, x: bx, z: bz, branch: bb, i: bi };
   }
   // how far along the road you are, 0 to 1
   progress(x = G.player.pos.x, z = G.player.pos.z) { return this.roadDist(x, z).t; }
