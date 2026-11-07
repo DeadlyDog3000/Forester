@@ -487,6 +487,8 @@ export function makePerson(o = {}) {
       if (cloth.length && root.visible) {
         const aL = legL.rotation.x, aR = legR.rotation.x;
         for (const c of cloth) {
+          // (not one hidden under a model of the body: bent and its shading worked out again every frame for no one)
+          if (!c.m.visible) continue;
           const pos = c.m.geometry.attributes.position, b = c.base;
           for (let i = 0; i < pos.count; i++) {
             const x = b[i * 3], y = b[i * 3 + 1], z = b[i * 3 + 2];
