@@ -339,6 +339,7 @@ float cloudShadow(vec2 p, float t) {
 }`;
 const GROUND_FS = `
 uniform float uTime; uniform float uSpring; uniform float uAutumn;
+uniform sampler2D uPol; uniform float uPolK; uniform vec2 uPolS;
 varying vec4 vT; varying float vB; varying float vO; varying float vD; varying vec3 vWP;
 float ih(ivec2 c, int s) { uint h = uint(c.x) * 374761393u + uint(c.y) * 668265263u + uint(s) * 1442695041u; h = (h ^ (h >> 13)) * 1274126177u; return float(h ^ (h >> 16)) / 4294967296.0; }
 float inz(vec2 p, int s) { vec2 i = floor(p), f = p - i; f = f * f * (3.0 - 2.0 * f); ivec2 c = ivec2(i);
@@ -430,19 +431,32 @@ const GROUND_MIX = `
   // and a grain over all of it
   col *= 0.9 + 0.2 * mix(0.5, n1, 0.7) + (n2 - 0.5) * 0.12;
   col *= cloudShadow(wp, uTime);
+  // (whose it is, from high up: each crown's land washed in its colour, as on the paper map — and a dark line where one
+  //  colour meets the next — coming in as the view goes up and the borders' own band gets too thin to see)
+  if (uPolK > 0.0) {
+    vec4 pol = texture2D(uPol, wp * uPolS); pol.a *= smoothstep(-0.003, 0.002, vWP.y);   // (not the sea's floor)
+    float lum = dot(col, vec3(0.3, 0.55, 0.15));
+    col = mix(col, pol.rgb * (0.55 + lum * 0.9), pol.a * uPolK * 0.62);
+    float edge = clamp(length(fwidth(pol.rgb)) * 9.0 + fwidth(pol.a) * 4.0, 0.0, 1.0);
+    col *= 1.0 - edge * 0.45 * uPolK;
+  }
   diffuseColor.rgb = col;
 }`;
+// (nobody's land, until the crowns' colours are laid: one clear texel)
+let _polNone = null;
+const POL_NONE = () => _polNone || (_polNone = Object.assign(new THREE.DataTexture(new Uint8Array(4), 1, 1), { needsUpdate: true }));
 function groundMaterial() {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 });
   m.userData.uSpring = { value: 0 }; m.userData.uAutumn = { value: 0 };
+  m.userData.uPol = { value: POL_NONE() }; m.userData.uPolK = { value: 0 }; m.userData.uPolS = { value: new THREE.Vector2(1, 1) };
   m.onBeforeCompile = sh => {
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>" + GROUND_VS)
       .replace("#include <begin_vertex>", "#include <begin_vertex>\n vT = aT; vB = aB; vO = aO; vD = aD; vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
-    sh.uniforms.uTime = { value: 0 }; sh.uniforms.uSpring = m.userData.uSpring; sh.uniforms.uAutumn = m.userData.uAutumn; m.userData.shader = sh;
+    sh.uniforms.uTime = { value: 0 }; sh.uniforms.uSpring = m.userData.uSpring; sh.uniforms.uAutumn = m.userData.uAutumn; sh.uniforms.uPol = m.userData.uPol; sh.uniforms.uPolK = m.userData.uPolK; sh.uniforms.uPolS = m.userData.uPolS; m.userData.shader = sh;
     sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>" + GROUND_FS + CLOUD_GLSL)
       .replace("#include <color_fragment>", "#include <color_fragment>" + GROUND_MIX);
   };
-  m.customProgramCacheKey = () => "ground27";
+  m.customProgramCacheKey = () => "ground28";
   return m;
 }
 const EXAG = 10 / 111 * U;
@@ -975,6 +989,37 @@ export class EuropeView3D {
     this.borders = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0x8a2416, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
     this.borders.renderOrder = 2;
     this.scene.add(this.borders);
+    this.buildColours();
+  }
+  // each crown's land in its colour, a texel to a cell of the grid (and the peoples' country, the sea, nobody's: clear),
+  // for the ground to wash itself in from high up — drawn four times over and softened, so a coast or a border is a
+  // line and not a staircase of squares
+  buildColours() {
+    const g = this.g, small = document.createElement("canvas"); small.width = GW; small.height = GH;
+    const c = small.getContext("2d"), img = c.createImageData(GW, GH), d = img.data, rgb = {};
+    for (let r = 0; r < GH; r++) for (let q = 0; q < GW; q++) {
+      const id = g[r] && g[r][q], N = id && NATIONS[id]; if (!N) continue;
+      // (the colour as written, sRGB, as the texture is read)
+      const v = rgb[id] || (rgb[id] = new THREE.Color(N.color).getRGB({}, THREE.SRGBColorSpace)), i = (r * GW + q) * 4;
+      d[i] = v.r * 255; d[i + 1] = v.g * 255; d[i + 2] = v.b * 255; d[i + 3] = 255;
+    }
+    // (and carried a couple of cells out to sea, so the coast it ends at is the land's own, drawn true, not the grid's
+    //  squares: the sea isn't washed, so what's past the shore never shows)
+    for (let pass = 0; pass < 2; pass++) {
+      const src = d.slice();
+      for (let r = 0; r < GH; r++) for (let q = 0; q < GW; q++) {
+        const i = (r * GW + q) * 4; if (src[i + 3] || (g[r] && g[r][q])) continue;
+        for (const [dq, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const qq = q + dq, rr = r + dr; if (qq < 0 || rr < 0 || qq >= GW || rr >= GH) continue; const j = (rr * GW + qq) * 4; if (src[j + 3]) { d[i] = src[j]; d[i + 1] = src[j + 1]; d[i + 2] = src[j + 2]; d[i + 3] = 255; break; } }
+      }
+    }
+    c.putImageData(img, 0, 0);
+    const big = this.polCanvas || (this.polCanvas = document.createElement("canvas")); big.width = GW * 4; big.height = GH * 4;
+    const b = big.getContext("2d"); b.clearRect(0, 0, big.width, big.height); b.imageSmoothingEnabled = true; b.imageSmoothingQuality = "high";
+    b.filter = "blur(2px)"; b.drawImage(small, 0, 0, big.width, big.height); b.filter = "none";
+    if (!this.polTex) { this.polTex = new THREE.CanvasTexture(big); this.polTex.flipY = false; this.polTex.colorSpace = THREE.SRGBColorSpace; this.polTex.generateMipmaps = true; this.polTex.minFilter = THREE.LinearMipmapLinearFilter; }
+    this.polTex.needsUpdate = true;
+    const m = this.groundMat || (this.groundMat = groundMaterial());
+    m.userData.uPol.value = this.polTex; m.userData.uPolS.value.set(1 / (GW * CELL), 1 / (GH * CELL));
   }
   // the cities: houses and a church on the ground, and the name, in the colour of whoever holds it
   // (laid out a few towns a frame, so the land shows at once and the towns follow; the old ones stand till the new are
@@ -1699,6 +1744,7 @@ export class EuropeView3D {
     this.camera.lookAt(this.target.x, ty, this.target.z);
     // (the haze stays well back, so the next towns along are in sight even close in)
     this.scene.fog.near = this.dist * 2 + 10; this.scene.fog.far = this.dist * 6 + 60;
+    if (this.groundMat) this.groundMat.userData.uPolK.value = Math.max(0, Math.min(1, (this.dist - 70) / 130));
     // (the names: the great ones always, the rest only close in; and nearer the roofs as it comes down, or they'd float out of the view)
     const lift = Math.min(0.3, 0.07 + this.dist * 0.1);
     for (const s of this.labels) { s.visible = this.dist < 14 || s.userData.rank >= (this.dist < 45 ? 2 : 3); s.position.y = s.userData.y0 + lift; }

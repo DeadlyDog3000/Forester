@@ -2322,7 +2322,14 @@ function checkEnd() {
 let selFoe = null, selFleet = null, selFoeFleet = null;
 let view = { z: 1, ox: 0, oy: 0 }, sel = null, selCity = null, hov = null, hovCity = null, note = "", news = [];
 // (close in, the land itself: hills, woods, the towns' roofs — the government's map, as in the story)
-let ZOOM_3D = 4.2 * 2.5; const DIST_2D = 110;
+let ZOOM_3D = 4.2 * 2.5; const DIST_2D = 110, DIST_MAX = 330, DIST_OPEN = 135;
+// (the map is the land itself, in 3D, from the whole of Europe down to a town's streets — unless you'd rather have the
+//  paper map, which comes back by the button under the zoom: kept from one campaign to the next)
+const PAPER_KEY = "reckoning.cmpPaper";
+const paperMap = () => { try { return localStorage.getItem(PAPER_KEY) === "1"; } catch (e) { return false; } };
+// (gone out as far as the land goes: on the paper, if that's what you look at; else held at the whole of Europe)
+const paperBtn = () => { const b = document.querySelector('#campaign .cmp-zoom button[data-z="paper"]'); if (b) { b.textContent = on3d ? "Paper" : "Land"; b.title = on3d ? "The paper map" : "The land, in 3D"; } };
+const out3d = () => { if (eu3d.dist <= DIST_2D) return; if (paperMap()) leave3d(); else eu3d.dist = Math.min(DIST_MAX, eu3d.dist); };
 let eu3d = null, on3d = false, raf3d = 0, fade3d = 0, enter3d = () => {}, leave3d = () => {}, prep3d = () => {}, prepT = 0;
 // (drawn only while the campaign's map is in front of you)
 const loop3d = () => { if (!on3d || !shown()) { if (eu3d) eu3d.visible = false; raf3d = 0; heard3d(false); return; } eu3d.visible = true; if (innerWidth !== eu3d.w || innerHeight !== eu3d.h) eu3d.size(innerWidth, innerHeight); eu3d.frame(); heard3d(true); raf3d = requestAnimationFrame(loop3d); };
@@ -2500,7 +2507,12 @@ export function initCampaign(c, battle, withPlayer) {
   // the middle of the window, on the canvas (which is bigger than the window, and centred on it)
   const mid = () => { const r = cv.getBoundingClientRect(); return [(innerWidth / 2 - r.left) * cv.width / r.width, (innerHeight / 2 - r.top) * cv.height / r.height]; };
   for (const b of document.querySelectorAll("#campaign .cmp-zoom button")) b.onclick = () => {
-    if (on3d) { eu3d.dist = Math.max(2.2, eu3d.dist * (b.dataset.z === "in" ? 0.6 : 1.6)); if (eu3d.dist > DIST_2D) leave3d(); return; }
+    if (b.dataset.z === "paper") {
+      const toPaper = on3d; try { localStorage.setItem(PAPER_KEY, toPaper ? "1" : "0"); } catch (e) {}
+      if (toPaper) { eu3d.dist = DIST_2D + 1; leave3d(); } else enter3d(DIST_OPEN);
+      paperBtn(); return;
+    }
+    if (on3d) { eu3d.dist = Math.max(2.2, eu3d.dist * (b.dataset.z === "in" ? 0.6 : 1.6)); out3d(); return; }
     zoomAt(...mid(), b.dataset.z === "in" ? 1.5 : 1 / 1.5);
   };
   // ---- into the land, and back out to the map ----
@@ -2510,7 +2522,7 @@ export function initCampaign(c, battle, withPlayer) {
   const make3d = () => {
     if (!eu3d) {
       eu3d = new EuropeView3D(wrap);
-      eu3d.el.addEventListener("wheel", e => { e.preventDefault(); eu3d.dist = Math.max(2.2, eu3d.dist * Math.exp(e.deltaY * 0.0015)); if (eu3d.dist > DIST_2D) leave3d(); }, { passive: false });
+      eu3d.el.addEventListener("wheel", e => { e.preventDefault(); eu3d.dist = Math.max(2.2, eu3d.dist * Math.exp(e.deltaY * 0.0015)); out3d(); }, { passive: false });
       let d3 = null;
       eu3d.el.addEventListener("mousedown", e => { d3 = { x: e.clientX, y: e.clientY, moved: 0 }; });
       // (right-click on the land: your army sent there)
@@ -2578,17 +2590,17 @@ export function initCampaign(c, battle, withPlayer) {
     if (eu3d || on3d || !C || C.mp || !$("cmpMap").offsetParent) return;
     make3d(); eu3d.el.style.display = "none"; eu3d.me = C.me; eu3d.setMap(E(), 2, null, C.walls, C.pop);
   };
-  enter3d = () => {
+  enter3d = (d = DIST_2D - 12) => {
     W0();
     make3d();
     // (the middle of the window's view, as a place)
     const S = cv.width / MG_W, [mx, my] = toMap(mid()), [lon, lat] = llOf(mx / S, my / S);
-    eu3d.look(lon, lat, DIST_2D - 12);
+    eu3d.look(lon, lat, d);
     // (the land fades in over the map — the map hidden under it once it's there)
     on3d = true; eu3d.visible = true; clearTimeout(fade3d); eu3d.el.style.display = "block"; eu3d.el.classList.remove("on"); void eu3d.el.offsetWidth; eu3d.el.classList.add("on");
     fade3d = setTimeout(() => { if (on3d) cv.style.visibility = "hidden"; }, 420);
     eu3d.size(innerWidth, innerHeight); paint();
-    cancelAnimationFrame(raf3d); raf3d = 0; loop3d();
+    cancelAnimationFrame(raf3d); raf3d = 0; loop3d(); paperBtn();
   };
   leave3d = () => {
     W0();
@@ -2596,7 +2608,7 @@ export function initCampaign(c, battle, withPlayer) {
     // (the map drawn under the land, and the land faded off it — the last frame held while it goes)
     on3d = false; cv.style.visibility = "visible"; eu3d.el.classList.remove("on"); clearTimeout(fade3d);
     fade3d = setTimeout(() => { if (!on3d) { eu3d.visible = false; eu3d.el.style.display = "none"; } }, 520);
-    view.z = ZOOM_3D - 0.4 * ZF(); const [cx, cy] = mid(); view.ox = gx * S - cx / view.z; view.oy = gy * S - cy / view.z; clampV(); paint();
+    view.z = ZOOM_3D - 0.4 * ZF(); const [cx, cy] = mid(); view.ox = gx * S - cx / view.z; view.oy = gy * S - cy / view.z; clampV(); paint(); paperBtn();
   };
   // ---- WASD (or the arrows) to move over the map; Q and E to come in and go out; Shift, faster ----
   const keys = new Set();
@@ -2610,7 +2622,7 @@ export function initCampaign(c, battle, withPlayer) {
     for (const k of keys) { const v = KEYS[k]; if (!v) continue; if (v === "in") zin += 1; else if (v === "out") zin -= 1; else { dx += v[0]; dy += v[1]; } }
     if (on3d) {
       if (dx || dy) eu3d.pan(-dx * 700 * fast * dt, -dy * 500 * fast * dt);
-      if (zin) { eu3d.dist = Math.max(2.2, eu3d.dist * Math.exp(-zin * 1.6 * dt)); if (eu3d.dist > DIST_2D) leave3d(); }
+      if (zin) { eu3d.dist = Math.max(2.2, eu3d.dist * Math.exp(-zin * 1.6 * dt)); out3d(); }
     } else {
       if (dx || dy) { const sp = 900 * fast * dt * cv.width / 1300; view.ox += dx * sp / view.z; view.oy += dy * sp / view.z; clampV(); paint(); }
       if (zin) zoomAt(...mid(), Math.exp(zin * 1.4 * dt));
@@ -3277,7 +3289,9 @@ function drawMap(fit = false) {
     if (!mine.length) mine.push([ap.x, ap.y]);
     if (mine.length) { const S = cv.width / MG_W, cx = mine.reduce((t, p) => t + p[0], 0) / mine.length * S, cy = mine.reduce((t, p) => t + p[1], 0) / mine.length * S; view.z = 2.2 * ZF(); view.ox = clamp(cx - cv.width / view.z / 2, 0, cv.width - cv.width / view.z); view.oy = clamp(cy - cv.height / view.z / 2, 0, cv.height - cv.height / view.z); }
   }
-  paint(); drawTop(); drawSide(); coachMarks();
+  // (opened on the land, unless it's the paper you'd rather see)
+  if (fit && !paperMap() && cv.offsetParent) enter3d(DIST_OPEN); else { paint(); paperBtn(); }
+  drawTop(); drawSide(); coachMarks();
 }
 function drawTop() {
   const g = grid(), n = citiesOfNow(g, C.me).length, net = income(g) - upkeep(), wars = Object.keys(C.E.war).filter(id => C.E.war[id]);

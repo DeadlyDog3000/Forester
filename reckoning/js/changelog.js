@@ -7,8 +7,9 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.250", date: "7 November 2026", title: "Lighter battles and crowds",
+    v: "1.99.250", date: "7 November 2026", title: "The campaign map in 3D, and lighter battles",
     items: [
+      "The campaign's map is the land itself now, in 3D, from the moment it opens: zoom out as far as the whole of Europe and it stays the land, with every crown's country washed in its colour and a line where one meets the next, as on the paper map; zoom in and the colour gives way to the fields, woods and towns. The paper map is still there, by the Paper button under the zoom, and the game remembers which one you chose.",
       "Battles draw about half as many things each frame as before. The walls, boulders, felled trees, wagons and barrels across a field are drawn together, one piece for each kind of stone, wood or paint, instead of each its own few pieces; a field of twenty of them was two hundred draws, and as many again in the shadows.",
       "Dust, burning smoke and the red mist of a wound are drawn all at once, as the powder smoke already was, instead of each puff by itself (up to two hundred in a hard fight). Blood drops and small spatters on the ground are drawn together too.",
       "A musket close by casts its shadow from its stock and barrel only: the lock, brass, ramrod and bayonet sit inside the barrel's own shadow, and were five more things to draw for every musket. Buttons and buckles no longer cast shadows inside the coat's.",

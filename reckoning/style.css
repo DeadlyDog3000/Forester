@@ -1655,6 +1655,7 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 #cmpMap { max-width: 100%; max-height: 100%; cursor: grab; }
 .cmp-zoom { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 4px; }
 .cmp-zoom button { width: 30px; height: 30px; border: 1px solid var(--edge); border-radius: 3px; background: rgba(9, 24, 16, 0.8); color: var(--ink); font: 18px var(--sans); cursor: pointer; }
+.cmp-zoom button.cmp-paper { width: auto; min-width: 30px; padding: 0 6px; font: 11px var(--sans); letter-spacing: 0.04em; }
 .cmp-side { min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
 .cmp-card, .cmp-ev, .cmp-over, .cmp-won, .cmp-note { padding: 10px 12px; border: 1px solid var(--edge); border-radius: 4px; background: var(--panel); color: var(--ink); font: 13px/1.45 var(--sans); }
 .cmp-card p { margin: 6px 0; }
