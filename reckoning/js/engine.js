@@ -2376,6 +2376,7 @@ const SADDLE = 0.68;
 // (whether a piece of a body throws a shadow: as it was made, while the body is near enough; never the small parts of a
 //  face and hands, which sit inside the head's and the arms' own)
 const TINY_PART = /_(eyes|iris|handrest[LR]_skin|teeth|tongue|brows?|lashes)$/;
+const EYE_PART = /_(eyes|iris)$/;
 // (and what a man holds or wears at his side — a musket and its bayonet, a sword, a dagger — throws its shadow only from
 //  a few yards off: further, a barrel a finger thick is thinner than one grain of the sun's shadow map and can't be seen
 //  in it, yet a battle's hundred muskets, each of seven or eight pieces, were four hundred draws of the shadow alone)
@@ -2387,6 +2388,15 @@ function castSet(o, cast, near = true) {
   o.castShadow = cast && o.userData.cs0 && (near || !o.userData.held);
 }
 
+// (eyes and irises past twenty-five yards not drawn — two draws a person that no one can make out at that distance: a
+//  market's crowd, looked across, was a hundred and fifty of them. Settled just before the frame is drawn, from where the
+//  eye is then, so a cut to a face close to never finds it without its eyes; found again once the person's model has come)
+function eyesFor(a, c) {
+  const sc = a.person && a.person.modelScene; if (!a.root) return;
+  if (a._eyeOf !== sc) { a._eyeOf = sc; a._eyeParts = []; a.root.traverse(o => { if (o.isMesh && EYE_PART.test(o.name || "")) a._eyeParts.push(o); }); a._eyes = null; }
+  const p = a.root.position, eyes = (p.x - c.x) ** 2 + (p.z - c.z) ** 2 < 625;
+  if (eyes !== a._eyes) { a._eyes = eyes; for (const o of a._eyeParts) o.layers.set(eyes ? 0 : 30); }
+}
 export class Actor {
   constructor(opts, x, z, yaw = 0) {
     this.person = makePerson(opts);
@@ -3174,6 +3184,7 @@ export function frame(dt, skipRender) {
     if (!SKYENV.tex || (G.envN = (G.envN || 0) + 1) % 30 === 0) updateSkyEnv();
     // (the mirror, when it's drawn, has just worked out the place of everything in the scene: the frame itself doesn't
     //  go through all of it again straight after — in a battle, sixteen thousand things)
+    if (G.world && G.world.actors) for (const a of G.world.actors) eyesFor(a, camera.position);
     const placed = reflectWater(renderer, G.scene, camera);
     if (placed) G.scene.matrixWorldAutoUpdate = false;
     try { renderFrame(G.scene, camera); } finally { G.scene.matrixWorldAutoUpdate = true; }
