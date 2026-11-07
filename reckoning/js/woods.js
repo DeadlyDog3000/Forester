@@ -364,15 +364,26 @@ export class Woods extends WorldBase {
       //  green bushes: those stay as they're built)
       const RB = null, RF = realPart("fern", true);
       const bm = RB ? new THREE.InstancedMesh(swayGeo(RB.geo, bushes.length), RB.mat, bushes.length) : new THREE.InstancedMesh(swayGeo(TREE.blob, bushes.length), leafM, bushes.length);
-      const fm = RF ? new THREE.InstancedMesh(swayGeo(RF.geo, ferns.length), RF.mat, ferns.length) : new THREE.InstancedMesh(swayGeo(TREE.coneSolid, ferns.length * 5), leafM, ferns.length * 5);
+      const fm = RF ? null : new THREE.InstancedMesh(swayGeo(TREE.coneSolid, ferns.length * 5), leafM, ferns.length * 5);
       // (a bush stirs in the wind, and a fern frond more)
       const sw = (m, i, q, h) => m.geometry.attributes.aSway.array.set([q.y - 0.05, h, (q.x * 0.71 + q.z * 0.43) % 6.283], i * 3);
       const d = new THREE.Object3D(), c = new THREE.Color();
       bushes.forEach((q, n) => { sw(bm, n, q, 1.6); d.position.set(q.x, RB ? q.y - 0.05 : q.y + 0.3, q.z); d.rotation.set(0, q.ry, 0); if (RB) d.scale.set(q.sx * 0.65, q.sy * 1.2, q.sz * 0.65); else d.scale.set(q.sx, q.sy, q.sz); d.updateMatrix(); bm.setMatrixAt(n, d.matrix); bm.setColorAt(n, RB ? c.setHSL(0.25 + (q.sx - 1) * 0.05, 0.25, 0.42 + (q.sy - 0.6) * 0.3) : c.set(q.col)); q.slots = [[bm, n]]; });
       let fi = 0;
-      if (RF) ferns.forEach((q, n) => { sw(fm, n, q, 1.2); d.position.set(q.x, q.y - 0.02, q.z); d.rotation.set(0, (q.x * 1.7 + q.z) % 6.28, 0); d.scale.setScalar(1.7 + ((q.x * 3.1 + q.z * 1.3) % 1 + 1) % 1 * 1.1); d.updateMatrix(); fm.setMatrixAt(n, d.matrix); fm.setColorAt(n, c.setHSL(0.24, 0.8, 0.5)); q.slots = [[fm, n]]; });
-      else for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { sw(fm, fi, q, 1.2); d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
-      for (const m of [bm, fm]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = false; root.add(m); }
+      // (the scanned ferns made in squares of eighty yards, each its own, as the nettles are: drawn the length of the road
+      //  from anywhere on it, they were half a million facets; those far off or behind you now aren't drawn. A clump cut
+      //  is still its square's one place — see hideShrub)
+      const fms = [];
+      if (RF) { const by = new Map(); for (const q of ferns) { const k = Math.floor(q.x / 80) + "," + Math.floor(q.z / 80); (by.get(k) || by.set(k, []).get(k)).push(q); }
+        for (const l of by.values()) {
+          const m = new THREE.InstancedMesh(swayGeo(RF.geo, l.length), RF.mat, l.length);
+          l.forEach((q, n) => { sw(m, n, q, 1.2); d.position.set(q.x, q.y - 0.02, q.z); d.rotation.set(0, (q.x * 1.7 + q.z) % 6.28, 0); d.scale.setScalar(1.7 + ((q.x * 3.1 + q.z * 1.3) % 1 + 1) % 1 * 1.1); d.updateMatrix(); m.setMatrixAt(n, d.matrix); m.setColorAt(n, c.setHSL(0.24, 0.8, 0.5)); q.slots = [[m, n]]; });
+          // (its bounds a little wider than the clumps, for their stir in the wind)
+          m.computeBoundingSphere(); m.boundingSphere.radius += 1; m.userData.far = 110; fms.push(m);
+        }
+        (this.farCells || (this.farCells = [])).push(...fms);
+      } else for (const q of ferns) { q.slots = []; for (const [fx, fz, rx, rz] of q.fronds) { sw(fm, fi, q, 1.2); d.position.set(fx, q.y, fz); d.rotation.set(rx, 0, rz); d.scale.set(0.12, 0.7, 0.12); d.updateMatrix(); fm.setMatrixAt(fi, d.matrix); fm.setColorAt(fi, c.set(0x5a7a3a)); q.slots.push([fm, fi++]); } }
+      for (const m of [bm, ...(RF ? fms : [fm])]) { m.castShadow = false; m.receiveShadow = true; m.frustumCulled = !!m.userData.far; root.add(m); }
       this.shrubs = shrubs;
       // (those already cut, in this save)
       const gone = new Set(G.loadCut ? G.loadCut() : []);
@@ -2187,10 +2198,10 @@ export class Woods extends WorldBase {
     this.tickRocks(dt);
     this.syncRingInst();
     // (the nettles, square by square: only those within eighty yards or so are drawn — knee-high, among the trunks, they
-    //  are lost past that)
+    //  are lost past that; the ferns, taller, to a hundred and ten)
     if (this.farCells && (this.cellT = (this.cellT || 0) - dt) <= 0) {
       this.cellT = 0.5; const c = camera.position;
-      for (const m of this.farCells) { const b = m.boundingSphere; m.visible = Math.hypot(b.center.x - c.x, b.center.z - c.z) - b.radius < 80; }
+      for (const m of this.farCells) { const b = m.boundingSphere; m.visible = Math.hypot(b.center.x - c.x, b.center.z - c.z) - b.radius < (m.userData.far || 80); }
     }
     if (this.dirtyGround) this.reshapeGround();
     // tiles of forest past the haze are not drawn at all
