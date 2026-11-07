@@ -10,6 +10,7 @@
 // The other side has its own officer.
 
 import { THREE, rockGeo, mat, makeFlame, flicker, FLAMES, addDetail } from "./core.js";
+import { mergeGeometries } from "../lib/utils/BufferGeometryUtils.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
@@ -165,6 +166,42 @@ function merged(g) {
   // (what couldn't be merged, kept in its place)
   for (const o of keep) { const w = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld); o.parent.remove(o); w.decompose(o.position, o.quaternion, o.scale); out.add(o); }
   return out;
+}
+
+// (the field's own cover — its walls, boulders, felled trees, wagons and barrels, none of which moves — gathered up once
+//  it's laid: the stones of every wall and boulder one piece for each kind of stone, every log one, each paint of the
+//  rest one. Each wall, each boulder, each log and each wagon had been its own few draws, and a field of twenty of them
+//  two hundred, as many again in the shadows)
+const _gm = new THREE.Matrix4(), _gi = new THREE.Matrix4(), _gc = new THREE.Color();
+function gather(root, from) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), inst = new Map(), plain = new Map();
+  const shown = o => { for (let p = o; p && p !== root; p = p.parent) if (!p.visible) return false; return true; };
+  const add = (M, k, o) => (M.get(k) || M.set(k, []).get(k)).push(o);
+  for (const top of root.children.slice(from)) top.traverse(o => {
+    if (!o.isMesh || o.isSkinnedMesh || !shown(o) || o.matrixWorld.determinant() < 0 || o.renderOrder || o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender) return;
+    const ms = [].concat(o.material).map(m => m.uuid).join(","), sh = `${o.castShadow}${o.receiveShadow}`;
+    if (o.isInstancedMesh) { if (!Object.values(o.geometry.attributes).some(a => a.isInstancedBufferAttribute)) add(inst, `${o.geometry.uuid}|${ms}|${sh}|${!!o.instanceColor}`, o); }
+    else if (!Array.isArray(o.material) && !o.geometry.morphAttributes.position) add(plain, `${ms}|${sh}|${!!o.geometry.index}|${Object.entries(o.geometry.attributes).map(([n, a]) => n + a.itemSize + a.normalized + a.array.constructor.name).sort().join()}`, o);
+  });
+  for (const list of inst.values()) {
+    if (list.length < 2) continue;
+    const o0 = list[0], n = list.reduce((s, o) => s + o.count, 0), m = new THREE.InstancedMesh(o0.geometry, o0.material, n);
+    let k = 0;
+    for (const o of list) {
+      _gi.multiplyMatrices(inv, o.matrixWorld);
+      for (let i = 0; i < o.count; i++, k++) { o.getMatrixAt(i, _gm); m.setMatrixAt(k, _gm.premultiply(_gi)); if (o.instanceColor) { o.getColorAt(i, _gc); m.setColorAt(k, _gc); } }
+      o.parent.remove(o);
+    }
+    m.castShadow = o0.castShadow; m.receiveShadow = o0.receiveShadow; m.computeBoundingSphere(); root.add(m);
+  }
+  for (const list of plain.values()) {
+    if (list.length < 2) continue;
+    const geo = mergeGeometries(list.map(o => { const g = o.geometry.clone(); g.applyMatrix4(_gi.multiplyMatrices(inv, o.matrixWorld)); return g; }));
+    if (!geo) continue;
+    const o0 = list[0], m = new THREE.Mesh(geo, o0.material); m.castShadow = o0.castShadow; m.receiveShadow = o0.receiveShadow; geo.computeBoundingSphere(); root.add(m);
+    for (const o of list) o.parent.remove(o);
+  }
 }
 
 // ---- the uniforms of 1683: the armies that came to Vienna, and their neighbours ----
@@ -339,7 +376,7 @@ export class Field {
     // (two armies met in the open have no works: no gabions, banks or chevaux-de-frise dug in front of them — those are a
     //  siege's or a fortified camp's — only their field guns, unlimbered on the flanks of the line)
     else if (battle) for (const side of [0, 1]) siege && side === siege.side ? this.wallGuns(side, siege) : side === this.fortSide ? this.fort(side) : w.woods === side ? null : fort != null || siege ? this.works(side) : this.fieldGuns(side);
-    this.between(battle ? 20 : 5);
+    { const from = this.root.children.length; this.between(battle ? 20 : 5); gather(this.root, from); }
   }
   y(x, z) { return this.w.heightAt(x, z); }
   // set down on the ground there; its pieces merged, one mesh to each material (bake: false for what moves)

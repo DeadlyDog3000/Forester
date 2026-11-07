@@ -15,6 +15,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { mat } from "./core.js";
 import { modelCopy } from "./models.js";
+import { Billboards } from "./billboards.js";
 import { mergeGeometries } from "../lib/utils/BufferGeometryUtils.js";
 import { shake, kickFov } from "./fight.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
@@ -135,16 +136,24 @@ function puffTex() {
   return PUFF;
 }
 // a cloud: n puffs from `at`, pushed along `dir`, spreading and fading over `life` seconds
+// (its puffs drawn with all the rest of the world's in one, as the powder smoke is — see billboards.js: each a sprite and
+//  a paint of its own, a battle's dust and burning were two hundred draws)
+const CLOUDS = new WeakMap();
+function cloudPool(root) {
+  let B = CLOUDS.get(root); if (B && B.mesh.parent === root) return B;
+  Billboards.install(G.scene);
+  B = new Billboards(root, puffTex()); CLOUDS.set(root, B); return B;
+}
 export function cloud(root, at, dir, { n = 10, colour = 0xd8d4cc, life = 4, speed = 4, size = 1.4, opacity = 0.55 } = {}) {
-  const tex = puffTex(), parts = [];
+  const B = cloudPool(root), parts = [];
   // (smoke isn't lit as the world is: dimmed by hand to the daylight there is, or at night it glows like a lamp)
   const lightK = G.sun ? Math.max(0.16, Math.min(1, 0.16 + G.sun.intensity / 2.4 * 0.84)) : 1, tint = new THREE.Color(colour).multiplyScalar(lightK);
   for (let i = 0; i < n; i++) {
-    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: tint, transparent: true, depthWrite: false, opacity, fog: true }));
+    const m = B.add(0, tint); m.material.opacity = opacity;
     m.position.copy(at);
     const v = dir.clone().multiplyScalar(speed * (0.3 + Math.random())); v.x += (Math.random() - 0.5) * 1.6; v.y += Math.random() * 1.2; v.z += (Math.random() - 0.5) * 1.6;
     m.userData = { v, s: size * (0.6 + Math.random() * 0.6), rot: (Math.random() - 0.5) * 2 };
-    root.add(m); parts.push(m);
+    parts.push(m);
   }
   let t = 0;
   const tick = dt => {
@@ -155,7 +164,7 @@ export function cloud(root, at, dir, { n = 10, colour = 0xd8d4cc, life = 4, spee
       m.scale.setScalar(u.s * (1 + k * 2.6)); m.material.rotation += u.rot * dt * 0.2;
       m.material.opacity = opacity * Math.max(0, 1 - k) * Math.min(1, t * 8);
     }
-    if (t > life) { for (const m of parts) { root.remove(m); m.material.dispose(); } const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
+    if (t > life) { for (const m of parts) B.remove(m); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
   };
   G.onFrame.push(tick);
 }

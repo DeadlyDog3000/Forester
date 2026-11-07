@@ -2374,17 +2374,20 @@ function personalSpace(list, dt) {
 const SADDLE = 0.68;
 
 // (whether a piece of a body throws a shadow: as it was made, while the body is near enough; never the small parts of a
-//  face and hands, which sit inside the head's and the arms' own)
-const TINY_PART = /_(eyes|iris|handrest[LR]_skin|teeth|tongue|brows?|lashes)$/;
+//  face and hands, which sit inside the head's and the arms' own, nor the buttons and buckles of the clothes, inside the coat's)
+const TINY_PART = /_(eyes|iris|handrest[LR]_skin|teeth|tongue|brows?|lashes|metal)$/;
 const EYE_PART = /_(eyes|iris)$/;
 // (and what a man holds or wears at his side — a musket and its bayonet, a sword, a dagger — throws its shadow only from
 //  a few yards off: further, a barrel a finger thick is thinner than one grain of the sun's shadow map and can't be seen
 //  in it, yet a battle's hundred muskets, each of seven or eight pieces, were four hundred draws of the shadow alone)
 const HELD_PART = /^(musket|pistol)_|dagger|estoc|sword/;
+// (and of a musket close by, only its stock and barrel: the lock, the brass, the rod, the bayonet are a few grains of the
+//  map inside the barrel's own, and were five draws more a musket — a company standing about the eye, three hundred)
+const HELD_SMALL = /^(musket|pistol)_(brass|horn|rod|soot|steel)|dagger|bayonet/;
 const heldPart = o => { if (HELD_PART.test(o.name || "")) return true; for (let p = o.parent; p; p = p.parent) if (p.userData && p.userData.grips) return true; return false; };
 function castSet(o, cast, near = true) {
   if (!o.isMesh) return;
-  if (o.userData.cs0 === undefined) { o.userData.cs0 = o.castShadow && !TINY_PART.test(o.name || ""); o.userData.held = heldPart(o); }
+  if (o.userData.cs0 === undefined) { o.userData.cs0 = o.castShadow && !TINY_PART.test(o.name || ""); o.userData.held = heldPart(o); if (o.userData.held && HELD_SMALL.test(o.name || "")) o.userData.cs0 = false; }
   o.castShadow = cast && o.userData.cs0 && (near || !o.userData.held);
 }
 

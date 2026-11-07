@@ -1447,13 +1447,13 @@ export function addBayonet(m) {
       const sock = new THREE.CylinderGeometry(0.017, 0.017, 0.085, 10, 1, true).translate(0, muzY - 0.05, 0.032), neck = new THREE.BoxGeometry(0.012, 0.012, 0.045).translate(0, muzY - 0.03, 0.006);
       return { geo: mergeGeometries([sock, neck]), mat: mat(0x55595f, { metalness: 0.4, roughness: 0.45 }) };
     })();
-    b.add(new THREE.Mesh(IR.geo, IR.mat));
+    { const ir = new THREE.Mesh(IR.geo, IR.mat); ir.name = "bayonet_iron"; b.add(ir); }
     const d = makeDagger(); d.position.set(0, muzY - 0.06, -0.014); b.add(d);
     b.traverse(o => { if (o.isMesh) o.castShadow = true; });
     // (kept, made one, once the dagger's model is in to make it from)
     const mg = MODELS.dagger && mergeMeshes(b, key); if (mg) { BAYONETS[key] = mg; b = mg.clone(); }
   }
-  m.add(b); m.userData.bayonet = b; return b;
+  b.name = key; m.add(b); m.userData.bayonet = b; return b;
 }
 // the musket with its bayonet fixed, held as a pike is (for the steel, close in): the right hand at the wrist of the
 // stock (here, where a haft's grip is), the left on the fore-end
@@ -1685,7 +1685,7 @@ function mergedModel(key) {
 //  musket, see fromModel — its finish plain, no grain or maps)
 function mergeMeshes(root, key, { flat = false } = {}) {
   root.updateMatrixWorld(true);
-  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), buckets = new Map(), keep = [];
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), buckets = new Map(), keep = [], metals = new Set();
   let ok = true;
   root.traverse(o => {
     if (!o.isMesh) return;
@@ -1693,7 +1693,8 @@ function mergeMeshes(root, key, { flat = false } = {}) {
     if (Array.isArray(m) || o.isSkinnedMesh || (m.map && !flat) || !g.attributes.position || !g.attributes.normal) { ok = false; return; }
     if (!flat && /_rod(\.\d+)?$/.test(m.name || "")) { keep.push(o); return; }
     const k = (m.metalness || 0) > 0.2 ? "metal" : "plain";
-    (buckets.get(k) || buckets.set(k, []).get(k)).push(o);
+    // (flat, far off: one piece, the metal's vertices marked to shine — see METAL_HOOK)
+    (buckets.get(flat ? "far" : k) || buckets.set(flat ? "far" : k, []).get(flat ? "far" : k)).push(o); if (k === "metal") metals.add(o);
   });
   if (!ok || buckets.size === 0) return null;
   const out = new THREE.Group(); out.name = root.name;
@@ -1711,9 +1712,10 @@ function mergeMeshes(root, key, { flat = false } = {}) {
       return g;
     });
     let nv = 0, ni = 0; for (const g of geos) { nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
-    const P = new Float32Array(nv * 3), N = new Float32Array(nv * 3), Cc = new Float32Array(nv * 3), I = new Uint32Array(ni); let at = 0, ii = 0;
-    for (const g of geos) {
+    const P = new Float32Array(nv * 3), N = new Float32Array(nv * 3), Cc = new Float32Array(nv * 3), I = new Uint32Array(ni), Mt = flat ? new Float32Array(nv) : null; let at = 0, ii = 0;
+    for (const [gi, g] of geos.entries()) {
       const n = g.attributes.position.count;
+      if (Mt) { const o = list[gi], am = o.geometry.attributes.aMetal; if (metals.has(o)) Mt.fill(1, at, at + n); else if (am) for (let k = 0; k < n; k++) Mt[at + k] = am.getX(k); }
       // (read a value at a time: a model's attributes may be interleaved, or packed small)
       for (const [A, out] of [[g.attributes.position, P], [g.attributes.normal, N], [g.attributes.color, Cc]]) for (let k = 0; k < n; k++) { out[(at + k) * 3] = A.getX(k); out[(at + k) * 3 + 1] = A.getY(k); out[(at + k) * 3 + 2] = A.getZ(k); }
       if (g.index) for (let k = 0; k < g.index.count; k++) I[ii++] = g.index.getX(k) + at; else for (let k = 0; k < n; k++) I[ii++] = k + at;
@@ -1721,7 +1723,8 @@ function mergeMeshes(root, key, { flat = false } = {}) {
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(P, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(N, 3)); geo.setAttribute("color", new THREE.BufferAttribute(Cc, 3)); geo.setIndex(new THREE.BufferAttribute(I, 1));
     geo.computeBoundingSphere(); geo._shared = true;
-    const m0 = list[0].material, mat = flat ? new THREE.MeshStandardMaterial({ roughness: m0.roughness ?? 0.8, metalness: m0.metalness ?? 0 }) : m0.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.name = `${key}_${k}`;
+    const m0 = list.find(o => !metals.has(o))?.material || list[0].material, mat = flat ? new THREE.MeshStandardMaterial({ roughness: m0.roughness ?? 0.8, metalness: (m0.metalness || 0) > 0.2 ? 0 : m0.metalness ?? 0 }) : m0.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.name = `${key}_${k}`;
+    if (Mt) { if (Mt.some(v => v)) { geo.setAttribute("aMetal", new THREE.BufferAttribute(Mt, 1)); addHook(mat, METAL_HOOK, "aMetal"); } }
     // (and its grain and finish, which a copy of a material doesn't carry)
     if (!flat) { mat.onBeforeCompile = m0.onBeforeCompile; if (m0.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey) mat.customProgramCacheKey = m0.customProgramCacheKey; }
     const mesh = new THREE.Mesh(geo, mat); mesh.name = `${key}_${k}`; mesh.castShadow = true; mesh.receiveShadow = true; out.add(mesh);
@@ -1746,12 +1749,28 @@ export function lodGuns(c, scene) {
     let r = g; while (r.parent) r = r.parent;
     // (one gone from the scene once it's been in it — dropped, or its world gone — let go, with its own model back on; one
     //  not yet put in it, or held in another scene, left as it is)
-    const L = g.userData.lod;
-    if (r !== scene) { if (L.seen) { LOD_GUNS.delete(g); L.near.visible = true; L.far.visible = false; } continue; }
+    const L = g.userData.lod, b = g.userData.bayonet;
+    if (r !== scene) { if (L.seen) { LOD_GUNS.delete(g); L.near.visible = true; L.far.visible = false; if (L.farB) L.farB.visible = false; if (b) b.visible = true; } continue; }
     L.seen = true;
     const e = g.matrixWorld.elements, far = (e[12] - c.x) ** 2 + (e[13] - c.y) ** 2 + (e[14] - c.z) ** 2 > 400;
-    if (L.far.visible !== far) { L.far.visible = far; L.near.visible = !far; }
+    // (a bayonet fixed: far off, the musket's far copy with the bayonet worked into it, not two pieces more on the muzzle)
+    const F = b ? (L.farB ??= farBayonet(g, L.far, b)) || L.far : L.far, F0 = F === L.far ? L.farB : L.far;
+    if (F0 && F0.visible) F0.visible = false;
+    if (F.visible !== far) F.visible = far;
+    if (L.near.visible === far) L.near.visible = !far;
+    if (b && b.visible === (far && F !== L.far)) b.visible = !(far && F !== L.far);
   }
+}
+const FAR_B = {};
+function farBayonet(g, far, b) {
+  const key = b.name || "b";
+  let M = FAR_B[key];
+  if (M === undefined) {
+    const t = new THREE.Group(), fc = far.clone(), bc = b.clone(); fc.visible = bc.visible = true; bc.traverse(o => { o.visible = true; });
+    t.add(fc, bc); M = FAR_B[key] = mergeMeshes(t, "musket_farB", { flat: true });
+  }
+  if (!M) return null;
+  const c = M.clone(); c.visible = false; c.traverse(o => { if (o.isMesh) o.castShadow = false; }); g.add(c); return c;
 }
 function fromModel(key, muzzle, grips) {
   const M = mergedModel(key), m = M ? { scene: M.clone() } : modelCopy(key); if (!m) return null;
@@ -2457,8 +2476,10 @@ export function forestInstances(list, far = false) {
       sway(fronds, fi, t); fronds.setMatrixAt(fi, dummy.matrix); t.slots.push([fronds, fi]); tint(fronds, fi++, 0, seed, 0.08, 0.03);
     }
   }
-  palmTr.count = pti; fronds.count = fi;
-  for (const m of [trunks, birchTr, spruceC, pineB, pineL, leaves, oakC, acaC, junC, scrC, palmTr, fronds]) { m.userData.far = far; m.castShadow = !far && m !== trunks && m !== birchTr && m !== palmTr && m !== pineL; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
+  palmTr.count = pti; fronds.count = fi; pineB.count = pi; pineL.count = pl; leaves.count = li;
+  // (a kind with no trees of it in the patch left out: drawn empty, it was a draw of nothing, and a battle's patches of
+  //  wood had a dozen kinds each)
+  for (const m of [trunks, birchTr, spruceC, pineB, pineL, leaves, oakC, acaC, junC, scrC, palmTr, fronds]) { if (m.count === 0) { m.dispose(); continue; } m.userData.far = far; m.castShadow = !far && m !== trunks && m !== birchTr && m !== palmTr && m !== pineL; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; m.computeBoundingSphere(); out.push(m); }
   return out;
 }
 
@@ -3441,6 +3462,13 @@ function texReader(tex) {
   const flip = tex.flipY;
   return (u, v, out) => { const S = R.S, X = Math.min(S - 1, Math.max(0, Math.floor((u - Math.floor(u)) * S))), vv = v - Math.floor(v), Y = Math.min(S - 1, Math.max(0, Math.floor((flip ? 1 - vv : vv) * S))), i = (Y * S + X) * 3; out[0] = R.lin[i]; out[1] = R.lin[i + 1]; out[2] = R.lin[i + 2]; return out; };
 }
+// (the cloth's metal marked in its vertices: there it shines as the metal pieces of a crowd do)
+const METAL_HOOK = sh => {
+  sh.vertexShader = "attribute float aMetal;\nvarying float vMetal;\n" + sh.vertexShader.replace("void main() {", "void main() {\n  vMetal = aMetal;");
+  sh.fragmentShader = "varying float vMetal;\n" + sh.fragmentShader
+    .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.42, vMetal);")
+    .replace("#include <metalnessmap_fragment>", "#include <metalnessmap_fragment>\n  metalnessFactor = mix(metalnessFactor, 0.6, vMetal);");
+};
 export function mergeRig(root) {
   const parts = [];
   root.traverse(o => { if (o.isSkinnedMesh && !Array.isArray(o.material) && o.geometry.attributes.skinIndex) { let v = true; for (let p = o; p && p !== root; p = p.parent) if (!p.visible) { v = false; break; } if (v) parts.push(o); } });
@@ -3451,11 +3479,15 @@ export function mergeRig(root) {
   const same = o => o.skeleton.bones.length === bones.length && o.skeleton.bones.every((b, i) => b === bones[i]) && o.bindMatrix.equals(bind) && near(o.matrixWorld, W0);
   const buckets = new Map();
   for (const o of parts) { if (!same(o)) continue; const metal = (o.material.metalness || 0) > 0.3 ? 1 : 0; (buckets.get(metal) || buckets.set(metal, []).get(metal)).push(o); }
+  // (a lone piece of metal — a musketeer's buttons and buckles — made one with the cloth, its vertices marked to shine as
+  //  metal does: left alone it was a draw of its own for every man in a battle)
+  const shiny = new Set();
+  if (buckets.get(1) && buckets.get(1).length === 1 && buckets.get(0) && buckets.get(0).length >= 2) { const o = buckets.get(1)[0]; shiny.add(o); buckets.get(0).push(o); buckets.delete(1); }
   const made = [];
   for (const [metal, list] of buckets) {
     if (list.length < 2) continue;
     let nv = 0, ni = 0; for (const o of list) { nv += o.geometry.attributes.position.count; ni += o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count; }
-    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), si = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni), acl = new Float32Array(nv * 2);
+    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), si = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni), acl = new Float32Array(nv * 2), met = shiny.size && !metal ? new Float32Array(nv) : null;
     let sim = null;
     let v0 = 0, i0 = 0;
     const c = new THREE.Color(), parts = [];
@@ -3482,6 +3514,7 @@ export function mergeRig(root) {
         for (let q = 0; q < 4; q++) { si[j * 4 + q] = SI.getComponent(k, q); sw[j * 4 + q] = SW.getComponent(k, q); }
         if (AC) { acl[j * 2] = AC.getX(k); acl[j * 2 + 1] = AC.getY(k); }
       }
+      if (met && shiny.has(o)) met.fill(1, v0, v0 + P.count);
       if (g.index) for (let k = 0; k < g.index.count; k++) idx[i0 + k] = g.index.getX(k) + v0;
       else for (let k = 0; k < P.count; k++) idx[i0 + k] = k + v0;
       i0 += g.index ? g.index.count : P.count; v0 += P.count;
@@ -3501,6 +3534,7 @@ export function mergeRig(root) {
     sk.castShadow = true; sk.receiveShadow = true; sk.frustumCulled = false;
     list[0].parent.add(sk); sk.bind(list[0].skeleton, bind);
     if (sim) { geo.setAttribute("aCloth", new THREE.BufferAttribute(acl, 2)); sk.userData.unCloth = clothMerged(sim, sk); }
+    if (met) { geo.setAttribute("aMetal", new THREE.BufferAttribute(met, 1)); addHook(sk.material, METAL_HOOK, "aMetal"); }
     for (const o of list) { o.visible = false; freeze(o, true); }
     made.push(sk); made.hidden = (made.hidden || []).concat(list);
   }

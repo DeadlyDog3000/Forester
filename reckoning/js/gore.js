@@ -9,6 +9,7 @@
 import { THREE } from "./core.js";
 import { G } from "./engine.js";
 import { burst } from "./fight.js";
+import { Billboards } from "./billboards.js";
 
 const MAX = 160;                 // (marks on the ground, the oldest going first)
 const marks = [];
@@ -75,8 +76,20 @@ function drape(m) {
   }
   pos.needsUpdate = true; m.geometry.computeBoundingSphere();
 }
-export function splat(x, z, size, dark = false) {
+// (the small marks — a drop, a spatter too small to be laid over the ground's rises — drawn as one piece for each kind of
+//  stain, the oldest of a kind going first: each its own draw, a long battle's field had three hundred of them)
+const STAMPS = new Map(), STAMP_N = 96, _sm = new THREE.Matrix4(), _sq = new THREE.Quaternion(), _sp = new THREE.Vector3(), _ss = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+function stamp(mat, x, y, z, ry, sx, sz) {
+  let S = STAMPS.get(mat);
+  if (!S) { const m = new THREE.InstancedMesh(PLANE, mat, STAMP_N); m.count = 0; m.frustumCulled = false; m.renderOrder = 1; S = { m, i: 0 }; STAMPS.set(mat, S); }
+  if (S.m.parent !== G.scene) G.scene.add(S.m);
+  S.m.setMatrixAt(S.i, _sm.compose(_sp.set(x, y, z), _sq.setFromAxisAngle(_up, ry), _ss.set(sx, 1, sz)));
+  S.i = (S.i + 1) % STAMP_N; S.m.count = Math.max(S.m.count, S.i || STAMP_N); S.m.instanceMatrix.needsUpdate = true;
+}
+function unstamp() { for (const S of STAMPS.values()) { S.m.count = 0; S.i = 0; if (S.m.parent) S.m.parent.remove(S.m); } }
+export function splat(x, z, size, dark = false, own = false) {
   if (!G.scene || (G.settings && G.settings.gore === false)) return null;
+  if (size <= 0.35 && !own) { const sz = size * rnd(0.75, 1.25); stamp(stainMat(dark), x, groundY(x, z) + 0.015 + Math.random() * 0.006, z, Math.random() * 6.28, size, sz); return null; }
   const m = new THREE.Mesh(PLANE, stainMat(dark));
   m.position.set(x, groundY(x, z) + 0.015 + Math.random() * 0.006, z); m.rotation.y = Math.random() * 6.28; m.scale.set(size, 1, size * rnd(0.75, 1.25));
   if (size > 0.35) drape(m);
@@ -84,31 +97,31 @@ export function splat(x, z, size, dark = false) {
 }
 
 // a drop landed: a small spot, kept (more of these than of the big stains, and dropped sooner)
-const drops = [];
 export function drop(x, z, k = 1) {
   if (!G.scene || (G.settings && G.settings.gore === false)) return;
-  const m = new THREE.Mesh(PLANE, stainMat(false));
-  m.position.set(x, groundY(x, z) + 0.012 + Math.random() * 0.004, z); m.rotation.y = Math.random() * 6.28; m.scale.setScalar(rnd(0.05, 0.11) * k);
-  m.renderOrder = 1; G.scene.add(m); drops.push(m);
-  while (drops.length > 160) { const o = drops.shift(); if (o.parent) o.parent.remove(o); }
+  const r = rnd(0.05, 0.11) * k;
+  stamp(stainMat(false), x, groundY(x, z) + 0.012 + Math.random() * 0.004, z, Math.random() * 6.28, r, r);
 }
 
 // ---- the mist: a puff of fine red spray off the wound, the way the blow went ----
 let mistTex = null;
+const MIST = new WeakMap();
 function mist(at, dir, k) {
   if (!G.scene) return;
   if (!mistTex) { const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"); const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(140,10,8,0.85)"); g.addColorStop(0.5, "rgba(110,6,4,0.4)"); g.addColorStop(1, "rgba(90,0,0,0)"); x.fillStyle = g; x.fillRect(0, 0, 64, 64); mistTex = new THREE.CanvasTexture(c); }
+  // (all of it drawn in one, as the smoke is — see billboards.js)
+  let B = MIST.get(G.scene); if (!B || B.mesh.parent !== G.scene) { Billboards.install(G.scene); MIST.set(G.scene, B = new Billboards(G.scene, mistTex)); }
   const n = Math.round(2 + 3 * k), parts = [];
   for (let i = 0; i < n; i++) {
-    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, depthWrite: false, opacity: 0.8 }));
-    s.position.copy(at); s.scale.setScalar(0.15); G.scene.add(s);
+    const s = B.add(0); s.material.opacity = 0.8;
+    s.position.copy(at); s.scale.setScalar(0.15);
     parts.push({ s, v: dir.clone().multiplyScalar(rnd(1.2, 3.2) * k).add(new THREE.Vector3(rnd(-0.5, 0.5), rnd(0.1, 0.8), rnd(-0.5, 0.5))), g: rnd(0.5, 0.9) });
   }
   let t = 0;
   const tick = dt => {
     t += dt;
     for (const p of parts) { p.s.position.addScaledVector(p.v, dt); p.v.multiplyScalar(1 - 3 * dt); p.v.y -= 0.6 * dt; p.s.scale.setScalar(0.15 + t * 1.3 * p.g); p.s.material.opacity = Math.max(0, 0.8 * (1 - t / 0.7)); }
-    if (t > 0.7) { for (const p of parts) { G.scene.remove(p.s); p.s.material.dispose(); } off(tick); }
+    if (t > 0.7) { for (const p of parts) B.remove(p.s); off(tick); }
   };
   G.onFrame.push(tick);
 }
@@ -202,7 +215,7 @@ export function pool(a, big = 1) {
   const P = a.person;
   setTimeout(() => {
     const B = P.bones || {}, b = B.chest || B.spine || B.hips, p = b ? b.getWorldPosition(new THREE.Vector3()) : a.pos.clone();
-    const m = splat(p.x, p.z, 0.1, true); if (!m) return;
+    const m = splat(p.x, p.z, 0.1, true, true); if (!m) return;
     const R = rnd(1.7, 2.5) * big, sx = rnd(0.8, 1.2); let t = 0;
     const tick = dt => {
       t += dt; const k = 1 - Math.pow(1 - Math.min(1, t / 9), 2); m.scale.set(0.1 + R * k * sx, 1, 0.1 + R * k);
@@ -297,6 +310,6 @@ export function goreOff() {
 }
 // the field cleared of it all (the battle over)
 export function clearGore() {
-  for (const m of [...marks, ...drops]) free(m);
-  marks.length = 0; drops.length = 0;
+  for (const m of marks) free(m);
+  marks.length = 0; unstamp();
 }

@@ -33,6 +33,11 @@ export const CHANGELOG = [
       "The breakable stones and ore rocks in the woods and caves are a weathered grey instead of almost white, so they no longer glare in the shade of the trees.",
       "Torches and fires far off are drawn with just their main flame and glow; their smaller flames, sparks and smoke are too small to see from there anyway.",
       "Each person's clothes, skin, hair and eyes now move on one shared skeleton instead of a skeleton per piece, so a street of townsfolk costs the computer much less work every frame (in the house on the night the watch comes, nine people went from 159 skeletons to 9). The swell on the Elbe and the chimney smoke over the town take less working out, too.",
+      "Battles draw about half as many things each frame as before. The walls, boulders, felled trees, wagons and barrels across a field are drawn together, one piece for each kind of stone, wood or paint, instead of each its own few pieces; a field of twenty of them was two hundred draws, and as many again in the shadows.",
+      "Dust, burning smoke and the red mist of a wound are drawn all at once, as the powder smoke already was, instead of each puff by itself (up to two hundred in a hard fight). Blood drops and small spatters on the ground are drawn together too.",
+      "A musket close by casts its shadow from its stock and barrel only: the lock, brass, ramrod and bayonet sit inside the barrel's own shadow, and were five more things to draw for every musket. Buttons and buckles no longer cast shadows inside the coat's.",
+      "A soldier's buttons and buckles are part of his clothes in a crowd, still shining as metal, instead of a piece of their own; a far-off musket is one piece, with its bayonet worked into it when one is fixed.",
+      "Patches of woods round a battlefield no longer draw the kinds of tree they have none of.",
     ],
   },
   {
