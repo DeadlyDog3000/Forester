@@ -3537,7 +3537,7 @@ function bakeShape(list, geoOf, gkey, shiny, plain) {
 // (a far model's pieces by name, found once)
 const FAR_BY = new WeakMap();
 function farPieces(F) { let m = FAR_BY.get(F); if (!m) { m = new Map(); F.scene.traverse(o => { if (o.isSkinnedMesh && !m.has(o.name)) m.set(o.name, o.geometry); }); FAR_BY.set(F, m); } return m; }
-// a man made one, as seen from far off (past thirty yards) or near: his far shape or his own; one hurt keeps his own,
+// a man made one, as seen from far off (past fifteen yards) or near: his far shape or his own; one hurt keeps his own,
 // which his stains are on
 let _farMade = 0;
 export function rigFar(P, far) {
@@ -3570,7 +3570,7 @@ export function mergeRig(root) {
     const gkey = list.map(o => o.geometry.uuid + (shiny.has(o) ? "m" : "")).join();
     const { geo, parts, sim, SH, col } = bakeShape(list, o => o.geometry, gkey, shiny, !metal);
     // (and the same man as seen from far off: a third of the facets — models/*_far.glb, tools/farmodels.mjs — on the
-    //  same bones, in the same colours; drawn past thirty yards, see rigFar)
+    //  same bones, in the same colours; drawn past fifteen yards, see rigFar)
     const farOf = () => { const FM = root.userData.modelKey && MODELS[root.userData.modelKey + "_far"], by = FM && farPieces(FM); return by && list.every(o => by.has(o.name)) ? bakeShape(list, o => by.get(o.name), gkey + "|far", shiny, !metal).geo : null; };
     const farGeo = farOf();
     // (the material: the first piece's own — its finish and its grain — white, so the baked colours show as they were)

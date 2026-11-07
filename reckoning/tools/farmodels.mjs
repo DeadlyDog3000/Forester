@@ -4,7 +4,7 @@
 // THE PEOPLE AS SEEN FROM FAR OFF: for every rigged person in models/, a copy of about a third of the facets
 // (<name>_far.glb), made with gltfpack's simplifier (meshoptimizer, MIT), on the same skeleton and with the same pieces
 // by the same names. A man of a battle's ranks or a town's crowd, made one piece (mergeRig in js/models.js), is drawn
-// with it past thirty yards. The game loads them after the start, as it needs them (manifest.json's "_far").
+// with it past fifteen yards. The game loads them after the start, as it needs them (manifest.json's "_far").
 //
 //   node reckoning/tools/farmodels.mjs              every person in the manifest's "_far"
 //   node reckoning/tools/farmodels.mjs musketeer    just these

@@ -16,7 +16,7 @@ export const CHANGELOG = [
       "Patches of woods round a battlefield no longer draw the kinds of tree they have none of.",
       "Townsfolk more than about fifteen yards away are drawn as one piece each, as soldiers in a battle are, instead of fifteen or so (coat, hat, hands, hair and the rest); close by you see them as before. A view across Hamburg's crowd went from about 1,470 draws a frame to about 280, and about a sixth faster.",
       "Soldiers and townsfolk drawn as one piece share the shape of their model instead of each keeping a copy of it, so making them is about three times quicker (a battle of a hundred starts a little sooner) and takes far less memory; only each one's own colours are his.",
-      "Soldiers and townsfolk more than about thirty yards away are drawn with a simpler model of themselves, a third of the triangles, on the same skeleton and in the same colours; up close you always see the full one. In a battle of a hundred that is about half the triangles drawn, and a couple of milliseconds a frame.",
+      "Soldiers and townsfolk more than about fifteen yards away are drawn with a simpler model of themselves, a third of the triangles, on the same skeleton and in the same colours; side by side you can't tell them apart at that distance, and close by you always see the full one. In a battle of a hundred that is more than half the triangles drawn, and about three milliseconds a frame.",
     ],
   },
   {

@@ -2612,8 +2612,9 @@ export class Actor {
     if ((this._shT = (this._shT || 0) - dt) <= 0) {
       this._shT = 0.5 + Math.random() * 0.2;
       const cast = far2 < (G.arena ? 900 : 1100), near = far2 < 144;
-      // (and a man made one, past thirty yards, drawn in his far shape: a third of the facets)
-      rigFar(this.person, far2 > 900);
+      // (and a man made one, past fifteen yards, drawn in his far shape: a third of the facets. Side by side there
+      //  he looked the same past fifteen as his own shape does; nearer, the far one's hands and hat brim showed it)
+      rigFar(this.person, far2 > 225);
       if (cast !== this._cast || near !== this._castNear) { this._cast = cast; this._castNear = near; this.root.traverse(o => castSet(o, cast, near)); if (this.horse) this.horse.root.traverse(o => castSet(o, cast, near)); }
     }
     // (standing still, they're stepped round too, not walked into: you could walk into your brother or sister as they
