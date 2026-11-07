@@ -598,10 +598,12 @@
   <div id="loading"><div class="ld-box"><div class="logo-top">Forester</div><div class="logo-sub">Reckoning</div><div class="ld-text">Loading the world…</div></div></div>
 
   <script>
-    // ?mute: no sound at all — effects and music — for testing without waking the house
+    // ?mute: no sound at all — effects and music — for testing without waking the house. (?mute=run: the sound still
+    // made and mixed, as in play, but into nothing — to measure it, silently)
     if (/[?&]mute\b/.test(location.search)) {
-      const A = window.AudioContext || window.webkitAudioContext;
-      if (A) { class Silent extends A { constructor(o) { super(o); super.suspend(); } resume() { return Promise.resolve(); } } window.AudioContext = window.webkitAudioContext = Silent; }
+      const A = window.AudioContext || window.webkitAudioContext, run = /[?&]mute=run\b/.test(location.search);
+      if (A && !run) { class Silent extends A { constructor(o) { super(o); super.suspend(); } resume() { return Promise.resolve(); } } window.AudioContext = window.webkitAudioContext = Silent; }
+      if (A && run) { class Silent extends A { constructor(o) { super(o); const z = super.createGain(); z.gain.value = 0; z.connect(super.destination); this.__out = z; } get destination() { return this.__out; } } window.AudioContext = window.webkitAudioContext = Silent; }
       HTMLMediaElement.prototype.play = function () { this.muted = true; return Promise.resolve(); };
       if (window.speechSynthesis) speechSynthesis.speak = () => {};
     }

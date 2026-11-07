@@ -1236,7 +1236,7 @@ export class Player {
         G.health = Math.max(0, G.health - dt / 330);
         if (G.health <= 0) G.die("plague");
         else if (b.plague <= 0) UI.hint("The fever breaks. You've come through the plague.", 5);
-        if ((this.coughT = (this.coughT || 4) - dt) <= 0) { this.coughT = 5 + Math.random() * 6; AUDIO.voice && AUDIO.voice("pain", { high: G.who === "sister", vol: 0.5 }); }
+        if ((this.coughT = (this.coughT || 4) - dt) <= 0) { this.coughT = 5 + Math.random() * 6; AUDIO.voice && AUDIO.voice("moan", { high: G.who === "sister", vol: 0.4 }); }
       }
       // ill from bad water: the flux — nothing mends, and it wears you down, until it passes
       const ill = b && b.ill;

@@ -18,7 +18,9 @@ let ac = null, bus = null, musicBus = null, noise = null;
 // stuttered and cut out. So every source started anywhere is counted while it plays, and past a point the quieter and
 // further things (a cry across the field, a far shot's echo) are left out — the near ones never. The audio clock is
 // watched too: if it ever falls behind real time, the point comes down until it keeps up again.
-let liveSrc = 0, pressure = 1;
+let liveSrc = 0, pressure = 1, skipped = 0;
+// (for measuring from the console: how many sources are playing, how far the budget has been brought down, how many left out)
+window.__audioLoad = () => ({ live: liveSrc, pressure: +pressure.toFixed(2), skipped, voices: Object.values(VBUF).reduce((n, l) => n + l.length, 0) });
 function budget(a) {
   if (a.__budget) return; a.__budget = true;
   const P = window.AudioScheduledSourceNode && AudioScheduledSourceNode.prototype; if (!P) return;
@@ -27,26 +29,65 @@ function budget(a) {
   //  fall silent and stop being worked — left connected, a battle's thousand finished shots and cries were all still
   //  being worked out every few milliseconds until the garbage was next taken out, and that's what cut the sound out)
   P.start = function (...x) { liveSrc++; this.addEventListener("ended", () => { liveSrc--; try { this.disconnect(); } catch (e) {} }, { once: true }); return st.apply(this, x); };
-  // (behind: the audio clock slipping, or — where the browser can tell — the sound having run dry, a gap heard)
-  let ct = a.currentTime, wt = performance.now(), u0 = -1;
+  // (behind: where the browser can tell, the sound having run dry — a gap heard; where it can't, the audio clock slipping
+  //  well behind real time two seconds running. It used to go by the clock alone, read every half second: the clock only
+  //  moves in steps of the audio's own blocks and the timer is late whenever a frame is long, so it often read eight or
+  //  ten per cent slow when nothing was wrong — each time the budget was cut, and it came back slowly, so in a long
+  //  battle it sank to a fifth and most of the field's sound was being left out: the sound "cutting out")
+  let ct = a.currentTime, wt = performance.now(), u0 = -1, slowN = 0;
   const dry = () => { try { const p = a.playbackStats; return p ? p.underrunEvents : -1; } catch (e) { return -1; } };
   setInterval(() => {
     const w = performance.now(), r = (a.currentTime - ct) / Math.max(0.001, (w - wt) / 1000); ct = a.currentTime; wt = w;
-    if (a.state !== "running") return;
+    if (a.state !== "running" || document.hidden) { slowN = 0; return; }
     const u = dry(), gaps = u0 >= 0 && u >= 0 ? u - u0 : 0; u0 = u;
-    pressure = r < 0.93 || gaps > 1 ? Math.max(0.2, pressure * 0.6) : Math.min(1, pressure + 0.03);
-  }, 500);
+    slowN = u < 0 && r < 0.85 ? slowN + 1 : 0;
+    pressure = gaps > 0 || slowN >= 2 ? Math.max(0.35, pressure * 0.7) : Math.min(1, pressure + 0.1);
+  }, 1000);
 }
 // room for one more of this importance (0 a faint far thing .. 1 right by you)
 // (what's right by you — your own shot, the man you're fighting — always: only the further things are ever left out)
-const room = imp => imp >= 0.85 || liveSrc < (44 + 120 * imp) * pressure;
+const room = imp => imp >= 0.85 || liveSrc < (44 + 120 * imp) * pressure || (skipped++, false);
+// ---- the voices, recorded: men crying out in pain, dying, groaning, and the grunt of a blow — real cries, cut from
+// recordings given to everyone (CC0; art/voice/CREDITS.md names each). Loaded once the sound starts; till then, and for
+// a war cry, the voice below is made as before. Each played a little higher or lower, so a company's cries aren't one man's.
+const VOICE_N = { pain: 17, death: 24, moan: 19, grunt: 32 }, VBUF = {}, VLAST = {};
+let vLoad = null;
+function loadVoices(a) {
+  if (vLoad) return; vLoad = true;
+  for (const [k, n] of Object.entries(VOICE_N)) for (let i = 0; i < n; i++)
+    fetch(new URL(`../art/voice/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(b => a.decodeAudioData(b)).then(b => (VBUF[k] ||= []).push(b)).catch(() => {});
+}
+// (which of them for each cry: a scream of fear is a dying man's, cut short; a sob, a short moan)
+const VOICE_OF = { pain: "pain", death: "death", fear: "death", moan: "moan", sob: "moan", grunt: "grunt" };
+const VOICE_LEVEL = { pain: 1.5, death: 1.4, fear: 1.2, moan: 1.2, sob: 0.95, grunt: 1.1 };
+function recordedVoice(a, kind, high, node, k, vol, t) {
+  const pool = VOICE_OF[kind], list = pool && VBUF[pool]; if (!list || list.length < 3) return false;
+  let i = Math.floor(Math.random() * list.length); if (i === VLAST[pool]) i = (i + 1) % list.length; VLAST[pool] = i;
+  const s = a.createBufferSource(), g = a.createGain(), b = list[i];
+  s.buffer = b;
+  // (a woman's or a boy's cry: the same cry, higher — and each man's own a little higher or lower)
+  s.playbackRate.value = (high ? rnd(1.22, 1.32) : rnd(0.9, 1.07)) * (kind === "fear" ? 1.05 : 1);
+  const v = VOICE_LEVEL[kind] * vol * k;
+  g.gain.setValueAtTime(v, t);
+  // (a cry of fear, or a sob, is the first of the recording, let go of early)
+  const len = b.duration / s.playbackRate.value, cut = kind === "fear" ? Math.min(len, rnd(0.8, 1.3)) : kind === "sob" ? Math.min(len, rnd(0.45, 0.7)) : len;
+  if (cut < len) { g.gain.setValueAtTime(v, t + cut - 0.12); g.gain.linearRampToValueAtTime(0.0001, t + cut); }
+  s.connect(g); g.connect(node); s.start(t); s.stop(t + cut + 0.02);
+  return cut;
+}
 function ctx() {
   if (ac) { if (ac.state === "suspended") ac.resume(); return ac; }
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
   ac = window.__foresterAC;
   if (!ac) return null;
-  budget(ac);
-  bus = ac.createGain(); bus.gain.value = 1; bus.connect(window.__foresterMaster);
+  budget(ac); loadVoices(ac);
+  bus = ac.createGain(); bus.gain.value = 1;
+  // (and a limiter on it, as the first Forester's sounds have: a battle's cries and shots, all of them heard now, summed
+  //  past full scale and broke up; caught and rounded over instead — nothing alone comes near it)
+  const lim = ac.createDynamicsCompressor(); lim.threshold.value = -9; lim.knee.value = 4; lim.ratio.value = 12; lim.attack.value = 0.002; lim.release.value = 0.2;
+  const rnd2 = ac.createWaveShaper(), cv = new Float32Array(2048); for (let i = 0; i < 2048; i++) cv[i] = Math.tanh((i / 1024 - 1) * 1.3); rnd2.curve = cv; rnd2.oversample = "2x";
+  bus.connect(lim); lim.connect(rnd2); rnd2.connect(window.__foresterMaster);
   // (the menus' own clicks on a way of their own, so the field can be hushed without them)
   if (!window.__foresterUiBus) { const u = ac.createGain(); u.gain.value = 1; u.connect(window.__foresterMaster); window.__foresterUiBus = u; }
   musicBus = ac.createGain(); musicBus.gain.value = 0.55; musicBus.connect(window.__foresterMaster);
@@ -445,9 +486,10 @@ export const AUDIO = {
     // a man going down doesn't cry once: a gasp, the scream, and then it breaks down — a catch of breath, and a moan or
     // two falling away, each weaker (the same throat throughout)
     if (kind === "death" && !seg) {
-      const me = { high, at, vol, seg: true }, d0 = rnd(0.9, 1.35);
+      const me = { high, at, vol, seg: true };
       this.gasp && this.gasp({ at, vol: vol * 0.5, delay });
-      this.voice("death", { ...me, delay: delay + 0.12 });
+      // (the moans after it wait for the scream to end: a real one runs as long as it runs)
+      const d0 = recordedVoice(a, "death", high, node, k, vol, t + 0.12) || (this.voice("death", { ...me, delay: delay + 0.12 }), rnd(0.9, 1.35));
       let at2 = delay + 0.12 + d0 + rnd(0.2, 0.45);
       // (the moans after only where there's room for them: a man near you, or a quiet moment)
       for (let i = 0, n = Math.random() < 0.7 && room(0.3 + k * 0.7) ? 1 + Math.floor(Math.random() * 2) : 0; i < n; i++) {
@@ -459,11 +501,13 @@ export const AUDIO = {
     }
     if (kind === "pain" && !seg && Math.random() < 0.45) {
       // (sometimes it's two: the cry, a breath sucked in through the teeth, and a second, shorter)
-      this.voice("pain", { high, at, vol, delay, seg: true });
-      this.gasp && this.gasp({ at, vol: vol * 0.4, delay: delay + rnd(0.55, 0.75) });
-      this.voice("sob", { high, at, vol: vol * 0.75, delay: delay + rnd(0.85, 1.05), seg: true });
+      const d = recordedVoice(a, "pain", high, node, k, vol, t) || (this.voice("pain", { high, at, vol, delay, seg: true }), rnd(0.42, 0.75));
+      this.gasp && this.gasp({ at, vol: vol * 0.4, delay: delay + d + rnd(0.05, 0.15) });
+      this.voice("sob", { high, at, vol: vol * 0.75, delay: delay + d + rnd(0.3, 0.45), seg: true });
       return;
     }
+    // (a real cry, where the recordings are in: all but the war cry)
+    if (recordedVoice(a, kind, high, node, k, vol, t)) return;
     // [pitch, how long, vowels from → to, the rise at the start, how the pitch ends, loudness, roughness, breathiness]
     const P = {
       war:   [rnd(155, 200), rnd(0.9, 1.4), ["a", r2(["a", "o"])], 1.3, 0.88, 1.0, 0.35, 0.18],
