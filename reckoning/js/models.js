@@ -1853,9 +1853,31 @@ export function fpMusket() {
   // the sights: a notch of two little posts at the breech, a blade at the muzzle
   const brass = (() => { let b = null; m.scene.traverse(o => { if (!b && o.isMesh && /_brass/.test((o.material && o.material.name) || "")) b = o.material; }); return b || new THREE.MeshStandardMaterial({ color: 0xb48c3c, metalness: 0.8, roughness: 0.35 }); })();
   const iron = (() => { let b = null; m.scene.traverse(o => { if (!b && o.isMesh && /_iron/.test((o.material && o.material.name) || "")) b = o.material; }); return b || brass; })();
-  for (const x of [-0.0032, 0.0032]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.0024, 0.006, 0.013), iron); post.position.set(x, 0.11, SIGHT_Z - 0.0065); g.add(post); }
-  { const base = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.008, 0.004), iron); base.position.set(0, 0.11, SIGHT_Z - 0.0125); g.add(base); }
-  { const blade = new THREE.Mesh(new THREE.BoxGeometry(0.0022, 0.01, 0.009), brass); blade.position.set(0, 1.096, SIGHT_Z - 0.0045); g.add(blade); }
+  // (the rear: a low leaf of iron across the breech, its top a shallow curve, a V filed down into the middle of it; the
+  //  front: a small brass blade standing on the barrel near the muzzle, its top rounded — the barleycorn the eye sets
+  //  in the bottom of the V)
+  {
+    const S = new THREE.Shape(), w = 0.009, h = 0.0085, vw = 0.0028, vd = 0.0036;
+    S.moveTo(-w, 0); S.lineTo(w, 0); S.lineTo(w, h * 0.55); S.quadraticCurveTo(w * 0.6, h, vw, h); S.lineTo(0, h - vd); S.lineTo(-vw, h); S.quadraticCurveTo(-w * 0.6, h, -w, h * 0.55); S.lineTo(-w, 0);
+    const geo = new THREE.ExtrudeGeometry(S, { depth: 0.0025, bevelEnabled: true, bevelThickness: 0.0004, bevelSize: 0.0003, bevelSegments: 1, curveSegments: 6 });
+    // (stood up across the barrel: its face to the eye, its foot on the barrel's top)
+    // (its shoulders level with the line the eye looks down, the V below it — the blade's rounded tip stood up in the
+    //  V, level with the shoulders, as the sight picture is taken)
+    geo.rotateX(Math.PI / 2); geo.translate(0, 0.0012, SIGHT_Z - h * 0.97);
+    const leaf = new THREE.Mesh(geo, iron); leaf.position.set(0, 0.115, 0); g.add(leaf);
+    // (and its foot, a little dovetailed block on the barrel)
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.009, 0.004), iron); foot.position.set(0, 0.116, SIGHT_Z - h * 0.97 - 0.0015); g.add(foot);
+  }
+  {
+    const S = new THREE.Shape(), bw = 0.0017, bh = 0.0085;
+    S.moveTo(-bw * 1.6, 0); S.lineTo(bw * 1.6, 0); S.lineTo(bw, bh - bw); S.absarc(0, bh - bw, bw, 0, Math.PI, false); S.lineTo(-bw * 1.6, 0);
+    const geo = new THREE.ExtrudeGeometry(S, { depth: 0.008, bevelEnabled: false, curveSegments: 8 });
+    // (its length along the barrel, its rounded top just at the line of the V's bottom)
+    geo.translate(0, 0, -0.004); geo.rotateX(Math.PI / 2); geo.rotateY(0); geo.translate(0, 0, SIGHT_Z - bh);
+    // (polished brass catches the light whichever way it falls: a glint of its own, so the bead reads against the field)
+    const bm = brass.clone(); bm.emissive = new THREE.Color(0x6a4a14); bm.emissiveIntensity = 0.9;
+    const blade = new THREE.Mesh(geo, bm); blade.position.set(0, 1.096, 0); g.add(blade);
+  }
   g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.032); g.add(g.userData.muzzle);
   g.userData.grips = [new THREE.Vector3(0, -0.07, -0.02), new THREE.Vector3(0, 0.3, -0.016)];
   return g;

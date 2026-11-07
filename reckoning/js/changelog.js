@@ -9,7 +9,7 @@ export const CHANGELOG = [
   {
     v: "1.99.250", date: "7 November 2026", title: "The campaign map in 3D, and lighter battles",
     items: [
-      "Aiming the musket brings it right up to your eye: you look down the barrel through a notch sight at the breech to the blade at the muzzle, the two lined up on what you're aiming at, and the view closes in a little more as you aim.",
+      "Aiming the musket brings it right up to your eye and holds it steady: you look down the barrel over a low iron leaf at the breech with a V filed in it, to the small brass blade near the muzzle standing in the bottom of the V, as the sights of the time were, and the view closes in a little more as you aim.",
       "The musket's lock works when you fire: the cock falls forward and the flint strikes the steel, the steel flies open off the pan, sparks shower out and the priming flashes before the shot. It stays fired, cock down and pan open, until you load, when the cock is drawn back and the pan shut over the new priming.",
       "Rivers on the battlefields can be waded: none is more than waist deep now, so you and the regiments cross them on foot, slowed by the water, instead of having to swim.",
       "Battles are quieter where they should be: not every man cries out. About half of those hit make no sound or only a grunt or a groan, and most who fall go down without a cry; the long death scream is now rare, the cries are a good deal softer under the guns, and the recordings of a man being tortured are gone from the game altogether.",

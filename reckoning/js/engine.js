@@ -1839,7 +1839,9 @@ function viewModel(dt, p, third) {
   if (VM.yaw === null) { VM.yaw = p.yaw; VM.pitch = p.pitch; }
   const yv = angDiff(VM.yaw, p.yaw) / dt, pv = (p.pitch - VM.pitch) / dt;
   VM.yaw = p.yaw; VM.pitch = p.pitch;
-  const aim = Math.max(p.draw || 0, G.zoom || 0), steady = 1 - aim * 0.8;
+  // (aiming, the arms held still: a musket's sights a hand's breadth apart along a long barrel are put out of line by
+  //  the least bob of the breath — held steady, the blade stands in the notch)
+  const aim = Math.max(p.draw || 0, G.zoom || 0, p.gun ? p.gunAim || 0 : 0), steady = 1 - aim * (p.gun ? 0.93 : 0.8);
   const tx = clamp(-yv * 0.012, -0.09, 0.09) * steady, ty = clamp(-pv * 0.012, -0.07, 0.07) * steady;
   [VM.sx, VM.svx] = spring(VM.sx, VM.svx, tx, dt); [VM.sy, VM.svy] = spring(VM.sy, VM.svy, ty, dt);
   // going up, the hands are left behind a little; coming down, they float; and the landing pushes them down
