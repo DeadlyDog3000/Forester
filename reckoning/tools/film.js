@@ -642,6 +642,57 @@ Object.assign(SHOTS, {
   },
 });
 
+// ---- the campaign trailer's battle, filmed as a film is: the low evening sun, a long lens at a man's height, the volley
+//  in slow motion ----
+const evening = async secs => {
+  G.demoGate = null; window.__noIntro = true; window.__manual = true; window.__battleHour = "evening";
+  const PV = await import("../js/pvp.js"), A0 = PV.army();
+  window.__duel({ bot: true, army: { ...A0, battle: true, purse: 4000, muster: { musketeer: 40, pike: 10, grenadier: 6, cavalry: 6 }, guns: 2, ground: "open" } });
+  for (let i = 0; i < 120 && !(G.arena && G.arena.live); i++) await wait(100);
+  await wait(600);
+  rig.run(secs);
+};
+Object.assign(SHOTS, {
+  // behind the front rank as it goes forward, at a man's shoulder, the walls ahead through the haze
+  cadvance: {
+    secs: 6, speed: 0.7, smooth: 0.1,
+    async stage() { await evening(4); },
+    cam(t, c) {
+      const L = lines(); if (!L) return; const A = L.A, k = E(t);
+      this.s ||= { x: A.x, z: A.z }; this.s.x += (A.x - this.s.x) * 0.06; this.s.z += (A.z - this.s.z) * 0.06; const S = this.s;
+      const x = S.x - L.f[0] * (7 - k * 1.5) + L.r[0] * 2.2, z = S.z - L.f[1] * (7 - k * 1.5) + L.r[1] * 2.2;
+      rig.look(c, [x, gy(x, z) + 1.55, z], [S.x + L.f[0] * 40, gy(S.x + L.f[0] * 40, S.z + L.f[1] * 40) + 2.2, S.z + L.f[1] * 40], 30);
+    },
+    done() { this.s = null; },
+  },
+  // along the front of the line as it fires: low, side-on, the smoke rolling out over the field, slowed
+  cvolley: {
+    secs: 6, speed: 0.45, smooth: 0.08,
+    async stage() { await evening(10); },
+    cam(t, c) {
+      const L = lines(); if (!L) return; const A = L.A, k = E(t);
+      this.s ||= { x: A.x, z: A.z }; const S = this.s;
+      const ax = S.x + L.f[0] * 3.5, az = S.z + L.f[1] * 3.5, along = -9 + k * 5;
+      const x = ax + L.r[0] * along, z = az + L.r[1] * along;
+      rig.look(c, [x, gy(x, z) + 1.35, z], [S.x + L.r[0] * 6 + L.f[0] * 1.5, gy(S.x, S.z) + 1.5, S.z + L.r[1] * 6 + L.f[1] * 1.5], 34);
+    },
+    done() { this.s = null; },
+  },
+  // the other side's line, from in front of it and off its end: low, the muskets levelled at you, slowed
+  ccharge: {
+    secs: 5, speed: 0.5, smooth: 0.1,
+    async stage() { await evening(12); },
+    cam(t, c) {
+      const L = lines(); if (!L) return; const B = L.B, k = E(t);
+      this.s ||= { x: B.x, z: B.z }; const S = this.s;
+      const bx = S.x - L.f[0] * 5, bz = S.z - L.f[1] * 5, along = 8 - k * 4;
+      const x = bx - L.r[0] * along, z = bz - L.r[1] * along;
+      rig.look(c, [x, gy(x, z) + 1.1, z], [S.x - L.r[0] * 2 - L.f[0] * 1, gy(S.x, S.z) + 1.6, S.z - L.r[1] * 2 - L.f[1] * 1], 34);
+    },
+    done() { this.s = null; },
+  },
+});
+
 // a settlement to stage the town shots in: people, a field, and the clock at a quiet hour
 function TOWNSAVE() {
   const people = ["Marta", "Tomas", "Grete", "Jan", "Liesel", "Hinrich", "Anna", "Claus"].map((name, i) => ({ name, sex: i % 2 ? "m" : "f", seed: 500 + i * 7, job: ["hauler", "woodcutter", "farmer", "baker"][i % 4] }));
@@ -689,7 +740,7 @@ export const film = {
         if (sm < 1) { if (first) { P.copy(c.position); Q.copy(c.quaternion); first = false; } else { P.lerp(c.position, sm); Q.slerp(c.quaternion, sm); c.position.copy(P); c.quaternion.copy(Q); } }
       }
       else if (tall) { c.fov = 78; c.updateProjectionMatrix(); }
-    }, { from });
+    }, { from, speed: S.speed || 1 });
     rig.hands(true);
     if (S.done) S.done.call(S);
     return n;
