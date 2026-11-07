@@ -2698,7 +2698,9 @@ class Fighter {
     const yours = this.youHitPos && G.time - (this.youHitAt ?? -9) < 1.5;
     const rec = this.arena.rec; if (rec) rec.down(this, { from, head, blast: !!this.blast, yours, quiet: this.quiet });
     if (yours) { killMark(this.youHitPos); this.youHitPos = null; }
-    if (!head && !this.quiet) AUDIO.voice && AUDIO.voice("death", { at: a.pos, vol: 1.1, high: isF(this.info.look) });
+    // (not every man cries out as he goes down — most shot through drop without a sound, or with a grunt as the breath
+    //  goes out of them; a few cry out, and only now and then is it the long cry of a man who knows he's done for)
+    if (!head && !this.quiet) { const r = Math.random(); if (r < 0.34) AUDIO.voice && AUDIO.voice(r < 0.1 ? "death" : r < 0.24 ? "pain" : "grunt", { at: a.pos, vol: r < 0.1 ? 0.85 : 0.75, high: isF(this.info.look) }); }
     // (the blood where he falls — and the slowed moment, the shake, only if it was you who did it: not every man
     //  going down anywhere on the field)
     blowLands(a, "down", yours ? G.player : { pos: from || a.pos });
@@ -2797,7 +2799,7 @@ class Bot extends Fighter {
     //  armies of the day came to the field to fight, and did, before the weaker one gave way)
     if (this.arena.steadyNow && this.arena.steadyNow()) { this.nerve = Math.max(this.nerve, 0.3); return; }
     this.routing = true; this.wind = 0; this.aimUp(false); this.releaseCover && this.releaseCover(); this.a.squareTo = null; this.a.person.crouching = false; this.a.person.setPose("idle");
-    if (Math.random() < 0.6) AUDIO.voice && AUDIO.voice("pain", { at: this.pos, vol: 0.8, high: isF(this.info.look) });
+    if (Math.random() < 0.2) AUDIO.voice && AUDIO.voice(Math.random() < 0.5 ? "fear" : "grunt", { at: this.pos, vol: 0.6, high: isF(this.info.look) });
     this.arena.broke && this.arena.broke(this);
   }
   // an arrow or a ball in him
@@ -2810,7 +2812,8 @@ class Bot extends Fighter {
     this.shaken(melee ? 0.07 : 0.1);
     if (this.arena.rec) this.arena.rec.hurt(this);
     blowLands(this.a, "hit", this.youHitPos && G.time - (this.youHitAt ?? -9) < 0.3 ? G.player : { pos: from || this.pos }); this.a.person.flinch && this.a.person.flinch();
-    AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: this.pos, high: isF(this.info.look) });
+    // (a hit man, as often as not, makes no sound at all; else a grunt, a groan through the teeth — a cry only sometimes)
+    { const r = Math.random(); if (r < 0.5) AUDIO.voice && AUDIO.voice(r < 0.16 ? "pain" : r < 0.36 ? "grunt" : "moan", { at: this.pos, vol: 0.8, high: isF(this.info.look) }); }
     if (!(this.wind > 0)) { this.stun = melee ? 0.25 : 0.4; this.a.path = []; this.aimT = 0; }
     // (hurt at range, he doesn't stand there: he moves)
     if (!melee) { this.stepT = 0; this.hurtT = G.time; }

@@ -1819,6 +1819,47 @@ export function makeMusket() {
   g.userData.grips = [new THREE.Vector3(0, -0.07, -0.02), new THREE.Vector3(0, 0.3, -0.014)];
   return g;
 }
+// the musket in your own hands: the model's pieces as they are, not made one, so the lock can work — the cock (its neck,
+// its jaws, their screw, and the flint they grip) lifted out of the steel to swing on its tumbler, and the steel over the
+// pan to fly open on its pivot when the flint strikes it — and sights on it to aim by, a notch at the breech and a blade
+// at the muzzle, their tops level along the barrel (SIGHT_Z, the line the eye looks down). null till the model is in.
+export const SIGHT_Z = 0.058;
+export function fpMusket() {
+  const m = MODELS.musket && modelCopy("musket"); if (!m) return null;
+  const g = new THREE.Group(); g.add(m.scene); m.scene.updateMatrixWorld(true);
+  let steel = null, horn = null;
+  m.scene.traverse(o => { if (!o.isMesh) return; const n = (o.material && o.material.name) || o.name || ""; if (/_steel/.test(n)) steel = o; else if (/_horn/.test(n)) horn = o; if (/_rod(\.\d+)?$/.test(n)) g.userData.rodMesh = o; });
+  const PIV = new THREE.Vector3(0.027, 0.0, 0.015), FPIV = new THREE.Vector3(0.027, 0.066, 0.022);
+  if (steel && steel.geometry.index) {
+    // (its pieces told apart as the islands of faces that hang together; each one sorted by where it lies — the cock's
+    //  are those standing up behind the pan, the steel's the one upright in front of it, the rest stay as they are)
+    const geo = steel.geometry, P = geo.attributes.position, I = geo.index.array, n = P.count, par = new Int32Array(n).map((_, i) => i), rep = new Map();
+    const f = i => { while (par[i] !== i) i = par[i] = par[par[i]]; return i; }, u = (a, c) => { a = f(a); c = f(c); if (a !== c) par[a] = c; };
+    for (let i = 0; i < n; i++) { const k = `${P.getX(i).toFixed(4)},${P.getY(i).toFixed(4)},${P.getZ(i).toFixed(4)}`; if (rep.has(k)) u(i, rep.get(k)); else rep.set(k, i); }
+    for (let t = 0; t < I.length; t += 3) { u(I[t], I[t + 1]); u(I[t], I[t + 2]); }
+    const bb = new Map(); for (let i = 0; i < n; i++) { const r = f(i), b = bb.get(r) || { y0: 9, y1: -9, z0: 9, z1: -9, x0: 9 }; b.y0 = Math.min(b.y0, P.getY(i)); b.y1 = Math.max(b.y1, P.getY(i)); b.z0 = Math.min(b.z0, P.getZ(i)); b.z1 = Math.max(b.z1, P.getZ(i)); b.x0 = Math.min(b.x0, P.getX(i)); bb.set(r, b); }
+    const partOf = r => { const b = bb.get(r); if (b.x0 < 0.015) return 0; if (b.y1 < 0.04 && b.z1 > 0.05) return 1; if (b.y0 > 0.055 && b.y1 < 0.07 && b.z1 > 0.045) return 2; return 0; };
+    const lists = [[], [], []];
+    for (let t = 0; t < I.length; t += 3) lists[partOf(f(I[t]))].push(I[t], I[t + 1], I[t + 2]);
+    if (lists[1].length && lists[2].length) {
+      const piece = (list, piv) => { const gg = geo.clone(); gg.setIndex(list); gg.translate(-piv.x, -piv.y, -piv.z); const mm = new THREE.Mesh(gg, steel.material); const holder = new THREE.Group(); holder.position.copy(piv); holder.add(mm); return holder; };
+      const rest = geo.clone(); rest.setIndex(lists[0]); steel.geometry = rest;
+      const cock = piece(lists[1], PIV), friz = piece(lists[2], FPIV);
+      // (the flint goes with the cock, in its jaws)
+      if (horn) { horn.removeFromParent(); horn.geometry = horn.geometry.clone().translate(-PIV.x, -PIV.y, -PIV.z); cock.add(horn); }
+      g.add(cock, friz); g.userData.lock = { cock, friz, pan: new THREE.Vector3(0.03, 0.052, 0.03) };
+    }
+  }
+  // the sights: a notch of two little posts at the breech, a blade at the muzzle
+  const brass = (() => { let b = null; m.scene.traverse(o => { if (!b && o.isMesh && /_brass/.test((o.material && o.material.name) || "")) b = o.material; }); return b || new THREE.MeshStandardMaterial({ color: 0xb48c3c, metalness: 0.8, roughness: 0.35 }); })();
+  const iron = (() => { let b = null; m.scene.traverse(o => { if (!b && o.isMesh && /_iron/.test((o.material && o.material.name) || "")) b = o.material; }); return b || brass; })();
+  for (const x of [-0.0032, 0.0032]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.0024, 0.006, 0.013), iron); post.position.set(x, 0.11, SIGHT_Z - 0.0065); g.add(post); }
+  { const base = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.008, 0.004), iron); base.position.set(0, 0.11, SIGHT_Z - 0.0125); g.add(base); }
+  { const blade = new THREE.Mesh(new THREE.BoxGeometry(0.0022, 0.01, 0.009), brass); blade.position.set(0, 1.096, SIGHT_Z - 0.0045); g.add(blade); }
+  g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.032); g.add(g.userData.muzzle);
+  g.userData.grips = [new THREE.Vector3(0, -0.07, -0.02), new THREE.Vector3(0, 0.3, -0.016)];
+  return g;
+}
 // a horseman's pistol: a flintlock with a walnut stock running nearly to the muzzle, the butt dropped steeply to a
 // brass-capped pommel, a long barrel octagonal at the breech, a brass muzzle cap and the ramrod beneath. Built like
 // the musket: the barrel up +Y, its top to +Z, held at the grip.

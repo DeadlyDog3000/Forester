@@ -13,7 +13,7 @@ import { renderFrame, post, warmViews, warmOnce } from "./post.js";
 import { reflectWater } from "./water.js";
 import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
-import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns, rigLod, rigFar } from "./models.js";
+import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns, rigLod, rigFar, fpMusket, SIGHT_Z } from "./models.js";
 import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
@@ -544,7 +544,15 @@ export class Player {
       const pis = this.gunKind === "pistol"; this.gunIs = pis ? "pistol" : "musket";
       const sv = (this.gunSaved ??= {})[this.gunIs]; if (sv) { this.gunLoaded = sv.l; this.gunReload = sv.r; } else { this.gunLoaded = true; this.gunReload = 0; }
       const g = new THREE.Group(); g.rotation.order = "YXZ";
-      const m = pis ? makePistol() : makeMusket(); m.rotation.x = -Math.PI / 2; g.add(m); this.gunModel = m;
+      const m = pis ? makePistol() : (fpMusket() || makeMusket()); m.rotation.x = -Math.PI / 2; g.add(m); this.gunModel = m;
+      // (the lock's fire: sparks thrown off the steel into the pan, and the flash of the priming going up — see gunLock)
+      if (m.userData.lock) {
+        const L = m.userData.lock, N = 18, pos = new Float32Array(N * 3);
+        const sp = new THREE.Points(new THREE.BufferGeometry().setAttribute("position", new THREE.BufferAttribute(pos, 3)), new THREE.PointsMaterial({ color: 0xffc070, size: 0.0035, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+        sp.frustumCulled = false; m.add(sp);
+        const fl = new THREE.Sprite(new THREE.SpriteMaterial({ map: flashTex(), color: 0xffb060, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })); fl.position.copy(L.pan); fl.scale.setScalar(0.04); m.add(fl);
+        L.sparks = sp; L.vel = new Float32Array(N * 3); L.flash = fl; L.t = -1; L.down = this.gunLoaded ? 0 : 1;
+      }
       m.traverse(o => { if (o.isMesh) o.castShadow = false; });
       vm.add(g); this.gun = g;
       const look = this.model && this.model.colors || {};
@@ -639,6 +647,7 @@ export class Player {
       if (G.hunt) { G.hunt.fireBall(from.clone().addScaledVector(dir, 0.6), dir, { speed: pis ? 260 : 420, power: pis ? 1.9 : 2.6, range: pis ? 60 : 160 }); G.practise && G.practise("archery", 0.3); }
       gunSmoke(muzzle, dir, pis ? 0.6 : 1);
       this.gunLoaded = false; this.gunReload = 0; this.gunKickT = 1; G.bowKick = pis ? 1.0 : 1.4;
+      if (this.gunModel.userData.lock) this.gunModel.userData.lock.t = 0;
       if (!this.gunTip) { this.gunTip = true; setTimeout(() => UI.hint("R to load — powder, ball, and the ramrod. It takes a while: find cover.", 4), 600); }
     } else if (free && input.click && !this.gunLoaded) {
       input.click = false;
@@ -646,6 +655,7 @@ export class Player {
       if (!reloading && !this.bayonet && G.time > (this.emptyTold || 0)) { this.emptyTold = G.time + 2.5; const F = window.__foley; F && F.load && F.load("latch", null, 0.35, pis); UI.hint("Empty — R to load.", 1.6); }
     }
     this.gunKickT = Math.max(0, this.gunKickT - dt * 4);
+    if (this.gunModel.userData.lock) gunLock(this.gunModel.userData.lock, dt, this.gunLoaded, reloading ? (RL - this.gunReload) / RL : -1);
     // where it is: at the hip, at the eye, or down for loading; and kicked by the shot
     const a = this.gunAim, k = this.gunKickT * this.gunKickT, g = this.gun;
     const LP = reloading ? loadPose(kind, RL - this.gunReload) : { up: 0, prime: 0, hand: null, rod: { out: 0, depth: 0 } };
@@ -656,7 +666,7 @@ export class Player {
     // a sharp flip of the wrist.)
     const H = pis
       ? [0.14 - 0.11 * a, -0.12 + 0.042 * a, -0.44 - 0.12 * a + 0.05 * k, -0.04 * (1 - a) + 0.35 * k, -0.12 * (1 - a) + 0.03 * a, 0.15 * (1 - a)]
-      : [0.22 - 0.22 * a, -0.27 + 0.155 * a, -0.32 + 0.02 * a + 0.06 * k, 0.04 * (1 - a) + 0.12 * k, 0.06 * (1 - a), 0.1 * (1 - a)];
+      : [0.22 - 0.22 * a, -0.27 + (0.27 - (this.gunModel.userData.lock ? SIGHT_Z : 0.115)) * a, -0.32 + 0.02 * a + 0.06 * k, 0.04 * (1 - a) + 0.12 * k, 0.06 * (1 - a), 0.1 * (1 - a)];   // (aimed: the notch and the blade on the line of your eye)
     const P = pis ? [0.06, -0.19, -0.38, 0.3, 0.45, -1.0] : [0.12, -0.34, -0.4, 0.2, 0.45, -1.05];
     const v = H.map((h, i) => h + (P[i] - h) * LP.prime);
     g.position.set(v[0], v[1], v[2]); g.rotation.set(v[3], v[4], v[5]);
@@ -1768,7 +1778,7 @@ function updateCamera(dt) {
   viewModel(dt, p, third);
   if (p.workRig) p.workRig.visible = !third;
   // hold Z to look closer
-  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : Math.max((p.draw || 0) * 0.55, (p.gun ? p.gunAim || 0 : 0) * 0.35);
+  const zoomWant = G.mode === "play" && input.down("KeyZ") ? 1 : Math.max((p.draw || 0) * 0.55, (p.gun ? p.gunAim || 0 : 0) * 0.5);
   G.zoom = (G.zoom || 0) + (zoomWant - (G.zoom || 0)) * Math.min(1, dt * 10);
   const fov = G.settings.fov + (28 - G.settings.fov) * G.zoom + (G.fovKick || 0);
   // the view shaken by a blow, given or taken
@@ -3262,3 +3272,41 @@ export class WorldBase {
   }
 }
 export { huntTarget };   // (for the test scripts)
+
+// a soft round glow, for the flash in the pan (made once)
+let _flashTex = null;
+function flashTex() {
+  if (_flashTex) return _flashTex;
+  const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d"), gr = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,250,220,1)"); gr.addColorStop(0.25, "rgba(255,200,110,0.8)"); gr.addColorStop(1, "rgba(255,120,40,0)");
+  x.fillStyle = gr; x.fillRect(0, 0, 64, 64); return _flashTex = new THREE.CanvasTexture(c);
+}
+// the lock of the musket in your hands, worked: pulled, the cock falls forward and its flint strikes down the face of the
+// steel, throwing the steel open off the pan; the sparks go into the priming and it flashes up, and the shot follows.
+// Fired, it stays so — the cock down, the pan open — till you load, when it's drawn back to the cock and the pan shut
+// over the new priming. (t: seconds since the trigger, or -1; prog: how far through the loading, or -1)
+function gunLock(L, dt, loaded, prog) {
+  let down = L.down;
+  if (L.t >= 0) {
+    L.t += dt; const t = L.t;
+    down = Math.min(1, t / 0.035);
+    // (the sparks: off the steel as the flint scrapes it, a shower out from the lock and down)
+    if (t - dt < 0.03 && t >= 0.03) { const P = L.sparks.geometry.attributes.position.array, V = L.vel; for (let i = 0; i < V.length; i += 3) { P[i] = L.pan.x; P[i + 1] = L.pan.y + 0.006; P[i + 2] = L.pan.z + 0.012; V[i] = 0.25 + Math.random() * 0.9; V[i + 1] = (Math.random() - 0.3) * 0.9; V[i + 2] = (Math.random() - 0.2) * 0.8; } }
+    if (t >= 0.03 && t < 0.3) {
+      const P = L.sparks.geometry.attributes.position.array, V = L.vel;
+      for (let i = 0; i < V.length; i += 3) { V[i + 2] -= 3.5 * dt; P[i] += V[i] * dt; P[i + 1] += V[i + 1] * dt; P[i + 2] += V[i + 2] * dt; }
+      L.sparks.geometry.attributes.position.needsUpdate = true; L.sparks.material.opacity = Math.max(0, 1 - (t - 0.03) / 0.27);
+    } else L.sparks.material.opacity = 0;
+    // (the priming going up: a bright flash at the pan, a breath long)
+    const f = t < 0.035 ? 0 : t < 0.06 ? (t - 0.035) / 0.025 : Math.max(0, 1 - (t - 0.06) / 0.12);
+    L.flash.material.opacity = f; L.flash.scale.setScalar(0.03 + f * 0.05);
+    if (t > 0.4) { L.t = -1; L.sparks.material.opacity = 0; L.flash.material.opacity = 0; }
+  }
+  // (loading: drawn back to the cock and the pan shut early on, with the priming)
+  if (prog >= 0) down = Math.min(down, Math.max(0, 1 - Math.max(0, prog - 0.05) / 0.12));
+  else if (loaded && L.t < 0) down = 0;
+  L.down = down;
+  // the cock forward on its tumbler; the steel, once it's struck, thrown forward off the pan
+  L.cock.rotation.x = -0.6 * down;
+  L.friz.rotation.x = -1.15 * Math.min(1, Math.max(0, down - 0.6) / 0.4);
+}

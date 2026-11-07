@@ -18,7 +18,7 @@ let ac = null, bus = null, musicBus = null, noise = null;
 // stuttered and cut out. So every source started anywhere is counted while it plays, and past a point the quieter and
 // further things (a cry across the field, a far shot's echo) are left out — the near ones never. The audio clock is
 // watched too: if it ever falls behind real time, the point comes down until it keeps up again.
-let liveSrc = 0, pressure = 1, skipped = 0;
+let liveSrc = 0, pressure = 1, skipped = 0, liveCries = 0;
 // (for measuring from the console: how many sources are playing, how far the budget has been brought down, how many left out)
 window.__audioLoad = () => ({ live: liveSrc, pressure: +pressure.toFixed(2), skipped, voices: Object.values(VBUF).reduce((n, l) => n + l.length, 0) });
 function budget(a) {
@@ -28,7 +28,11 @@ function budget(a) {
   // (and a sound done is let go of at once: its source cut loose from the filters and gains it played through, so they
   //  fall silent and stop being worked — left connected, a battle's thousand finished shots and cries were all still
   //  being worked out every few milliseconds until the garbage was next taken out, and that's what cut the sound out)
-  P.start = function (...x) { liveSrc++; this.addEventListener("ended", () => { liveSrc--; try { this.disconnect(); } catch (e) {} }, { once: true }); return st.apply(this, x); };
+  // (and never counted for more than ten seconds, whatever it is: a sound that loops on, or one that for any reason never
+  //  says it's done, would otherwise hold its place for good — enough of them, and the budget stayed full for the rest of
+  //  the game, the muskets left out with nothing playing)
+  const free = s => { if (s.__live) { s.__live = false; liveSrc--; } };
+  P.start = function (...x) { const r = st.apply(this, x); liveSrc++; this.__live = true; this.addEventListener("ended", () => { free(this); try { this.disconnect(); } catch (e) {} }, { once: true }); setTimeout(() => free(this), 10000); return r; };
   // (behind: where the browser can tell, the sound having run dry — a gap heard; where it can't, the audio clock slipping
   //  well behind real time two seconds running. It used to go by the clock alone, read every half second: the clock only
   //  moves in steps of the audio's own blocks and the timer is late whenever a frame is long, so it often read eight or
@@ -41,7 +45,7 @@ function budget(a) {
     if (a.state !== "running" || document.hidden) { slowN = 0; return; }
     const u = dry(), gaps = u0 >= 0 && u >= 0 ? u - u0 : 0; u0 = u;
     slowN = u < 0 && r < 0.85 ? slowN + 1 : 0;
-    pressure = gaps > 0 || slowN >= 2 ? Math.max(0.35, pressure * 0.7) : Math.min(1, pressure + 0.1);
+    pressure = gaps > 0 || slowN >= 2 ? Math.max(0.5, pressure * 0.75) : Math.min(1, pressure + 0.2);
   }, 1000);
 }
 // room for one more of this importance (0 a faint far thing .. 1 right by you)
@@ -51,16 +55,19 @@ const room = imp => imp >= 0.85 || liveSrc < (44 + 120 * imp) * pressure || (ski
 // recordings given to everyone (CC0; art/voice/CREDITS.md names each). Loaded once the sound starts; till then, and for
 // a war cry, the voice below is made as before. Each played a little higher or lower, so a company's cries aren't one man's.
 const VOICE_N = { pain: 17, death: 24, moan: 19, grunt: 32 }, VBUF = {}, VLAST = {};
+// (left out: the cries cut from a recording of a man being beaten and impaled — the screams of torture, not of a field)
+const VOICE_SKIP = { death: [0, 1, 2], pain: [0, 1, 2, 3] };
 let vLoad = null;
 function loadVoices(a) {
   if (vLoad) return; vLoad = true;
-  for (const [k, n] of Object.entries(VOICE_N)) for (let i = 0; i < n; i++)
+  for (const [k, n] of Object.entries(VOICE_N)) for (let i = 0; i < n; i++) if (!(VOICE_SKIP[k] || []).includes(i))
     fetch(new URL(`../art/voice/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
       .then(b => a.decodeAudioData(b)).then(b => (VBUF[k] ||= []).push(b)).catch(() => {});
 }
 // (which of them for each cry: a scream of fear is a dying man's, cut short; a sob, a short moan)
 const VOICE_OF = { pain: "pain", death: "death", fear: "death", moan: "moan", sob: "moan", grunt: "grunt" };
-const VOICE_LEVEL = { pain: 1.5, death: 1.4, fear: 1.2, moan: 1.2, sob: 0.95, grunt: 1.1 };
+// (the cries kept under the field's other sound, not over it: a man's cry carries, but it isn't a shriek in your ear)
+const VOICE_LEVEL = { pain: 1.0, death: 0.9, fear: 0.85, moan: 1.0, sob: 0.8, grunt: 1.0 };
 function recordedVoice(a, kind, high, node, k, vol, t) {
   const pool = VOICE_OF[kind], list = pool && VBUF[pool]; if (!list || list.length < 3) return false;
   let i = Math.floor(Math.random() * list.length); if (i === VLAST[pool]) i = (i + 1) % list.length; VLAST[pool] = i;
@@ -71,7 +78,7 @@ function recordedVoice(a, kind, high, node, k, vol, t) {
   const v = VOICE_LEVEL[kind] * vol * k;
   g.gain.setValueAtTime(v, t);
   // (a cry of fear, or a sob, is the first of the recording, let go of early)
-  const len = b.duration / s.playbackRate.value, cut = kind === "fear" ? Math.min(len, rnd(0.8, 1.3)) : kind === "sob" ? Math.min(len, rnd(0.45, 0.7)) : len;
+  const len = b.duration / s.playbackRate.value, cut = kind === "fear" ? Math.min(len, rnd(0.8, 1.3)) : kind === "sob" ? Math.min(len, rnd(0.45, 0.7)) : kind === "death" ? Math.min(len, rnd(1.0, 1.6)) : len;
   if (cut < len) { g.gain.setValueAtTime(v, t + cut - 0.12); g.gain.linearRampToValueAtTime(0.0001, t + cut); }
   s.connect(g); g.connect(node); s.start(t); s.stop(t + cut + 0.02);
   return cut;
@@ -372,7 +379,7 @@ export const AUDIO = {
     const small = vol < 0.85, D = shotDistance(at), v = 0.55 * vol * Math.max(0.12, 1 - D / 260);   // (well under the cannon: room left above it)
     // (a shot is the battle: one within a long musket shot is always heard, and further ones come before footsteps and
     //  cries — it was the first thing dropped, so in a crowded fight the muskets went silent unless you fired one)
-    if (!room(D < 80 ? 1 : Math.max(0.6, 1 - D / 400))) return;
+    if (!room(D < 150 ? 1 : Math.max(0.6, 1 - D / 400))) return;
     const t = a.currentTime + D / 343 + (at ? 0 : 0);
     const out = shotOut(a, D, 1);
     // the lock: the flint on the steel, and the priming going up in the pan
@@ -482,6 +489,9 @@ export const AUDIO = {
     const a = ctx(); if (!a) return;
     const { node, k } = placed(a, at, 70); if (k * vol < 0.02) return;
     if (!room(Math.min(1, k * vol))) return;
+    // (cries of their own kept to a few at once — beyond those, only a man right by you is heard: a hundred falling
+    //  together was a wall of screaming over everything, and it crowded the muskets out)
+    if (!seg && kind !== "war") { if (liveCries >= 6 && k * vol < 0.75) return; liveCries++; setTimeout(() => liveCries--, kind === "death" ? 2600 : 1500); }
     const t = a.currentTime + delay;
     // a man going down doesn't cry once: a gasp, the scream, and then it breaks down — a catch of breath, and a moan or
     // two falling away, each weaker (the same throat throughout)
@@ -492,14 +502,14 @@ export const AUDIO = {
       const d0 = recordedVoice(a, "death", high, node, k, vol, t + 0.12) || (this.voice("death", { ...me, delay: delay + 0.12 }), rnd(0.9, 1.35));
       let at2 = delay + 0.12 + d0 + rnd(0.2, 0.45);
       // (the moans after only where there's room for them: a man near you, or a quiet moment)
-      for (let i = 0, n = Math.random() < 0.7 && room(0.3 + k * 0.7) ? 1 + Math.floor(Math.random() * 2) : 0; i < n; i++) {
+      for (let i = 0, n = Math.random() < 0.3 && room(0.3 + k * 0.7) ? 1 : 0; i < n; i++) {
         this.gasp && this.gasp({ at, vol: vol * 0.35, delay: at2 - 0.22 });
         this.voice(Math.random() < 0.5 ? "moan" : "sob", { ...me, vol: vol * (0.7 - i * 0.2), delay: at2 });
         at2 += rnd(0.9, 1.5);
       }
       return;
     }
-    if (kind === "pain" && !seg && Math.random() < 0.45) {
+    if (kind === "pain" && !seg && Math.random() < 0.15) {
       // (sometimes it's two: the cry, a breath sucked in through the teeth, and a second, shorter)
       const d = recordedVoice(a, "pain", high, node, k, vol, t) || (this.voice("pain", { high, at, vol, delay, seg: true }), rnd(0.42, 0.75));
       this.gasp && this.gasp({ at, vol: vol * 0.4, delay: delay + d + rnd(0.05, 0.15) });
