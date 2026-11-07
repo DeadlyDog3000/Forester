@@ -9,6 +9,7 @@ export const CHANGELOG = [
   {
     v: "1.99.250", date: "7 November 2026", title: "The campaign map in 3D, and lighter battles",
     items: [
+      "Flags are real cloth now: the colours behind a battle line, your settlement's flag, the colours of every company on the campaign map and the ships' pennants are each worked out as cloth in the wind, held along the staff, weighed down by their own weight and pressed by the gusting breeze, so they stream out, ripple from the staff to the fly, sag in a lull and shake out again, instead of waving to a set rhythm.",
       "The campaign's map is the land itself now, in 3D, from the moment it opens: zoom out as far as the whole of Europe and it stays the land, with every crown's country washed in its colour and a line where one meets the next, as on the paper map; zoom in and the colour gives way to the fields, woods and towns. The paper map is still there, by the Paper button under the zoom, and the game remembers which one you chose.",
       "Battles draw about half as many things each frame as before. The walls, boulders, felled trees, wagons and barrels across a field are drawn together, one piece for each kind of stone, wood or paint, instead of each its own few pieces; a field of twenty of them was two hundred draws, and as many again in the shadows.",
       "Dust, burning smoke and the red mist of a wound are drawn all at once, as the powder smoke already was, instead of each puff by itself (up to two hundred in a hard fight). Blood drops and small spatters on the ground are drawn together too.",

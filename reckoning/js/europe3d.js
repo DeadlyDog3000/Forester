@@ -19,6 +19,7 @@ import { THREE, rng } from "./core.js";
 import { NATIONS, CITIES, RIVERS, LAKES, buildGrid, cityOwner, HOME, GW, GH, BOUNDS, SHEET, PEOPLES, fwd, inv, SEAS } from "./europe.js";
 import { hash, vnoise, fbm, RANGES, PLATEAUS, segDist } from "./relief.js";
 import { ensureModel, modelCopy, mergeRig, makeMusket, shipSails } from "./models.js";
+import { FlagCloth } from "./flagcloth.js";
 
 const K = Math.cos(49 * Math.PI / 180);
 export const U = 10;                                       // units per degree of latitude
@@ -29,6 +30,15 @@ let MAP_W = 1, MAP_H = 1, CELL = 1;
 //  height, a ship's length about a fifteenth; and a company at a town drawn up clear in front of its houses, this far
 //  out on the land and off to the south-east, never among the roofs or under the town's name where it can't be seen)
 const ARMY_K = 0.03, FLEET_K = 0.005, TOWN_CLEAR = 0.38;
+// the companies' colours: real cloth in the wind (flagcloth.js) — a few nets worked out for all of them, each company's
+// flag drawn on one of them and turned to the wind, so a hundred flags cost what three do. The wind over the map: a
+// steady westerly breeze, gusting (in the flag's own frame: out along it, and a breath across)
+let FLAG_SIMS = null, flagT = 0;
+const MAP_WIND = new THREE.Vector3(7, 0, 0.6), WIND_YAW = Math.atan2(-0.35, 1);   // (from the west a little south of it)
+// (and the ships' pennants: one long streamer, narrowing to its tail, shared as the colours are)
+let PEN_SIM = null;
+const pennantSim = () => PEN_SIM || (PEN_SIM = (() => { const f = new FlagCloth({ w: 7, h: 1.6, metres: 6, nx: 16, ny: 4, taper: 0.85, seed: 11 }); f.settle(3, MAP_WIND, true); return f; })());
+const flagSims = () => FLAG_SIMS || (FLAG_SIMS = [0, 1, 2].map(i => { const f = new FlagCloth({ w: 1.15, h: 0.78, metres: 1.9, nx: 12, ny: 8, seed: 3 + i * 17.3 }); f.settle(3 + i, MAP_WIND, true); return f; }));
 // (…but only close in: from high over a country they'd be the size of a county, a ship astride London and the coast —
 //  so above a ten-unit height they grow more slowly than the view does, and shrink on the view as you go up)
 const unitDist = d => d <= 10 ? d : d * Math.pow(10 / d, 0.45);
@@ -466,7 +476,7 @@ const popEst = (name, rank) => { let h = 7; for (const ch of name) h = (h * 31 +
 // a town's houses for its people (one for every hundred and seventy or so), and the widest water it will bridge
 const CLEAR_CELL = 0.2, STONE = [0xcdc4b0, 0xc4baa5, 0xd6ccb8];
 const houseCount = pop => Math.max(14, Math.min(1000, Math.round(pop / 170)));
-const _lv = new THREE.Vector3();
+const _lv = new THREE.Vector3(), _fq = new THREE.Quaternion(), _fe = new THREE.Euler();
 const BRIDGE = 0.32, ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _m4 = new THREE.Matrix4(), _m5 = new THREE.Matrix4();
 // (how many of a town's things in order are built for so many houses: its bridges with them, as it reaches them)
 const shownFor = (items, n) => { let h = 0, i = 0; for (; i < items.length; i++) { if (items[i].house) { if (h >= n) break; h++; } } return i; };
@@ -1520,7 +1530,8 @@ export class EuropeView3D {
           hg.userData.roll = h * 1.7; ship.add(hg); hullsG.push(hg);
         }
         ship.userData.hulls = hullsG;
-        const pen = new THREE.Mesh(new THREE.PlaneGeometry(7, 1.6), new THREE.MeshBasicMaterial({ color: f.color, side: THREE.DoubleSide })); pen.geometry.translate(3.5, 0, 0); pen.position.set(0, 25, 2.5); pen.rotation.y = Math.PI / 2; ship.add(pen);
+        // (her pennant at the masthead: a long tapering streamer, cloth in the wind like the companies' colours)
+        const pen = new THREE.Mesh(pennantSim().geo, new THREE.MeshStandardMaterial({ color: f.color, side: THREE.DoubleSide, roughness: 0.8 })); pen.position.set(0, 25.8, 2.5); ship.add(pen); ship.userData.pen = pen;
         grp.add(ship); F = { ship, look, to: [x, z], face: f.yaw || 0, n: null, sp: null, glide: null }; M.set(f.name, F);
       } else if (Math.hypot(F.to[0] - x, F.to[1] - z) > 0.02) {
         const from = [F.ship.position.x, F.ship.position.z], via = (f.via || []).map(([lo, la]) => toWorld(lo, la));
@@ -1679,7 +1690,7 @@ export class EuropeView3D {
     if (R.line) { this.armyGroup.remove(R.line); R.line.geometry.dispose(); R.line.material.dispose(); R.line = null; }
     this.armyGroup.remove(R.co); if (R.sp) { this.armyGroup.remove(R.sp); R.sp.material.map && R.sp.material.map.dispose(); R.sp.material.dispose(); }
     for (const m of R.men) m.mixer.stopAllAction();
-    R.co.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const mt of ms) if (o.userData.own || (mt.userData && mt.userData.own)) { mt.map && o.userData.own && mt.map.dispose(); mt.dispose(); } if (/^merged_/.test(o.name) || o.userData.own) o.geometry && o.geometry.dispose();
+    R.co.traverse(o => { const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : []; for (const mt of ms) if (o.userData.own || (mt.userData && mt.userData.own)) { mt.map && o.userData.own && mt.map.dispose(); mt.dispose(); } if ((/^merged_/.test(o.name) || o.userData.own) && !o.userData.sharedGeo) o.geometry && o.geometry.dispose();
       // (every man's bones let go of, his own or the model's: each had its texture on the card, and a company marched off the
       //  map left them all behind)
       if (o.isSkinnedMesh && o.skeleton && o.skeleton.boneTexture) o.skeleton.dispose(); });
@@ -1717,8 +1728,9 @@ export class EuropeView3D {
     if (!A.nw) {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 3.1, 6), new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })); pole.userData.own = true; pole.position.set(2.55, 1.55, 0.15); coAdd(pole);
       const tex = A.flag ? new THREE.CanvasTexture(A.flag) : null; if (tex) tex.colorSpace = THREE.SRGBColorSpace;
-      const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 0.78), new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : A.color, side: THREE.DoubleSide, roughness: 0.95 })); cloth.userData.own = true;
-      cloth.geometry.translate(0.575, 0, 0); cloth.position.set(2.57, 2.7, 0.15); cloth.rotation.y = -0.35; coAdd(cloth); co.userData.cloth = cloth;
+      const sims = flagSims(), sim = sims[(A.key || "").length % sims.length];
+      const cloth = new THREE.Mesh(sim.geo, new THREE.MeshStandardMaterial({ map: tex, color: tex ? 0xffffff : A.color, side: THREE.DoubleSide, roughness: 0.82 })); cloth.userData.own = true; cloth.userData.sharedGeo = true;
+      cloth.position.set(2.57, 2.7, 0.15); cloth.rotation.y = -0.35; coAdd(cloth); co.userData.cloth = cloth;
     }
     this.armyGroup.add(co);
     return R;
@@ -1766,6 +1778,7 @@ export class EuropeView3D {
     // (the fleets kept the same size on the view however near or far: a ship's length about a twentieth of its height)
     // (the ships under way across the view, as the armies: along their course, easing off and coming to, turned as they go)
     if (this.fleetMap) { const now = performance.now(), dt = Math.min(0.1, (now - (this.fleetT || now)) / 1000); this.fleetT = now;
+      if (PEN_SIM && this.dist < 60 && this.fleetMap.size) PEN_SIM.step(dt, MAP_WIND, true);
       for (const F of this.fleetMap.values()) {
         let want = F.face;
         if (F.glide) {
@@ -1777,6 +1790,7 @@ export class EuropeView3D {
           if (q >= 1) { F.glide = null; F.ship.position.x = F.to[0]; F.ship.position.z = F.to[1]; if (!F.bound) F.face = F.ship.rotation.y; }
         }
         const r0 = F.ship.rotation.y; F.ship.rotation.y = r0 + Math.atan2(Math.sin(want - r0), Math.cos(want - r0)) * Math.min(1, dt * 3);
+        if (F.ship.userData.pen) F.ship.userData.pen.rotation.y = WIND_YAW - F.ship.rotation.y;
         // (each hull rolling a little on the swell, and her wake showing as she makes way)
         const way = F.glide ? Math.min(1, Math.min((now - F.glide.t0) / 600, (F.glide.t0 + F.glide.dur - now) / 900)) : 0;
         for (const hg of F.ship.userData.hulls || []) {
@@ -1800,6 +1814,8 @@ export class EuropeView3D {
     if (this.armyGroup) {
       const now = performance.now(), dt = Math.min(0.1, (now - (this.armyT || now)) / 1000); this.armyT = now;
       const k = unitDist(this.dist) * ARMY_K;
+      // (the colours worked in the wind, while there's a company near enough to see its flag move)
+      if (FLAG_SIMS && this.dist < 60 && this.armyGroup.children.length) for (const f of FLAG_SIMS) f.step(dt, MAP_WIND, true);
       // (the companies on the march across the view: along their road, starting off and drawing up gently, turned the
       //  way they go — and the turn itself eased, not snapped)
       for (const R of (this.armyMap || new Map()).values()) {
@@ -1820,7 +1836,7 @@ export class EuropeView3D {
           R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz); }
       }
       for (const o of this.armyGroup.children) {
-        if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) cl.rotation.y = -0.35 + Math.sin(now / 700 + o.position.x) * 0.18; }
+        if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) { cl.parent.getWorldQuaternion(_fq); _fe.setFromQuaternion(_fq, "YXZ"); cl.rotation.y = WIND_YAW - _fe.y; } }
         else if (o.userData.over) {
           // (over a town, the number would be written across the town's name: set beside the name instead)
           const c = o.userData.over.position, lab = this.dist > 2.6 && this.labels && this.labels.find(l => l.visible && Math.abs(l.position.x - c.x) < 0.6 && Math.abs(l.position.z - c.z) < 0.6);

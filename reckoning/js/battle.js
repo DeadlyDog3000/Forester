@@ -19,6 +19,7 @@ import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { shake } from "./fight.js";
 import { P, makeLogs, makeSack, realPart } from "./models.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
+import { FlagCloth, flagWind } from "./flagcloth.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _z = new THREE.Vector3(0, 0, 1), _up = new THREE.Vector3(0, 1, 0);
@@ -934,11 +935,12 @@ export class Field {
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 6), mat(0xb8963e, { metalness: 0.6, roughness: 0.4 })); tip.position.y = 7.14; g.add(tip);
     const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawColours(cv.getContext("2d"), key);
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-    const geo = new THREE.PlaneGeometry(1.9, 1.3, 20, 5); geo.translate(0.95, 0, 0);
-    const cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.95 }));
-    cloth.position.set(0.04, 6.25, 0); g.add(cloth);
+    // (the cloth itself in the wind: see flagcloth.js — hung out a few seconds before the field is seen)
+    const sim = new FlagCloth({ w: 1.9, h: 1.3, metres: 1.9, material: new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.82 }), seed: this.r() * 100 });
+    const cloth = sim.mesh; cloth.position.set(0.04, 6.25, 0); cloth.castShadow = true; g.add(cloth);
     this.put(g, x, z, sx < 0 ? 0.5 : Math.PI - 0.5, 0, false);
-    (this.flags ||= []).push({ geo, base: Float32Array.from(geo.attributes.position.array), t: this.r() * 10 });
+    sim.settle(4, flagWind(G.windV));
+    (this.flags ||= []).push(sim);
   }
   // ---- grenades: iron balls full of powder, the fuse lit, thrown by hand ----
   // thrown from `from` to land at `to`: a lob, a second or so in the air; it bounds and rolls, and goes off when its fuse
@@ -1182,11 +1184,7 @@ export class Field {
   // each frame: the guns laid and fired, the balls flying; hit(u, from, v) is called for anyone a ball goes through
   update(dt, units, hit) {
     for (const f of this.flames || []) flicker(f, dt);
-    for (const f of this.flags || []) {
-      f.t += dt; const p = f.geo.attributes.position, b = f.base;
-      for (let i = 0; i < p.count; i++) { const bx = b[i * 3], by = b[i * 3 + 1], k = bx / 1.9; p.setZ(i, Math.sin(f.t * 3.0 - bx * 3.2 + by * 0.6) * 0.14 * k + Math.sin(f.t * 5.3 - bx * 6) * 0.035 * k); p.setY(i, by - k * k * 0.07); }
-      p.needsUpdate = true; f.geo.computeVertexNormals();
-    }
+    if (this.flags) { const wind = flagWind(G.windV, this._wind || (this._wind = new THREE.Vector3())); for (const f of this.flags) f.step(dt, wind); }
     // (the guns open only once the field's had a moment: a crew isn't cut down before it's even seen the enemy)
     if (this.active !== false) this.opened = (this.opened || 0) + dt;
     for (const g of this.guns) {

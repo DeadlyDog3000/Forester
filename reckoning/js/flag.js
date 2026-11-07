@@ -9,6 +9,7 @@ import { THREE, rockGeo, mat } from "./core.js";
 import { G } from "./engine.js";
 import { FIRE } from "./woods.js";
 import { drawFlag, cleanFlag } from "./economy.js";
+import { FlagCloth, flagWind } from "./flagcloth.js";
 
 let flown = null;
 export function flyFlag(w, f) {
@@ -23,19 +24,14 @@ export function flyFlag(w, f) {
   const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), mat(0xa88a46, { metalness: 0.6, roughness: 0.4 })); knob.position.y = 8.05; g.add(knob);
   // the stones round its foot
   for (let i = 0; i < 7; i++) { const a = i / 7 * Math.PI * 2, s = new THREE.Mesh(rockGeo(0.22), mat(0x7a7468, { roughness: 1 })); s.position.set(Math.cos(a) * 0.35, 0.08, Math.sin(a) * 0.35); g.add(s); }
-  // the cloth: a plane in many strips, waved from the hoist out to the fly, more at the free end
+  // the cloth: real cloth in the wind (flagcloth.js), hung out a while before anyone sees it
   const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawFlag(cv, f);
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-  const geo = new THREE.PlaneGeometry(1.8, 1.2, 18, 4); geo.translate(0.9, 0, 0);
-  const cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.95 }));
-  cloth.position.set(0.06, 7.3, 0); cloth.castShadow = true; g.add(cloth);
-  const base = Float32Array.from(geo.attributes.position.array);
-  let t = Math.random() * 10;
-  const tick = dt => {
-    t += dt; const p = geo.attributes.position;
-    for (let i = 0; i < p.count; i++) { const bx = base[i * 3], by = base[i * 3 + 1], k = bx / 1.8; p.setZ(i, Math.sin(t * 3.2 - bx * 3.4 + by * 0.6) * 0.13 * k + Math.sin(t * 5.1 - bx * 6) * 0.03 * k); p.setY(i, by - k * k * 0.06); }
-    p.needsUpdate = true; geo.computeVertexNormals();
-  };
+  const sim = new FlagCloth({ w: 1.8, h: 1.2, metres: 1.8, material: new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.82 }) });
+  const cloth = sim.mesh; cloth.position.set(0.06, 7.3, 0); cloth.castShadow = true; g.add(cloth);
+  w.root.add(g); g.updateMatrixWorld(true);
+  const wind = flagWind(G.windV); sim.settle(4, wind);
+  const tick = dt => { sim.step(dt, flagWind(G.windV, wind)); };
   G.onFrame.push(tick);
-  w.root.add(g); flown = { w, g, tick };
+  flown = { w, g, tick };
 }
