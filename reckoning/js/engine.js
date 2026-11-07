@@ -13,7 +13,7 @@ import { renderFrame, post, warmViews, warmOnce } from "./post.js";
 import { reflectWater } from "./water.js";
 import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
-import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold } from "./models.js";
+import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns } from "./models.js";
 import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
@@ -3185,6 +3185,7 @@ export function frame(dt, skipRender) {
     // (the mirror, when it's drawn, has just worked out the place of everything in the scene: the frame itself doesn't
     //  go through all of it again straight after — in a battle, sixteen thousand things)
     if (G.world && G.world.actors) for (const a of G.world.actors) eyesFor(a, camera.position);
+    lodGuns(camera.position, G.scene);
     const placed = reflectWater(renderer, G.scene, camera);
     if (placed) G.scene.matrixWorldAutoUpdate = false;
     try { renderFrame(G.scene, camera); } finally { G.scene.matrixWorldAutoUpdate = true; }

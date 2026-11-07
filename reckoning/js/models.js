@@ -1681,15 +1681,17 @@ function mergedModel(key) {
   return MERGED[key] = mergeMeshes(src.scene, key);
 }
 // (any still thing of plain-coloured pieces made into a piece or two by finish, metal and not; null if it can't be)
-function mergeMeshes(root, key) {
+// (flat: a painted thing too, each piece's paint worked into its colour as the paint's own average — the far copy of a
+//  musket, see fromModel — its finish plain, no grain or maps)
+function mergeMeshes(root, key, { flat = false } = {}) {
   root.updateMatrixWorld(true);
   const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), buckets = new Map(), keep = [];
   let ok = true;
   root.traverse(o => {
     if (!o.isMesh) return;
     const m = o.material, g = o.geometry;
-    if (Array.isArray(m) || o.isSkinnedMesh || m.map || !g.attributes.position || !g.attributes.normal) { ok = false; return; }
-    if (/_rod(\.\d+)?$/.test(m.name || "")) { keep.push(o); return; }
+    if (Array.isArray(m) || o.isSkinnedMesh || (m.map && !flat) || !g.attributes.position || !g.attributes.normal) { ok = false; return; }
+    if (!flat && /_rod(\.\d+)?$/.test(m.name || "")) { keep.push(o); return; }
     const k = (m.metalness || 0) > 0.2 ? "metal" : "plain";
     (buckets.get(k) || buckets.set(k, []).get(k)).push(o);
   });
@@ -1701,7 +1703,8 @@ function mergeMeshes(root, key) {
       const g = o.geometry.clone();
       g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
       // (the piece's own colour, if it has one, worked into its vertices)
-      const n = g.attributes.position.count, col = new Float32Array(n * 3), C = g.attributes.color, mc = o.material.color || c.set(0xffffff), vc = o.material.vertexColors && C;
+      const n = g.attributes.position.count, col = new Float32Array(n * 3), C = g.attributes.color, vc = o.material.vertexColors && C;
+      let mc = o.material.color || c.set(0xffffff); if (flat && o.material.map) { const a = avgTex(o.material.map); if (a) mc = mc.clone().multiply(a); }
       for (let i = 0; i < n; i++) { col[i * 3] = (vc ? C.getX(i) : 1) * mc.r; col[i * 3 + 1] = (vc ? C.getY(i) : 1) * mc.g; col[i * 3 + 2] = (vc ? C.getZ(i) : 1) * mc.b; }
       for (const a of Object.keys(g.attributes)) if (!["position", "normal"].includes(a)) g.deleteAttribute(a);
       g.setAttribute("color", new THREE.BufferAttribute(col, 3));
@@ -1718,17 +1721,43 @@ function mergeMeshes(root, key) {
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(P, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(N, 3)); geo.setAttribute("color", new THREE.BufferAttribute(Cc, 3)); geo.setIndex(new THREE.BufferAttribute(I, 1));
     geo.computeBoundingSphere(); geo._shared = true;
-    const m0 = list[0].material, mat = m0.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.name = `${key}_${k}`;
+    const m0 = list[0].material, mat = flat ? new THREE.MeshStandardMaterial({ roughness: m0.roughness ?? 0.8, metalness: m0.metalness ?? 0 }) : m0.clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.name = `${key}_${k}`;
     // (and its grain and finish, which a copy of a material doesn't carry)
-    mat.onBeforeCompile = m0.onBeforeCompile; if (m0.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey) mat.customProgramCacheKey = m0.customProgramCacheKey;
+    if (!flat) { mat.onBeforeCompile = m0.onBeforeCompile; if (m0.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey) mat.customProgramCacheKey = m0.customProgramCacheKey; }
     const mesh = new THREE.Mesh(geo, mat); mesh.name = `${key}_${k}`; mesh.castShadow = true; mesh.receiveShadow = true; out.add(mesh);
   }
   for (const o of keep) { const r = o.clone(); r.position.set(0, 0, 0); r.quaternion.identity(); r.scale.set(1, 1, 1); r.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)); r.castShadow = true; r.receiveShadow = true; out.add(r); }
   return out;
 }
+// a painted texture's average colour, from a few pixels of it (linear, as three works in)
+const AVG = new WeakMap();
+function avgTex(t) {
+  if (!t || !t.image) return null; if (AVG.has(t)) return AVG.get(t);
+  let c = null;
+  try { const cv = document.createElement("canvas"); cv.width = cv.height = 4; const x = cv.getContext("2d"); x.drawImage(t.image, 0, 0, 4, 4); const d = x.getImageData(0, 0, 4, 4).data;
+    let r = 0, g = 0, b = 0; for (let i = 0; i < 64; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; } c = new THREE.Color().setRGB(r / 4080, g / 4080, b / 4080, THREE.SRGBColorSpace); } catch (e) { c = null; }
+  AVG.set(t, c); return c;
+}
+// ---- a gun far off: the painted model of seven pieces, past twenty yards, swapped for a plain copy of it in one or two
+// (a musket at that distance is a dark stick: its seven draws each, the length of a battle line, were near four hundred)
+const FARS = {}, LOD_GUNS = new Set(), _lp = new THREE.Vector3();
+export function lodGuns(c, scene) {
+  for (const g of LOD_GUNS) {
+    let r = g; while (r.parent) r = r.parent;
+    // (one gone from the scene once it's been in it — dropped, or its world gone — let go, with its own model back on; one
+    //  not yet put in it, or held in another scene, left as it is)
+    const L = g.userData.lod;
+    if (r !== scene) { if (L.seen) { LOD_GUNS.delete(g); L.near.visible = true; L.far.visible = false; } continue; }
+    L.seen = true;
+    const e = g.matrixWorld.elements, far = (e[12] - c.x) ** 2 + (e[13] - c.y) ** 2 + (e[14] - c.z) ** 2 > 400;
+    if (L.far.visible !== far) { L.far.visible = far; L.near.visible = !far; }
+  }
+}
 function fromModel(key, muzzle, grips) {
   const M = mergedModel(key), m = M ? { scene: M.clone() } : modelCopy(key); if (!m) return null;
   const g = new THREE.Group(); g.add(m.scene);
+  if (!M && MODELS[key]) { const F = FARS[key] !== undefined ? FARS[key] : (FARS[key] = mergeMeshes(MODELS[key].scene, `${key}_far`, { flat: true }));
+    if (F) { const fc = F.clone(); fc.visible = false; fc.traverse(o => { if (o.isMesh) o.castShadow = false; }); g.add(fc); g.userData.lod = { near: m.scene, far: fc }; LOD_GUNS.add(g); } }
   // (the ramrod lying in its pipes: a piece of its own, hidden while it's drawn)
   m.scene.traverse(o => { if (o.isMesh && o.material && /_rod(\.\d+)?$/.test(o.material.name || "")) g.userData.rodMesh = o; });
   g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(...muzzle); g.add(g.userData.muzzle);
