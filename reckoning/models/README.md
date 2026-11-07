@@ -36,6 +36,11 @@ action name: **Idle**, **Walk**, **Run**, **Sit**, **Chop**. Any it cannot find
 fall back to Idle. Push each action to an NLA track (or keep them as actions
 with *Fake User*) so the exporter includes all of them.
 
+Each person also has a far copy, `<name>_far.glb`, about a third of the
+triangles, which the game draws past thirty yards. After changing a person's
+model (or adding one to the manifest's `"_far"` list), make it again:
+`node reckoning/tools/farmodels.mjs <name>`.
+
 If the armature has a bone named like **hand.R** / **RightHand**, whatever the
 character carries (a torch, a lantern, an axe, the magistrate's writ) is put
 in that hand.

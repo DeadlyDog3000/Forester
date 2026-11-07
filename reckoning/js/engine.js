@@ -13,7 +13,7 @@ import { renderFrame, post, warmViews, warmOnce } from "./post.js";
 import { reflectWater } from "./water.js";
 import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
-import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns, rigLod } from "./models.js";
+import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns, rigLod, rigFar } from "./models.js";
 import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
@@ -2612,6 +2612,8 @@ export class Actor {
     if ((this._shT = (this._shT || 0) - dt) <= 0) {
       this._shT = 0.5 + Math.random() * 0.2;
       const cast = far2 < (G.arena ? 900 : 1100), near = far2 < 144;
+      // (and a man made one, past thirty yards, drawn in his far shape: a third of the facets)
+      rigFar(this.person, far2 > 900);
       if (cast !== this._cast || near !== this._castNear) { this._cast = cast; this._castNear = near; this.root.traverse(o => castSet(o, cast, near)); if (this.horse) this.horse.root.traverse(o => castSet(o, cast, near)); }
     }
     // (standing still, they're stepped round too, not walked into: you could walk into your brother or sister as they

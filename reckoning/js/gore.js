@@ -149,7 +149,10 @@ function stain(P, amt) {
   });
 }
 
+// (a man made one, hurt: his own near shape kept from now on, the one his stains are on — see rigFar)
+const nearShape = sk => { const L = sk.userData.lod; if (L) { sk.geometry = L.near; sk.userData.noFar = true; } };
 function stainMerged(sk, amt) {
+  nearShape(sk);
   const U = sk.userData, col = sk.geometry.attributes.color; if (!U.parts || !U.base || !col) return;
   U.blood ||= {};
   for (const p of U.parts) {
@@ -185,6 +188,7 @@ function mark(P, at, down) {
   P.woundU.value[i].set(v.x, v.y, v.z, performance.now() / 1000); P.woundR.value[i] = down ? 0.17 : 0.11;
 }
 function soakMerged(sk, v, R) {
+  nearShape(sk);
   const U = sk.userData, col = sk.geometry.attributes.color, pos = sk.geometry.attributes.position; if (!U.parts || !col) return;
   for (const p of U.parts) {
     if (!p.part || !(SOAKS.has(p.part) || p.part === "skin")) continue;
@@ -302,7 +306,7 @@ export function heal(P) {
   P && P.modelScene && P.modelScene.traverse(o => { const u = o.isMesh && o.material && o.material.userData; if (u && u.base0) { o.material.color.copy(u.base0); u.blood = 0; } });
   if (P && P.woundR) { P.woundR.value.fill(0); P.woundN = 0; }
   // (a man made one: his own colours back in the one piece)
-  for (const sk of (P && P.root && P.root.userData.merged) || []) { const U = sk.userData, col = sk.geometry.attributes.color; if (U.base && col) { col.array.set(U.base); col.needsUpdate = true; U.blood = {}; } }
+  for (const sk of (P && P.root && P.root.userData.merged) || []) { if (sk.userData.lod) sk.geometry = sk.userData.lod.near; const U = sk.userData, col = sk.geometry.attributes.color; if (U.base && col) { col.array.set(U.base); col.needsUpdate = true; U.blood = {}; } }
 }
 // the setting turned off: nothing of it left anywhere — the marks gone, every fallen man whole and clean
 export function goreOff() {
