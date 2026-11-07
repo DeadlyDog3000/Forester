@@ -86,16 +86,21 @@ function swimLay(P, dt) {
 // and out, as a man's is when he shoulders a gun). P.aimHold(obj, {base, grips, aim, ready}) sets it; null lets go.
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _e = new THREE.Vector3(), _f = new THREE.Vector3();
 const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion();
+// (where a bone is, and how it's turned, read straight off its world matrix: aimPlace has the whole man placed first,
+//  and each swing places what hangs from the bone it turned, so these are fresh — three's own getters would place
+//  every bone up to the scene again for each, near two thousand times a frame in a battle)
+const _ws = new THREE.Vector3(), _wp = new THREE.Vector3();
+const wPos = (o, v) => v.setFromMatrixPosition(o.matrixWorld), wQuat = (o, q) => (o.matrixWorld.decompose(_wp, q, _ws), q);
 function swing(bone, fromW, toW) {
   // turn a bone so that a direction (world) on it points along another
   _qa.setFromUnitVectors(fromW.clone().normalize(), toW.clone().normalize());
-  bone.getWorldQuaternion(_qb); bone.parent.getWorldQuaternion(_qc);
+  wQuat(bone, _qb); wQuat(bone.parent, _qc);
   bone.quaternion.copy(_qc.invert().multiply(_qa.multiply(_qb)));
   bone.updateMatrixWorld(true);
 }
 function reach(up, fore, hand, T, pole) {
   if (!up || !fore || !hand) return;
-  const u = up.getWorldPosition(_a), e0 = fore.getWorldPosition(_b), h0 = hand.getWorldPosition(_c);
+  const u = wPos(up, _a), e0 = wPos(fore, _b), h0 = wPos(hand, _c);
   const palm = _d.copy(h0).sub(e0).normalize().multiplyScalar(0.07).add(h0);
   const A = u.distanceTo(e0), Bl = e0.distanceTo(palm), toT = _e.copy(T).sub(u), dist = toT.length();
   const d = Math.max(Math.abs(A - Bl) + 1e-3, Math.min(A + Bl - 1e-3, dist)), dir = toT.normalize();
@@ -103,7 +108,7 @@ function reach(up, fore, hand, T, pole) {
   const x = (A * A - Bl * Bl + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, A * A - x * x));
   const elbow = u.clone().addScaledVector(dir, x).addScaledVector(pl, hh);
   swing(up, e0.clone().sub(u), elbow.clone().sub(u));
-  const e1 = fore.getWorldPosition(new THREE.Vector3()), h1 = hand.getWorldPosition(new THREE.Vector3());
+  const e1 = wPos(fore, new THREE.Vector3()), h1 = wPos(hand, new THREE.Vector3());
   const palm1 = h1.clone().sub(e1).normalize().multiplyScalar(0.07).add(h1);
   swing(fore, palm1.sub(e1), T.clone().sub(e1));
 }
@@ -112,8 +117,11 @@ function aimPlace(P, dt) {
   const B = P.bones || {}, root = P.root, obj = H.obj;
   P.aimK = (P.aimK ?? 0) + ((P.aimWant ? 1 : 0) - (P.aimK ?? 0)) * Math.min(1, dt * 7);
   const k = P.aimK * P.aimK * (3 - 2 * P.aimK);
-  root.updateMatrixWorld(true);
+  // (placed now only what the hold reads — where the man stands, and each arm from the shoulder out — not every piece
+  //  of him: the rest is placed as he's drawn, and fifty men aiming each placed whole was most of a millisecond)
   const shR = B["upper_arm.R"] || P.armR, shL = B["upper_arm.L"] || P.armL;
+  root.updateWorldMatrix(true, false);
+  for (const s of [shR, shL]) if (s) { s.parent.updateWorldMatrix(true, false); s.updateMatrixWorld(true); }
   const sR = root.worldToLocal(shR.getWorldPosition(new THREE.Vector3())), sL = root.worldToLocal(shL.getWorldPosition(new THREE.Vector3()));
   const inw = Math.sign(sL.x - sR.x) || 1;
   // loading (reload.js): stood up before the chest, muzzle up, the free hand going to the lock, the muzzle, the rod
@@ -164,7 +172,7 @@ function aimPlace(P, dt) {
   grips.forEach((gp, i) => {
     if (!gp) return;
     const s = i === 0 ? "R" : "L", T = obj.localToWorld(gp.clone());
-    const sh = (i === 0 ? shR : shL).getWorldPosition(new THREE.Vector3());
+    const sh = wPos(i === 0 ? shR : shL, new THREE.Vector3());
     const outw = new THREE.Vector3(i === 0 ? -inw : inw, 0, 0).transformDirection(root.matrixWorld);
     const pole = sh.clone().addScaledVector(down, 0.5).addScaledVector(outw, 0.35);
     reach(B["upper_arm." + s], B["forearm." + s], B["hand." + s], T, pole);
@@ -991,8 +999,10 @@ function strandHair(m) {
         roughnessFactor = clamp(mix(0.85, 0.42, smoothstep(0.55, 0.85, hrS)), 0.3, 1.0);`);
   }, "hair");
 }
-// (a hidden thing's place left as it was: three works out every object's place each frame, seen or not)
-function freeze(o, on) { o.matrixAutoUpdate = !on; o.matrixWorldAutoUpdate = !on; if (!on) o.matrixWorldNeedsUpdate = true; }
+// (a hidden thing's place left as it was: three works out every object's place each frame, seen or not; one with
+//  nothing hung on it not even visited — a hidden skinned piece would otherwise turn its bind matrix over every time)
+const stay = () => {};
+function freeze(o, on) { o.matrixAutoUpdate = !on; o.matrixWorldAutoUpdate = !on; if (!on) { o.matrixWorldNeedsUpdate = true; delete o.updateMatrixWorld; } else if (!o.children.length) o.updateMatrixWorld = stay; }
 function useModel(P, key, colors = {}) {
   const m = modelCopy(key); if (!m) return;
   // (the shapes built in code, hidden under the model for good: their places no longer worked out every frame either —

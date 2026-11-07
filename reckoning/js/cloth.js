@@ -236,7 +236,9 @@ function step(C, frame) {
   }
   const now = performance.now() / 1000, dt = Math.min(1 / 30, C.last ? now - C.last : 1 / 60); C.last = now;
   if (dt <= 0) return;
-  const hips = C.hips; hips.updateWorldMatrix(true, false);
+  // (worked as the piece is drawn, the scene's places all just worked out: read as they stand, not worked out again from
+  //  the scene down for every net)
+  const hips = C.hips;
   const HW = hips.matrixWorld, scale = _v.setFromMatrixScale(HW).y || 1;
   // (shape space to the world, through the hips as they stand now: a point hung wholly from the hips goes where the skin
   //  carries it — the hips now, times their inverse at rest, times where the shape was bound)
@@ -252,8 +254,9 @@ function step(C, frame) {
   // (how upright the hips are: 1 standing, 0 lying — and how much of the garment's cut it keeps)
   const up = Math.max(0, _a.set(0, 1, 0).applyMatrix3(_n3.setFromMatrix4(HW)).normalize().y), keep = Math.max(0, (up - 0.55) / 0.45);
   const Gw = typeof window !== "undefined" && window.G, gy = Gw && Gw.world && Gw.world.heightAt ? (x, z) => Gw.world.heightAt(x, z) : null;
-  const legs = C.legs.map(([a, b]) => [a.getWorldPosition(new THREE.Vector3()), b.getWorldPosition(new THREE.Vector3())]);
-  const pelvis = hips.getWorldPosition(new THREE.Vector3()), chest = C.spine ? C.spine.getWorldPosition(new THREE.Vector3()) : pelvis.clone();
+  const at = o => new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+  const legs = C.legs.map(([a, b]) => [at(a), at(b)]);
+  const pelvis = at(hips), chest = C.spine ? at(C.spine) : pelvis.clone();
   const seat = C.P && C.P.sitting > 0.5 ? pelvis.y - 0.1 * scale : null;
   // (the ground once, under the hips: under one person it's as good as flat — looked up for every point of the net, six
   //  times over, it was most of the cost)
@@ -302,7 +305,7 @@ function step(C, frame) {
   }
   // (each piece: how far each point of the net is from where the bones alone would put it, in the piece's own space)
   for (const part of C.parts) {
-    const o = part.o; o.updateWorldMatrix(true, false);
+    const o = part.o;
     _n3.setFromMatrix4(_T.copy(o.matrixWorld).invert());
     const U = part.uni.value;
     for (let i = 0; i < N; i++) { const d = U[i].subVectors(P[i], T[i]); if (d.lengthSq() > 1.44) d.setLength(1.2); d.applyMatrix3(_n3); }
