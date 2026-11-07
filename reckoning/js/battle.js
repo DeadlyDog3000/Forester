@@ -16,7 +16,7 @@ import { AUDIO } from "./audio.js";
 import { makeCannon, cloud, segDist } from "./cannon.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 import { shake } from "./fight.js";
-import { P, makeLogs, makeSack } from "./models.js";
+import { P, makeLogs, makeSack, realPart } from "./models.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -83,6 +83,52 @@ function drawColours(x, key) {
   // (worn: the cloth darker at its edges, and the weave)
   const sh = x.createRadialGradient(W / 2, H / 2, 20, W / 2, H / 2, 120); sh.addColorStop(0, "rgba(0,0,0,0)"); sh.addColorStop(1, "rgba(30,20,10,0.35)"); x.fillStyle = sh; x.fillRect(0, 0, W, H);
   for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(${Math.random() < 0.5 ? "0,0,0" : "255,250,230"},0.05)`; x.fillRect(Math.random() * W, Math.random() * H, 1, 1); }
+}
+
+// ---- stones: the scanned rocks (Poly Haven, CC0) cut down to a wall's stones — each one sized to its place, all of a
+// kind drawn together. A stone is { x, y, z: its middle; L along the wall, h high, d into it; rx, ry, rz a little out
+// of true; t its tint }.
+const STONE_TINTS = [0xeee8dc, 0xe2dacb, 0xd4cdc0, 0xc8c0b0, 0xddd2bb, 0xb8b2a8, 0xe6dfcf, 0xcfc5ae];
+let ROCKS = null, STONE_LIFT = globalThis.__stoneLift || 1.75;
+function rockKinds() {
+  if (ROCKS) return ROCKS;
+  const out = [];
+  for (const key of ["rock_b", "rock_c"]) {
+    const full = realPart(key); if (!full) return null;
+    // (the scan's own stone is a dark wet grey, right for a boulder in the woods' shade; a field wall's stones in the
+    //  open are lighter, weathered and dry — its own copy of the material, the woods' left as they were)
+    const m = full.mat.clone(); m.color = m.color.clone().multiplyScalar(STONE_LIFT); m.onBeforeCompile = full.mat.onBeforeCompile;
+    if (full.mat.customProgramCacheKey !== THREE.Material.prototype.customProgramCacheKey) m.customProgramCacheKey = full.mat.customProgramCacheKey;
+    const of = geo => { geo.computeBoundingBox(); const b = geo.boundingBox; return { p: { geo, mat: m }, c: b.getCenter(new THREE.Vector3()), s: b.getSize(new THREE.Vector3()) }; };
+    // (each stone of a wall is a foot or so across: the scan cut down to a sixth of its facets for them — models/*_lo.glb,
+    //  made with gltfpack's simplifier — in the full scan's own paint; a boulder keeps the whole of it)
+    const lo = realPart(key + "_lo"), K = of(lo ? lo.geo : full.geo); K.big = lo ? of(full.geo) : K;
+    out.push(K);
+  }
+  return ROCKS = out;
+}
+const _sm = new THREE.Matrix4(), _st = new THREE.Matrix4(), _sq = new THREE.Quaternion(), _se = new THREE.Euler(), _sv = new THREE.Vector3(), _sp = new THREE.Vector3(), _sco = new THREE.Color();
+function laid(stones, r) {
+  const K = rockKinds(); if (!K || !stones.length) return [];
+  const by = [[], []];
+  // (mostly the smaller rock, of half the facets; the flat one for the long stones and those set on edge)
+  for (const st of stones) by[st.k ?? (st.L > 0.5 || st.L < st.h * 0.7 ? 0 : r() < 0.3 ? 0 : 1)].push(st);
+  const out = [];
+  by.forEach((list, k) => {
+    if (!list.length) return;
+    const R = list[0].big ? K[k].big : K[k], m = new THREE.InstancedMesh(R.p.geo, R.p.mat, list.length);
+    list.forEach((st, i) => {
+      // (the flat rock lies long along x; the other long along z, so it's turned a quarter to lie along the wall)
+      const yaw = k === 0 ? (r() < 0.5 ? 0 : Math.PI) : (r() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
+      if (k === 0) _sv.set(st.L / R.s.x, st.h / R.s.y, st.d / R.s.z); else _sv.set(st.d / R.s.x, st.h / R.s.y, st.L / R.s.z);
+      _sq.setFromEuler(_se.set(st.rx || 0, yaw + (st.ry || 0), st.rz || 0));
+      _sm.compose(_sp.set(st.x, st.y, st.z), _sq, _sv).multiply(_st.makeTranslation(-R.c.x, -R.c.y, -R.c.z));
+      m.setMatrixAt(i, _sm);
+      m.setColorAt(i, _sco.setHex(st.t ?? STONE_TINTS[Math.floor(r() * STONE_TINTS.length)]).multiplyScalar(0.86 + r() * 0.16));
+    });
+    m.computeBoundingSphere(); m.castShadow = true; m.receiveShadow = true; out.push(m);
+  });
+  return out;
 }
 
 // a thing built of many pieces made into one mesh to each material it's made of (hundreds of stones in a wall drawn as
@@ -617,9 +663,59 @@ export class Field {
       else this.barrels(p.x, p.z);
     }
   }
+  // a wall of stones laid dry, along its own x from x0 to x1 about (x, z) turned ry: two faces of flat stones in rough
+  // courses, the wall drawn in as it rises; its heart of rubble behind them (dark: no daylight through the joints, as
+  // in a real one); stones set on edge along its top. Each stone sits on the ground where it is, so the wall goes
+  // over the land as it lies. (dressed: a house's — squarer stones, in truer courses; ragged(lx): how high it still
+  // stands there, for one broken down.) False if the scanned rocks aren't to be had.
+  stoneWall(g, x, z, ry, x0, x1, { H = 1.0, base = 0.74, top = 0.48, cope = true, dressed = false, ragged = null, fallen = 0 } = {}) {
+    if (!rockKinds()) return false;
+    const r = this.r, y0 = this.y(x, z), gr = (lx, lz) => { const p = this.at(x, z, ry, lx, lz); return this.y(p.x, p.z) - y0; };
+    const half = y => (base + (top - base) * Math.min(1, Math.max(0, y / H))) / 2, stones = [];
+    const copeH = cope ? 0.26 : 0, body = H - copeH;
+    let y = -0.07, course = 0;
+    while (y < body - 0.06) {
+      const ch = Math.min(dressed ? 0.25 + r() * 0.06 : 0.16 + r() * 0.1, body - y + 0.02), ym = y + ch / 2;
+      for (const side of [1, -1]) {
+        let lx = x0 - (course % 2 ? 0.12 + r() * 0.15 : r() * 0.08);
+        while (lx < x1 - 0.05) {
+          let L = dressed ? 0.42 + r() * 0.24 : 0.3 + r() * 0.34; L = Math.min(L, x1 - lx + 0.06);
+          const cx = lx + L / 2; lx += L;
+          if (cx < x0 - 0.02) continue;
+          if (ragged && ym + ch / 2 > ragged(cx) + 0.05) continue;
+          // (each a little bigger than its place, so they meet and bed into one another as laid stones do — a scanned
+          //  stone isn't a brick, and sized to its place exactly the joints between them gaped)
+          const d = 0.26 + r() * 0.12, hw = half(ym), cz = side * (hw - d / 2 + 0.03 + r() * 0.02);
+          stones.push({ x: cx, y: gr(cx, cz) + ym, z: cz, L: L * (1.1 + r() * 0.08), h: ch * (1.12 + r() * 0.1), d,
+            rx: (r() - 0.5) * 0.08, ry: (r() - 0.5) * (dressed ? 0.05 : 0.12), rz: (r() - 0.5) * (dressed ? 0.04 : 0.1) });
+        }
+      }
+      y += ch; course++;
+    }
+    // (the cope: flat stones stood on edge across the top, close together, leaning a little this way and that)
+    if (cope) for (let lx = x0 + 0.08; lx < x1 - 0.05;) {
+      const t = 0.15 + r() * 0.08, hh = 0.17 + r() * 0.07, cx = lx + t / 2; lx += t + 0.005;
+      if (ragged && y > ragged(cx)) continue;
+      stones.push({ x: cx, y: gr(cx, 0) + y + hh / 2 - 0.05, z: (r() - 0.5) * 0.04, L: t * 1.15, h: hh, d: top * (1.0 + r() * 0.2), k: 0, rz: (r() - 0.5) * 0.18, ry: (r() - 0.5) * 0.12 });
+    }
+    // (a few come down from the top over the years, lying at its foot half in the grass)
+    for (let i = 0; i < fallen; i++) { const lx = x0 + r() * (x1 - x0), lz = (r() < 0.5 ? -1 : 1) * (base / 2 + 0.15 + r() * 0.5), h = 0.13 + r() * 0.08;
+      stones.push({ x: lx, y: gr(lx, lz) + h * 0.3, z: lz, L: 0.3 + r() * 0.25, h, d: 0.24 + r() * 0.12, ry: r() * 3, rx: (r() - 0.5) * 0.3, rz: (r() - 0.5) * 0.3 }); }
+    for (const m of laid(stones, r)) { m.userData.dressed = dressed; g.add(m); }
+    // the heart: rubble packed between the faces, seen only in the joints — dark, earth and small stone
+    { const n = Math.max(1, Math.ceil((x1 - x0) / 0.8)), core = new THREE.BoxGeometry(x1 - x0 - 0.1, 1, 1, n, 1, 1), p = core.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        const lx = p.getX(i) + (x0 + x1) / 2, up = p.getY(i) > 0, hy = up ? Math.min(y - 0.04, ragged ? ragged(lx) - 0.06 : 9) : -0.1;
+        p.setXYZ(i, lx, gr(lx, 0) + hy, p.getZ(i) * (half(Math.max(0, hy)) * 2 - 0.2));
+      }
+      core.computeVertexNormals();
+      g.add(new THREE.Mesh(core, this.M.heart || (this.M.heart = mat(0x4a443a, { surface: "rock" })))); }
+    return true;
+  }
   wall(x, z, len, ry) {
     // a field wall of rough stones, dry-laid, waist high, a few fallen from its top and lying at its foot
     const g = new THREE.Group(), r = this.r;
+    if (this.stoneWall(g, x, z, ry, -len / 2, len / 2, { H: 1.0 + r() * 0.15, fallen: Math.round(len / 2.5) })) { this.put(g, x, z, ry); this.solid(x, z, len, 0.75, ry, 0.95, null); return; }
     for (let i = 0; i < len / 0.4; i++) for (let row = 0; row < 3; row++) {
       if (row === 2 && r() < 0.3) continue;
       const st = new THREE.Mesh(rockGeo(0.22 + r() * 0.08), this.M.stone);
@@ -672,6 +768,13 @@ export class Field {
         const len = p1 - p0; if (len < 0.3) continue;
         const cols = Math.max(1, Math.round(len / 0.5)), cw = len / cols;
         let hmax = 0;
+        // (laid of the scanned stones, as the field walls are, its top broken off where the fire and the years left it)
+        const tops = Array.from({ length: cols }, (_, i) => wl.h * (0.55 + 0.45 * r()) + (i === 0 || i === cols - 1 ? -0.2 : 0));
+        if (this.stoneWall(g, mid.x, mid.z, wry, p0, p1, { H: wl.h, base: T + 0.06, top: T - 0.04, cope: false, dressed: true, ragged: lx => tops[Math.max(0, Math.min(cols - 1, Math.floor((lx - p0) / cw)))] })) {
+          const pm = (p0 + p1) / 2, pc = this.at(mid.x, mid.z, wry, pm, 0);
+          this.solid(pc.x, pc.z, len, T + 0.1, wry, Math.min(Math.max(...tops), 1.9), null);
+          continue;
+        }
         for (let i = 0; i < cols; i++) {
           // (ragged at the top: lower toward the open end of a broken wall)
           const hh = wl.h * (0.55 + 0.45 * r()) + (i === 0 || i === cols - 1 ? -0.2 : 0), rows = Math.max(1, Math.round(hh / 0.3));
@@ -682,12 +785,20 @@ export class Field {
         this.solid(pc.x, pc.z, len, T + 0.1, wry, Math.min(hmax, 1.9), null);
       }
       // (under a window: the sill and the wall below it)
-      if (wl.gap && wl.gap[2]) { const rows = Math.round(wl.gap[2] / 0.3); for (let k = 0; k < rows; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(wl.gap[1], 0.28, T), this.M.stone); st.position.set(wl.gap[0], 0.15 + k * 0.3, 0); g.add(st); } const pc = this.at(mid.x, mid.z, wry, wl.gap[0], 0); this.solid(pc.x, pc.z, wl.gap[1], T + 0.1, wry, wl.gap[2], false); }
+      if (wl.gap && wl.gap[2] && this.stoneWall(g, mid.x, mid.z, wry, wl.gap[0] - wl.gap[1] / 2, wl.gap[0] + wl.gap[1] / 2, { H: wl.gap[2], base: T + 0.06, top: T, cope: false, dressed: true })) { const pc = this.at(mid.x, mid.z, wry, wl.gap[0], 0); this.solid(pc.x, pc.z, wl.gap[1], T + 0.1, wry, wl.gap[2], false); }
+      else if (wl.gap && wl.gap[2]) { const rows = Math.round(wl.gap[2] / 0.3); for (let k = 0; k < rows; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(wl.gap[1], 0.28, T), this.M.stone); st.position.set(wl.gap[0], 0.15 + k * 0.3, 0); g.add(st); } const pc = this.at(mid.x, mid.z, wry, wl.gap[0], 0); this.solid(pc.x, pc.z, wl.gap[1], T + 0.1, wry, wl.gap[2], false); }
       this.put(g, mid.x, mid.z, wry);
     }
     // the chimney stack, at the west end, up above the rest: laid in courses like the walls, stepped in near the top, the
     //  last of it blackened by the fire
-    { const c = this.at(x, z, ry, -W / 2 + 0.6, 0), g = new THREE.Group(); for (let k = 0; k < 12; k++) { const tw = k > 7 ? 0.82 : 1.0, st = new THREE.Mesh(new THREE.BoxGeometry(tw * (0.97 + r() * 0.06), 0.29, (tw - 0.1) * (0.97 + r() * 0.06)), k > 9 ? this.M.soot : this.M.stone); st.position.set((r() - 0.5) * 0.03, 0.15 + k * 0.3, (r() - 0.5) * 0.03); st.rotation.y = (r() - 0.5) * 0.04; g.add(st); } const cap = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.0), this.M.soot); cap.position.y = 3.62; g.add(cap); this.put(g, c.x, c.z, ry); const cc = this.w.col.addOBox(c.x, c.z, 0.5, 0.45, ry, this.y(c.x, c.z) + 3.6); this.cols.push(cc); }
+    { const c = this.at(x, z, ry, -W / 2 + 0.6, 0), g = new THREE.Group();
+      // (of the same stones as the walls, faced all round; the soot-black cap on it)
+      const g2 = new THREE.Group(); g2.rotation.y = Math.PI / 2; g.add(g2);
+      // (its other two faces laid as a wall turned a quarter, in a frame turned with them)
+      if (this.stoneWall(g, c.x, c.z, ry, -0.5, 0.5, { H: 3.56, base: 0.92, top: 0.8, cope: false, dressed: true }) && this.stoneWall(g2, c.x, c.z, ry + Math.PI / 2, -0.42, 0.42, { H: 3.56, base: 1.04, top: 0.94, cope: false, dressed: true })) {
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.0), this.M.soot); cap.position.y = 3.62; g.add(cap);
+        this.put(g, c.x, c.z, ry); const cc = this.w.col.addOBox(c.x, c.z, 0.5, 0.45, ry, this.y(c.x, c.z) + 3.6); this.cols.push(cc);
+      } else { for (let k = 0; k < 12; k++) { const tw = k > 7 ? 0.82 : 1.0, st = new THREE.Mesh(new THREE.BoxGeometry(tw * (0.97 + r() * 0.06), 0.29, (tw - 0.1) * (0.97 + r() * 0.06)), k > 9 ? this.M.soot : this.M.stone); st.position.set((r() - 0.5) * 0.03, 0.15 + k * 0.3, (r() - 0.5) * 0.03); st.rotation.y = (r() - 0.5) * 0.04; g.add(st); } const cap = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.12, 1.0), this.M.soot); cap.position.y = 3.62; g.add(cap); this.put(g, c.x, c.z, ry); const cc = this.w.col.addOBox(c.x, c.z, 0.5, 0.45, ry, this.y(c.x, c.z) + 3.6); this.cols.push(cc); } }
     // the roof-beams, fallen in and burnt black, one end up on the wall
     for (let i = 0; i < 3; i++) { const b = new THREE.Mesh(new THREE.BoxGeometry(D + 0.4, 0.2, 0.2), this.M.soot), c = this.at(x, z, ry, -1.6 + i * 1.6 + (r() - 0.5) * 0.6, 0), g = new THREE.Group(); b.rotation.set(0, Math.PI / 2 + (r() - 0.5) * 0.4, (r() - 0.5) * 0.5); b.position.y = 0.25 + r() * 0.3; g.add(b); this.put(g, c.x, c.z, ry); }
     // ash and char over the floor
@@ -712,7 +823,18 @@ export class Field {
     const r = this.r, n = 3 + Math.floor(r() * 3);
     for (let i = 0; i < n; i++) {
       const R = i ? 0.35 + r() * 0.35 : 0.9 + r() * 0.35, a = r() * Math.PI * 2, d = i ? 1.2 + r() * 1.2 : 0, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
-      const g = new THREE.Group(), m = new THREE.Mesh(rockGeo(R), this.M.boulder);
+      const g = new THREE.Group();
+      // (a scanned boulder, if it's to be had: half sunk, turned any way, the bigger one flat and broad)
+      const K = rockKinds(); if (K) {
+        const hy = 0.7 + r() * 0.2, k = i ? (r() < 0.5 ? 1 : 0) : 0;
+        for (const m of laid([{ x: 0, y: R * hy * 0.45, z: 0, L: R * 2.2, h: R * hy * 1.4, d: R * 1.9, k, big: true, ry: r() * 6.28, rx: (r() - 0.5) * 0.3, rz: (r() - 0.5) * 0.3, t: STONE_TINTS[Math.floor(r() * 4)] }], r)) g.add(m);
+        this.put(g, px, pz, 0);
+        const top = R * hy * 1.5;
+        if (i === 0) this.solid(px, pz, R * 1.7, R * 1.6, r() * 3, top, null);
+        else this.cols.push(this.w.col.addCircle(px, pz, R * 0.95, this.y(px, pz) + top));
+        continue;
+      }
+      const m = new THREE.Mesh(rockGeo(R), this.M.boulder);
       // (lumpy: its points pushed in and out a little)
       const p = m.geometry.attributes.position; for (let k = 0; k < p.count; k++) { const f = 0.85 + ((Math.sin(p.getX(k) * 7.1 + p.getY(k) * 3.3 + p.getZ(k) * 5.7 + i) + 1) / 2) * 0.3; p.setXYZ(k, p.getX(k) * f, p.getY(k) * f, p.getZ(k) * f); } m.geometry.computeVertexNormals();
       const hy = 0.7 + r() * 0.2; m.scale.set(1.1, hy, 0.95); m.position.y = R * hy * 0.55; m.rotation.y = r() * 3; g.add(m);
