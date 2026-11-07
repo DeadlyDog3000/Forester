@@ -131,6 +131,7 @@ const SOAKS = new Set(["coat", "vest", "cuff", "linen", "legs", "stockings", "sa
 const BLOOD = new THREE.Color(0x3a0503);
 function stain(P, amt) {
   const sc = P && P.modelScene; if (!sc) return;
+  P._soaked = true;
   // (a man of a battle's crowd, made one: his coat darkened in the colours of the one piece, so he stays one — made
   //  many again for it, every wounded man was a score of pieces, each its own skeleton and its own draw, and a battle
   //  ground slower with every man hit)

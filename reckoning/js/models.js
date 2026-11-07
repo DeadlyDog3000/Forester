@@ -3469,6 +3469,9 @@ const METAL_HOOK = sh => {
     .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.42, vMetal);")
     .replace("#include <metalnessmap_fragment>", "#include <metalnessmap_fragment>\n  metalnessFactor = mix(metalnessFactor, 0.6, vMetal);");
 };
+const RIG_SHAPES = new Map(), TEX_UNDER = new Map();
+// (a man made one let go of, however it's done: only his own colours given back, not the shape he shares with the rest)
+function unshareDispose() { for (const k of Object.keys(this.attributes)) if (k !== "color") this.deleteAttribute(k); this.setIndex(null); THREE.BufferGeometry.prototype.dispose.call(this); }
 export function mergeRig(root) {
   const parts = [];
   root.traverse(o => { if (o.isSkinnedMesh && !Array.isArray(o.material) && o.geometry.attributes.skinIndex) { let v = true; for (let p = o; p && p !== root; p = p.parent) if (!p.visible) { v = false; break; } if (v) parts.push(o); } });
@@ -3487,7 +3490,11 @@ export function mergeRig(root) {
   for (const [metal, list] of buckets) {
     if (list.length < 2) continue;
     let nv = 0, ni = 0; for (const o of list) { nv += o.geometry.attributes.position.count; ni += o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count; }
-    const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), si = new Uint16Array(nv * 4), sw = new Float32Array(nv * 4), idx = new Uint32Array(ni), acl = new Float32Array(nv * 2), met = shiny.size && !metal ? new Float32Array(nv) : null;
+    // (the shape of the whole the same for every man made of the same pieces — only his colours his own: made once and
+    //  shared, so making a man one is the colouring alone, and a crowd's hundred copies of it aren't kept)
+    const gkey = list.map(o => o.geometry.uuid + (shiny.has(o) ? "m" : "")).join(), shared = RIG_SHAPES.get(gkey);
+    const col = new Float32Array(nv * 3), mk = !shared;
+    const pos = mk && new Float32Array(nv * 3), nor = mk && new Float32Array(nv * 3), si = mk && new Uint16Array(nv * 4), sw = mk && new Float32Array(nv * 4), idx = mk && new Uint32Array(ni), acl = mk && new Float32Array(nv * 2), met = mk && shiny.size && !metal ? new Float32Array(nv) : null;
     let sim = null;
     let v0 = 0, i0 = 0;
     const c = new THREE.Color(), parts = [];
@@ -3497,32 +3504,45 @@ export function mergeRig(root) {
       if (clothSimOf(o)) sim = clothSimOf(o);
       // (a piece made to flow — see cloth.js — merged as it flows: the merged mesh swings with the same hem)
       const g = o.geometry, AC = g.attributes.aCloth, P = g.attributes.position, N = g.attributes.normal, C = g.attributes.color, SI = g.attributes.skinIndex, SW = g.attributes.skinWeight, m = o.material.color || c.set(0xffffff);
-      const UV = g.attributes.uv, rd = UV && o.material.map ? texReader(o.material.map) : null, tc = [1, 1, 1];
-      const skinPart = o.material.userData && o.material.userData.part === "skin";
+      const UV = g.attributes.uv, map = UV && o.material.map;
+      // (its picture's colour under each vertex, read once for the piece and its picture)
+      let T = null;
+      if (map) { const tk = g.uuid + "|" + map.uuid; T = TEX_UNDER.get(tk); if (T === undefined) { const rd = texReader(map), tc = [1, 1, 1]; T = rd ? new Float32Array(P.count * 3) : null; if (T) for (let k = 0; k < P.count; k++) { rd(UV.getX(k), UV.getY(k), tc); T[k * 3] = tc[0]; T[k * 3 + 1] = tc[1]; T[k * 3 + 2] = tc[2]; } TEX_UNDER.set(tk, T); } }
+      const skinPart = o.material.userData && o.material.userData.part === "skin", vc = C && o.material.vertexColors, worn = o.material.userData && o.material.userData.worn;
+      // (skin: the sun and the weather's tan, and the grime, as weatheredSkin lays on one man's — without it a crowd's
+      //  faces and hands were chalk-white beside his)
+      const sk = skinPart ? SKIN_BAKE : ONE, kr = m.r * sk[0], kg = m.g * sk[1], kb = m.b * sk[2];
       for (let k = 0; k < P.count; k++) {
         const j = v0 + k;
+        let r = kr, gg = kg, b = kb;
+        if (vc) { r *= C.getX(k); gg *= C.getY(k); b *= C.getZ(k); }
+        if (T) { r *= T[k * 3]; gg *= T[k * 3 + 1]; b *= T[k * 3 + 2]; }
+        col[j * 3] = r; col[j * 3 + 1] = gg; col[j * 3 + 2] = b;
+        // (the mud up a worn piece's hem baked in: a crowd's merged pieces have no shader of their own for it)
+        if (worn) { const y = P.getY(k), u = Math.max(0, Math.min(1, (y - 0.08) / 0.54)), mud = 1 - u * u * (3 - 2 * u), k2 = 1 - mud * 0.45; col[j * 3] = col[j * 3] * k2 + mud * 0.07; col[j * 3 + 1] = col[j * 3 + 1] * k2 + mud * 0.055; col[j * 3 + 2] = col[j * 3 + 2] * k2 + mud * 0.035; }
+        if (!mk) continue;
         pos[j * 3] = P.getX(k); pos[j * 3 + 1] = P.getY(k); pos[j * 3 + 2] = P.getZ(k);
         if (N) { nor[j * 3] = N.getX(k); nor[j * 3 + 1] = N.getY(k); nor[j * 3 + 2] = N.getZ(k); }
-        const r = C && o.material.vertexColors ? C.getX(k) : 1, gg = C && o.material.vertexColors ? C.getY(k) : 1, b = C && o.material.vertexColors ? C.getZ(k) : 1;
-        if (rd) rd(UV.getX(k), UV.getY(k), tc);
-        // (skin: the sun and the weather's tan, and the grime, as weatheredSkin lays on one man's — without it a crowd's
-        //  faces and hands were chalk-white beside his)
-        const sk = skinPart ? SKIN_BAKE : ONE;
-        col[j * 3] = r * m.r * tc[0] * sk[0]; col[j * 3 + 1] = gg * m.g * tc[1] * sk[1]; col[j * 3 + 2] = b * m.b * tc[2] * sk[2];
-        // (the mud up a worn piece's hem baked in: a crowd's merged pieces have no shader of their own for it)
-        if (o.material.userData && o.material.userData.worn) { const y = P.getY(k), u = Math.max(0, Math.min(1, (y - 0.08) / 0.54)), mud = 1 - u * u * (3 - 2 * u), k2 = 1 - mud * 0.45; col[j * 3] = col[j * 3] * k2 + mud * 0.07; col[j * 3 + 1] = col[j * 3 + 1] * k2 + mud * 0.055; col[j * 3 + 2] = col[j * 3 + 2] * k2 + mud * 0.035; }
         for (let q = 0; q < 4; q++) { si[j * 4 + q] = SI.getComponent(k, q); sw[j * 4 + q] = SW.getComponent(k, q); }
         if (AC) { acl[j * 2] = AC.getX(k); acl[j * 2 + 1] = AC.getY(k); }
       }
-      if (met && shiny.has(o)) met.fill(1, v0, v0 + P.count);
-      if (g.index) for (let k = 0; k < g.index.count; k++) idx[i0 + k] = g.index.getX(k) + v0;
-      else for (let k = 0; k < P.count; k++) idx[i0 + k] = k + v0;
+      if (mk) {
+        if (met && shiny.has(o)) met.fill(1, v0, v0 + P.count);
+        if (g.index) for (let k = 0; k < g.index.count; k++) idx[i0 + k] = g.index.getX(k) + v0;
+        else for (let k = 0; k < P.count; k++) idx[i0 + k] = k + v0;
+      }
       i0 += g.index ? g.index.count : P.count; v0 += P.count;
     }
+    let SH = shared;
+    if (!SH) {
+      const g0 = new THREE.BufferGeometry(); g0.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g0.computeBoundingSphere(); g0.computeBoundingBox();
+      SH = { position: g0.attributes.position, normal: new THREE.BufferAttribute(nor, 3), skinIndex: new THREE.Uint16BufferAttribute(si, 4), skinWeight: new THREE.BufferAttribute(sw, 4), index: new THREE.BufferAttribute(idx, 1), aCloth: new THREE.BufferAttribute(acl, 2), aMetal: met && new THREE.BufferAttribute(met, 1), sphere: g0.boundingSphere, box: g0.boundingBox };
+      RIG_SHAPES.set(gkey, SH);
+    }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3)); geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
-    geo.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(si, 4)); geo.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4)); geo.setIndex(new THREE.BufferAttribute(idx, 1));
-    geo.computeBoundingSphere(); geo.computeBoundingBox();
+    for (const k of ["position", "normal", "skinIndex", "skinWeight"]) geo.setAttribute(k, SH[k]);
+    geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.setIndex(SH.index);
+    geo.boundingSphere = SH.sphere.clone(); geo.boundingBox = SH.box.clone(); geo.dispose = unshareDispose;
     // (the material: the first piece's own — its finish and its grain — white, so the baked colours show as they were)
     const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = (clothSrcOf(M0.material) || M0.material).clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;
     if (!metal) { mat.metalness = 0; mat.roughness = Math.max(0.7, mat.roughness ?? 0.85); mat.envMap = null; }
@@ -3533,8 +3553,8 @@ export function mergeRig(root) {
     sk.userData.parts = parts; sk.userData.base = col.slice();
     sk.castShadow = true; sk.receiveShadow = true; sk.frustumCulled = false;
     list[0].parent.add(sk); sk.bind(list[0].skeleton, bind);
-    if (sim) { geo.setAttribute("aCloth", new THREE.BufferAttribute(acl, 2)); sk.userData.unCloth = clothMerged(sim, sk); }
-    if (met) { geo.setAttribute("aMetal", new THREE.BufferAttribute(met, 1)); addHook(sk.material, METAL_HOOK, "aMetal"); }
+    if (sim) { geo.setAttribute("aCloth", SH.aCloth); sk.userData.unCloth = clothMerged(sim, sk); }
+    if (SH.aMetal) { geo.setAttribute("aMetal", SH.aMetal); addHook(sk.material, METAL_HOOK, "aMetal"); }
     for (const o of list) { o.visible = false; freeze(o, true); }
     made.push(sk); made.hidden = (made.hidden || []).concat(list);
   }
@@ -3542,4 +3562,35 @@ export function mergeRig(root) {
   root.userData.merged = made;
   // (and made many again, if anything ever needs the pieces themselves)
   return () => { root.userData.merged = null; for (const m of made) { if (m.userData.unCloth) m.userData.unCloth(); m.parent && m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } for (const o of made.hidden) { o.visible = true; freeze(o, false); } };
+}
+// a person of a town's crowd far off drawn as one piece, as a battle's men are (see mergeRig), and as his own pieces again
+// close by — each a dozen and a half pieces, a market's crowd looked across was eight hundred draws. Made the first
+// time he's far, and kept; made again if his hands have closed or opened on something since; never for one hurt (his
+// stains are on his own pieces). far: whether he's far now; returns whether it made one (one a frame is enough)
+export function rigLod(P, far, canMake) {
+  let L = P._lod;
+  if (L && L.none) return false;
+  const sig = `${P._gripL}${P._gripR}`;
+  if (far && (P.woundN > 0 || P._soaked)) far = false;
+  if (L && L.far === far && (!far || L.sig === sig)) return false;
+  const pieces = on => {
+    for (const m of L.made) m.visible = !on;
+    for (const o of L.made.hidden) { o.visible = on; freeze(o, !on); }
+    if (on && P.setGrip) P.setGrip(P._gripL, P._gripR);
+    L.far = !on;
+  };
+  if (!far) { if (L && L.far) pieces(true); return false; }
+  if (L && L.sig !== sig) { if (L.far) pieces(true); L.drop(); if (P.setGrip) P.setGrip(P._gripL, P._gripR); P._lod = L = null; }
+  if (!L) {
+    if (!canMake) return false;
+    const was = P.root.userData.merged, drop = (() => { try { return mergeRig(P.root); } catch (e) { return null; } })();
+    if (!drop) { P._lod = { none: true }; return false; }
+    P._lod = L = { drop, made: P.root.userData.merged, sig, far: true };
+    // (and left out when he's behind the eye, as his pieces were: his bounds as he stands now, with room to move in)
+    for (const m of L.made) { m.computeBoundingSphere(); if (m.boundingSphere) { m.boundingSphere.radius *= 1.3; m.frustumCulled = true; } }
+    // (not a battle man's merging: wounds and stains go on to his own pieces)
+    P.root.userData.merged = was || null;
+    return true;
+  }
+  pieces(false); return false;
 }

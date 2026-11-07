@@ -13,7 +13,7 @@ import { renderFrame, post, warmViews, warmOnce } from "./post.js";
 import { reflectWater } from "./water.js";
 import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
-import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns } from "./models.js";
+import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns, rigLod } from "./models.js";
 import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
@@ -3187,7 +3187,8 @@ export function frame(dt, skipRender) {
     if (!SKYENV.tex || (G.envN = (G.envN || 0) + 1) % 30 === 0) updateSkyEnv();
     // (the mirror, when it's drawn, has just worked out the place of everything in the scene: the frame itself doesn't
     //  go through all of it again straight after — in a battle, sixteen thousand things)
-    if (G.world && G.world.actors) for (const a of G.world.actors) eyesFor(a, camera.position);
+    // (one made a frame — all of them while a new place is still settling, before its first look round: see warmViews)
+    if (G.world && G.world.actors) { let make = true; for (const a of G.world.actors) { eyesFor(a, camera.position); if (a !== G.player && a.person && a.root && a.person.root && !G.arena) { const p = a.root.position, d2 = (p.x - camera.position.x) ** 2 + (p.z - camera.position.z) ** 2; if (rigLod(a.person, d2 > (a.person._lod && a.person._lod.far ? 144 : 196), make)) { make = G.warmViews > 0; a._cast = null; a._shT = 0; } } } }
     lodGuns(camera.position, G.scene);
     const placed = reflectWater(renderer, G.scene, camera);
     if (placed) G.scene.matrixWorldAutoUpdate = false;

@@ -38,6 +38,8 @@ export const CHANGELOG = [
       "A musket close by casts its shadow from its stock and barrel only: the lock, brass, ramrod and bayonet sit inside the barrel's own shadow, and were five more things to draw for every musket. Buttons and buckles no longer cast shadows inside the coat's.",
       "A soldier's buttons and buckles are part of his clothes in a crowd, still shining as metal, instead of a piece of their own; a far-off musket is one piece, with its bayonet worked into it when one is fixed.",
       "Patches of woods round a battlefield no longer draw the kinds of tree they have none of.",
+      "Townsfolk more than about fifteen yards away are drawn as one piece each, as soldiers in a battle are, instead of fifteen or so (coat, hat, hands, hair and the rest); close by you see them as before. A view across Hamburg's crowd went from about 1,470 draws a frame to about 280, and about a sixth faster.",
+      "Soldiers and townsfolk drawn as one piece share the shape of their model instead of each keeping a copy of it, so making them is about three times quicker (a battle of a hundred starts a little sooner) and takes far less memory; only each one's own colours are his.",
     ],
   },
   {
