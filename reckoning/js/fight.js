@@ -37,36 +37,58 @@ export const kickFov = d => { G.fovKick = d; };
 let geoS = null, geoB = null;
 const matS = new THREE.MeshBasicMaterial({ color: 0xffd27a, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false });
 const matB = new THREE.MeshStandardMaterial({ color: 0x4a0605, roughness: 0.3 });
-// at `at`, flying mostly along `dir`: kind "sparks" (bright, quick, gone) or "blood" (drops that fall and lie a while)
+// at `at`, flying mostly along `dir`: kind "sparks" (bright, quick, gone) or "blood" (drops that fall and lie a while).
+// (all of a kind drawn together, as one instanced mesh: a volley's hits threw a dozen drops each, every drop its own
+//  draw — in a battle near two hundred of them at a time)
+const POOL = {}, _d = new THREE.Object3D(), CAP = 384;
+function poolOf(spark) {
+  const k = spark ? "sparks" : "blood";
+  let P = POOL[k];
+  if (!P) { const m = new THREE.InstancedMesh(spark ? geoS : geoB, spark ? matS : matB, CAP); m.count = 0; m.frustumCulled = false; m.castShadow = false; P = POOL[k] = { m, bits: [], spark }; }
+  if (P.m.parent !== G.scene) G.scene.add(P.m);
+  return P;
+}
+function tickBits(dt) {
+  let any = false;
+  for (const P of Object.values(POOL)) {
+    const spark = P.spark, gone = !spark && G.settings && G.settings.gore === false;   // (gore turned off while it flew: gone)
+    let n = 0;
+    for (const b of P.bits) {
+      b.t += dt;
+      if (gone || b.t > (spark ? 0.5 : 5) || b.down) continue;
+      const v = b.v;
+      if (v) {
+        v.y -= (spark ? 9 : 11) * dt; b.p.addScaledVector(v, dt);
+        if (spark) b.sz = Math.max(0.01, 1 - b.t / 0.45);
+        const gy = G.world && G.world.heightAt ? G.world.heightAt(b.p.x, b.p.z) + 0.01 : -1e9;
+        // (a drop of blood lands as a spot of it on the ground, soaking in; a spark just goes out)
+        if (b.p.y < gy) { b.p.y = gy; b.v = null; if (!spark) { b.down = true; drop(b.p.x, b.p.z, b.s); continue; } }
+      }
+      _d.position.copy(b.p);
+      if (spark) { if (v) b.at = [b.p.x + v.x, b.p.y + v.y, b.p.z + v.z]; if (b.at) _d.lookAt(b.at[0], b.at[1], b.at[2]); _d.scale.set(b.s, b.s, b.s * b.sz); }
+      else { _d.rotation.set(0, 0, 0); _d.scale.setScalar(b.s); }
+      _d.updateMatrix(); P.m.setMatrixAt(n++, _d.matrix);
+    }
+    P.bits = P.bits.filter(b => !(gone || b.t > (spark ? 0.5 : 5) || b.down));
+    P.m.count = n; P.m.instanceMatrix.needsUpdate = true;
+    if (P.bits.length) any = true;
+  }
+  if (!any) { const i = G.onFrame.indexOf(tickBits); if (i >= 0) G.onFrame.splice(i, 1); }
+}
 export function burst(at, dir, kind = "sparks", n = 12) {
-  const root = G.scene; if (!root || !at) return;
+  if (!G.scene || !at) return;
   if (kind === "blood" && G.settings && G.settings.gore === false) return;   // (the gore setting off: no blood whatever)
   geoS ??= new THREE.BoxGeometry(0.012, 0.012, 0.09); geoB ??= new THREE.SphereGeometry(0.022, 5, 4);
-  const spark = kind === "sparks", bits = [];
+  // (the frame's work cleared since the last — a new chapter begun — and what was flying then forgotten with it)
+  if (!G.onFrame.includes(tickBits)) for (const Q of Object.values(POOL)) { Q.bits.length = 0; Q.m.count = 0; }
+  const spark = kind === "sparks", P = poolOf(spark);
   const d = dir ? dir.clone().normalize() : new THREE.Vector3(0, 0, 1);
-  for (let i = 0; i < n; i++) {
-    const b = new THREE.Mesh(spark ? geoS : geoB, spark ? matS : matB);
-    b.position.copy(at); b.scale.setScalar(spark ? 0.6 + Math.random() : 0.5 + Math.random() * 1.1);
+  for (let i = 0; i < n && P.bits.length < CAP; i++) {
     const v = d.clone().multiplyScalar((spark ? 3 : 1.6) + Math.random() * (spark ? 4 : 2.2));
     v.x += (Math.random() - 0.5) * (spark ? 5 : 2.4); v.y += (spark ? 0.5 : 1.0) + Math.random() * (spark ? 3 : 1.8); v.z += (Math.random() - 0.5) * (spark ? 5 : 2.4);
-    b.userData.v = v; root.add(b); bits.push(b);
+    P.bits.push({ p: at.clone(), v, s: spark ? 0.6 + Math.random() : 0.5 + Math.random() * 1.1, sz: 1, t: 0 });
   }
-  let t = 0;
-  const tick = dt => {
-    t += dt;
-    if (!spark && G.settings && G.settings.gore === false) t = 99;   // (gore turned off while it flew: gone)
-    for (const b of bits) {
-      const v = b.userData.v;
-      if (!v) continue;
-      v.y -= (spark ? 9 : 11) * dt; b.position.addScaledVector(v, dt);
-      if (spark) { b.lookAt(b.position.x + v.x, b.position.y + v.y, b.position.z + v.z); b.scale.z = Math.max(0.01, 1 - t / 0.45); }
-      const gy = G.world && G.world.heightAt ? G.world.heightAt(b.position.x, b.position.z) + 0.01 : -1e9;
-      // (a drop of blood lands as a spot of it on the ground, soaking in; a spark just goes out)
-      if (b.position.y < gy) { b.position.y = gy; b.userData.v = null; if (!spark) { b.visible = false; drop(b.position.x, b.position.z, b.scale.x); } }
-    }
-    if (t > (spark ? 0.5 : 5)) { for (const b of bits) root.remove(b); const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1); }
-  };
-  G.onFrame.push(tick);
+  if (!G.onFrame.includes(tickBits)) G.onFrame.push(tickBits);
 }
 // ---- your kill: an X where it struck, popping in and fading, and a dull thud felt as much as heard ----
 let killEl = null;

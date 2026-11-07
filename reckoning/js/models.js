@@ -7,7 +7,7 @@
 
 import { loadPose, rodEnds, ROD_GEO } from "./reload.js";
 import { THREE, mat, MAT, Builder, prismGeo, makeFlame, rng, TAU, addDetail, addHook, noSnow, ownGrainAll, shine, inheritHooks } from "./core.js";
-import { mergeVertices } from "../lib/utils/BufferGeometryUtils.js";
+import { mergeVertices, mergeGeometries } from "../lib/utils/BufferGeometryUtils.js";
 import { attachCloth, clothMerged, clothSrcOf, clothSimOf } from "./cloth.js";
 
 // ---------------------------------------------------------------------------
@@ -1433,7 +1433,7 @@ export function makeDagger() {
 }
 // a bayonet fixed on a musket: its socket — a short iron sleeve with a crooked neck — slid over the muzzle and
 // turned, the blade standing out beside and below the barrel, so the musket still loads and fires
-const BAYONETS = {};
+const BAYONETS = {}, BAYONET_IRON = {};
 export function addBayonet(m) {
   if (!m || m.userData.bayonet) return m && m.userData.bayonet;
   const muzY = m.userData.muzzle ? m.userData.muzzle.position.y : 1.13, key = `bayonet_${muzY.toFixed(3)}`;
@@ -1441,9 +1441,13 @@ export function addBayonet(m) {
   let b = BAYONETS[key] && BAYONETS[key].clone();
   if (!b) {
     b = new THREE.Group();
-    const iron = mat(0x55595f, { metalness: 0.4, roughness: 0.45 });
-    const sock = new THREE.Mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.085, 10, 1, true), iron); sock.position.set(0, muzY - 0.05, 0.032); b.add(sock);
-    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.045), iron); neck.position.set(0, muzY - 0.03, 0.006); b.add(neck);
+    // (the socket and its neck one piece of iron, made once for the length and shared: the dagger's model, painted,
+    //  can't be joined to them, so they had stayed two pieces and their own iron on every musket in a company)
+    const IR = BAYONET_IRON[key] ??= (() => {
+      const sock = new THREE.CylinderGeometry(0.017, 0.017, 0.085, 10, 1, true).translate(0, muzY - 0.05, 0.032), neck = new THREE.BoxGeometry(0.012, 0.012, 0.045).translate(0, muzY - 0.03, 0.006);
+      return { geo: mergeGeometries([sock, neck]), mat: mat(0x55595f, { metalness: 0.4, roughness: 0.45 }) };
+    })();
+    b.add(new THREE.Mesh(IR.geo, IR.mat));
     const d = makeDagger(); d.position.set(0, muzY - 0.06, -0.014); b.add(d);
     b.traverse(o => { if (o.isMesh) o.castShadow = true; });
     // (kept, made one, once the dagger's model is in to make it from)

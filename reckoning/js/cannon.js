@@ -15,6 +15,7 @@ import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
 import { mat } from "./core.js";
 import { modelCopy } from "./models.js";
+import { mergeGeometries } from "../lib/utils/BufferGeometryUtils.js";
 import { shake, kickFov } from "./fight.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
 
@@ -68,6 +69,7 @@ export function makeCannon() {
     const fel = new THREE.Mesh(new THREE.TorusGeometry(R - 0.045, 0.04, 6, 36), oak); fel.rotation.y = Math.PI / 2; fel.scale.set(1, 1, 1.5); wh.add(fel);
     const tyre = new THREE.Mesh(new THREE.TorusGeometry(R - 0.005, 0.012, 4, 36), iron); tyre.rotation.y = Math.PI / 2; tyre.scale.set(1, 1, 4); wh.add(tyre);
     wh.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    fold(wh);
   }
   // the barrel, on its trunnions: turned from its outline (r, y) from the button behind to the lip in front, then the
   // bore back inside it; its trunnions are its pivot, so laying it up and down turns it about them
@@ -101,8 +103,23 @@ export function makeCannon() {
   { const [x, y, z] = along(-0.33, -0.285); stowed.push(put(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.2, 10).rotateX(Math.PI / 2), mat(0x5e5040, { roughness: 1 })), x, y, z, SL)); }
   { const [x, y, z] = along(1.52, -0.285); stowed.push(put(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.08, 10).rotateX(Math.PI / 2), oakD), x, y, z, SL)); }
   for (const t of [0.0, 1.1]) { const [x, y, z] = along(t, -0.262); put(new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 4, 8, Math.PI), iron), x, y - 0.01, z, 0, Math.PI / 2, Math.PI); }
+  fold(g, stowed);
   g.userData = { barrel, muzzle, stowed };
   return g;
+}
+// (a gun's still pieces made one for each finish — the carriage's oak and iron, each wheel's: a field of five guns was a
+//  hundred and eighty draws, and as many again in the shadows; the rammer and sponge kept their own, taken up and put back)
+function fold(group, keep = []) {
+  const by = new Map();
+  for (const o of group.children) if (o.isMesh && !keep.includes(o)) (by.get(o.material) || by.set(o.material, []).get(o.material)).push(o);
+  for (const [m, list] of by) {
+    if (list.length < 2) continue;
+    // (unindexed, all: the cheeks are extruded, which three leaves so, and the pieces must agree to be joined)
+    const geo = mergeGeometries(list.map(o => { o.updateMatrix(); const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone(); for (const k of Object.keys(g.attributes)) if (!["position", "normal", "uv"].includes(k)) g.deleteAttribute(k); return g.applyMatrix4(o.matrix); }));
+    if (!geo) continue;
+    for (const o of list) group.remove(o);
+    const one = new THREE.Mesh(geo, m); one.castShadow = list[0].castShadow; one.receiveShadow = list[0].receiveShadow; group.add(one);
+  }
 }
 
 // ---- smoke, flash and dust: soft puffs, made once ----
