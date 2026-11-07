@@ -65,6 +65,27 @@ function slowGlides(v, f) {
 function hideFar(v) { const far = v.scene.fog ? v.scene.fog.near + (v.scene.fog.far - v.scene.fog.near) * 0.35 : 1e9; for (const l of v.labels || []) if (l.visible && l.position.distanceTo(v.camera.position) > far) l.visible = false; }
 
 export const CSHOTS = {
+  // (the 3D map's own: from the whole of Europe in its crowns' colours, down through them to the land at Vienna)
+  descend3d: {
+    secs: 8.4, size: 9,
+    cam(t, v) {
+      const a = world(12, 50.5), b = world(16.37, 48.21), e = E(t), k = Math.pow(e, 0.7);
+      eye(v, mix(a.x, b.x, e), mix(a.z, b.z, e), mix(330, 9, k), mix(0.1, -0.15, e));
+    },
+  },
+  // high over the crowns, drifting: who holds what, as on the paper
+  overview: {
+    secs: 6.2, size: 9,
+    cam(t, v) { const a = world(this.lon0 ?? 8, this.lat0 ?? 49.5), b = world(this.lon1 ?? 17, this.lat1 ?? 49), e = E(t); eye(v, mix(a.x, b.x, e), mix(a.z, b.z, e), mix(this.d0 ?? 230, this.d1 ?? 200, e), mix(-0.12, 0.1, e)); },
+  },
+  // and up again from a town to the whole of Europe
+  rise: {
+    secs: 5.4, size: 9,
+    cam(t, v) {
+      const a = world(this.lon ?? 2.35, this.lat ?? 48.86), b = world(11, 50), e = E(t), k = Math.pow(e, 1.6);
+      eye(v, mix(a.x, b.x, e), mix(a.z, b.z, e), mix(7, 320, k), mix(0.3, 0, e));
+    },
+  },
   // high over all Europe, coming down to Vienna and the Danube
   descend: {
     secs: 7.5, size: 9,

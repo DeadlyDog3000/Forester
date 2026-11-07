@@ -14,7 +14,7 @@
 
 import { THREE, addDetail, addHook, inheritHooks } from "./core.js";
 
-const R = 5, S = 12, N = (R + 1) * S;      // (rings below the waist; points round each ring)
+const R = 5, S = 12, N = (R + 1) * S, _d3 = new THREE.Vector3();      // (rings below the waist; points round each ring)
 const PARTS = /_(skirt|apron|coat)$/;
 const _m = new THREE.Matrix4(), _n3 = new THREE.Matrix3(), _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 const id = (r, s) => r * S + ((s % S) + S) % S;
@@ -127,7 +127,9 @@ function clothDepth(uni) {
   d.customProgramCacheKey = () => "clothdepth" + N;
   return d;
 }
-const newUni = () => ({ value: Array.from({ length: N }, () => new THREE.Vector3()) });
+// (as one flat array of numbers, not N vectors: three hands that to the GPU as it is, where vectors it copied out into
+//  one each time a piece was drawn — every man's coat, in the shadow too, every frame)
+const newUni = () => ({ value: new Float32Array(N * 3) });
 
 // put cloth on a person: their model's scene, as made for them (see useModel)
 export function attachCloth(P, scene) {
@@ -307,7 +309,7 @@ function step(C, frame) {
   for (const part of C.parts) {
     const o = part.o;
     _n3.setFromMatrix4(_T.copy(o.matrixWorld).invert());
-    const U = part.uni.value;
-    for (let i = 0; i < N; i++) { const d = U[i].subVectors(P[i], T[i]); if (d.lengthSq() > 1.44) d.setLength(1.2); d.applyMatrix3(_n3); }
+    const U = part.uni.value, d = _d3;
+    for (let i = 0; i < N; i++) { d.subVectors(P[i], T[i]); if (d.lengthSq() > 1.44) d.setLength(1.2); d.applyMatrix3(_n3).toArray(U, i * 3); }
   }
 }
