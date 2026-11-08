@@ -1247,7 +1247,9 @@ class Arena {
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; if (T.raw) info.skill *= 0.45; }
         // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
         if (U && /^warrior/.test(U.body || "")) { if (info.lo.blade === "battleaxe") info.lo.blade = "warclub"; info.name = `${U.name} warrior — ${b.name}`; }
-        else if (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" };
+        // (a man with no muster of his own — a skirmish's — mostly a musket, if his colours carried one; a man raised as
+        //  something, armed as that and nothing else)
+        else if (!T && (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6)) { const uk = U && Object.keys(UNIFORMS).find(k => UNIFORMS[k] === U); if (!uk || !TEAMS[uk] || inKit(uk, "long", "musket")) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" }; }
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };
       if (this.remote) this.puppets(setup.roster);

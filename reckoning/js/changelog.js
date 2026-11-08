@@ -7,9 +7,10 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.260", date: "8 November 2026", title: "Placing your company: turning smoothly",
+    v: "1.99.260", date: "8 November 2026", title: "Every man armed as he was raised",
     items: [
       "Placing your company before a battle: an arm or a gun swings round smoothly when you turn it, instead of jumping a step at a time. The wheel turns it by as much as you roll it; hold Turn left, Turn right or R and it keeps coming round until you let go.",
+      "Battles: every man carries what he was raised with. Most of each company was being handed a musket as the battle began, whatever you'd mustered — a Tatar company of bowmen and lancers marched out with muskets. Now bowmen have bows, pikemen pikes, and only musketeers and grenadiers muskets, on every side.",
     ],
   },
   {
