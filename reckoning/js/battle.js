@@ -419,6 +419,14 @@ export class Field {
     return hi - lo < 0.7 + rad * 0.2;
   }
   claim(x, z, rad) { this.used.push({ x, z, rad }); }
+  // where a field gun can stand: where it was meant to, if that's open ground; else the nearest open ground round about —
+  // a town's houses come down before the guns are set out, and a gun was put inside one
+  gunSpot(x, z) {
+    const open = (cx, cz) => { for (let i = 0; i < 9; i++) { const a = i / 8 * Math.PI * 2, k = i ? 1.9 : 0, px = cx + Math.cos(a) * k, pz = cz + Math.sin(a) * k; if (this.w.col.solidAt(px, this.y(px, pz) + 0.7, pz, 0.6)) return false; } return true; };
+    if (open(x, z)) return { x, z };
+    for (let r = 2; r <= 30; r += 2) for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (open(px, pz)) return { x: px, z: pz }; }
+    return { x, z };
+  }
   // somewhere gen() offers that's free, claimed (or null, if nowhere was)
   find(gen, rad, tries = 40, gap) {
     for (let i = 0; i < tries; i++) { const p = gen(i); if (this.free(p.x, p.z, rad, gap)) { this.claim(p.x, p.z, rad); return p; } }
@@ -487,6 +495,7 @@ export class Field {
     const ng = this.gunsWant ? this.gunsWant[side] : 1 + Math.floor(r() * 2.4), at = [-1, 1, 0];
     for (let g = 0; g < Math.min(ng, 3); g++) {
       const z = C.z + at[g] * (17 + r() * 3), x = lineX - sx * (2 + r());
+      ({ x, z } = this.gunSpot(x, z));
       this.gun(side, x, z, sx); this.claim(x, z, 1.4);
       for (let k = 4; k <= 16; k += 4) this.claim(x - sx * k, z, 1.2);
     }

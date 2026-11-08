@@ -9,6 +9,10 @@ export const CHANGELOG = [
   {
     v: "1.99.263", date: "8 November 2026", title: "Works before the battle, and a finer crossbow",
     items: [
+      "Campaign battles: before each one you fight yourself, you choose your own arms — any of them, free. Your crown's armouries are yours; the Armoury's prices are for battles outside the campaign.",
+      "How many men: type the number in. On the muster's company page each count can be typed as well as stepped; and placing your company, each arm's number on the bar can be changed — more men raised from what's left in the purse, or fewer, sent off and paid back.",
+      "A town's field guns are set on open ground: at Edinburgh one stood inside a house. If the place meant for a gun is in a building, it goes to the nearest open ground instead.",
+      "Replays of a battle you fought on horseback show you on your horse, not sitting in the air.",
       "Placing your company before a battle, you can throw up works on your own ground, paid for from what's left in the battle's purse after the muster: a run of gabions, chevaux-de-frise, a palisade or an earth bank. Pick one on the bar, turn it with the wheel, right-click or R, and click to set it down — green where it can go. Undo takes the last one up and puts its cost back. Spend less on men and you've more for works.",
       "The crossbow's stock is shaped as a hunter's was: a long slim fore-end, the grip under the lock, and the butt dropping away in a full curve, every edge rounded, in smooth oiled walnut; bone let into the butt and a row of bone dots down each side, the lock plates riveted, and a heavier string.",
     ],

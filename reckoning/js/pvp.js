@@ -183,7 +183,8 @@ export function initPvp(c) {
   // (and from the title, beside the story: the campaign's a game for one as much as for two)
   $("btnCampaign").onclick = () => gate("campaign") && openCampaign(true, "title");
   // (a campaign's battle fought by hand: its field and its armies, as the campaign gives them)
-  initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0), skillAdd: b.skillAdd || 0 }); }, fieldWithPlayer);
+  // (a campaign's battle: your own arms chosen first — any arm at all, free; the crown's armouries are yours)
+  initCampaign(ctx, b => { lastMode = "campaign"; must = null; stopAmbient(); openMuster("cmp", { go: L => { lastMode = "campaign"; startDuel({ bot: true, army: histArmy(b, 0), skillAdd: b.skillAdd || 0, freeLo: L }); } }); }, fieldWithPlayer);
   $("pvpCancel").onclick = () => cancelSearch();
   $("pvpBotNow").onclick = () => botNow();
   $("pvpAgain").onclick = () => again();
@@ -204,7 +205,7 @@ export function initPvp(c) {
     //  costs, a second buys it)
     const id = b.dataset.id;
     if (ranked() && !inKit(teamNow(), b.dataset.slot, id)) { drawMe(`${TEAM_NAME(teamNow())} soldiers didn't carry ${nameOf(b.dataset.slot, id)} in 1683 — in a ranked fight you carry your team's arms. Change team for other arms.`); return; }
-    if (!ranked() && !owns(id)) { want = { k: "w", id, slot: b.dataset.slot }; drawMe(); sfx("arm", id); return; }
+    if (!ranked() && !owns(id) && must.kind !== "cmp") { want = { k: "w", id, slot: b.dataset.slot }; drawMe(); sfx("arm", id); return; }
     want = null;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
     const put = ["long", "side", "blade"].filter(k => k !== b.dataset.slot && lo[k] !== was[k]).map(k => ({ long: LONG, side: SIDE, blade: BLADE }[k][was[k]].name.toLowerCase()));
@@ -408,8 +409,9 @@ function openMuster(kind, link = null) {
   if (kind === "bots") setArmy({ battle: true, vs: "bots" });
   else if (kind === "mp") setArmy({ battle: true, vs: "player" });
   else if (kind === "hist") { /* (its armies are history's: nothing of yours to set) */ }
-  else setArmy({ battle: false, allies: 0, enemies: 1 });
+  else if (kind !== "cmp") setArmy({ battle: false, allies: 0, enemies: 1 });
   must = { kind, ...(link || {}), mine: false, theirs: null, t0: performance.now() };
+  $("musBack").classList.toggle("hidden", kind === "cmp");
   if (kind !== "mp" && camp && camp.net) camp.net.send({ t: "camp", status: "camp", ...mine() });
   if (kind === "mp") {
     const n = must.net, M = must;
@@ -454,13 +456,14 @@ const nameOf = (slot, id) => (({ long: LONG, side: SIDE, blade: BLADE })[slot][i
 // the scroll's tabs: which there are for this muster
 function musTabs() {
   const k = must.kind, sea = k === "hist" && battleById(histPick().id).sea;
+  if (k === "cmp") return [["arms", "Your arms"]];
   return [k === "hist" && ["battle", "The battle"], !sea && ["arms", "Arms"], k !== "hist" && ["team", "Team"], (k === "bots" || k === "mp") && ["company", "Company"], k === "bots" && ["field", "The field"], ["armoury", "Armoury"]].filter(Boolean);
 }
 function drawMuster() {
   if (!must) return;
   const k = must.kind, tabs = musTabs();
   if (!tabs.some(t => t[0] === musTab)) musTab = tabs[0][0];
-  $("musT").textContent = k === "hist" ? "Historical battles" : k === "duel" ? "Your arms" : k === "bots" ? "Muster — against bots" : "Muster your company";
+  $("musT").textContent = k === "cmp" ? "Your arms for the battle" : k === "hist" ? "Historical battles" : k === "duel" ? "Your arms" : k === "bots" ? "Muster — against bots" : "Muster your company";
   $("musTabs").innerHTML = tabs.map(([id, n]) => `<button data-mt="${id}" class="${musTab === id ? "on" : ""}">${n}</button>`).join("");
   const pane = { arms: "musMe", team: "musTeam", company: "musArmy", battle: "musArmy", field: "musField", armoury: "musForge" }[musTab];
   for (const id of ["musMe", "musTeam", "musArmy", "musField", "musForge"]) $(id).classList.toggle("hidden", id !== pane);
@@ -575,6 +578,7 @@ function drawVs() {
   const k = must.kind, el = $("musVs"), btn = $("musReady");
   if (k === "duel") { el.innerHTML = `<span class="mv-n">One against one, best of three — another player if anyone's looking, or a bot as strong as you are.</span>`; btn.textContent = "Find a match"; return; }
   if (k === "hist") { const P = histPick(), b = battleById(P.id); el.innerHTML = `<span class="mv-n"><b>${esc(b.name)}</b>, ${esc(b.date)} — for ${esc(b.sides[P.side].name.replace(/^The /, "the "))}. Against bots; it doesn't touch your rating.</span>`; btn.textContent = b.sea ? "Make sail" : "To the field"; return; }
+  if (k === "cmp") { el.innerHTML = `<span class="mv-n">A battle of your campaign. Carry whatever you like: every arm is yours to choose, free — your crown's armouries are open to you.</span>`; btn.textContent = "To the field"; return; }
   if (k === "bots") { const A = army(); el.innerHTML = `<span class="mv-n">${isCustom(A) ? `${sidesWord(A.sides)} — every other company's officer raises it from the same purse, and spends it his own way.` : "Their officer raises his company from the same purse, and spends it his own way."}</span>`; btn.textContent = "To the field"; return; }
   const left = Math.max(0, 120 - Math.floor((performance.now() - must.t0) / 1000));
   el.innerHTML = `<span class="mv-n">Against <b>${esc(must.foe.name || "another commander")}</b>${must.foe.rating ? ` · ${rankOf(must.foe.rating)}` : ""}</span>
@@ -586,11 +590,11 @@ function drawVs() {
 }
 // your own arms: three rows of choices, one of each
 function drawMe(note = "") {
-  const I = ctx.ICON, heavy = (slot, id) => !allowedLoad({ ...lo, [slot]: id }), R = ranked(), T = teamNow();
+  const I = ctx.ICON, heavy = (slot, id) => !allowedLoad({ ...lo, [slot]: id }), R = ranked(), T = teamNow(), free = !!must && must.kind === "cmp";
   // (what you carry made to fit what's allowed here: your team's arms in a ranked fight, your own otherwise)
-  { const f = fitTo(lo, R, T, fitLoad); if (f.long !== lo.long || f.side !== lo.side || f.blade !== lo.blade) { lo = f; saveLoadout(lo); } }
-  const tag = (slot, id) => R ? (inKit(T, slot, id) ? "" : `<i class="mc-x">not ${esc(TEAM_NAME(T))}</i>`) : owns(id) ? "" : `<i class="mc-p">${money(WEAPON_PRICE[id])}</i>`;
-  const off = (slot, id) => R ? !inKit(T, slot, id) : !owns(id);
+  if (!free) { const f = fitTo(lo, R, T, fitLoad); if (f.long !== lo.long || f.side !== lo.side || f.blade !== lo.blade) { lo = f; saveLoadout(lo); } }
+  const tag = (slot, id) => free ? "" : R ? (inKit(T, slot, id) ? "" : `<i class="mc-x">not ${esc(TEAM_NAME(T))}</i>`) : owns(id) ? "" : `<i class="mc-p">${money(WEAPON_PRICE[id])}</i>`;
+  const off = (slot, id) => free ? false : R ? !inKit(T, slot, id) : !owns(id);
   const chip = (slot, id, o) => `<button class="mc${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}${off(slot, id) ? " off" : ""}${wantIs("w", id, slot) ? " ask" : ""}" data-slot="${slot}" data-id="${id}" title="${esc(o.stats.map(([a, b]) => a + " " + b).join(" · ") + " — " + o.note + (NOT_IN_1683[id] ? " " + NOT_IN_1683[id] : ""))}">${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="mc-none"></span>`}<span>${esc(id === "dagger" && lo.long !== "musket" ? "Knife" : o.name)}</span>${tag(slot, id)}</button>`;
   const row = (slot, title, list) => `<div class="mr"><div class="pv-h">${title}</div><div class="mcs">${Object.entries(list).filter(([, o]) => !o.hidden).map(([id, o]) => chip(slot, id, o)).join("")}</div></div>`;
   const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100), pick = { long: LONG[lo.long], side: SIDE[lo.side], blade: BLADE[lo.blade] };
@@ -605,6 +609,7 @@ function musterReady() {
   if (!must) return;
   if (table) table.stop();
   const k = must.kind;
+  if (k === "cmp") { const go = must.go; must = null; $("musBack").classList.remove("hidden"); go({ ...lo }); return; }
   if (k === "bots") { const H = pendingGhost; lastMode = H ? "ghost" : "bots"; must = null; startDuel({ bot: true, army: H ? { ...army(), enemyUniform: H.uniform, ghost: H } : undefined }); return; }
   if (k === "hist") { const P = histPick(), b = battleById(P.id); lastMode = "hist"; must = null; if (b.sea) { seaHist(b, P.side); return; } startDuel({ bot: true, army: histArmy(b, P.side) }); return; }
   // (a duel in the demo: against a bot, at once — another player is the full game's)
@@ -1092,7 +1097,9 @@ function startDuel(o) {
   //  the same for everyone — and you armed as your colours were, as in a ranked battle)
   if (o.easy) foe.skill = Math.min(foe.skill, 0.3);
   if (o.challenge) { foe.skill = 0.62; withSeed(o.challenge.seed, () => new Arena({ me, lo: armedLo(true), foe, net: null, side: 0, army: A })); return; }
-  new Arena({ me, lo: armedLo(!!o.net), foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
+  // (a campaign's battle: the arms chosen for it, whatever they are)
+  const L = o.freeLo ? (f => ({ ...f, skin: skinOf(f), up: {} }))(fitLoad({ ...o.freeLo })) : armedLo(!!o.net);
+  new Arena({ me, lo: L, foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
 }
 
 // ---------------------------------------------------------------------------
