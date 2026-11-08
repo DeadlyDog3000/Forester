@@ -5,7 +5,7 @@
 // THE RULES OF A MULTIPLAYER GAME: what can be built and what it costs, how hard things are to break, how far an
 // axe reaches. The server and every player read the same rules, so the server can check what it's told.
 
-export const PROTOCOL = 1;
+export const PROTOCOL = 2;
 
 // what you can build: logs and stone; how much of a beating it takes; how much room it needs (a circle about it,
 // or for walls a length); `claim`, the ground round it that becomes yours

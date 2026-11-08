@@ -1657,7 +1657,7 @@ async function start(opts = {}) {
       let m; try { m = JSON.parse(text); } catch (e) { return; }
       if (!m || typeof m.t !== "string") return;
       if (m.t === "hello") {
-        if ((m.v | 0) !== R.PROTOCOL) return ws.send({ t: "err", fatal: true, text: "This server runs a different version of the game. Update the game, or wait for the server to be." });
+        if ((m.v | 0) !== R.PROTOCOL) return ws.send({ t: "err", fatal: true, text: "A newer version of the game is out, and online play needs it. Close the game and open it again to update (or choose Help, then Check for updates)." });
         const token = String(m.token || ""); if (token.length < 16) return ws.close();
         // (the username is who you are, and stays; the name is who you play this time — invitations go by the username)
         who = { pid: pidOf(token), user: userOf(m.user), name: clean(m.name, 24) || "Stranger", look: sanitizeLook(m.look) }; ws.who = who;

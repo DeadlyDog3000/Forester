@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.258", date: "8 November 2026", title: "Everyone online on the same version",
+    items: [
+      "Online play now needs this version: a game left on an older one is told to update before it can join the camp, a battle or a duel, so two players never meet with different versions of the battle code between them.",
+    ],
+  },
+  {
     v: "1.99.257", date: "8 November 2026", title: "Battles found by name",
     items: [
       "The highlights have a search box: type a name and the battles shared under it are listed, or those fought by a commander of that name. Left empty, it lists every battle that has been given a name, newest first.",
