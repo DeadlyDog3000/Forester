@@ -1782,6 +1782,20 @@ class Arena {
     // (a turn asked for: the facing it's to come round to, eased there frame by frame; the sound once in a while)
     let spin = null;
     const turn = (T, by, sound = true) => { T.want = (T.want ?? T.face) + by; if (sound) { const n = performance.now(); if (n - (T.wt || 0) > 180) { T.wt = n; sfx("wheel"); } } };
+    // works: what the purse has left after the muster, spent on earthworks and obstacles on your own ground — a work
+    //  in hand follows the pointer, green where it can go, and goes down with a click; Undo takes the last one up again,
+    //  its cost back in the purse
+    const WK = Field.WORKS, A0 = this.army, built = [];
+    let purseLeft = this.battle && A0 && A0.purse ? Math.max(0, (A0.purse | 0) - spentOf(A0)) : 0, work = null;
+    const ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x7ad07a, transparent: true, opacity: 0.4, depthWrite: false, fog: false })); ghost.visible = false; ghost.renderOrder = 4; root.add(ghost);
+    // (not on top of your own men, nor where you stand: they'd be inside it)
+    const onMen = (p, rad) => Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) < rad || this.alliesOf(0).some(u => Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < rad);
+    const wkAt = g => { const W = WK[work.k], p = clampZone(g.x, g.z), ok = purseLeft >= W.cost && inZone(g.x, g.z) && !!this.field && this.field.free(p.x, p.z, W.rad * 0.6, 0.2) && !onMen(p, W.rad * 0.6 + 0.5); return { p, ok }; };
+    const placeWork = g => {
+      const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(purseLeft < W.cost ? `Not enough left in the purse: ${W.name.toLowerCase()} cost ${W.cost} thalers.` : "Not there: your men are on it, the ground's taken or too rough, or it's outside your ground.", 2); return; }
+      const rec = this.field.build(work.k, p.x, p.z, work.ry, 0, { x: p.x - f.x * 20, z: p.z - f.z * 20 });
+      built.push({ k: work.k, rec, cost: W.cost }); purseLeft -= W.cost; sfx("buy", 3); drawBar();
+    };
     // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
     //  or further with the wheel (when nothing's in hand), turned with Q and E
     const cam = { x: home.x - f.x * 6, z: home.z - f.z * 6, d: 58, yaw: faceTo, pitch: 0.95 };
@@ -1814,6 +1828,9 @@ class Arena {
       for (const T of tokens) if (T.want != null && T.want !== T.face) { const d = T.want - T.face; T.face = Math.abs(d) < 0.003 ? T.want : T.face + d * Math.min(1, dt * 12); if (T !== held) stand(T); }
       if (held) { const g = ground(mouse.x, mouse.y); if (g && now - (held.t || 0) > 40) { held.t = now; held.at = g; stand(held); } else if (held.face !== held.lastFace) stand(held); held.lastFace = held.face; }
       for (const T of tokens) T.ring.material.opacity = T === held ? 1 : 0.75;
+      // (the work in hand, where it would go)
+      ghost.visible = false;
+      if (work && !held) { const g = ground(mouse.x, mouse.y); if (g) { const W = WK[work.k], { p, ok } = wkAt(g); ghost.visible = true; ghost.scale.set(W.len, W.high, W.depth); ghost.position.set(p.x, groundY(p.x, p.z) + W.high / 2, p.z); ghost.rotation.y = work.ry; ghost.material.color.setHex(ok ? 0x7ad07a : 0xd8584a); } }
     };
     // where the pointer falls on the ground: walked out along the ray till it meets the land
     const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), view = new THREE.PerspectiveCamera();
@@ -1832,8 +1849,9 @@ class Arena {
     // the bar along the bottom: what to do, an arm to pick up by name, the officer's choice, and Begin
     const bar = document.createElement("div"); bar.id = "deployBar";
     const drawBar = () => {
-      bar.innerHTML = `<div class="dp-t"><b>Place your company</b><span>Click an arm or a gun to pick it up, click again to set it down · the arrow on its ring is its front: the wheel, right-click or R turns it · WASD or the arrows move the view, Q and E turn it · their lines are hidden until the battle begins</span></div>
+      bar.innerHTML = `<div class="dp-t"><b>Place your company</b><span>Click an arm or a gun to pick it up, click again to set it down · the arrow on its ring is its front: the wheel, right-click or R turns it · works are bought from what's left in the purse: pick one, click to set it down, turn it the same way · WASD or the arrows move the view, Q and E turn it · their lines are hidden until the battle begins</span></div>
         <div class="dp-g">${tokens.map(T => `<button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : T.gun ? "gun" : `${T.men.length} men`}</small></button>`).join("")}</div>
+        ${this.field && A0 && A0.battle ? `<div class="dp-w"><span class="dp-wl">Works <b>${purseLeft} thalers</b> left in the purse</span>${Object.entries(WK).map(([k, W]) => `<button data-dp="wk:${k}" class="${work && work.k === k ? "on" : ""}"${purseLeft < W.cost ? " disabled" : ""}>${esc(W.name)}<small>${W.cost} · ${esc(W.sub)}</small></button>`).join("")}${built.length ? `<button data-dp="undo" class="ghost">Undo</button>` : ""}</div>` : ""}
         <div class="dp-a">${held ? `<button data-dp="tl" class="ghost">Turn left</button><button data-dp="tr" class="ghost">Turn right</button>` : ""}<button data-dp="auto" class="ghost">Officer's choice</button><button data-dp="go" class="go">Begin the battle</button></div>`;
     };
     drawBar(); document.getElementById("hud").parentElement.appendChild(bar);
@@ -1857,7 +1875,9 @@ class Arena {
     // (for the test scripts: what's placed where, and the pointer's ground)
     this.dp = { tokens, ground, pickAt, view, get held() { return held; } };
     const onBar = e => { const b = e.target.closest && e.target.closest("[data-dp]"); if (!b) return false; const id = b.dataset.dp;
-      if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { const d = id === "tl" ? 1 : -1; turn(held, d * Math.PI / 8); spin = { d, t0: performance.now() }; } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); sfx(held ? "muster" : "halt"); }
+      if (id.startsWith("wk:")) { const k = id.slice(3); held = null; work = work && work.k === k ? null : { k, ry: Math.atan2(-r.z, r.x) }; drawBar(); sfx(work ? "smith" : "halt"); }
+      else if (id === "undo") { const b = built.pop(); if (b) { this.field.unbuild(b.rec); purseLeft += b.cost; sfx("purse", 2); drawBar(); } }
+      else if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { const d = id === "tl" ? 1 : -1; turn(held, d * Math.PI / 8); spin = { d, t0: performance.now() }; } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; work = null; drawBar(); sfx(held ? "muster" : "halt"); }
       return true; };
     // (a press, pointer's or mouse's — whichever the browser sends, once)
     let lastPress = 0;
@@ -1865,7 +1885,8 @@ class Arena {
       if (!G.deploying) return; const now = performance.now(); if (now - lastPress < 120) { e.stopImmediatePropagation(); return; } lastPress = now;
       if (bar.contains(e.target)) { e.stopImmediatePropagation(); onBar(e); return; }
       e.stopImmediatePropagation(); e.preventDefault(); mouse = { x: e.clientX, y: e.clientY };
-      if (e.button === 2) { if (held) turn(held, -Math.PI / 8); return; }
+      if (e.button === 2) { if (held) turn(held, -Math.PI / 8); else if (work) { work.ry += Math.PI / 8; sfx("wheel"); } return; }
+      if (work && !held) { const g = ground(e.clientX, e.clientY); if (g) placeWork(g); return; }
       if (held) { const g = ground(e.clientX, e.clientY); if (g) { held.at = g; stand(held); } held = null; sfx("halt"); drawBar(); return; }
       const T = pickAt(e.clientX, e.clientY); if (T) { held = T; drawBar(); sfx("muster"); }
     };
@@ -1874,9 +1895,9 @@ class Arena {
       ["mousedown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); press(e); }],
       ["pointermove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
       ["mousemove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
-      ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) turn(held, clamp(e.deltaY * 0.0045, -0.35, 0.35)); else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
+      ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) turn(held, clamp(e.deltaY * 0.0045, -0.35, 0.35)); else if (work) work.ry += clamp(e.deltaY * 0.0045, -0.35, 0.35); else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
       ["contextmenu", e => { if (G.deploying) e.preventDefault(); }],
-      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); sfx("roll"); finish(); return; } if (e.code === "Escape") { held = null; drawBar(); return; } if (e.code === "KeyR" && held) { if (!e.repeat) turn(held, -Math.PI / 16); keys.add(e.code); return; } keys.add(e.code); }],
+      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); sfx("roll"); finish(); return; } if (e.code === "Escape") { held = null; work = null; drawBar(); return; } if (e.code === "KeyR" && work && !held) { work.ry += Math.PI / 8; sfx("wheel"); return; } if (e.code === "KeyR" && held) { if (!e.repeat) turn(held, -Math.PI / 16); keys.add(e.code); return; } keys.add(e.code); }],
       ["keyup", e => { keys.delete(e.code); }],
       ["pointerup", () => { spin = null; }], ["mouseup", () => { spin = null; }],
     ];

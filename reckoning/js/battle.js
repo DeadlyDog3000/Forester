@@ -638,7 +638,7 @@ export class Field {
     this.put(g, x, z, ry, -0.08);
     this.solid(x, z, len, 1.6, ry, 1.05, side, inward);
   }
-  cheval(x, z, ry, side) {
+  cheval(x, z, ry, side, inward = null) {
     // a log with sharpened stakes through it, crossed both ways: no one walks through that
     const g = new THREE.Group(), L = 3.2;
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, L, 8).rotateZ(Math.PI / 2), this.M.log); beam.position.y = 0.6; g.add(beam);
@@ -646,11 +646,11 @@ export class Field {
       const st = new THREE.Mesh(new THREE.ConeGeometry(0.045, 1.5, 6), this.M.stave); st.position.set(-L / 2 + 0.2 + i * (L - 0.4) / 6, 0.6, 0); st.rotation.x = a; g.add(st);
     }
     this.put(g, x, z, ry);
-    this.solid(x, z, L, 1.0, ry, 1.0, side);
+    this.solid(x, z, L, 1.0, ry, 1.0, side, inward);
   }
   // stakes driven in shoulder to shoulder (overlapping, so no light shows between them), and planks nailed across the
   // back of them
-  palisade(x, z, len, ry, side) {
+  palisade(x, z, len, ry, side, inward = null) {
     const g = new THREE.Group(), n = Math.round(len / 0.18);
     const back = new THREE.Mesh(new THREE.BoxGeometry(len, 1.35, 0.05), this.M.wood); back.position.set(0, 0.7, 0.1); g.add(back);
     for (let i = 0; i < n; i++) {
@@ -661,7 +661,32 @@ export class Field {
     }
     const rail = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, 0.06), this.M.wood); rail.position.set(0, 0.9, 0.12); g.add(rail);
     this.put(g, x, z, ry);
-    this.solid(x, z, len, 0.3, ry, 1.9, side);   // (to the stakes' points: nothing goes over the top of it below them)
+    this.solid(x, z, len, 0.3, ry, 1.9, side, inward);   // (to the stakes' points: nothing goes over the top of it below them)
+  }
+  // ---- works thrown up before the battle (the deployment's), paid for from the company's purse ----
+  // (kind: "gabions", a run of three; "cheval", chevaux-de-frise; "palisade"; "bank", an earth bank — each ry along its
+  //  length, its cover on the side toward inward. Everything it adds to the field is kept, so it can be taken down again)
+  static WORKS = {
+    gabions: { name: "Gabions", sub: "three baskets of earth", cost: 30, len: 2.7, depth: 0.9, high: 1.18, rad: 1.6 },
+    cheval: { name: "Chevaux-de-frise", sub: "stops horse and foot", cost: 30, len: 3.2, depth: 1.0, high: 1.0, rad: 1.8 },
+    palisade: { name: "Palisade", sub: "stakes, head high", cost: 45, len: 4, depth: 0.3, high: 1.8, rad: 2.2 },
+    bank: { name: "Earth bank", sub: "breast high, to fire over", cost: 50, len: 5, depth: 2.6, high: 1.1, rad: 2.8 },
+  };
+  build(kind, x, z, ry, side, inward) {
+    const n0 = this.root.children.length, c0 = this.cols.length, p0 = this.pieces.length, s0 = this.spots.map(l => l.length);
+    if (kind === "gabions") for (const o of [-0.9, 0, 0.9]) { const q = this.at(x, z, ry, o, 0); this.gabion(q.x, q.z, side, inward); }
+    else if (kind === "cheval") this.cheval(x, z, ry, side, inward);
+    else if (kind === "palisade") this.palisade(x, z, 4, ry, side, inward);
+    else if (kind === "bank") this.bank(x, z, 5, ry, side, inward);
+    const claim = { x, z, rad: Field.WORKS[kind].rad }; this.used.push(claim);
+    return { meshes: this.root.children.slice(n0), cols: this.cols.slice(c0), pieces: this.pieces.slice(p0), spots: this.spots.map((l, i) => l.slice(s0[i])), claim };
+  }
+  unbuild(rec) {
+    for (const m of rec.meshes) { this.root.remove(m); m.traverse(o => { if (o.geometry && !o.geometry._shared) o.geometry.dispose(); }); }
+    for (const c of rec.cols) { this.w.col.remove(c); const j = this.cols.indexOf(c); if (j >= 0) this.cols.splice(j, 1); }
+    for (const p of rec.pieces) { if (p.c) this.w.col.remove(p.c); const j = this.pieces.indexOf(p); if (j >= 0) this.pieces.splice(j, 1); }
+    rec.spots.forEach((l, i) => { for (const s of l) { const j = this.spots[i].indexOf(s); if (j >= 0) this.spots[i].splice(j, 1); } });
+    this.used = this.used.filter(u => u !== rec.claim);
   }
   // ---- between the lines: what the country left lying about ----
   // farms, field walls and hedges, a woodcutter's felling, rocks, a wagon broken down — set down by turns on
