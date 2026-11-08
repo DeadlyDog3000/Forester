@@ -16,8 +16,8 @@
 import { THREE } from "./core.js";
 import { makeArm, makeCrossbow, modelCopy, ensureModel, fpMusket } from "./models.js";
 
-// (the second armoury, 1.99.252: prices tripled and everyone begun again — the first's purses and arms set aside)
-const KEY = "reckoning.armoury.2";
+// (the third armoury, 1.99.254: everyone begun again once more — the first's and second's purses and arms set aside)
+const KEY = "reckoning.armoury.3";
 
 // ---- the arms, and what each costs (a bow and a knife to begin with: what a man could make or find) ----
 export const WEAPON_PRICE = { none: 0, bow: 0, dagger: 0, spear: 120, axe: 120, warclub: 150, crossbow: 240, pistol: 270, sword: 300, battleaxe: 360, musket: 450 };
@@ -118,7 +118,7 @@ function state() {
   if (!S || typeof S !== "object" || !S.v) {
     S = { v: 2, purse: {}, own: {}, up: {}, teams: ["tatar"], fin: [], skin: {}, day: "" };
     void seed;   // (since 1.99.252 nobody carries anything over: every player begins as the Tatars, with a bow and a knife)
-    try { localStorage.removeItem("reckoning.armoury"); } catch (e) {}
+    try { localStorage.removeItem("reckoning.armoury"); localStorage.removeItem("reckoning.armoury.2"); } catch (e) {}
     save();
   }
   S.purse ||= {}; S.own ||= {}; S.up ||= {}; S.teams ||= ["tatar"]; S.fin ||= []; S.skin ||= {};

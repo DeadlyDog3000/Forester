@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.254", date: "8 November 2026", title: "Everyone begins again",
+    items: [
+      "Every player's armoury is begun again: every purse emptied, and every bought arm, team's colours, upgrade and finish set aside. Everyone starts afresh as the Crimean Tatars with a bow and a knife. Ratings are unchanged.",
+    ],
+  },
+  {
     v: "1.99.253", date: "8 November 2026", title: "Buying with a button, and upgrades seen on the gun",
     items: [
       "Nothing is bought by a stray click any more: click anything in the armoury that isn't yours — an arm, a team's colours, a finish, a gunsmith's upgrade — and it's shown to you with its price and how much is in the purse, and you buy it with the Buy button (or Cancel).",
