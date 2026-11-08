@@ -286,10 +286,10 @@ export async function upload(rec) {
     const j = await r.json(); return j && j.ok ? j.id : null;
   } catch (e) { return null; }
 }
-export async function listReplays({ sort = "recent", pid = "", n = 20 } = {}) {
+export async function listReplays({ sort = "recent", pid = "", n = 20, q = "", named = false } = {}) {
   const h = httpOf(); if (!h) return [];
   const ac = new AbortController(), to = setTimeout(() => ac.abort(), 4000);
-  try { const r = await fetch(`${h}/replays?sort=${sort}&n=${n}${pid ? "&pid=" + encodeURIComponent(pid) : ""}`, { signal: ac.signal, cache: "no-store" }); const j = await r.json(); return j && j.list || []; }
+  try { const r = await fetch(`${h}/replays?sort=${sort}&n=${n}${pid ? "&pid=" + encodeURIComponent(pid) : ""}${q ? "&q=" + encodeURIComponent(q) : ""}${named ? "&named=1" : ""}`, { signal: ac.signal, cache: "no-store" }); const j = await r.json(); return j && j.list || []; }
   catch (e) { return []; } finally { clearTimeout(to); }
 }
 const fetched = new Map();

@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.257", date: "8 November 2026", title: "Battles found by name",
+    items: [
+      "The highlights have a search box: type a name and the battles shared under it are listed, or those fought by a commander of that name. Left empty, it lists every battle that has been given a name, newest first.",
+      "The battles kept on the server have been cleared away, so the highlights begin fresh with battles that have names.",
+    ],
+  },
+  {
     v: "1.99.256", date: "8 November 2026", title: "No pay for historical battles",
     items: [
       "Battles against another player: the other player is no longer left stuck on the first page of a great battle. The host's game sent the whole of both companies in one message, and with big armies it was more than the server passes on, so it never arrived; the men go over in parts now.",

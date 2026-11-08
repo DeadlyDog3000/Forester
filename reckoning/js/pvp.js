@@ -285,14 +285,22 @@ function drawBoard() {
   el.innerHTML = b.length ? `<table><tr><th></th><th>Commander</th><th>Rank</th><th>Rating</th><th>Won–lost</th><th>Battles</th></tr>${b.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.rank || "")}</td><td>${p.rating}</td><td>${p.w}–${p.l}</td><td class="cb-hl">${p.pid && p.reps ? `<button data-pid="${esc(p.pid)}" data-sort="best" title="${esc(p.name)}'s best battle">Best</button><button data-pid="${esc(p.pid)}" data-sort="recent" title="${esc(p.name)}'s latest battle">Latest</button>` : ""}</td></tr>`).join("")}</table>` : `<div class="cw-empty">No one has fought yet. Be the first.</div>`;
 }
 // the highlights tab: the battles lately fought (from the server), and your own (kept here)
-let hlList = [], hlMine = [];
+let hlList = [], hlMine = [], hlFind = "", hlFound = null, hlT = 0;
 async function drawHl() {
   const el = $("campHl"); if (!el) return;
   const row = (r, src) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b"><button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Watch</button></span></div>`; };
-  const draw = () => { el.innerHTML = `<div class="pv-h">Lately, on the server</div>${hlList.length ? hlList.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${hlList.loading ? "Looking…" : "No battles on the server yet — or it can't be reached."}</div>`}<div class="pv-h">Your own</div>${hlMine.length ? hlMine.map(r => row(r, "mine")).join("") : `<div class="cw-empty">Your battles are kept here once you've fought one.</div>`}`; };
-  hlList.loading = true; draw();
+  // (looked for by name: what a battle was called when it was shared, or who fought it — or, empty, every named one)
+  const found = () => `<div class="pv-h">${hlFind ? `Named “${esc(hlFind)}”` : "Named battles"}</div>${hlFound && hlFound.length ? hlFound.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${!hlFound ? "Looking…" : hlFind ? "No battle on the server goes by that name." : "Nobody has named a battle yet."}</div>`}`;
+  const list = () => { const l = el.querySelector(".hl-list"); if (l) l.innerHTML = found() + `<div class="pv-h">Lately, on the server</div>${hlList.length ? hlList.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${hlList.loading ? "Looking…" : "No battles on the server yet — or it can't be reached."}</div>`}<div class="pv-h">Your own</div>${hlMine.length ? hlMine.map(r => row(r, "mine")).join("") : `<div class="cw-empty">Your battles are kept here once you've fought one.</div>`}`; };
+  const look = async () => { const q = hlFind, t = ++hlT; hlFound = null; list(); const l = await listReplays({ q, named: !q, n: 30, sort: "recent" }); if (t === hlT) { hlFound = l; list(); } };
+  if (!el.querySelector(".hl-find")) {
+    el.innerHTML = `<div class="hl-find"><input id="campHlFind" maxlength="60" placeholder="Find a battle by name" value="${esc(hlFind)}"></div><div class="hl-list"></div>`;
+    let wait = 0; el.querySelector("#campHlFind").addEventListener("input", e => { hlFind = e.target.value.trim(); clearTimeout(wait); wait = setTimeout(look, 250); });
+    el.querySelector("#campHlFind").addEventListener("keydown", e => e.stopPropagation());
+  }
+  hlList.loading = true; list(); look();
   const [a, b] = await Promise.all([listReplays({ sort: "recent", n: 15 }), mineList()]);
-  hlList = a; hlMine = b; draw();
+  hlList = a; hlMine = b; list();
 }
 async function pickReplay(e) {
   const b = e.target.closest("button[data-id],button[data-pid]"); if (!b) return;

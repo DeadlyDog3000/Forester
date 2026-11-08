@@ -1535,6 +1535,9 @@ body.dead #crosshair, body.dead #hotbar, body.dead #stance, body.dead #hbName { 
 /* the highlights tab, and the board's battles */
 #campHl { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; max-height: 420px; text-align: left; }
 #campHl .pv-h { margin: 6px 0 2px; }
+.hl-list { display: flex; flex-direction: column; gap: 6px; }
+.hl-find input { width: 100%; box-sizing: border-box; padding: 8px 12px; font: 14px var(--sans); color: var(--ink); background: rgba(8, 18, 12, 0.6); border: 1px solid rgba(246, 236, 208, 0.3); border-radius: 6px; }
+.hl-find input:focus { outline: none; border-color: var(--gold); }
 .hl-row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 4px; background: rgba(255, 255, 255, 0.03); }
 .hl-n { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .hl-n b { font: 600 14px var(--sans); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

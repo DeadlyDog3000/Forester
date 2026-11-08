@@ -1510,9 +1510,13 @@ async function start(opts = {}) {
     }
     if (req.method === "GET") {
       const n = Math.max(1, Math.min(60, num(u.searchParams.get("n"), 20) | 0)), pid = String(u.searchParams.get("pid") || ""), sort = u.searchParams.get("sort") === "best" ? "best" : "recent";
+      const q = clean(u.searchParams.get("q"), 60).toLowerCase(), named = u.searchParams.get("named") === "1";
       let l = pid ? repIndex.filter(r => r.pid === pid) : repIndex.slice();
+      // (looked for by name: the names their commanders gave them, or the commander's own)
+      if (q) l = l.filter(r => (r.title || "").toLowerCase().includes(q) || (r.name || "").toLowerCase().includes(q));
+      else if (named) l = l.filter(r => r.title);
       // (the recent ones worth watching: a battle that was over in a moment, nobody down, isn't)
-      if (!pid) l = l.filter(r => r.hl > 0);
+      else if (!pid) l = l.filter(r => r.hl > 0);
       l.sort(sort === "best" ? (a, b) => b.score - a.score || b.at - a.at : (a, b) => b.at - a.at);
       return res.end(JSON.stringify({ ok: true, list: l.slice(0, n).map(repPublic) }));
     }
