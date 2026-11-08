@@ -2624,12 +2624,14 @@ class Arena {
     $("pvpEndT").textContent = this.multi ? (won ? (this.routEnd ? "They broke and ran" : "The field is yours") : (this.routEnd ? "Your men broke and ran" : "The day is lost")) : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
     // (a battle of a campaign: no word of ratings — it's the campaign's, not the frontier's)
     const cmpB = lastMode === "campaign" || !!this.cmpEnd || !!(this.hist && this.hist.b.campaign);
-    // (pay, in the coin of the colours fought in: every battle and duel earns some, a win more, a day's first win more again — not a campaign's or the story's)
-    const pay = cmpB || lastMode === "story" ? null : earn({ vsPlayer: rated, won: won && !left, kills: this.multi ? this.killed | 0 : (this.wins[0] | 0) * 3, left });
+    // (pay, in the coin of the colours fought in: every battle and duel earns some, a win more, a day's first win more again — not a campaign's or the story's,
+    //  and not a historical battle's: many of them are easily won, the field set up for the side that won it)
+    const pay = cmpB || lastMode === "story" || this.hist ? null : earn({ vsPlayer: rated, won: won && !left, kills: this.multi ? this.killed | 0 : (this.wins[0] | 0) * 3, left });
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}${cmpB ? "" : "<br>"}${cmpB ? "" : rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
     // (a historical battle: kept as won or not, on that side — and how it went in truth)
     // (a campaign's: its outcome back to the campaign, which takes or loses the town)
     // (two players of a campaign: rated nowhere, and the outcome back to the campaign they share)
+    if (!pay && this.hist && !cmpB && lastMode !== "story") $("pvpEndS").innerHTML += `<div class="pv-pay">Historical battles are fought for the history, not for pay: nothing for the purse.</div>`;
     if (pay) { const g = nextGoal(), gn = g && (g.team ? `${TEAM_NAME(g.what)} colours` : nameOf(LONG[g.what] ? "long" : SIDE[g.what] ? "side" : "blade", g.what));
       setTimeout(() => sfx("purse", Math.round(pay.gain / 5)), 900);
       $("pvpEndS").innerHTML += `<div class="pv-pay"><b>+${money(pay.gain, pay.team)}</b>${pay.daily ? ` (the day's first victory, +${money(pay.daily, pay.team)})` : ""} · ${money(pay.total, pay.team)} in the ${esc(TEAM_NAME(pay.team))} purse${g ? ` · ${g.short ? `${money(g.short, pay.team)} more for the ${esc(gn)}` : `enough for the ${esc(gn)} — in the armoury`}` : ""}</div>`; }

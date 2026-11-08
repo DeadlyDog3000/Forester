@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.256", date: "8 November 2026", title: "No pay for historical battles",
+    items: [
+      "Historical battles no longer pay anything into your purse: many of them are easily won, the field set up for the side that won it on the day. Pay comes from battles and duels against bots and other players.",
+    ],
+  },
+  {
     v: "1.99.255", date: "8 November 2026", title: "The old cries gone for good, and placing your company fixed",
     items: [
       "The last of the old made-up cries is gone: the war cry, a made-up yell that a whole company gave as it charged, and that sounded like the old screams. Every cry left in the game is a recording of a real voice.",
