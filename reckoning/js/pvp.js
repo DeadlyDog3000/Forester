@@ -384,14 +384,16 @@ function openMuster(kind, link = null) {
   if (kind !== "mp" && camp && camp.net) camp.net.send({ t: "camp", status: "camp", ...mine() });
   if (kind === "mp") {
     const n = must.net, M = must;
-    n.on.bmust = m => { if (must !== M) return; M.theirs = m; drawVs(); maybeStart(); };
+    n.on.bmust = m => { if (must !== M) return; if (m && m.lo && m.army && TEAMS[m.army.uniform]) m.lo = { ...m.lo, ...fitTo(m.lo, true, m.army.uniform) }; M.theirs = m; drawVs(); maybeStart(); };
     // (the size of battle: the host's to choose, and the other player's muster made to fit it as it changes — if
     //  they'd already said they were ready, their company as it now stands sent again)
     if (M.side === 0) { n.on.bpurseq = () => { if (must === M) n.send({ t: "bpurse", v: prefPurse(army()) }); }; n.send({ t: "bpurse", v: prefPurse(army()) }); }
     else {
       n.on.bpurse = m => {
-        if (must !== M || !PURSES[m.v]) return; const was = M.theirPurse; M.theirPurse = +m.v; setArmy({}); drawArmy();
-        if (M.mine) { const A = army(); n.send({ t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0 }, lo: armedLo(true) }); }
+        if (must !== M || !PURSES[m.v]) return; const was = M.theirPurse || 900; M.theirPurse = +m.v;
+        if (was !== +m.v) { setArmy(scaleMuster(army(), was, +m.v)); if (!M.started) UI.hint(`${M.foe.name || "The host"} made it ${PURSES[m.v].toLowerCase()} — your company is raised to match.`, 4); }
+        drawArmy();
+        if (M.mine && !M.started) { const A = army(); n.send({ t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0 }, lo: armedLo(true) }); }
       };
       n.send({ t: "bpurseq" });
     }
@@ -597,7 +599,7 @@ function drawArmy() {
   // (a battle: the company raised from the purse — so many of each, as you can pay for them)
   const spent = spentOf(A), left = A.purse - spent;
   const tr = (k, T, n, cost, max) => `<div class="pv-tr">${k !== "guns" && plateOf(wayOfUniform(A.uniform), k) ? `<img class="pv-tr-img" src="${plateOf(wayOfUniform(A.uniform), k)}" alt="">` : ""}<span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><b class="pv-tr-c">${n}</b><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
-  const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? " — you're the host: the size of battle is yours to choose" : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
+  const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest || (host && must.theirs) ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? (must.theirs ? ` — ${esc(must.foe.name || "the other player")} is ready, so the size of battle is set` : " — you're the host: the size of battle is yours to choose") : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
     <div class="pv-muster">${Object.entries(TROOPS).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
   if (!A.battle) { el.innerHTML = ""; return; }
@@ -667,7 +669,7 @@ function armyClick(e) {
   else if (b.dataset.gr) setArmy({ ground: b.dataset.gr });
   else if (b.dataset.vs) setArmy({ vs: b.dataset.vs });
   else if (b.dataset.purse) setArmy({ purse: +b.dataset.purse });
-  else if (b.dataset.ppurse) { if (must && must.kind === "mp" && must.side === 1) return; setArmy({ ppurse: +b.dataset.ppurse }); if (must && must.kind === "mp" && must.net) must.net.send({ t: "bpurse", v: +b.dataset.ppurse }); }
+  else if (b.dataset.ppurse) { if (must && must.kind === "mp" && (must.side === 1 || must.theirs)) return; const was = prefPurse(army()); setArmy({ ppurse: +b.dataset.ppurse, ...scaleMuster(army(), was, +b.dataset.ppurse) }); if (must && must.kind === "mp" && must.net) must.net.send({ t: "bpurse", v: +b.dataset.ppurse }); }
   else if (b.dataset.sides) setArmy({ sides: b.dataset.sides.split(",").map(Number) });
   else if (b.dataset.side) { const S = A.sides.slice(); S[+b.dataset.side] += +b.dataset.d; setArmy({ sides: S }); }
   else if (b.dataset.addside) { const S = A.sides.slice(); if (+b.dataset.addside > 0) S.push(1); else S.pop(); setArmy({ sides: S }); }
@@ -835,6 +837,12 @@ const MAX_MEN = 90, MAX_GUNS = 4;
 export const spentOf = A => Object.entries(A.muster || {}).reduce((t, [k, n]) => t + (TROOPS[k] ? TROOPS[k].cost * n : 0), 0) + (A.guns | 0) * GUN_COST + (A.ride ? RIDE_COST : 0);
 export const menOf = A => Object.values(A.muster || {}).reduce((t, n) => t + (n | 0), 0);
 // a muster cut down to a purse (anything over, the dearest first), and to the most men a side can have
+// a company raised or cut down in proportion when the size of battle changes: the same make-up, so many more or fewer
+function scaleMuster(a, from, to) {
+  if (!from || from === to) return {};
+  const k = to / from, m = {}; for (const t in a.muster || {}) m[t] = Math.round((a.muster[t] | 0) * k);
+  const F = fitMuster(m, Math.round((a.guns | 0) * k), to, riding()); return { muster: F.muster, guns: F.guns };
+}
 function fitMuster(m, guns, purse, ride = false) {
   const out = {}; for (const k in TROOPS) out[k] = Math.max(0, Math.min(MAX_MEN, (m && m[k]) | 0));
   guns = Math.max(0, Math.min(MAX_GUNS, guns | 0));

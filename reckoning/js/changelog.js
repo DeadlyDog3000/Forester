@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.259", date: "8 November 2026", title: "Battles against a player fair at any size",
+    items: [
+      "Battles against another player: when the host changes the size of battle, the other player's company is raised (or cut down) to match it, the same make-up in proportion, instead of staying the size it was — a host could choose a grand battle and meet a company raised for a small one. Once the other player says they're ready, the size is set and can't be changed under them.",
+      "Battles against another player: each side carries only its colours' own arms, whatever the other game sends — a Tatar has the bow, the sabre and the lance, never a musket.",
+    ],
+  },
+  {
     v: "1.99.258", date: "8 November 2026", title: "Everyone online on the same version",
     items: [
       "Online play now needs this version: a game left on an older one is told to update before it can join the camp, a battle or a duel, so two players never meet with different versions of the battle code between them.",
