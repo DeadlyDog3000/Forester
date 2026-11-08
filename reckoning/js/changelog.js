@@ -7,9 +7,9 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.262", date: "8 November 2026", title: "The week's challenge, bowmen that shoot, and a better bow",
+    v: "1.99.262", date: "8 November 2026", title: "The challenge, bowmen that shoot, and a better bow",
     items: [
-      "This week's challenge, on the To Arms page: the same field, the same two companies and the same officer against you for everyone, a new one each week. A win counts most, then what you lose against what they do, then how quickly; your best goes on the week's board, and a battle you share is there for others to watch.",
+      "The challenge, on the To Arms page: the same field, the same two companies and the same officer against you for everyone, a new one every two days. A win counts most, then what you lose against what they do, then how quickly; your best goes on its board, and a battle you share is there for others to watch.",
       "Fight their plan: a battle someone shared has a Fight it button in the replays. Their company comes on as they raised it, in their colours, each arm standing where they set it at the start; you raise yours to meet it.",
       "Your first battle is a guided one: a cautious officer against you, and the few things worth knowing shown one at a time as you fight — walking on with your company, halting and sending them on, fighting yourself, the volley, one arm alone, the charge. It's at the top of the To Arms page until you've fought it, and the title says where to start.",
       "Bowmen shoot in battle. A line of them waited till the enemy was forty paces off, which in a pitched battle it never was; now they loose from eighty-odd paces, on a true arc that drops the arrow into the other line, and they hit — before, almost every arrow went into the ground in front of them.",

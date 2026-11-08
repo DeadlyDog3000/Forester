@@ -897,20 +897,20 @@ function botMuster(purse, team = null) {
   return { muster: m, guns };
 }
 // ---------------------------------------------------------------------------
-//  the week's challenge: the same field, the same two companies and the same officer against you for everyone, a
-//  week at a time — the best result each commander has that week on a board for all to see
+//  the challenge: the same field, the same two companies and the same officer against you for everyone, two days at a
+//  time — the best result each commander has in those two days on a board for all to see
 // ---------------------------------------------------------------------------
-// (the ISO week: "2026-W45", as the server reckons it too)
-const weekNo = (t = Date.now()) => { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); const y0 = Date.UTC(d.getUTCFullYear(), 0, 1); return `${d.getUTCFullYear()}-W${String(Math.ceil(((d - y0) / 864e5 + 1) / 7)).padStart(2, "0")}`; };
+// (each challenge runs two days, from midnight UTC: its key "C10251", as the server reckons it too)
+const ROUND_MS = 2 * 864e5, roundNo = (t = Date.now()) => "C" + Math.floor(t / ROUND_MS), roundEnds = key => (+key.slice(1) + 1) * ROUND_MS;
 const hashStr = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
 const seeded = s => { let a = s >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
-// (what chance gives a thing, given by the week instead: the same for everyone who plays it)
+// (what chance gives a thing, given by the challenge instead: the same for everyone who plays it)
 const withSeed = (seed, fn) => { const was = Math.random; Math.random = seeded(seed); try { return fn(); } finally { Math.random = was; } };
-export function challengeOf(week = weekNo()) {
-  const r = seeded(hashStr("reckoning-" + week)), pick = l => l[Math.floor(r() * l.length)];
+export function challengeOf(round = roundNo()) {
+  const r = seeded(hashStr("reckoning-" + round)), pick = l => l[Math.floor(r() * l.length)];
   const mine = pick(TEAM_KEYS); let theirs = pick(TEAM_KEYS); if (theirs === mine) theirs = TEAM_KEYS[(TEAM_KEYS.indexOf(mine) + 5) % TEAM_KEYS.length];
-  const purse = pick([900, 1500, 2000]), M = withSeed(hashStr("muster-" + week), () => botMuster(purse, mine));
-  return { week, seed: hashStr("field-" + week), mine, theirs, purse, muster: M.muster, guns: M.guns };
+  const purse = pick([900, 1500, 2000]), M = withSeed(hashStr("muster-" + round), () => botMuster(purse, mine));
+  return { round, seed: hashStr("field-" + round), mine, theirs, purse, muster: M.muster, guns: M.guns };
 }
 // (the score: a win counts most, then the men they lost against the men you did, then how quickly it was done)
 const challengeScore = (won, k, l, secs) => Math.max(0, (won ? 600 : 0) + k * 12 - l * 6 + (won ? Math.max(0, 420 - secs) : 0));
@@ -922,18 +922,19 @@ function playChallenge() {
   const W = challengeOf(); lastMode = "challenge"; must = null; stopAmbient();
   startDuel({ bot: true, challenge: W, army: { ...army(), battle: true, vs: "bots", allies: 0, enemies: 1, ground: "open", purse: W.purse, uniform: W.mine, enemyUniform: W.theirs, muster: { ...W.muster }, guns: W.guns, challenge: W, ghost: null } });
 }
-// the card on the To Arms page: the week's two sides, what you have, the Fight button, and the board
+// the card on the To Arms page: the challenge's two sides, what you have, how long it has left, the Fight button, and the board
 async function drawWeek() {
   fetchColours();
   const el = $("pvpWeek"); if (!el) return;
   const W = challengeOf(), men = Object.entries(W.muster).filter(([, n]) => n).map(([k, n]) => `${n} ${(n > 1 ? TROOPS[k].name : TROOPS[k].one).toLowerCase()}`).join(", ");
-  const head = j => `<div class="wk-h"><b>This week's challenge</b><small>${esc(W.week.replace("-W", " · week "))}</small></div>
-    <div class="wk-b">You lead the <b>${esc(TEAM_NAME(W.mine))}</b> against the <b>${esc(TEAM_NAME(W.theirs))}</b>: ${men}${W.guns ? `, ${W.guns} gun${W.guns > 1 ? "s" : ""}` : ""}. The same field and the same companies for everyone this week. A win counts most, then what you lose against what they do, then how quickly.</div>
+  const left = Math.max(0, roundEnds(W.round) - Date.now()), hrs = Math.floor(left / 36e5), mins = Math.floor(left % 36e5 / 6e4);
+  const head = j => `<div class="wk-h"><b>The challenge</b><small>${hrs ? `${hrs} h ${mins} min` : `${mins} min`} left · a new one every two days</small></div>
+    <div class="wk-b">You lead the <b>${esc(TEAM_NAME(W.mine))}</b> against the <b>${esc(TEAM_NAME(W.theirs))}</b>: ${men}${W.guns ? `, ${W.guns} gun${W.guns > 1 ? "s" : ""}` : ""}. The same field and the same companies for everyone till it ends. A win counts most, then what you lose against what they do, then how quickly.</div>
     <div class="wk-a"><button class="btn primary" id="wkGo">Fight it</button>${j && j.mine ? `<span>Your best: <b>${j.mine.score}</b> · ${ordinal(j.mine.place)} of ${j.n}</span>` : `<span>${j ? `${j.n} commander${j.n === 1 ? " has" : "s have"} fought it` : ""}</span>`}</div>
     ${j && j.list.length ? `<ol class="wk-list">${j.list.slice(0, 10).map(r => `<li><span>${esc(r.name)}</span><small>${r.won ? "won" : "lost"} · ${r.k}–${r.l} · ${mmss(r.secs)}</small><b>${r.score}</b>${r.rep ? `<button data-id="${esc(r.rep)}" data-src="srv" data-mode="full">Watch</button>` : ""}</li>`).join("")}</ol>` : ""}`;
   el.innerHTML = head(null);
   el.onclick = e => { if (e.target.closest("#wkGo")) { sfx("muster"); playChallenge(); return; } pickReplay(e); };
-  const j = await getJSON(`/challenge?week=${W.week}&pid=${encodeURIComponent(myPid())}`);
+  const j = await getJSON(`/challenge?round=${W.round}&pid=${encodeURIComponent(myPid())}`);
   if (j && j.ok && $("pvpWeek") === el) el.innerHTML = head(j);
 }
 const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
@@ -1075,7 +1076,7 @@ function startDuel(o) {
   const A = o.bot ? o.army || army() : null, multi = A && (A.allies > 0 || A.enemies > 1 || A.battle);
   // (a campaign's difficulty: their men the better or the worse for it)
   const foe = o.bot ? { ...botFoe(), bot: true, skill: clamp(skillOf(botRecord().rating) + (o.skillAdd || 0), 0.06, 0.98) } : { ...o.foe, bot: false };
-  // (the week's challenge: the field, the weather, their officer and his company all as chance gives them for that week —
+  // (the challenge: the field, the weather, their officer and his company all as chance gives them for those two days —
   //  the same for everyone — and you armed as your colours were, as in a ranked battle)
   if (o.easy) foe.skill = Math.min(foe.skill, 0.3);
   if (o.challenge) { foe.skill = 0.62; withSeed(o.challenge.seed, () => new Arena({ me, lo: armedLo(true), foe, net: null, side: 0, army: A })); return; }
@@ -2840,13 +2841,13 @@ class Arena {
     if (pay) { const g = nextGoal(), gn = g && (g.team ? `${TEAM_NAME(g.what)} colours` : nameOf(LONG[g.what] ? "long" : SIDE[g.what] ? "side" : "blade", g.what));
       setTimeout(() => sfx("purse", Math.round(pay.gain / 5)), 900);
       $("pvpEndS").innerHTML += `<div class="pv-pay"><b>+${money(pay.gain, pay.team)}</b>${pay.daily ? ` (the day's first victory, +${money(pay.daily, pay.team)})` : ""} · ${money(pay.total, pay.team)} in the ${esc(TEAM_NAME(pay.team))} purse${g ? ` · ${g.short ? `${money(g.short, pay.team)} more for the ${esc(gn)}` : `enough for the ${esc(gn)} — in the armoury`}` : ""}</div>`; }
-    // (the week's challenge: the result scored and sent to its board; the place it takes said when the server answers)
+    // (the challenge: the result scored and sent to its board; the place it takes said when the server answers)
     const CH = this.army && this.army.challenge;
     if (CH && !left) {
-      const k = this.killed | 0, l = this.lost | 0, secs = this.rec ? Math.round(this.rec.t) : 0, sc = challengeScore(won, k, l, secs), body = { week: CH.week, score: sc, won: !!won, k, l, secs, name: this.me.name };
+      const k = this.killed | 0, l = this.lost | 0, secs = this.rec ? Math.round(this.rec.t) : 0, sc = challengeScore(won, k, l, secs), body = { round: CH.round, score: sc, won: !!won, k, l, secs, name: this.me.name };
       if (rec) rec.chal = body;
-      $("pvpEndS").innerHTML += `<div class="pv-pay" id="pvpWkLine">This week's challenge: <b>${sc}</b> · sending it to the board…</div>`;
-      postJSON("/challenge", body).then(j => { const el = $("pvpWkLine"); if (el) el.innerHTML = j && j.ok ? `This week's challenge: <b>${sc}</b> · ${j.best ? "your best yet" : `your best is ${j.score}`} · ${ordinal(j.place)} of ${j.n}` : `This week's challenge: <b>${sc}</b> · the board couldn't be reached just now`; });
+      $("pvpEndS").innerHTML += `<div class="pv-pay" id="pvpWkLine">The challenge: <b>${sc}</b> · sending it to the board…</div>`;
+      postJSON("/challenge", body).then(j => { const el = $("pvpWkLine"); if (el) el.innerHTML = j && j.ok ? `The challenge: <b>${sc}</b> · ${j.best ? "your best yet" : `your best is ${j.score}`} · ${ordinal(j.place)} of ${j.n}` : `The challenge: <b>${sc}</b> · the board couldn't be reached just now`; });
     }
     // (how the colours fare: each side's colours and who won, counted — not a story's, a campaign's, history's, the
     //  challenge's or a plan fought again, whose sides weren't chosen)
