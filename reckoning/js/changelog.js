@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.260", date: "8 November 2026", title: "Placing your company: turning smoothly",
+    items: [
+      "Placing your company before a battle: an arm or a gun swings round smoothly when you turn it, instead of jumping a step at a time. The wheel turns it by as much as you roll it; hold Turn left, Turn right or R and it keeps coming round until you let go.",
+    ],
+  },
+  {
     v: "1.99.259", date: "8 November 2026", title: "Battles against a player fair at any size",
     items: [
       "Battles against another player: when the host changes the size of battle, the other player's company is raised (or cut down) to match it, the same make-up in proportion, instead of staying the size it was — a host could choose a grand battle and meet a company raised for a small one. Once the other player says they're ready, the size is set and can't be changed under them.",

@@ -1625,6 +1625,9 @@ class Arena {
       const y = groundY(p.x, p.z), k = tokens.indexOf(T); T.sp.position.set(p.x, y + 5 + (k % 3) * 2.4, p.z); T.ring.position.set(p.x, y + 0.3, p.z); T.ring.rotation.y = T.face;
     };
     for (const T of tokens) stand(T);
+    // (a turn asked for: the facing it's to come round to, eased there frame by frame; the sound once in a while)
+    let spin = null;
+    const turn = (T, by, sound = true) => { T.want = (T.want ?? T.face) + by; if (sound) { const n = performance.now(); if (n - (T.wt || 0) > 180) { T.wt = n; sfx("wheel"); } } };
     // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
     //  or further with the wheel (when nothing's in hand), turned with Q and E
     const cam = { x: home.x - f.x * 6, z: home.z - f.z * 6, d: 58, yaw: faceTo, pitch: 0.95 };
@@ -1651,7 +1654,11 @@ class Arena {
       // (the haze of the field pushed back while you look down on it from so high: you can see your ground clearly)
       if (G.scene.fog && G.scene.fog.far != null) { G.scene.fog.near = Math.max(G.scene.fog.near, cam.d * 1.4); G.scene.fog.far = Math.max(G.scene.fog.far, cam.d * 5 + 120); }
       // (what's in hand follows the pointer on the ground)
-      if (held) { const g = ground(mouse.x, mouse.y); if (g && now - (held.t || 0) > 40) { held.t = now; held.at = g; stand(held); } }
+      if (held && spin && now - spin.t0 > 220) turn(held, spin.d * dt * 1.5, false);
+      if (held && keys.has("KeyR")) turn(held, -dt * 1.5, false);
+      // (turned smoothly: each arm swings round to the way it's wanted facing, not jumped there)
+      for (const T of tokens) if (T.want != null && T.want !== T.face) { const d = T.want - T.face; T.face = Math.abs(d) < 0.003 ? T.want : T.face + d * Math.min(1, dt * 12); if (T !== held) stand(T); }
+      if (held) { const g = ground(mouse.x, mouse.y); if (g && now - (held.t || 0) > 40) { held.t = now; held.at = g; stand(held); } else if (held.face !== held.lastFace) stand(held); held.lastFace = held.face; }
       for (const T of tokens) T.ring.material.opacity = T === held ? 1 : 0.75;
     };
     // where the pointer falls on the ground: walked out along the ray till it meets the land
@@ -1676,7 +1683,7 @@ class Arena {
         <div class="dp-a">${held ? `<button data-dp="tl" class="ghost">Turn left</button><button data-dp="tr" class="ghost">Turn right</button>` : ""}<button data-dp="auto" class="ghost">Officer's choice</button><button data-dp="go" class="go">Begin the battle</button></div>`;
     };
     drawBar(); document.getElementById("hud").parentElement.appendChild(bar);
-    const officer = () => { this.autoDeploy(); const by = {}; for (const T of tokens) { if (T.id === "you") T.at = { x: pl.pos.x, z: pl.pos.z }; else if (T.gun) { T.at = { x: T.gun.x, z: T.gun.z }; continue; } else T.at = cen(T.men); T.face = faceTo; stand(T); void by; } };
+    const officer = () => { this.autoDeploy(); const by = {}; for (const T of tokens) { if (T.id === "you") T.at = { x: pl.pos.x, z: pl.pos.z }; else if (T.gun) { T.at = { x: T.gun.x, z: T.gun.z }; continue; } else T.at = cen(T.men); T.face = faceTo; T.want = null; stand(T); void by; } };
     const finish = () => {
       if (!G.deploying) return;
       G.deploying = false; G.deathCam = null; G.forceThird = false; UI.show("hud", true);
@@ -1696,7 +1703,7 @@ class Arena {
     // (for the test scripts: what's placed where, and the pointer's ground)
     this.dp = { tokens, ground, pickAt, view, get held() { return held; } };
     const onBar = e => { const b = e.target.closest && e.target.closest("[data-dp]"); if (!b) return false; const id = b.dataset.dp;
-      if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { held.face += (id === "tl" ? 1 : -1) * Math.PI / 8; stand(held); sfx("wheel"); } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); sfx(held ? "muster" : "halt"); }
+      if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { const d = id === "tl" ? 1 : -1; turn(held, d * Math.PI / 8); spin = { d, t0: performance.now() }; } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); sfx(held ? "muster" : "halt"); }
       return true; };
     // (a press, pointer's or mouse's — whichever the browser sends, once)
     let lastPress = 0;
@@ -1704,7 +1711,7 @@ class Arena {
       if (!G.deploying) return; const now = performance.now(); if (now - lastPress < 120) { e.stopImmediatePropagation(); return; } lastPress = now;
       if (bar.contains(e.target)) { e.stopImmediatePropagation(); onBar(e); return; }
       e.stopImmediatePropagation(); e.preventDefault(); mouse = { x: e.clientX, y: e.clientY };
-      if (e.button === 2) { if (held) { held.face += Math.PI / 8; stand(held); sfx("wheel"); } return; }
+      if (e.button === 2) { if (held) turn(held, -Math.PI / 8); return; }
       if (held) { const g = ground(e.clientX, e.clientY); if (g) { held.at = g; stand(held); } held = null; sfx("halt"); drawBar(); return; }
       const T = pickAt(e.clientX, e.clientY); if (T) { held = T; drawBar(); sfx("muster"); }
     };
@@ -1713,10 +1720,11 @@ class Arena {
       ["mousedown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); press(e); }],
       ["pointermove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
       ["mousemove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
-      ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) { held.face += Math.sign(e.deltaY) * Math.PI / 16; stand(held); const n = performance.now(); if (n - (held.wt || 0) > 180) { held.wt = n; sfx("wheel"); } } else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
+      ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) turn(held, clamp(e.deltaY * 0.0045, -0.35, 0.35)); else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
       ["contextmenu", e => { if (G.deploying) e.preventDefault(); }],
-      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); sfx("roll"); finish(); return; } if (e.code === "Escape") { held = null; drawBar(); return; } if (e.code === "KeyR" && held) { held.face += Math.PI / 2; stand(held); sfx("wheel"); return; } keys.add(e.code); }],
+      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); sfx("roll"); finish(); return; } if (e.code === "Escape") { held = null; drawBar(); return; } if (e.code === "KeyR" && held) { if (!e.repeat) turn(held, -Math.PI / 16); keys.add(e.code); return; } keys.add(e.code); }],
       ["keyup", e => { keys.delete(e.code); }],
+      ["pointerup", () => { spin = null; }], ["mouseup", () => { spin = null; }],
     ];
     for (const [t, fn] of L) addEventListener(t, fn, { capture: true, passive: false });
     this.deployL = L;
