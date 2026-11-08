@@ -494,8 +494,7 @@ export class Field {
     for (let z = -16; z <= 16; z += 4) this.claim(lineX, C.z + z, 2.5);
     const ng = this.gunsWant ? this.gunsWant[side] : 1 + Math.floor(r() * 2.4), at = [-1, 1, 0];
     for (let g = 0; g < Math.min(ng, 3); g++) {
-      const z = C.z + at[g] * (17 + r() * 3), x = lineX - sx * (2 + r());
-      ({ x, z } = this.gunSpot(x, z));
+      const { x, z } = this.gunSpot(lineX - sx * (2 + r()), C.z + at[g] * (17 + r() * 3));
       this.gun(side, x, z, sx); this.claim(x, z, 1.4);
       for (let k = 4; k <= 16; k += 4) this.claim(x - sx * k, z, 1.2);
     }
