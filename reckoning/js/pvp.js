@@ -938,14 +938,16 @@ function watch(rec, mode = "full", from = "camp", title = null) {
 function endReplay(rec) {
   const el = $("pvpEndReplay"); if (!el) return;
   el.innerHTML = rec ? `<button class="btn" data-rp="full">Watch the battle again</button>
+    <div class="pv-name"><input id="pvpShareName" maxlength="60" placeholder="Name it — the plan or formation it shows (optional)" value="${esc((rec.meta && rec.meta.title) || "")}"${rec.id ? " disabled" : ""}></div>
     <label class="check pv-share"><input type="checkbox" id="pvpShareIt"${rec.id ? " checked disabled" : ""}> <span>${rec.id ? "Shared, for everyone to watch" : "Share this battle on the server, for everyone to watch"}</span></label>` : "";
   el.onclick = e => { const b = e.target.closest("[data-rp]"); if (b && lastRec) watch(lastRec, b.dataset.rp, "end"); };
   // (only when you say so: ticked, it's sent — and once it's there, it stays)
   const box = $("pvpShareIt");
   if (box) box.onchange = () => {
     if (!box.checked || rec.id) return;
-    box.disabled = true; const t = box.nextElementSibling; t.textContent = "Sending it to the server…";
-    upload(rec).then(id => { if (id) { rec.id = id; t.textContent = "Shared, for everyone to watch"; } else { box.checked = false; box.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
+    box.disabled = true; const t = box.nextElementSibling, nm = $("pvpShareName"); t.textContent = "Sending it to the server…";
+    const title = nm ? nm.value.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 60) : ""; rec.meta = { ...rec.meta, title }; if (nm) nm.disabled = true; if (title) keepMine(rec);
+    upload(rec).then(id => { if (id) { rec.id = id; t.textContent = title ? `Shared as “${title}”, for everyone to watch` : "Shared, for everyone to watch"; } else { box.checked = false; box.disabled = false; if (nm) nm.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
   };
 }
 

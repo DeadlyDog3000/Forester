@@ -1498,7 +1498,7 @@ async function start(opts = {}) {
     for (const r of repIndex) if (!keep.has(r.id)) { repMem.delete(r.id); if (repDir) try { fs.unlinkSync(repFile(r.id)); } catch (e) {} }
     repIndex = repIndex.filter(r => keep.has(r.id));
   };
-  const repPublic = r => ({ id: r.id, at: r.at, pid: r.pid, name: r.name, foe: r.foe, kind: r.kind, vs: r.vs, place: r.place, hour: r.hour, won: r.won, k: r.k, l: r.l, secs: r.secs, score: r.score, uni: r.uni, men: r.men, hl: r.hl });
+  const repPublic = r => ({ id: r.id, at: r.at, pid: r.pid, name: r.name, title: r.title || "", foe: r.foe, kind: r.kind, vs: r.vs, place: r.place, hour: r.hour, won: r.won, k: r.k, l: r.l, secs: r.secs, score: r.score, uni: r.uni, men: r.men, hl: r.hl });
   function replays(u, res, req) {
     if (req.method === "OPTIONS") { res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Token"); res.statusCode = 204; return res.end(); }
     const id = u.pathname.slice("/replays/".length);
@@ -1531,7 +1531,7 @@ async function start(opts = {}) {
         const M = R0 && R0.meta;
         if (!M || R0.v !== 1 || !Array.isArray(R0.frames) || !Array.isArray(R0.ev) || !Array.isArray(R0.roster) || !R0.setup) { res.statusCode = 400; return res.end(JSON.stringify({ error: "not a replay" })); }
         const token = String(req.headers["x-token"] || ""), id = crypto.randomBytes(6).toString("hex");
-        const r = { id, at: now(), pid: token.length >= 16 ? pidOf(token) : "", name: clean(M.name, 24) || "Stranger", foe: clean(M.foe, 48), kind: ["battle", "skirmish", "duel"].includes(M.kind) ? M.kind : "battle", vs: M.vs === "player" ? "player" : "bots",
+        const r = { id, at: now(), pid: token.length >= 16 ? pidOf(token) : "", name: clean(M.name, 24) || "Stranger", foe: clean(M.foe, 48), title: clean(M.title, 60), kind: ["battle", "skirmish", "duel"].includes(M.kind) ? M.kind : "battle", vs: M.vs === "player" ? "player" : "bots",
           place: clean(M.place, 48), hour: clean(M.hour, 12), won: !!M.won, k: Math.max(0, num(M.k) | 0), l: Math.max(0, num(M.l) | 0), secs: Math.max(0, Math.min(7200, Math.round(num(M.secs)))), score: Math.max(0, Math.min(999, Math.round(num(M.score)))),
           uni: Array.isArray(M.uni) ? M.uni.slice(0, 2).map(x => clean(x, 20)) : [], men: Array.isArray(M.men) ? M.men.slice(0, 2).map(x => Math.max(0, num(x) | 0)) : [], hl: Math.max(0, Math.min(40, num(M.hl) | 0)) };
         const done = () => { repIndex.push(r); repPrune(); repSave(); log(`replay ${id}: ${r.name} vs ${r.foe || "?"} (${r.kind}, ${r.secs}s, ${(buf.length / 1024).toFixed(0)} KB)`); res.end(JSON.stringify({ ok: true, id })); };

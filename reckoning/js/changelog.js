@@ -12,6 +12,8 @@ export const CHANGELOG = [
       "Battles against another player: the other player is no longer left stuck on the first page of a great battle. The host's game sent the whole of both companies in one message, and with big armies it was more than the server passes on, so it never arrived; the men go over in parts now.",
       "Battles against another player: the other side's men are put straight where they stand when the battle begins, instead of all being made on one spot and sliding out of a heap.",
       "The credits are on a scroll of their own that you can scroll through, set out in sections — music, voices, people and animals, the world's surfaces, type and code — and the Back button is always clear of the words.",
+      "A battle you share on the server can be given a name of your own before it's sent — the plan it shows, the formation, whatever you'd call it — and it's listed under that name in the highlights for everyone to find and watch.",
+      "The rivers on the battlefields have low banks: the field slopes gently down to the water over a broad meadow, instead of dropping into a gully a man's height deep before the water begins.",
       "Historical battles no longer pay anything into your purse: many of them are easily won, the field set up for the side that won it on the day. Pay comes from battles and duels against bots and other players.",
     ],
   },

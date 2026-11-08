@@ -333,7 +333,9 @@ export function ago(at) {
 export const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 // a recording's title, and the line under it
 export function titleOf(r) {
-  const m = r.meta || r, kind = m.kind === "duel" ? "Duel" : m.kind === "skirmish" ? "Skirmish" : "Battle";
+  const m = r.meta || r, kind = m.kind === "duel" ? "Duel" : m.kind === "skirmish" ? "Skirmish" : "Battle", named = r.title || m.title;
+  // (named by whoever fought it — the plan or the formation it shows — with what it was underneath)
+  if (named) return { t: named, s: `${kind}${m.place ? " · " + m.place : ""} · ${m.name || "Someone"} against ${m.foe || "bots"}` };
   return { t: `${kind}${m.place ? ` ${/^(near|far)/i.test(m.place) ? m.place.replace(/^N/, "n").replace(/^F/, "f") : "· " + m.place}` : ""}`, s: `${m.name || "Someone"} against ${m.foe || "bots"}` };
 }
 

@@ -1707,6 +1707,10 @@ body.cine #prompt, body.cine #hint, body.cine #keys, body.cine #marker, body.cin
 .cmp-bb .btn { min-width: 0; padding: 8px 14px; }
 .pv-share { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; margin-top: 10px; font: 13px var(--sans); color: var(--ink); cursor: pointer; }
 .pv-share input:disabled + span { color: var(--gold); }
+.pv-name { width: 100%; display: flex; justify-content: center; margin-top: 10px; }
+.pv-name input { width: min(440px, 100%); padding: 8px 12px; font: 14px var(--sans); color: var(--ink); background: rgba(8, 18, 12, 0.6); border: 1px solid rgba(246, 236, 208, 0.35); border-radius: 6px; }
+.pv-name input:focus { outline: none; border-color: var(--gold); }
+.pv-name input:disabled { opacity: 0.7; }
 .pv-gr.theirs { border-style: dashed; border-color: var(--gold); }
 .cmp-news { padding: 10px 12px; border: 1px solid var(--gold); border-radius: 4px; background: var(--panel); color: var(--ink); font: 13px/1.45 var(--sans); }
 .cmp-news b { display: block; font: 16px var(--serif); margin-bottom: 4px; }
