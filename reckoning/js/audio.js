@@ -495,6 +495,7 @@ export const AUDIO = {
   },
   voice(kind = "war", { high = false, at = null, vol = 1, delay = 0, seg = false } = {}) {
     const a = ctx(); if (!a) return;
+    if (kind === "war") return;   // (no recording of a war cry: and the made-up one is gone with the rest)
     const { node, k } = placed(a, at, 70); if (k * vol < 0.02) return;
     if (!room(Math.min(1, k * vol))) return;
     // (cries of their own kept to a few at once — beyond those, only a man right by you is heard: a hundred falling
@@ -523,9 +524,9 @@ export const AUDIO = {
     }
     // (a real cry, where the recordings are in: all but the war cry)
     if (recordedVoice(a, kind, high, node, k, vol, t)) return;
-    // (and the old made-up cries are gone: a scream, a cry of pain, a moan or a sob is a recording or it's nothing — till
-    //  the recordings are in, a man goes down without one. Only the war cry, which has no recording, is still made)
-    if (kind !== "war" && kind !== "grunt") return;
+    // (and the old made-up cries are gone, every one: a scream, a cry of pain, a moan, a sob — and the made-up war cry
+    //  too — is a recording or it's nothing. Till the recordings are in, a man goes down without a cry)
+    return;
     // [pitch, how long, vowels from → to, the rise at the start, how the pitch ends, loudness, roughness, breathiness]
     const P = {
       war:   [rnd(155, 200), rnd(0.9, 1.4), ["a", r2(["a", "o"])], 1.3, 0.88, 1.0, 0.35, 0.18],

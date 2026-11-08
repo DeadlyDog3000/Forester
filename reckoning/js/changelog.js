@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.255", date: "8 November 2026", title: "The old cries gone for good, and placing your company fixed",
+    items: [
+      "The last of the old made-up cries is gone: the war cry, a made-up yell that a whole company gave as it charged, and that sounded like the old screams. Every cry left in the game is a recording of a real voice.",
+      "Placing your company before a battle: the mouse is yours again. The game kept asking to take the pointer for the fight for a few seconds after the field loaded, and caught it while you were placing your men; it waits now till you give the word, and the cursor always shows while you place them.",
+      "The paper cartridges look like the real thing: a cartridge box of blackened leather with its flap thrown back on the brass badge, a block of wood drilled for the charges inside, and each charge a roll of paper round its powder and ball, tied off with thread at the neck and twisted shut — a few of the holes already empty. It stands beside the stock in the armoury.",
+    ],
+  },
+  {
     v: "1.99.254", date: "8 November 2026", title: "Everyone begins again",
     items: [
       "Every player's armoury is begun again: every purse emptied, and every bought arm, team's colours, upgrade and finish set aside. Everyone starts afresh as the Crimean Tatars with a bow and a knife. Ratings are unchanged.",

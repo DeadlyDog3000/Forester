@@ -1586,10 +1586,14 @@ class Arena {
     // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
     //  or further with the wheel (when nothing's in hand), turned with Q and E
     const cam = { x: home.x - f.x * 6, z: home.z - f.z * 6, d: 58, yaw: faceTo, pitch: 0.95 };
+    let curWas = null;   // (the cursor as the game had it: hidden, where it looks with a free cursor — shown while placing)
     const keys = new Set(); let held = null, mouse = { x: innerWidth / 2, y: innerHeight / 2 }, lastT = performance.now();
     G.forceThird = true; UI.show("hud", false);
     G.deathCam = c => {
       const now = performance.now(), dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+      // (the pointer kept free while you place your men, whatever else asks for it)
+      if (document.pointerLockElement) try { document.exitPointerLock(); } catch (e) {}
+      if (document.body.style.cursor !== "auto") { curWas ??= document.body.style.cursor; document.body.style.cursor = "auto"; }
       const sp = cam.d * 0.9 * dt, fw = { x: Math.sin(cam.yaw), z: Math.cos(cam.yaw) }, rt = { x: -fw.z, z: fw.x };
       if (keys.has("KeyW") || keys.has("ArrowUp")) { cam.x += fw.x * sp; cam.z += fw.z * sp; }
       if (keys.has("KeyS") || keys.has("ArrowDown")) { cam.x -= fw.x * sp; cam.z -= fw.z * sp; }
@@ -1634,6 +1638,8 @@ class Arena {
     const finish = () => {
       if (!G.deploying) return;
       G.deploying = false; G.deathCam = null; G.forceThird = false; UI.show("hud", true);
+      try { const p = document.querySelector("canvas") && document.querySelector("canvas").requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {}
+      if (curWas != null) document.body.style.cursor = curWas;
       for (const h of hidden) h.visible = true;
       w.root.remove(root); root.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
       bar.remove(); for (const [t, fn] of L) removeEventListener(t, fn, true);

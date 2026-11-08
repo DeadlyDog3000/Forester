@@ -291,17 +291,79 @@ function slingOn(obj, add, kind, col) {
 // ---- the gunsmith's work, to be seen: what each upgrade puts on (or beside) the arm ----
 const UPM = {};
 const upMat = (k, c, o = {}) => UPM[k] || (UPM[k] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, ...o }));
+// a cartridge box of the 1680s, as a musketeer wore it: a curved case of blackened leather with its flap thrown back on
+// its hinge (the brass badge on it), and inside, a block of wood drilled for the charges — each a roll of paper round
+// its powder and ball, tied off with thread at the neck and the end twisted shut; a few of the holes already empty
+// (built standing up, +y the open top, +z the front: about 13 cm across)
+let CART_GEO = null;
+function cartridgeGeo() {
+  if (CART_GEO) return CART_GEO;
+  // (turned, as a lathe would: the rounded bottom where the ball sits, the paper tube, the neck drawn in by the thread,
+  //  and the twisted tail above it)
+  const r = 0.0072, P = [[0, 0], [r * 0.7, 0.0008], [r, 0.004], [r, 0.05], [r * 0.97, 0.0535], [r * 0.6, 0.057], [r * 0.5, 0.0585], [r * 0.62, 0.061], [r * 0.58, 0.0645], [r * 0.4, 0.0675], [r * 0.18, 0.0695], [0, 0.07]];
+  const g = new THREE.LatheGeometry(P.map(([x, y]) => new THREE.Vector2(x, y)), 14);
+  // (the tail twisted: each ring above the neck turned a little more)
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) { const y = pos.getY(i); if (y > 0.059) { const t = (y - 0.059) * 90, x = pos.getX(i), z = pos.getZ(i), c = Math.cos(t), s = Math.sin(t); pos.setXYZ(i, x * c - z * s, y, x * s + z * c); } }
+  g.computeVertexNormals();
+  return CART_GEO = g;
+}
+const paperTex = (() => { let t = null; return () => {
+  if (t) return t;
+  // (laid paper: its fibres, the faint lines of the mould, and the grey of the powder showing through low down)
+  const cv = document.createElement("canvas"); cv.width = 64; cv.height = 128; const x = cv.getContext("2d");
+  x.fillStyle = "#d8c7a0"; x.fillRect(0, 0, 64, 128);
+  for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(${120 + Math.random() * 60},${100 + Math.random() * 50},${70 + Math.random() * 40},${Math.random() * 0.12})`; x.fillRect(Math.random() * 64, Math.random() * 128, 1 + Math.random() * 3, 1); }
+  for (let y = 0; y < 128; y += 4) { x.fillStyle = "rgba(90,70,40,0.06)"; x.fillRect(0, y, 64, 1); }
+  const gr = x.createLinearGradient(0, 128, 0, 40); gr.addColorStop(0, "rgba(60,58,56,0.35)"); gr.addColorStop(1, "rgba(60,58,56,0)"); x.fillStyle = gr; x.fillRect(0, 40, 64, 88);
+  t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t; }; })();
+export function cartridgeBox(k = 1) {
+  const g = new THREE.Group(); g.scale.setScalar(k);
+  const leather = upMat("boxLeather", 0x241710, { roughness: 0.62 }), edge = upMat("boxEdge", 0x3a2618, { roughness: 0.7 });
+  const wood = upMat("boxWood", 0x6a4628, { roughness: 0.8 }), hole = upMat("boxHole", 0x120c08, { roughness: 1 });
+  const brass = upMat("brass", 0xb8913f, { metalness: 0.8, roughness: 0.35 }), thread = upMat("thread", 0x6a5034, { roughness: 1 });
+  const W = 0.13, H = 0.07, D = 0.045, R = 0.012;
+  // (the case: a rounded box, its front curved to sit against the hip)
+  const sh = new THREE.Shape(); sh.moveTo(-W / 2 + R, -D / 2); sh.lineTo(W / 2 - R, -D / 2); sh.quadraticCurveTo(W / 2, -D / 2, W / 2, -D / 2 + R); sh.lineTo(W / 2, D / 2 - R); sh.quadraticCurveTo(W / 2, D / 2, W / 2 - R, D / 2 + 0.004); sh.quadraticCurveTo(0, D / 2 + 0.012, -W / 2 + R, D / 2 + 0.004); sh.quadraticCurveTo(-W / 2, D / 2, -W / 2, D / 2 - R); sh.lineTo(-W / 2, -D / 2 + R); sh.quadraticCurveTo(-W / 2, -D / 2, -W / 2 + R, -D / 2);
+  const cg = new THREE.ExtrudeGeometry(sh, { depth: H, bevelEnabled: true, bevelThickness: 0.002, bevelSize: 0.002, bevelSegments: 2, curveSegments: 6 });
+  cg.rotateX(-Math.PI / 2); const cs = new THREE.Mesh(cg, leather); cs.castShadow = true; g.add(cs);
+  // (its stitched rim, a shade lighter)
+  const rim = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.004, bevelEnabled: false, curveSegments: 6 }), edge); rim.geometry.rotateX(-Math.PI / 2); rim.position.y = H - 0.002; rim.scale.set(1.02, 1, 1.04); g.add(rim);
+  // (the block, its top just below the rim, drilled in two rows)
+  const blk = new THREE.Mesh(new THREE.BoxGeometry(W - 0.01, 0.006, D - 0.008), wood); blk.position.y = H - 0.005; g.add(blk);
+  const C = cartridgeGeo(), pm = new THREE.MeshStandardMaterial({ map: paperTex(), color: 0xf0e4c8, roughness: 0.95 });
+  const N = 6, empty = new Set([1, 8]);
+  for (let row = 0; row < 2; row++) for (let i = 0; i < N; i++) {
+    const n = row * N + i, x = (i - (N - 1) / 2) * 0.019 + (row ? 0.0095 : 0), z = row ? 0.009 : -0.009;
+    const hm = new THREE.Mesh(new THREE.CircleGeometry(0.0078, 12), hole); hm.rotation.x = -Math.PI / 2; hm.position.set(x, H - 0.0018, z); g.add(hm);
+    if (empty.has(n)) continue;
+    // (each charge standing in its hole, its tail showing above the block, none quite upright or the same)
+    const c = new THREE.Mesh(C, pm); c.position.set(x, H - 0.056 + Math.random() * 0.004, z); c.rotation.set((Math.random() - 0.5) * 0.12, Math.random() * 6.28, (Math.random() - 0.5) * 0.12); c.castShadow = true; g.add(c);
+    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.0034, 0.0007, 4, 12), thread); tie.rotation.x = Math.PI / 2; tie.position.set(0, 0.0585, 0); c.add(tie);
+  }
+  // (the flap, thrown back on its hinge at the top of the back, and the brass badge on it — an oval, the crown's mark)
+  const fg = new THREE.Group(); fg.position.set(0, H + 0.002, -D / 2 - 0.002); fg.rotation.x = -2.35; g.add(fg);
+  const fs = new THREE.Shape(); fs.moveTo(-W / 2 - 0.002, 0); fs.lineTo(W / 2 + 0.002, 0); fs.lineTo(W / 2 + 0.002, 0.05); fs.quadraticCurveTo(0, 0.068, -W / 2 - 0.002, 0.05); fs.lineTo(-W / 2 - 0.002, 0);
+  const flap = new THREE.Mesh(new THREE.ExtrudeGeometry(fs, { depth: 0.003, bevelEnabled: true, bevelThickness: 0.0008, bevelSize: 0.0008, bevelSegments: 1 }), leather); flap.castShadow = true; fg.add(flap);
+  const badge = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.002, 24), brass); badge.scale.set(1.3, 1, 1); badge.rotation.x = Math.PI / 2; badge.position.set(0, 0.032, -0.0015); fg.add(badge);
+  const boss = new THREE.Mesh(new THREE.SphereGeometry(0.006, 12, 8), brass); boss.scale.set(1, 1, 0.4); boss.position.set(0, 0.032, -0.003); fg.add(boss);
+  // (the belt loops on its back)
+  for (const sx of [-1, 1]) { const lp = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.05, 0.004), edge); lp.position.set(sx * 0.035, H / 2, -D / 2 - 0.004); g.add(lp); }
+  return g;
+}
 export function fitUps(obj, kind, ups = {}) {
   const old = obj.getObjectByName("up_parts"); if (old) old.parent.remove(old);
   const g = new THREE.Group(); g.name = "up_parts";
   const leather = upMat("leather", 0x3a2414), brass = upMat("brass", 0xb8913f, { metalness: 0.8, roughness: 0.35 }), paper = upMat("paper", 0xe8dcc0, { roughness: 0.95 }), horn = upMat("horn", 0x5a4a38, { roughness: 0.45 }), iron = upMat("iron", 0x4a4c50, { metalness: 0.7, roughness: 0.45 });
   const box = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = true; g.add(b); return b; };
-  // paper cartridges: a leather cartridge box hung under the stock, its brass badge, three charges standing out of it
+  // paper cartridges: the cartridge box hung under the stock, its flap thrown back
   if (ups.cartridges && (kind === "musket" || kind === "pistol")) {
-    const P = kind === "musket" ? { x: 0, y: -0.02, z: -0.15 } : { x: 0.055, y: -0.03, z: -0.06 }, s = kind === "musket" ? 1 : 0.7;
-    box(0.13 * s, 0.075 * s, 0.045 * s, leather, P.x, P.y, P.z).rotation.x = Math.PI / 2;
-    box(0.04 * s, 0.003, 0.03 * s, brass, P.x, P.y, P.z - 0.024 * s).rotation.x = Math.PI / 2;
-    for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.0075 * s, 0.0075 * s, 0.06 * s, 10), paper); c.position.set(P.x - 0.03 * s + i * 0.03 * s, P.y + 0.045 * s, P.z); g.add(c); }
+    // (stood on the table beside the stock, its open top up and its front to you: the arm's along +y, its top +z, its
+    //  right side — the lock's, the side you see it from — +x)
+    const box = cartridgeBox(kind === "musket" ? 1.25 : 0.9), V = (x, y, z) => new THREE.Vector3(x, y, z);
+    box.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(V(0, 1, 0), V(0, 0, 1), V(1, 0, 0)));
+    if (kind === "musket") box.position.set(0.16, -0.12, -0.14); else box.position.set(0.12, -0.02, -0.12);
+    g.add(box);
   }
   // the goat's-foot lever: hung on the tiller's right side, its two claws forward
   if (ups.lever && kind === "crossbow") {
@@ -330,7 +392,7 @@ export function makeFor(kind, ups = {}) {
   return makeArm(kind);
 }
 // (where on each arm its gunsmith's work is, to look at it close)
-export const UP_FOCUS = { musket: { sights: [0, 0.12, 0.05], cartridges: [0, -0.02, -0.12] }, pistol: { cartridges: [0.055, -0.03, -0.06] }, crossbow: { lever: [0.045, -0.02, -0.08] } };
+export const UP_FOCUS = { musket: { sights: [0, 0.12, 0.05], cartridges: [0.16, -0.12, -0.08] }, pistol: { cartridges: [0.1, -0.02, -0.07] }, crossbow: { lever: [0.045, -0.02, -0.08] } };
 export const MODEL_OF = { musket: "musket", pistol: "pistol", bow: "bow", sword: "sword", battleaxe: "battleaxe", spear: "spear", dagger: "dagger", axe: "axe" };
 export class Table {
   constructor(canvas) {

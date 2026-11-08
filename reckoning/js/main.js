@@ -270,11 +270,12 @@ function lock() {
   // (a lock asked for again too soon after one was let go — M, then M again — is refused: so it's asked for again a few
   //  times over the next moments, while the key press still counts as yours, instead of falling back to the free cursor,
   //  which stops turning at the edge of the screen)
-  const ask = () => { try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
+  // (never while you're placing your company before a battle: the pointer is yours to move then — see pvp.js, deploy)
+  const ask = () => { if (G.deploying) return; try { const p = el.requestPointerLock && el.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
   ask();
   for (const ms of [350, 700, 1100, 1600, 2400, 3400]) setTimeout(() => { if (!document.pointerLockElement && G.mode === "play" && !overlay) ask(); }, ms);
   setTimeout(() => {
-    if (document.pointerLockElement || G.mode !== "play") return;
+    if (document.pointerLockElement || G.mode !== "play" || G.deploying) return;
     setFreeLook(true);
     // some embedded browsers forbid the lock outright; say so once, rather than let the cursor wander off
     if (!lock.warned && location.protocol !== "app:") { lock.warned = true; UI.hint("This browser will not lock the mouse, so the cursor can leave the window. Open the game in Chrome or Safari to look around freely.", 8); }
