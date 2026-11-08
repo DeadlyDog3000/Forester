@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.261", date: "8 November 2026", title: "Campaigns of two begin",
+    items: [
+      "A campaign with another player no longer sticks on the list of crowns. When the host chose first, the campaign was made as the other player chose theirs, and then the list of crowns was drawn again over the map on the host's game, so the year never turned.",
+    ],
+  },
+  {
     v: "1.99.260", date: "8 November 2026", title: "Every man armed as he was raised",
     items: [
       "Placing your company before a battle: an arm or a gun swings round smoothly when you turn it, instead of jumping a step at a time. The wheel turns it by as much as you roll it; hold Turn left, Turn right or R and it keeps coming round until you let go.",

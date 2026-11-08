@@ -4137,7 +4137,7 @@ let fieldWithPlayer = null;
 export function openMpCampaign(net, side, foe) {
   mp = { net, side, host: side === 0, foe: foe || {}, mine: null, theirs: null, seen: false };
   C = null; sel = null; selCity = null; note = ""; news = [];
-  net.on.cpick = m => { if (!mp || mp.net !== net) return; mp.theirs = NATIONS[m.crown] ? m.crown : null; if (mp.host) maybeBegin(); drawPick(); };
+  net.on.cpick = m => { if (!mp || mp.net !== net) return; mp.theirs = NATIONS[m.crown] ? m.crown : null; if (mp.host) maybeBegin(); if (!C) drawPick(); };
   net.on.cstate = m => { if (!mp || mp.net !== net || mp.host || !m.C) return; takeState(m.C); };
   net.on.cact = m => { if (!mp || mp.net !== net || !mp.host || !C || !C.mp) return; const r = apply(humans()[1], m.a || {}); if (r) mp.net.send({ t: "cres", r }); broadcast(); };
   net.on.cres = m => { if (!mp || mp.net !== net) return; react(m.r); };
