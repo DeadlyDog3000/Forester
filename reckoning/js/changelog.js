@@ -14,6 +14,7 @@ export const CHANGELOG = [
       "The credits are on a scroll of their own that you can scroll through, set out in sections — music, voices, people and animals, the world's surfaces, type and code — and the Back button is always clear of the words.",
       "A battle you share on the server can be given a name of your own before it's sent — the plan it shows, the formation, whatever you'd call it — and it's listed under that name in the highlights for everyone to find and watch.",
       "The rivers on the battlefields have low banks: the field slopes gently down to the water over a broad meadow, instead of dropping into a gully a man's height deep before the water begins.",
+      "Placing your company before a battle: your field guns can be picked up and run where you want them too, each with its crew, and turned to face where you like. Every arm's ring has an arrow on it showing its front, and Turn left and Turn right buttons appear on the bar while you hold one (the wheel, a right-click or R still turn it as well).",
       "Historical battles no longer pay anything into your purse: many of them are easily won, the field set up for the side that won it on the day. Pay comes from battles and duels against bots and other players.",
     ],
   },

@@ -1047,10 +1047,20 @@ export class Field {
     const m = makeCannon();   // (pointing at the other side: -z of the model, out east or west)
     this.put(m, x, z, ry, 0, false);
     // (solid from the muzzle to the trail's end: the carriage and wheels a box, the barrel out before them a narrower one)
-    { const c = this.at(x, z, ry, 0, -0.32); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.6, 0.5, ry, this.y(x, z) + 1.05)); }
-    { const c = this.at(x, z, ry, 0, 0.95); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.24, 0.75, ry, this.y(x, z) + 0.9)); }
-    { const c = this.at(x, z, ry, 0, -1.25); this.cols.push(this.w.col.addOBox(c.x, c.z, 0.22, 0.6, ry, this.y(x, z) + 1.1)); }
-    this.guns.push({ side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, reloadT: 1, recoil: 0, back: 0, base: m.position.clone(), target: null, firing: true, next: 10 + this.r() * 8, crew: [], tools: this.gunTools() });
+    const g = { side, x, z, ry, yaw: 0, pitch: 0.06, model: m, loaded: true, reload: 0, reloadT: 1, recoil: 0, back: 0, base: m.position.clone(), target: null, firing: true, next: 10 + this.r() * 8, crew: [], tools: this.gunTools(), cols: [] };
+    this.gunSolid(g); this.guns.push(g);
+  }
+  gunSolid(g) {
+    const { x, z, ry } = g;
+    for (const c of g.cols) { this.w.col.remove(c); const j = this.cols.indexOf(c); if (j >= 0) this.cols.splice(j, 1); }
+    g.cols = [[0, -0.32, 0.6, 0.5, 1.05], [0, 0.95, 0.24, 0.75, 0.9], [0, -1.25, 0.22, 0.6, 1.1]].map(([lx, lz, hw, hd, h]) => { const c = this.at(x, z, ry, lx, lz); return this.w.col.addOBox(c.x, c.z, hw, hd, ry, this.y(x, z) + h); });
+    this.cols.push(...g.cols);
+  }
+  // a gun run to another place before the battle (the deployment), turned to face where it's set
+  moveGun(g, x, z, ry) {
+    g.x = x; g.z = z; g.ry = ry; g.yaw = 0; g.back = 0;
+    const m = g.model; m.position.set(x, this.y(x, z), z); m.rotation.y = ry; m.updateMatrixWorld(true); g.base = m.position.clone();
+    this.gunSolid(g);
   }
   // where a gun's crew stand to work it: either side of the breech, clear of the wheels (i 0: the gunner, who lays and
   // fires it; 1: the loader, with the rammer and the sponge)

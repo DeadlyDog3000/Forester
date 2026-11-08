@@ -1580,17 +1580,28 @@ class Arena {
     const mid = cen(this.alliesOf(0).filter(u => !u.crewOf)), wide = g => Math.max(6, Math.min(g.men.length, 12) * 1.05 + 3);
     let lft = 0, rgt = 0;
     const tokens = groups.sort((a, b) => b.men.length - a.men.length).map((g, i) => { let o = 0; if (i === 0) { lft = rgt = wide(g) / 2; } else if (i % 2) { o = -(lft + wide(g) / 2); lft += wide(g); } else { o = rgt + wide(g) / 2; rgt += wide(g); } return { ...g, at: { x: mid.x + r.x * o, z: mid.z + r.z * o }, face: faceTo }; });
+    // (your guns, each to be run where you like: the model faces down its own -z, so its front is turned half round)
+    const guns = this.field ? this.field.guns.filter(g => g.side === 0 && !g.dead) : [];
+    guns.forEach((g, i) => tokens.push({ id: "gun" + i, name: guns.length > 1 ? `Gun ${i + 1}` : "Gun", gun: g, men: [], at: { x: g.x, z: g.z }, face: g.ry + Math.PI }));
     tokens.push({ id: "you", name: "You", men: [], at: { x: pl.pos.x, z: pl.pos.z }, face: faceTo });
-    for (const T of tokens) { T.sp = label(T.name, T.id === "you" ? "your own place" : `${T.men.length} men`); root.add(T.sp); T.ring = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.1, 32), new THREE.MeshBasicMaterial({ color: T.id === "you" ? 0xffffff : 0xffd27a, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide })); T.ring.rotation.x = -Math.PI / 2; T.ring.renderOrder = 5; root.add(T.ring); }
+    const subOf = T => T.id === "you" ? "your own place" : T.gun ? `gun, ${T.gun.crew.filter(u => u && u.alive).length} crew` : `${T.men.length} men`;
+    // (each one's ring, with an arrow on it out to its front: which way the arm will face when the battle begins)
+    const arrowGeo = (() => { const sh = new THREE.Shape(); sh.moveTo(-0.9, 2.25); sh.lineTo(0.9, 2.25); sh.lineTo(0, 3.9); sh.closePath(); return new THREE.ShapeGeometry(sh).rotateX(Math.PI / 2); })();
+    for (const T of tokens) { T.sp = label(T.name, subOf(T)); root.add(T.sp);
+      const mat = new THREE.MeshBasicMaterial({ color: T.id === "you" ? 0xffffff : T.gun ? 0xe8a060 : 0xffd27a, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide });
+      T.ring = new THREE.Group(); const ring = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.1, 32).rotateX(-Math.PI / 2), mat), arrow = new THREE.Mesh(arrowGeo, mat);
+      ring.renderOrder = arrow.renderOrder = 5; T.ring.add(ring, arrow); T.ring.material = mat; root.add(T.ring); }
     const O0 = this.orders[0];
     // a group stood at a place, in line, facing the way it's turned
     const stand = T => {
       const p = clampZone(T.at.x, T.at.z); T.at = p;
       const look = { x: p.x + Math.sin(T.face) * 30, z: p.z + Math.cos(T.face) * 30 };
       if (T.id === "you") pl.place(p.x, p.z, T.face + Math.PI);
+      else if (T.gun) { const g = T.gun; this.field.moveGun(g, p.x, p.z, T.face + Math.PI);
+        for (const u of g.crew) if (u && u.alive) { const q = this.field.station(g, u.crewIdx); u.reset(q, look); u.a.sync && u.a.sync(); } }
       else { const O = new Orders(0); O.form = "line"; T.men.forEach((u, i) => { const q = O.slot(i, T.men.length, p, T.face); const c = this.clearSpot(q.x, q.z); u.reset(c, look); u.a.sync && u.a.sync(); }); }
       // (the labels at heights of their own, so arms stood near each other can each be read)
-      const y = groundY(p.x, p.z), k = tokens.indexOf(T); T.sp.position.set(p.x, y + 5 + k * 2.6, p.z); T.ring.position.set(p.x, y + 0.3, p.z);
+      const y = groundY(p.x, p.z), k = tokens.indexOf(T); T.sp.position.set(p.x, y + 5 + (k % 3) * 2.4, p.z); T.ring.position.set(p.x, y + 0.3, p.z); T.ring.rotation.y = T.face;
     };
     for (const T of tokens) stand(T);
     // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
@@ -1633,18 +1644,18 @@ class Arena {
     const pickAt = (mx, my) => {
       const g = ground(mx, my); if (!g) return null;
       let best = null, bd = 6;
-      for (const T of tokens) { const d = T.id === "you" ? Math.hypot(T.at.x - g.x, T.at.z - g.z) : Math.min(Math.hypot(T.at.x - g.x, T.at.z - g.z), ...T.men.map(u => Math.hypot(u.pos.x - g.x, u.pos.z - g.z) + 1)); if (d < bd) { bd = d; best = T; } }
+      for (const T of tokens) { const d = !T.men.length ? Math.hypot(T.at.x - g.x, T.at.z - g.z) : Math.min(Math.hypot(T.at.x - g.x, T.at.z - g.z), ...T.men.map(u => Math.hypot(u.pos.x - g.x, u.pos.z - g.z) + 1)); if (d < bd) { bd = d; best = T; } }
       return best;
     };
     // the bar along the bottom: what to do, an arm to pick up by name, the officer's choice, and Begin
     const bar = document.createElement("div"); bar.id = "deployBar";
     const drawBar = () => {
-      bar.innerHTML = `<div class="dp-t"><b>Place your company</b><span>Click an arm to pick it up, click again to set it down · wheel turns its front · WASD or the arrows move the view, Q and E turn it · their lines are hidden until the battle begins</span></div>
-        <div class="dp-g">${tokens.map(T => `<button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : `${T.men.length} men`}</small></button>`).join("")}</div>
-        <div class="dp-a"><button data-dp="auto" class="ghost">Officer's choice</button><button data-dp="go" class="go">Begin the battle</button></div>`;
+      bar.innerHTML = `<div class="dp-t"><b>Place your company</b><span>Click an arm or a gun to pick it up, click again to set it down · the arrow on its ring is its front: the wheel, right-click or R turns it · WASD or the arrows move the view, Q and E turn it · their lines are hidden until the battle begins</span></div>
+        <div class="dp-g">${tokens.map(T => `<button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : T.gun ? "gun" : `${T.men.length} men`}</small></button>`).join("")}</div>
+        <div class="dp-a">${held ? `<button data-dp="tl" class="ghost">Turn left</button><button data-dp="tr" class="ghost">Turn right</button>` : ""}<button data-dp="auto" class="ghost">Officer's choice</button><button data-dp="go" class="go">Begin the battle</button></div>`;
     };
     drawBar(); document.getElementById("hud").parentElement.appendChild(bar);
-    const officer = () => { this.autoDeploy(); const by = {}; for (const T of tokens) { if (T.id === "you") T.at = { x: pl.pos.x, z: pl.pos.z }; else T.at = cen(T.men); T.face = faceTo; stand(T); void by; } };
+    const officer = () => { this.autoDeploy(); const by = {}; for (const T of tokens) { if (T.id === "you") T.at = { x: pl.pos.x, z: pl.pos.z }; else if (T.gun) { T.at = { x: T.gun.x, z: T.gun.z }; continue; } else T.at = cen(T.men); T.face = faceTo; stand(T); void by; } };
     const finish = () => {
       if (!G.deploying) return;
       G.deploying = false; G.deathCam = null; G.forceThird = false; UI.show("hud", true);
@@ -1664,7 +1675,7 @@ class Arena {
     // (for the test scripts: what's placed where, and the pointer's ground)
     this.dp = { tokens, ground, pickAt, view, get held() { return held; } };
     const onBar = e => { const b = e.target.closest && e.target.closest("[data-dp]"); if (!b) return false; const id = b.dataset.dp;
-      if (id === "go") { sfx("roll"); finish(); } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); sfx(held ? "muster" : "halt"); }
+      if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { held.face += (id === "tl" ? 1 : -1) * Math.PI / 8; stand(held); sfx("wheel"); } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); sfx(held ? "muster" : "halt"); }
       return true; };
     // (a press, pointer's or mouse's — whichever the browser sends, once)
     let lastPress = 0;
