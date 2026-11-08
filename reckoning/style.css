@@ -2383,3 +2383,8 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .fg-parts .buybar { grid-template-columns: 1fr auto; }
 .fg-parts .buybar .bb-n { grid-column: 1 / -1; }
 .fg-parts .buybar .bb-p { grid-column: 1 / -1; }
+.fg-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 6px; }
+.fg-stats > div { display: flex; flex-direction: column; padding: 7px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--edge); }
+.fg-stats span { font: 700 10px var(--sans); text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-dim); }
+.fg-stats b { font: 600 14px var(--sans); color: var(--ink); }
+.fg-stats b small { font-weight: 400; font-size: 11px; color: var(--ink-dim); }
