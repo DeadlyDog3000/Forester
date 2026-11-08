@@ -2482,3 +2482,10 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 #deployBar .dp-wl { font: 12.5px var(--sans); color: #7a6650; margin-right: 4px; }
 #deployBar .dp-wl b { color: #a8321f; }
 #deployBar .dp-w button[disabled] { opacity: 0.4; cursor: default; }
+#deployBar .dp-tk { display: flex; align-items: stretch; gap: 0; }
+#deployBar .dp-tk > button { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+#deployBar .dp-n { width: 40px; border: 1px solid rgba(60, 40, 20, 0.16); border-left: none; border-radius: 0 10px 10px 0; background: rgba(255, 252, 244, 0.9); font: 700 15px var(--sans); text-align: center; color: #3a2c1e; }
+#deployBar .dp-n:focus { outline: none; border-color: #a8321f; background: #fff; }
+.scroll-sheet input.pv-tr-c { width: 40px; padding: 3px 2px; border: 1px solid transparent; border-radius: 6px; background: transparent; font: 600 16px var(--display); text-align: center; color: var(--ink); }
+.scroll-sheet input.pv-tr-c:hover { border-color: var(--edge); }
+.scroll-sheet input.pv-tr-c:focus { outline: none; border-color: #a8321f; background: #fff; }

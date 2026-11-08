@@ -192,6 +192,10 @@ export function initPvp(c) {
   $("musBack").onclick = () => leaveMuster();
   $("musReady").onclick = () => musterReady();
   $("musArmy").addEventListener("click", armyClick);
+  // (a count typed in: as many as asked for, or as many as the purse and the field will take)
+  $("musArmy").addEventListener("change", e => { const i = e.target.closest("[data-trn]"); if (i) typedCount(i); });
+  $("musArmy").addEventListener("keydown", e => { const i = e.target.closest("[data-trn]"); if (!i) return; e.stopPropagation(); if (e.key === "Enter") i.blur(); });
+  $("musArmy").addEventListener("focusin", e => { const i = e.target.closest("[data-trn]"); if (i) i.select(); });
   $("musMe").addEventListener("click", e => {
     const r = e.target.closest("[data-ride]"); if (r && !(must && must.mine)) { setRiding(!riding()); setArmy({}); drawMe(); drawArmy(); window.__uisfx && window.__uisfx.click && window.__uisfx.click(); return; }
     if (!(must && must.mine) && buyClick(e)) return;
@@ -628,7 +632,7 @@ function drawArmy() {
   const sw = u => `<i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i>`;
   // (a battle: the company raised from the purse — so many of each, as you can pay for them)
   const spent = spentOf(A), left = A.purse - spent;
-  const tr = (k, T, n, cost, max) => `<div class="pv-tr">${k !== "guns" && plateOf(wayOfUniform(A.uniform), k) ? `<img class="pv-tr-img" src="${plateOf(wayOfUniform(A.uniform), k)}" alt="">` : ""}<span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><b class="pv-tr-c">${n}</b><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
+  const tr = (k, T, n, cost, max) => `<div class="pv-tr">${k !== "guns" && plateOf(wayOfUniform(A.uniform), k) ? `<img class="pv-tr-img" src="${plateOf(wayOfUniform(A.uniform), k)}" alt="">` : ""}<span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><input class="pv-tr-c" data-trn="${k}" value="${n}" inputmode="numeric" maxlength="3" title="Type how many"><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
   const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest || (host && must.theirs) ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? (must.theirs ? ` — ${esc(must.foe.name || "the other player")} is ready, so the size of battle is set` : " — you're the host: the size of battle is yours to choose") : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
     <div class="pv-muster">${Object.entries(TROOPS).filter(([k]) => troopOk(A.uniform, k)).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
@@ -682,6 +686,14 @@ function sidesRow(A) {
     <div class="pv-sidesc">${S.map((n, a) => `<div class="pv-step"><span>${a ? `Side ${a + 1}` : "Yours"}</span><button data-side="${a}" data-d="-1"${n <= 1 ? " disabled" : ""}>−</button><b>${n}</b><button data-side="${a}" data-d="1"${n >= 4 ? " disabled" : ""}>+</button></div>`).join("")}
       <button class="pv-gr pv-add" data-addside="1"${S.length >= 4 ? " disabled" : ""}><b>+ Side</b></button><button class="pv-gr pv-add" data-addside="-1"${S.length <= 2 ? " disabled" : ""}><b>− Side</b></button></div>
     <div class="pv-sn">${isCustom(A) ? `${cos} companies, each raised from the same purse${cos > 4 ? " (the bots' smaller, with so many on the field)" : ""}. You lead one of yours; bots lead the rest${S.length > 2 ? ` — and with ${S.length} sides, every side is against every other` : ""}.` : "Your company against one other — the forts are for this."}</div>`;
+}
+function typedCount(input) {
+  const k = input.dataset.trn, A = army(), v = Math.max(0, parseInt(input.value, 10) || 0), guns = k === "guns", cur = guns ? A.guns | 0 : A.muster[k] | 0;
+  const cost = guns ? GUN_COST : TROOPS[k].cost, left = A.purse - spentOf(A);
+  const most = Math.min(cur + Math.floor(Math.max(0, left) / cost), guns ? MAX_GUNS : MAX_MEN - menOf(A) + cur), n = Math.min(v, most);
+  if (guns) setArmy({ guns: n }); else setArmy({ muster: { ...A.muster, [k]: n } });
+  drawArmy(); window.__uisfx && window.__uisfx.click && window.__uisfx.click();
+  if (n < v) UI.hint(n === most && most < (guns ? MAX_GUNS : MAX_MEN) ? `The purse runs to ${n}.` : `No more than ${n} on the field.`, 2.5);
 }
 function armyClick(e) {
   const b = e.target.closest("button"); if (!b || (must && must.mine)) return;
@@ -1390,6 +1402,7 @@ class Arena {
         else if (!T && (this.battle ? Math.random() < 0.85 : info.lo.long === "musket" && Math.random() < 0.6)) { const uk = U && Object.keys(UNIFORMS).find(k => UNIFORMS[k] === U); if (!uk || !TEAMS[uk] || inKit(uk, "long", "musket")) info.lo = { ...info.lo, long: "musket", side: "none", blade: "dagger" }; }
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };
+      this.mk = mk;   // (kept: the deployment raises a man or two more, if the purse runs to it)
       if (this.remote) this.puppets(setup.roster);
       else {
         if (this.custom) this.musters.forEach((l, co) => { for (let i = 0; i < l.length; i++) mk(co, i); });
@@ -1786,7 +1799,26 @@ class Arena {
     //  in hand follows the pointer, green where it can go, and goes down with a click; Undo takes the last one up again,
     //  its cost back in the purse
     const WK = Field.WORKS, A0 = this.army, built = [];
-    let purseLeft = this.battle && A0 && A0.purse ? Math.max(0, (A0.purse | 0) - spentOf(A0)) : 0, work = null;
+    let worksSpent = 0, work = null;
+    const leftNow = () => this.battle && A0 && A0.purse ? Math.max(0, (A0.purse | 0) - spentOf(A0) - worksSpent) : 0;
+    let purseLeft = leftNow();
+    // (a number of men typed in for an arm: the last of them sent off, their pay back in the purse; or more raised on
+    //  the spot, of the arm's commonest kind, as far as the purse and the field allow)
+    const setCount = (T, want) => {
+      if (!T.men || !this.mk) return;
+      const by = {}; for (const u of T.men) { const k = armOf(u); by[k] = (by[k] || 0) + 1; }
+      const kind = Object.keys(by).sort((a, b) => by[b] - by[a])[0] || (GROUPS.find(g => g.id === T.id) || { kinds: ["musketeer"] }).kinds[0], cost = (TROOPS[kind] || { cost: 60 }).cost;
+      want = Math.max(T.men.length ? 1 : 0, want | 0);
+      while (T.men.length > want) { const u = T.men.pop(), k = armOf(u); u.quiet = true; u.hp = 0; u.a.root.visible = false; u.a.remove && u.a.remove(); this.units.splice(this.units.indexOf(u), 1); if (A0.muster[k]) A0.muster[k]--; }
+      let raised = 0;
+      while (T.men.length < want && leftNow() >= cost && this.alliesOf(0).filter(u => !u.crewOf).length < MAX_MEN) {
+        this.musters[0].push(kind); const u = this.mk(0, this.musters[0].length - 1);
+        u.uid = Math.max(...this.units.map(x => x.uid ?? -1)) + 1; T.men.push(u); A0.muster[kind] = (A0.muster[kind] | 0) + 1; raised++;
+      }
+      A0.allies = this.alliesOf(0).filter(u => !u.crewOf).length; purseLeft = leftNow();
+      if (T.men.length < want) UI.hint(leftNow() < cost ? `The purse runs to ${T.men.length}.` : `No more men on the field.`, 2.2);
+      stand(T); drawBar(); sfx(raised ? "muster" : "halt");
+    };
     const ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x7ad07a, transparent: true, opacity: 0.4, depthWrite: false, fog: false })); ghost.visible = false; ghost.renderOrder = 4; root.add(ghost);
     // (not on top of your own men, nor where you stand: they'd be inside it)
     const onMen = (p, rad) => Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) < rad || this.alliesOf(0).some(u => Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < rad);
@@ -1794,7 +1826,7 @@ class Arena {
     const placeWork = g => {
       const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(purseLeft < W.cost ? `Not enough left in the purse: ${W.name.toLowerCase()} cost ${W.cost} thalers.` : "Not there: your men are on it, the ground's taken or too rough, or it's outside your ground.", 2); return; }
       const rec = this.field.build(work.k, p.x, p.z, work.ry, 0, { x: p.x - f.x * 20, z: p.z - f.z * 20 });
-      built.push({ k: work.k, rec, cost: W.cost }); purseLeft -= W.cost; sfx("buy", 3); drawBar();
+      built.push({ k: work.k, rec, cost: W.cost }); worksSpent += W.cost; purseLeft = leftNow(); sfx("buy", 3); drawBar();
     };
     // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
     //  or further with the wheel (when nothing's in hand), turned with Q and E
@@ -1850,11 +1882,13 @@ class Arena {
     const bar = document.createElement("div"); bar.id = "deployBar";
     const drawBar = () => {
       bar.innerHTML = `<div class="dp-t"><b>Place your company</b><span>Click an arm or a gun to pick it up, click again to set it down · the arrow on its ring is its front: the wheel, right-click or R turns it · works are bought from what's left in the purse: pick one, click to set it down, turn it the same way · WASD or the arrows move the view, Q and E turn it · their lines are hidden until the battle begins</span></div>
-        <div class="dp-g">${tokens.map(T => `<button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : T.gun ? "gun" : `${T.men.length} men`}</small></button>`).join("")}</div>
+        <div class="dp-g">${tokens.map(T => `<div class="dp-tk${T === held ? " on" : ""}"><button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : T.gun ? "gun" : "men"}</small></button>${T.id !== "you" && !T.gun ? `<input class="dp-n" data-dpn="${T.id}" value="${T.men.length}" inputmode="numeric" maxlength="2" title="Type how many men">` : ""}</div>`).join("")}</div>
         ${this.field && A0 && A0.battle ? `<div class="dp-w"><span class="dp-wl">Works <b>${purseLeft} thalers</b> left in the purse</span>${Object.entries(WK).map(([k, W]) => `<button data-dp="wk:${k}" class="${work && work.k === k ? "on" : ""}"${purseLeft < W.cost ? " disabled" : ""}>${esc(W.name)}<small>${W.cost} · ${esc(W.sub)}</small></button>`).join("")}${built.length ? `<button data-dp="undo" class="ghost">Undo</button>` : ""}</div>` : ""}
         <div class="dp-a">${held ? `<button data-dp="tl" class="ghost">Turn left</button><button data-dp="tr" class="ghost">Turn right</button>` : ""}<button data-dp="auto" class="ghost">Officer's choice</button><button data-dp="go" class="go">Begin the battle</button></div>`;
     };
     drawBar(); document.getElementById("hud").parentElement.appendChild(bar);
+    bar.addEventListener("change", e => { const i = e.target.closest("[data-dpn]"); if (!i) return; const T = tokens.find(t => t.id === i.dataset.dpn); if (T) setCount(T, parseInt(i.value, 10) || 0); });
+    bar.addEventListener("focusin", e => { const i = e.target.closest("[data-dpn]"); if (i) i.select(); });
     const officer = () => { this.autoDeploy(); const by = {}; for (const T of tokens) { if (T.id === "you") T.at = { x: pl.pos.x, z: pl.pos.z }; else if (T.gun) { T.at = { x: T.gun.x, z: T.gun.z }; continue; } else T.at = cen(T.men); T.face = faceTo; T.want = null; stand(T); void by; } };
     const finish = () => {
       if (!G.deploying) return;
@@ -1876,7 +1910,7 @@ class Arena {
     this.dp = { tokens, ground, pickAt, view, get held() { return held; } };
     const onBar = e => { const b = e.target.closest && e.target.closest("[data-dp]"); if (!b) return false; const id = b.dataset.dp;
       if (id.startsWith("wk:")) { const k = id.slice(3); held = null; work = work && work.k === k ? null : { k, ry: Math.atan2(-r.z, r.x) }; drawBar(); sfx(work ? "smith" : "halt"); }
-      else if (id === "undo") { const b = built.pop(); if (b) { this.field.unbuild(b.rec); purseLeft += b.cost; sfx("purse", 2); drawBar(); } }
+      else if (id === "undo") { const b = built.pop(); if (b) { this.field.unbuild(b.rec); worksSpent -= b.cost; purseLeft = leftNow(); sfx("purse", 2); drawBar(); } }
       else if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { const d = id === "tl" ? 1 : -1; turn(held, d * Math.PI / 8); spin = { d, t0: performance.now() }; } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; work = null; drawBar(); sfx(held ? "muster" : "halt"); }
       return true; };
     // (a press, pointer's or mouse's — whichever the browser sends, once)
@@ -1897,7 +1931,7 @@ class Arena {
       ["mousemove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
       ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) turn(held, clamp(e.deltaY * 0.0045, -0.35, 0.35)); else if (work) work.ry += clamp(e.deltaY * 0.0045, -0.35, 0.35); else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
       ["contextmenu", e => { if (G.deploying) e.preventDefault(); }],
-      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); sfx("roll"); finish(); return; } if (e.code === "Escape") { held = null; work = null; drawBar(); return; } if (e.code === "KeyR" && work && !held) { work.ry += Math.PI / 8; sfx("wheel"); return; } if (e.code === "KeyR" && held) { if (!e.repeat) turn(held, -Math.PI / 16); keys.add(e.code); return; } keys.add(e.code); }],
+      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.target && e.target.matches && e.target.matches("input")) { if (e.code === "Enter" || e.code === "Escape") e.target.blur(); return; } if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); sfx("roll"); finish(); return; } if (e.code === "Escape") { held = null; work = null; drawBar(); return; } if (e.code === "KeyR" && work && !held) { work.ry += Math.PI / 8; sfx("wheel"); return; } if (e.code === "KeyR" && held) { if (!e.repeat) turn(held, -Math.PI / 16); keys.add(e.code); return; } keys.add(e.code); }],
       ["keyup", e => { keys.delete(e.code); }],
       ["pointerup", () => { spin = null; }], ["mouseup", () => { spin = null; }],
     ];
