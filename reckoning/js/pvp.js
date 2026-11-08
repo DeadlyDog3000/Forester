@@ -534,16 +534,21 @@ function drawForge() {
   const W = LONG[forgeKind] || SIDE[forgeKind] || BLADE[forgeKind] || { name: forgeKind, stats: [] }, pace = paceOf({ [forgeKind]: ups })[forgeKind] || 1;
   // (its numbers: as the muster gives them, the loading the quicker for what's fitted — or being looked at — and its weight)
   const statRows = (W.stats || []).map(([k, v]) => { const m = /^([\d.]+) s$/.exec(v); return [k, m && pace > 1 ? `${(+m[1] / pace).toFixed(1)} s <small>(${v} without)</small>` : esc(v)]; }).concat(W.w != null ? [["Weight", `${W.w} <small>(the more you carry, the slower on your feet)</small>`]] : []);
-  $("fgParts").innerHTML = `<div class="pv-h big">${esc(forgeKind === "dagger" ? "Knife" : W.name)}</div>
-    <div class="fg-stats">${statRows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join("")}</div>
-    ${W.note ? `<div class="fg-note">${esc(W.note)}</div>` : ""}`
-    + (want && (want.k === "f" || want.k === "u") ? buyBar() : "")
+  // (what to do here, step by step: the step you're on lit)
+  const step = want && (want.k === "f" || want.k === "u") && want.kind === forgeKind ? 3 : 2;
+  $("fgParts").innerHTML = `<div class="fg-steps"><span class="${step === 1 ? "on" : "done"}"><i>1</i>Choose an arm on the left</span><span class="${step === 2 ? "on" : step > 2 ? "done" : ""}"><i>2</i>Click a fitting or a colour to try it on</span><span class="${step === 3 ? "on" : ""}"><i>3</i>Buy it under the picture</span></div>
+    <div class="pv-h big">${esc(forgeKind === "dagger" ? "Knife" : W.name)}</div>`
+    + (UPGRADES[forgeKind] ? `<div class="fg-sec"><b>Fittings</b> change how it works in a fight</div>` : `<div class="fg-sec"><b>No fittings</b> for this one: only its colours</div>`)
     + (UPGRADES[forgeKind] ? `<div class="fg-slot"><div class="pv-h">Gunsmith's work</div><div class="fg-ups">${Object.entries(UPGRADES[forgeKind]).map(([id, U]) => { const have = ownsUp(forgeKind, id);
         return `<button class="up${have ? " on" : " off"}${wantIs("u", id, forgeKind) ? " ask" : ""}" data-up="${id}" title="${esc(U.note)}"><b>${esc(U.name)}</b>${have ? `<i class="mc-c">fitted</i>` : `<i class="mc-p">${money(U.price)}</i>`}<small>${esc(U.note)}</small></button>`; }).join("")}</div><div class="fg-note">Click one to see it on the arm. Bought for your ${esc(TEAM_NAME(teamNow()))} arms, for battles against bots; in a ranked fight every arm is fully fitted, for everyone.</div></div>` : "")
+    + `<div class="fg-sec"><b>Colours</b> are for looks only — they change nothing in a fight, and other players see them. Each is bought for this arm alone.</div>`
     + SLOTS[forgeKind].map(sl => `<div class="fg-slot"><div class="pv-h">${SLOT_NAME[sl]}</div><div class="fg-fins">${Object.entries(FINISH[sl]).map(([id, [n, price, c]]) => {
       const sw = c == null ? "" : Array.isArray(c) ? `background:rgb(${c.map(v => Math.round(Math.min(1, v * 0.55) * 255)).join(",")})` : `background:#${c.toString(16).padStart(6, "0")}`;
       return `<button class="fin${sk[sl] === id ? " on" : ""}${ownsFinish(sl, id, forgeKind) ? "" : " off"}${wantIs("f", id, sl) ? " ask" : ""}" data-fs="${sl}" data-fi="${id}"><i class="fin-sw" style="${sw}"></i><span>${esc(n)}</span>${ownsFinish(sl, id, forgeKind) ? "" : `<i class="mc-p">${money(price)}</i>`}</button>`; }).join("")}</div></div>`).join("")
-    + `<div class="fg-note">The steel stays steel: blades, barrels, locks and spearheads aren't painted. Finishes are for looks only — they change nothing in a fight, and other players see them.</div>`;
+    + `<div class="fg-note">The steel stays steel: blades, barrels, locks and spearheads aren't painted.</div>
+    <details class="fg-num"><summary>Its numbers</summary><div class="fg-stats">${statRows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join("")}</div>${W.note ? `<div class="fg-note">${esc(W.note)}</div>` : ""}</details>`;
+  // (under the picture: what's being tried on, its price and the Buy button — or what to do, if nothing is)
+  $("fgTry").innerHTML = step === 3 ? buyBar() : `<div class="fg-hint">Click a fitting or a colour on the right to try it on here</div>`;
   if (!table) table = new Table($("fgView"));
   const fo = want && want.k === "u" && want.kind === forgeKind ? (UP_FOCUS[forgeKind] || {})[want.id] || null : null;
   table.show(forgeKind, sk, ups, fo); table.start();

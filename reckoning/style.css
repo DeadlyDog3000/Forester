@@ -2459,3 +2459,21 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .camp-first b { font: 600 17px var(--serif); }
 .camp-first small { font: 13px var(--sans); color: var(--ink-dim); }
 .start-here { display: table; margin: 0 auto 4px; }
+
+/* the armoury: what to do, step by step; fittings, then colours, then the numbers; buying under the picture */
+.fg-steps { display: flex; flex-direction: column; gap: 4px; margin: 0 0 12px; }
+.fg-steps span { display: flex; align-items: center; gap: 8px; font: 12.5px var(--sans); color: var(--ink-dim); }
+.fg-steps i { flex: none; display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font: 700 11px var(--sans); font-style: normal; border: 1px solid var(--edge); color: var(--ink-dim); }
+.fg-steps .on { color: var(--ink); font-weight: 600; }
+.fg-steps .on i { background: var(--gold); border-color: var(--gold); color: #1a1208; }
+.fg-steps .done i { background: rgba(42, 106, 54, 0.14); border-color: rgba(42, 106, 54, 0.5); color: #2a6a36; }
+.fg-sec { margin: 14px 0 6px; font: 12.5px/1.4 var(--sans); color: var(--ink-dim); }
+.fg-sec b { display: block; font: 700 13px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink); }
+.fg-num { margin-top: 12px; }
+.fg-num summary { cursor: pointer; font: 700 12px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.fg-num summary:hover { color: var(--ink); }
+.fg-num .fg-stats { margin-top: 8px; }
+.fg-try { position: absolute; left: 12px; right: 12px; bottom: 30px; display: flex; justify-content: center; pointer-events: none; }
+.fg-try > * { pointer-events: auto; }
+.scroll-sheet .fg-try .buybar { width: 100%; margin: 0; background: rgba(255, 250, 240, 0.96); box-shadow: 0 6px 22px rgba(60, 40, 10, 0.22); }
+.fg-hint { padding: 8px 14px; border-radius: 10px; background: rgba(255, 250, 240, 0.88); font: 600 13px var(--sans); color: var(--ink); box-shadow: 0 2px 10px rgba(60, 40, 10, 0.12); }

@@ -7,11 +7,16 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.262", date: "8 November 2026", title: "The week's challenge, their plan, and your first battle",
+    v: "1.99.262", date: "8 November 2026", title: "The week's challenge, bowmen that shoot, and a better bow",
     items: [
       "This week's challenge, on the To Arms page: the same field, the same two companies and the same officer against you for everyone, a new one each week. A win counts most, then what you lose against what they do, then how quickly; your best goes on the week's board, and a battle you share is there for others to watch.",
       "Fight their plan: a battle someone shared has a Fight it button in the replays. Their company comes on as they raised it, in their colours, each arm standing where they set it at the start; you raise yours to meet it.",
       "Your first battle is a guided one: a cautious officer against you, and the few things worth knowing shown one at a time as you fight — walking on with your company, halting and sending them on, fighting yourself, the volley, one arm alone, the charge. It's at the top of the To Arms page until you've fought it, and the title says where to start.",
+      "Bowmen shoot in battle. A line of them waited till the enemy was forty paces off, which in a pitched battle it never was; now they loose from eighty-odd paces, on a true arc that drops the arrow into the other line, and they hit — before, almost every arrow went into the ground in front of them.",
+      "The bow is a steppe composite bow: red-lacquered limbs with the horn showing along the belly, a leather grip with gilt rings, and stiff bone-tipped ears bent forward. Its string is a real cord that takes the light — it glowed white in any light before, even at night.",
+      "The crossbow's steel bow is forged flat and blued, tapering to its tips, with the cord whipped below each nock; the stock's nose is shod in iron, and the stirrup is a small iron loop out in front instead of a great hoop hanging under it.",
+      "On horseback you sit in the saddle: your body was drawn half a metre back on the horse's rump, out of sight behind your own eyes, which left a slung musket hanging in the air beside you. Cavalry sit in their saddles too, instead of on their horses' rumps.",
+      "The Armoury says how it works: choose an arm, click a fitting or a colour to try it on, and buy it from the bar under the picture. Fittings, which change how an arm works, come first; then the colours, which are for looks; its numbers are folded away below.",
       "How the colours fare: under the best commanders, how often each colour wins, against players and against bots, from every battle fought. Colours that lose more than they win are paid more for fighting in them, up to half as much again. Only the two colours, the size of battle and who won are counted — nothing of who fought it.",
     ],
   },
