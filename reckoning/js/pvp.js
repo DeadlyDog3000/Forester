@@ -47,13 +47,13 @@ const randn = () => { let u = 0, v = 0; while (u === 0) u = Math.random(); while
 
 // ---- what can be carried in ----
 export const LONG = {
-  musket: { name: "Musket", icon: "musket", w: 7, stats: [["Ball", "64 · head 102"], ["Range", "90 m"], ["Loading", "6.5 s"]], note: "One to the head, two to the body. Then the long business of loading it." },
-  bow: { name: "Bow", icon: "bow", w: 3, stats: [["Arrow", "12–42 · head ×1.6"], ["Range", "60 m, falling"], ["Loading", "0.9 s"]], note: "Quick, and quiet. The harder you draw, the harder it hits — 20 arrows." },
-  crossbow: { name: "Crossbow", icon: "crossbow", w: 5, stats: [["Bolt", "52 · head 83"], ["Range", "70 m"], ["Spanning", "2.6 s"]], note: "Nearly a musket's blow, and quicker to span — 12 bolts." },
+  musket: { name: "Musket", icon: "musket", w: 7, stats: [["Ball", "64"], ["Head", "one shot"], ["Range", "90 m"], ["Loading", "6.5 s"]], note: "One to the head, two to the body. Then the long business of loading it." },
+  bow: { name: "Bow", icon: "bow", w: 3, stats: [["Arrow", "12–42"], ["Head", "one shot"], ["Range", "60 m, falling"], ["Loading", "0.9 s"]], note: "Quick, and quiet. The harder you draw, the harder it hits — 20 arrows." },
+  crossbow: { name: "Crossbow", icon: "crossbow", w: 5, stats: [["Bolt", "52"], ["Head", "one shot"], ["Range", "70 m"], ["Spanning", "2.6 s"]], note: "Nearly a musket's blow, and quicker to span — 12 bolts." },
   none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No long arm: the pistol and the blade, and lighter on your feet." },
 };
 export const SIDE = {
-  pistol: { name: "Pistol", icon: "pistol", w: 3, stats: [["Ball", "32 · head 51"], ["Range", "25 m, wild"], ["Loading", "4.2 s"]], note: "A horseman's flintlock: quick to load, but only for close work — past a few paces it could go anywhere." },
+  pistol: { name: "Pistol", icon: "pistol", w: 3, stats: [["Ball", "32"], ["Head", "one shot"], ["Range", "25 m, wild"], ["Loading", "4.2 s"]], note: "A horseman's flintlock: quick to load, but only for close work — past a few paces it could go anywhere." },
   none: { name: "None", icon: "", w: 0, stats: [["Load", "nothing"]], note: "No pistol: lighter on your feet." },
 };
 export const BLADE = {
@@ -102,9 +102,11 @@ const HP = 100, ROUNDS_TO_WIN = 2, ROUND_SECS = 150;
 
 // what a shot or an arrow does to a man (by its power, as the hunt tells it): a musket ball, a pistol's, a bolt, an
 // arrow by how hard it was drawn — and to the head, more than half as much again (a musket ball there, the end of it)
+const HEAD_SHOT = 1000;
 export function dmgOf(power, head) {
   const d = power >= 2.5 ? 64 : power >= 1.85 ? 32 : power >= 1.7 ? 52 : 12 + power * 30;
-  return Math.round(d * (head ? 1.6 : 1));
+  // (anything shot into a man's head — ball, bolt or arrow — kills him)
+  return head ? HEAD_SHOT : Math.round(d);
 }
 
 // ---- your loadout and your record, kept on this computer ----
@@ -443,7 +445,7 @@ function buyBar() {
 }
 function buyNow() {
   const W = want; if (!W) return;
-  const ok = W.k === "w" ? buyWeapon(W.id) : W.k === "t" ? buyTeam(W.id) : W.k === "f" ? buyFinish(W.slot, W.id) : buyUp(W.kind, W.id);
+  const ok = W.k === "w" ? buyWeapon(W.id) : W.k === "t" ? buyTeam(W.id) : W.k === "f" ? buyFinish(W.slot, W.id, W.kind) : buyUp(W.kind, W.id);
   if (!ok) { sfx("click"); return; }
   want = null; sfx("buy", 4 + Math.round(wantPrice(W) / 70));
   if (W.k === "w") { lo[W.slot] = W.id; lo = fitLoad(lo, W.slot); saveLoadout(lo); setTimeout(() => sfx("arm", W.id), 950); }
@@ -494,13 +496,18 @@ function drawForge() {
   const sk = {}; for (const sl of SLOTS[forgeKind]) sk[sl] = finishOf(forgeKind, sl);
   if (want && want.k === "f" && want.kind === forgeKind) sk[want.slot] = want.id;
   const ups = {}; for (const id in UPGRADES[forgeKind] || {}) if (ownsUp(forgeKind, id) || (want && want.k === "u" && want.kind === forgeKind && want.id === id)) ups[id] = true;
-  $("fgParts").innerHTML = `<div class="pv-h big">${esc((LONG[forgeKind] || SIDE[forgeKind] || BLADE[forgeKind] || { name: forgeKind }).name)}</div>`
+  const W = LONG[forgeKind] || SIDE[forgeKind] || BLADE[forgeKind] || { name: forgeKind, stats: [] }, pace = paceOf({ [forgeKind]: ups })[forgeKind] || 1;
+  // (its numbers: as the muster gives them, the loading the quicker for what's fitted — or being looked at — and its weight)
+  const statRows = (W.stats || []).map(([k, v]) => { const m = /^([\d.]+) s$/.exec(v); return [k, m && pace > 1 ? `${(+m[1] / pace).toFixed(1)} s <small>(${v} without)</small>` : esc(v)]; }).concat(W.w != null ? [["Weight", `${W.w} <small>(the more you carry, the slower on your feet)</small>`]] : []);
+  $("fgParts").innerHTML = `<div class="pv-h big">${esc(forgeKind === "dagger" ? "Knife" : W.name)}</div>
+    <div class="fg-stats">${statRows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${v}</b></div>`).join("")}</div>
+    ${W.note ? `<div class="fg-note">${esc(W.note)}</div>` : ""}`
     + (want && (want.k === "f" || want.k === "u") ? buyBar() : "")
     + (UPGRADES[forgeKind] ? `<div class="fg-slot"><div class="pv-h">Gunsmith's work</div><div class="fg-ups">${Object.entries(UPGRADES[forgeKind]).map(([id, U]) => { const have = ownsUp(forgeKind, id);
         return `<button class="up${have ? " on" : " off"}${wantIs("u", id, forgeKind) ? " ask" : ""}" data-up="${id}" title="${esc(U.note)}"><b>${esc(U.name)}</b>${have ? `<i class="mc-c">fitted</i>` : `<i class="mc-p">${money(U.price)}</i>`}<small>${esc(U.note)}</small></button>`; }).join("")}</div><div class="fg-note">Click one to see it on the arm. Bought for your ${esc(TEAM_NAME(teamNow()))} arms, for battles against bots; in a ranked fight every arm is fully fitted, for everyone.</div></div>` : "")
     + SLOTS[forgeKind].map(sl => `<div class="fg-slot"><div class="pv-h">${SLOT_NAME[sl]}</div><div class="fg-fins">${Object.entries(FINISH[sl]).map(([id, [n, price, c]]) => {
       const sw = c == null ? "" : Array.isArray(c) ? `background:rgb(${c.map(v => Math.round(Math.min(1, v * 0.55) * 255)).join(",")})` : `background:#${c.toString(16).padStart(6, "0")}`;
-      return `<button class="fin${sk[sl] === id ? " on" : ""}${ownsFinish(sl, id) ? "" : " off"}${wantIs("f", id, sl) ? " ask" : ""}" data-fs="${sl}" data-fi="${id}"><i class="fin-sw" style="${sw}"></i><span>${esc(n)}</span>${ownsFinish(sl, id) ? "" : `<i class="mc-p">${money(price)}</i>`}</button>`; }).join("")}</div></div>`).join("")
+      return `<button class="fin${sk[sl] === id ? " on" : ""}${ownsFinish(sl, id, forgeKind) ? "" : " off"}${wantIs("f", id, sl) ? " ask" : ""}" data-fs="${sl}" data-fi="${id}"><i class="fin-sw" style="${sw}"></i><span>${esc(n)}</span>${ownsFinish(sl, id, forgeKind) ? "" : `<i class="mc-p">${money(price)}</i>`}</button>`; }).join("")}</div></div>`).join("")
     + `<div class="fg-note">The steel stays steel: blades, barrels, locks and spearheads aren't painted. Finishes are for looks only — they change nothing in a fight, and other players see them.</div>`;
   if (!table) table = new Table($("fgView"));
   const fo = want && want.k === "u" && want.kind === forgeKind ? (UP_FOCUS[forgeKind] || {})[want.id] || null : null;
@@ -516,7 +523,7 @@ function forgeClick(e) {
   }
   const f = e.target.closest("[data-fs]"); if (!f) return;
   const sl = f.dataset.fs, id = f.dataset.fi;
-  if (!ownsFinish(sl, id)) { want = { k: "f", id, slot: sl, kind: forgeKind }; drawForge(); sfx("finish", sl); return; }
+  if (!ownsFinish(sl, id, forgeKind)) { want = { k: "f", id, slot: sl, kind: forgeKind }; drawForge(); sfx("finish", sl); return; }
   want = null; setFinish(forgeKind, sl, id); drawForge(); drawPurse(); sfx("finish", sl);
 }
 function drawVs() {
@@ -3200,17 +3207,30 @@ class Bot extends Fighter {
     const F = { t: G.time, fx, fz, px: -fz, pz: fx, ox: (a.x + b.x) / 2, oz: (a.z + b.z) / 2, slot: new Map() };
     // (the men at close quarters along it, each his own place a pace and a half from the next, in the order they stand)
     const lat = p => (p.x - F.ox) * F.px + (p.z - F.oz) * F.pz, mel = mates.filter(u => u.alive && u.mode === "melee" && !u.mounted && !u.crewOf).sort((u, v) => lat(u.pos) - lat(v.pos));
-    if (mel.length) { const c = mel.reduce((t, u) => t + lat(u.pos), 0) / mel.length; mel.forEach((u, i) => F.slot.set(u, c + (i - (mel.length - 1) / 2) * 1.5)); }
-    // (and where the two lines meet: halfway between the men at close quarters on either side, or between the sides)
+    // (each fight its own line: men a good way apart across the front — a fight on the left flank and another on the
+    //  right — are two fights, each lined up round where it is, not one line round the middle of both, which had men
+    //  walking off sideways across the field to places in a fight that wasn't theirs)
     const om = foes.filter(u => u.alive && u.mode === "melee"), fwd = p => (p.x - F.ox) * fx + (p.z - F.oz) * fz;
-    if (mel.length && om.length) { const m1 = mel.reduce((t, u) => t + fwd(u.pos), 0) / mel.length, m2 = om.reduce((t, u) => t + fwd(u.pos), 0) / om.length, mid = (m1 + m2) / 2; F.ox += fx * mid; F.oz += fz * mid; }
+    F.meet = new Map();
+    for (let i = 0; i < mel.length;) {
+      let j = i + 1; while (j < mel.length && lat(mel[j].pos) - lat(mel[j - 1].pos) < 5) j++;
+      const g = mel.slice(i, j), c = g.reduce((t, u) => t + lat(u.pos), 0) / g.length;
+      g.forEach((u, k) => F.slot.set(u, c + (k - (g.length - 1) / 2) * 1.5));
+      // (and where this fight's two lines meet: halfway between its men and theirs across from them)
+      const lo = lat(g[0].pos) - 4, hi = lat(g[g.length - 1].pos) + 4, them = om.filter(f => { const l = lat(f.pos); return l > lo && l < hi; });
+      const m1 = g.reduce((t, u) => t + fwd(u.pos), 0) / g.length, mid = them.length ? (m1 + them.reduce((t, u) => t + fwd(u.pos), 0) / them.length) / 2 : m1 + 0.8;
+      for (const u of g) F.meet.set(u, mid);
+      i = j;
+    }
     return K[this.al] = F;
   }
   // (his own place in his side's line at close quarters: on his side of where the lines meet, at his slot along it)
   lineSpot(reach) {
     const Fr = this.front(); if (!Fr || !Fr.slot.has(this)) return null;
-    const l = Fr.slot.get(this), back = Math.max(0.55, (reach - 0.9) / 2);
-    return { x: Fr.ox + Fr.px * l - Fr.fx * back, z: Fr.oz + Fr.pz * l - Fr.fz * back };
+    const l = Fr.slot.get(this), back = Math.max(0.55, (reach - 0.9) / 2), m = (Fr.meet && Fr.meet.get(this)) || 0;
+    const p = { x: Fr.ox + Fr.fx * m + Fr.px * l - Fr.fx * back, z: Fr.oz + Fr.fz * m + Fr.pz * l - Fr.fz * back };
+    // (never a place more than a few paces off: a man doesn't leave his fight for a place in the line)
+    return Math.hypot(p.x - this.pos.x, p.z - this.pos.z) > 5 ? null : p;
   }
   pick() {
     const O = this.arena.orderOf && this.arena.orderOf(this), foes = this.arena.enemiesOf(this.team);

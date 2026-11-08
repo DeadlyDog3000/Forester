@@ -19,6 +19,8 @@ function place(a, out, dist, side) {
   p.pan.value = Math.max(-0.9, Math.min(0.9, side)); lp.type = "lowpass"; lp.frequency.value = 9000 - Math.min(1, dist / 70) * 6500;
   g.gain.value = Math.max(0.05, 1 - dist / 80) ** 1.4;
   g.connect(lp); lp.connect(p); p.connect(out);
+  // (a call's way to you let go of once it's long over: see audio.js, lease)
+  setTimeout(() => { try { p.disconnect(); } catch (e) {} }, 15000);
   return g;
 }
 // a sung note: a sine gliding from one pitch to another, with a little vibrato, swelling and fading
@@ -27,7 +29,7 @@ function sing(a, out, t, f0, f1, dur, vol, { vib = 0, shape = "sine" } = {}) {
   o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur);
   if (vib) { const l = a.createOscillator(), lg = a.createGain(); l.frequency.value = rnd(25, 35); lg.gain.value = vib; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + dur + 0.02); }
   g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur * 0.3)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(out); o.start(t); o.stop(t + dur + 0.02);
+  o.connect(g); g.connect(out); o.onended = () => { try { g.disconnect(); } catch (e) {} }; o.start(t); o.stop(t + dur + 0.02);
 }
 // the birds: each a little score
 const SONGS = {

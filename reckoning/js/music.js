@@ -444,6 +444,9 @@ function note(ac, e, ts, te, busOf) {
   const end = Math.max(t, I.kind === "pluck" ? Math.min(ts + src.buffer.duration - 0.05, te + (e.lead ? 0.25 : 0.6)) : I.kind === "hit" ? ts + src.buffer.duration : te);
   g.gain.setValueAtTime(v, t); g.gain.setValueAtTime(v, end); g.gain.linearRampToValueAtTime(0.0001, end + rel);
   src.connect(g); g.connect(busOf(e.inst));
+  // (each note's gain unplugged when the note's done: left on the bus, a long tune's thousands of them were all still
+  //  worked on by the sound, every few milliseconds)
+  src.onended = () => { try { g.disconnect(); } catch (er) {} };
   src.start(t); src.stop(end + rel + 0.05);
   return src;
 }

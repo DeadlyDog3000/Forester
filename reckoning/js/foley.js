@@ -752,6 +752,9 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
     g.connect(pan); pan.connect(lp); last = lp;
   }
   last.connect(out);
+  // (let go of when it's done: left plugged in, every hoofbeat and footfall's gain, panner and filter were worked on for
+  //  the rest of the game)
+  src.onended = () => { try { last.disconnect(); } catch (e) {} };
   src.start();
 }
 let fireSrc = null, FIRE_AT = null, washSrc = null, roomSrc = null, outSrc = {};

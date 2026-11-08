@@ -15,7 +15,7 @@ const quiet = () => { const S = window.FSET || {}; return S.uiSounds === false; 
 // a struck note: a sine and a little of its octave and twelfth, quick to speak, ringing off — marimba and glass
 function note(a, out, f, t, { vol = 0.2, decay = 0.6, bright = 0.35, wood = 0 } = {}) {
   const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
-  g.connect(out);
+  g.connect(out); setTimeout(() => { try { g.disconnect(); } catch (e) {} }, (decay + 0.4) * 1000);
   for (const [mul, k] of [[1, 1], [2, bright * 0.5], [3, bright * 0.25], [wood ? 4.1 : 5.04, wood ? 0.3 : 0.08]]) {
     const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.value = f * mul; og.gain.value = k;
     if (mul > 2) { og.gain.setValueAtTime(k, t); og.gain.exponentialRampToValueAtTime(0.0001, t + decay * 0.35); }
@@ -28,7 +28,7 @@ function burst(a, out, t, { f = 2400, q = 2, dur = 0.03, vol = 0.15, type = "ban
   const s = a.createBufferSource(); s.buffer = n;
   const bf = a.createBiquadFilter(); bf.type = type; bf.frequency.setValueAtTime(f, t); if (sweep) bf.frequency.exponentialRampToValueAtTime(Math.max(60, f + sweep), t + dur); bf.Q.value = q;
   const g = a.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  s.connect(bf); bf.connect(g); g.connect(out); s.start(t, Math.random() * Math.max(0, n.duration - dur - 0.05)); s.stop(t + dur + 0.02);
+  s.connect(bf); bf.connect(g); g.connect(out); s.onended = () => { try { g.disconnect(); } catch (e) {} }; s.start(t, Math.random() * Math.max(0, n.duration - dur - 0.05)); s.stop(t + dur + 0.02);
 }
 const hz = m => 440 * Math.pow(2, (m - 69) / 12);
 function play(fn) {
@@ -83,7 +83,7 @@ export const UISFX = {
 // (a struck piece of metal: partials that aren't a harmonic series, as a coin's or a blade's aren't, each dying at its own
 //  rate — the bright ones first)
 function ring(a, out, t, f, { vol = 0.06, decay = 0.35, parts = [1, 2.76, 5.4, 8.93], bright = 1 } = {}) {
-  const g = a.createGain(); g.gain.value = 1; g.connect(out);
+  const g = a.createGain(); g.gain.value = 1; g.connect(out); setTimeout(() => { try { g.disconnect(); } catch (e) {} }, (decay + 0.5) * 1000);
   parts.forEach((m, i) => {
     const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.value = f * m * (1 + (Math.random() - 0.5) * 0.004);
     const d = decay / (1 + i * 0.9 * bright), v = vol / (1 + i * 0.7);

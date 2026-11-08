@@ -44,10 +44,18 @@ function budget(a) {
     const w = performance.now(), r = (a.currentTime - ct) / Math.max(0.001, (w - wt) / 1000); ct = a.currentTime; wt = w;
     if (a.state !== "running" || document.hidden) { slowN = 0; return; }
     const u = dry(), gaps = u0 >= 0 && u >= 0 ? u - u0 : 0; u0 = u;
-    slowN = u < 0 && r < 0.85 ? slowN + 1 : 0;
-    pressure = gaps > 0 || slowN >= 2 ? Math.max(0.5, pressure * 0.75) : Math.min(1, pressure + 0.2);
+    // (the clock watched whether or not the browser reports gaps: its count of them was seen to stop moving while the
+    //  sound was plainly falling behind, a second's audio made every two)
+    slowN = r < 0.85 ? slowN + 1 : 0;
+    pressure = gaps > 0 || slowN >= 2 || r < 0.7 ? Math.max(0.35, pressure * 0.7) : Math.min(1, pressure + 0.15);
   }, 1000);
 }
+// a sound's own way to the speakers let go of once it's done with: the last of its nodes unplugged from the bus, so
+// it and everything before it stop being worked on and are thrown away. (They were left plugged in: every shot, cry and
+// footfall of a battle kept its little chain of gains, filters and panners connected for good, and the audio thread
+// worked through every one of them, every few milliseconds — thousands by the middle of a great battle, until it fell
+// behind and the sound cut out.)
+function lease(node, secs) { setTimeout(() => { try { node.disconnect(); } catch (e) {} }, secs * 1000 + 250); }
 // room for one more of this importance (0 a faint far thing .. 1 right by you)
 // (what's right by you — your own shot, the man you're fighting — always: only the further things are ever left out)
 const room = imp => imp >= 0.85 || liveSrc < (44 + 120 * imp) * pressure || (skipped++, false);
@@ -148,7 +156,7 @@ function shotOut(a, D, big) {
   const dry = a.createGain(), dl = a.createBiquadFilter(), wet = a.createGain();
   dl.type = "lowpass"; dl.frequency.value = Math.max(700, 16000 / (1 + D / 18));
   dry.gain.value = Math.max(0.08, 1 / (1 + D / 35)); wet.gain.value = Math.min(1.2, 0.35 + D / 120) * big;
-  dry.connect(dl); dl.connect(shotBus()); wet.connect(outdoor(a));
+  dry.connect(dl); dl.connect(shotBus()); wet.connect(outdoor(a)); lease(dl, 10); lease(wet, 10);
   return { dry, wet };
 }
 // noise through a filter, struck and dying away
@@ -206,7 +214,7 @@ function placed(a, at, reach = 45) {
   const pan = a.createStereoPanner(); pan.pan.value = Math.max(-0.85, Math.min(0.85, (dx * rx + dz * rz) / (d || 1)));
   // far off, the top of it is lost in the trees
   const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 9000 - Math.min(1, d / reach) * 7000;
-  pan.connect(lp); lp.connect(bus);
+  pan.connect(lp); lp.connect(bus); lease(lp, 12);
   return { node: pan, k };
 }
 // vowels as their first three formants (Hz, and how strong)
@@ -259,7 +267,7 @@ export const AUDIO = {
       case "wood":
         burst(a, t, 0.09, 0.09 * k, rnd(260, 360) * low, 180, 5);
         burst(a, t, 0.02, 0.04 * k, 1800, 1200, 3);
-        if (Math.random() < 0.12) { const o = a.createOscillator(), g = a.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(rnd(160, 220), t); o.frequency.linearRampToValueAtTime(rnd(120, 160), t + 0.25); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.012 * k, t + 0.05); g.gain.linearRampToValueAtTime(0.0001, t + 0.28); const f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 4; o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.3); }
+        if (Math.random() < 0.12) { const o = a.createOscillator(), g = a.createGain(); o.type = "sawtooth"; o.frequency.setValueAtTime(rnd(160, 220), t); o.frequency.linearRampToValueAtTime(rnd(120, 160), t + 0.25); g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.012 * k, t + 0.05); g.gain.linearRampToValueAtTime(0.0001, t + 0.28); const f = a.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 600; f.Q.value = 4; o.connect(f); f.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + 0.3); }
         break;
       case "snow":
         for (let i = 0; i < 4; i++) burst(a, t + i * rnd(0.012, 0.025), 0.05, 0.035 * k, rnd(2600, 3600), 1100, 1.5);
@@ -281,7 +289,7 @@ export const AUDIO = {
       g.gain.setValueAtTime(0.0001, t);
       g.gain.exponentialRampToValueAtTime(v * vol, t + 0.015);
       g.gain.exponentialRampToValueAtTime(0.0001, t + 4.2 / Math.sqrt(mul));
-      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 4.5);
+      o.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + 4.5);
     }
   },
 
@@ -292,11 +300,11 @@ export const AUDIO = {
       const o = a.createOscillator(), g = a.createGain();
       o.type = "sine"; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.18);
       g.gain.setValueAtTime(0.55 * vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.3);
+      o.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + 0.3);
       const s = noiseSrc(a, false), f = a.createBiquadFilter(), g2 = a.createGain();
       f.type = "lowpass"; f.frequency.value = 900;
       g2.gain.setValueAtTime(0.35 * vol, t); g2.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-      s.connect(f); f.connect(g2); g2.connect(bus); s.start(t, Math.random()); s.stop(t + 0.15);
+      s.connect(f); f.connect(g2); g2.connect(bus); lease(g2, 8); s.start(t, Math.random()); s.stop(t + 0.15);
     }
   },
 
@@ -318,18 +326,18 @@ export const AUDIO = {
       const gv = a.createGain(); gv.gain.value = v;
       o.connect(f); f.connect(gv); gv.connect(g);
     }
-    g.connect(bus); o.start(t); o.stop(t + dur + 0.05);
+    g.connect(bus); lease(g, 8); o.start(t); o.stop(t + dur + 0.05);
     if (!open) {
       // the leaf against the frame, and the latch
       const tt = t + dur - 0.02;
       const th = a.createOscillator(), tg = a.createGain();
       th.type = "sine"; th.frequency.setValueAtTime(110, tt); th.frequency.exponentialRampToValueAtTime(55, tt + 0.18);
       tg.gain.setValueAtTime(0.0001, tt); tg.gain.exponentialRampToValueAtTime(0.5, tt + 0.008); tg.gain.exponentialRampToValueAtTime(0.0001, tt + 0.25);
-      th.connect(tg); tg.connect(bus); th.start(tt); th.stop(tt + 0.3);
+      th.connect(tg); tg.connect(bus); lease(tg, 8); th.start(tt); th.stop(tt + 0.3);
       const n = noiseSrc(a, false), nf = a.createBiquadFilter(), ng = a.createGain();
       nf.type = "bandpass"; nf.frequency.value = 2600; nf.Q.value = 3;
       ng.gain.setValueAtTime(0.0001, tt + 0.05); ng.gain.exponentialRampToValueAtTime(0.25, tt + 0.055); ng.gain.exponentialRampToValueAtTime(0.0001, tt + 0.1);
-      n.connect(nf); nf.connect(ng); ng.connect(bus); n.start(tt + 0.05); n.stop(tt + 0.15);
+      n.connect(nf); nf.connect(ng); ng.connect(bus); lease(ng, 8); n.start(tt + 0.05); n.stop(tt + 0.15);
     }
   },
 
@@ -341,7 +349,7 @@ export const AUDIO = {
     o.type = "square"; o.frequency.setValueAtTime(rnd(1500, 1900), t);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.018 * vol, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
     const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 3200;
-    o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.03);
+    o.connect(f); f.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + 0.03);
   },
 
   // a line of dialogue arriving: a soft tick, like a page turned against a table
@@ -351,11 +359,11 @@ export const AUDIO = {
     const n = noiseSrc(a, false), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.frequency.value = rnd(1700, 2100); f.Q.value = 2.5;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
-    n.connect(f); f.connect(g); g.connect(bus); n.start(t); n.stop(t + 0.08);
+    n.connect(f); f.connect(g); g.connect(bus); lease(g, 8); n.start(t); n.stop(t + 0.08);
     const o = a.createOscillator(), og = a.createGain();
     o.type = "triangle"; o.frequency.setValueAtTime(620, t); o.frequency.exponentialRampToValueAtTime(420, t + 0.05);
     og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.05, t + 0.004); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
-    o.connect(og); og.connect(bus); o.start(t); o.stop(t + 0.08);
+    o.connect(og); og.connect(bus); lease(og, 8); o.start(t); o.stop(t + 0.08);
   },
 
   drumRoll(secs = 4, vol = 0.5) {
@@ -366,7 +374,7 @@ export const AUDIO = {
       f.type = "bandpass"; f.frequency.value = 260 + Math.random() * 60; f.Q.value = 1.5;
       const v = vol * (0.35 + 0.65 * (t / secs)) * rnd(0.7, 1);
       g.gain.setValueAtTime(v, t0 + t); g.gain.exponentialRampToValueAtTime(0.001, t0 + t + 0.09);
-      s.connect(f); f.connect(g); g.connect(bus); s.start(t0 + t, Math.random()); s.stop(t0 + t + 0.1);
+      s.connect(f); f.connect(g); g.connect(bus); lease(g, 8); s.start(t0 + t, Math.random()); s.stop(t0 + t + 0.1);
     }
   },
 
@@ -423,7 +431,7 @@ export const AUDIO = {
     const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = 3;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.32);
+    s.connect(f); f.connect(g); g.connect(bus); lease(g, 8); s.start(t, Math.random()); s.stop(t + 0.32);
   },
   // a bow drawn: the wood of the limbs creaking under the strain, a tick and a groan, louder the further it comes back
   bowCreak(k = 0.5) {
@@ -431,7 +439,7 @@ export const AUDIO = {
     const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.frequency.value = rnd(380, 560) + k * 200; f.Q.value = 9;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05 + 0.1 * k, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + rnd(0.07, 0.14));
-    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.16);
+    s.connect(f); f.connect(g); g.connect(bus); lease(g, 8); s.start(t, Math.random()); s.stop(t + 0.16);
   },
   // the string let go: a deep, short twang that dies at once, the slap of it on the bracer, and the arrow hissing away
   twang(power = 1) {
@@ -441,16 +449,16 @@ export const AUDIO = {
       const o = a.createOscillator(), g = a.createGain(); o.type = "triangle";
       o.frequency.setValueAtTime(fq * 1.35, t); o.frequency.exponentialRampToValueAtTime(fq, t + 0.03);
       g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v * (0.4 + 0.6 * power), t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-      o.connect(g); g.connect(bus); o.start(t); o.stop(t + d + 0.02);
+      o.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + d + 0.02);
     }
     const s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "lowpass"; f.frequency.value = 900;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 * (0.4 + 0.6 * power), t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
-    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.07);
+    s.connect(f); f.connect(g); g.connect(bus); lease(g, 8); s.start(t, Math.random()); s.stop(t + 0.07);
     const h = noiseSrc(a), hf = a.createBiquadFilter(), hg = a.createGain();
     hf.type = "bandpass"; hf.Q.value = 2; hf.frequency.setValueAtTime(3200, t + 0.02); hf.frequency.exponentialRampToValueAtTime(1400, t + 0.4);
     hg.gain.setValueAtTime(0.0001, t + 0.02); hg.gain.exponentialRampToValueAtTime(0.07 * power, t + 0.06); hg.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
-    h.connect(hf); hf.connect(hg); hg.connect(bus); h.start(t + 0.02, Math.random()); h.stop(t + 0.45);
+    h.connect(hf); hf.connect(hg); hg.connect(bus); lease(hg, 8); h.start(t + 0.02, Math.random()); h.stop(t + 0.45);
   },
 
   // a blade or a haft through the air: noise that swells and falls away, its pitch rising with the stroke's speed
@@ -464,7 +472,7 @@ export const AUDIO = {
     f2.type = "lowpass"; f2.frequency.value = 2600;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol * 0.35, peak);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    s.connect(f); f.connect(f2); f2.connect(g); g.connect(bus); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+    s.connect(f); f.connect(f2); f2.connect(g); g.connect(bus); lease(g, 8); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
   },
 
   // a human voice raised: a buzzing throat through the mouth's shape (a vowel), the pitch bending as a cry does.
@@ -497,13 +505,11 @@ export const AUDIO = {
     // two falling away, each weaker (the same throat throughout)
     if (kind === "death" && !seg) {
       const me = { high, at, vol, seg: true };
-      this.gasp && this.gasp({ at, vol: vol * 0.5, delay });
       // (the moans after it wait for the scream to end: a real one runs as long as it runs)
       const d0 = recordedVoice(a, "death", high, node, k, vol, t + 0.12) || (this.voice("death", { ...me, delay: delay + 0.12 }), rnd(0.9, 1.35));
       let at2 = delay + 0.12 + d0 + rnd(0.2, 0.45);
       // (the moans after only where there's room for them: a man near you, or a quiet moment)
       for (let i = 0, n = Math.random() < 0.3 && room(0.3 + k * 0.7) ? 1 : 0; i < n; i++) {
-        this.gasp && this.gasp({ at, vol: vol * 0.35, delay: at2 - 0.22 });
         this.voice(Math.random() < 0.5 ? "moan" : "sob", { ...me, vol: vol * (0.7 - i * 0.2), delay: at2 });
         at2 += rnd(0.9, 1.5);
       }
@@ -512,12 +518,14 @@ export const AUDIO = {
     if (kind === "pain" && !seg && Math.random() < 0.15) {
       // (sometimes it's two: the cry, a breath sucked in through the teeth, and a second, shorter)
       const d = recordedVoice(a, "pain", high, node, k, vol, t) || (this.voice("pain", { high, at, vol, delay, seg: true }), rnd(0.42, 0.75));
-      this.gasp && this.gasp({ at, vol: vol * 0.4, delay: delay + d + rnd(0.05, 0.15) });
       this.voice("sob", { high, at, vol: vol * 0.75, delay: delay + d + rnd(0.3, 0.45), seg: true });
       return;
     }
     // (a real cry, where the recordings are in: all but the war cry)
     if (recordedVoice(a, kind, high, node, k, vol, t)) return;
+    // (and the old made-up cries are gone: a scream, a cry of pain, a moan or a sob is a recording or it's nothing — till
+    //  the recordings are in, a man goes down without one. Only the war cry, which has no recording, is still made)
+    if (kind !== "war" && kind !== "grunt") return;
     // [pitch, how long, vowels from → to, the rise at the start, how the pitch ends, loudness, roughness, breathiness]
     const P = {
       war:   [rnd(155, 200), rnd(0.9, 1.4), ["a", r2(["a", "o"])], 1.3, 0.88, 1.0, 0.35, 0.18],
@@ -618,7 +626,7 @@ export const AUDIO = {
     g.gain.linearRampToValueAtTime(v, t + dur * (inhale ? 0.6 : 0.35));
     g.gain.setTargetAtTime(0.0001, t + dur * (inhale ? 0.65 : 0.45), dur * 0.22);
     const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = inhale ? 3400 : 2600; lp.Q.value = 0.5;
-    g.connect(lp); lp.connect(bus);
+    g.connect(lp); lp.connect(bus); lease(lp, dur + 3);
     // the mouth: three soft resonances (the vowel), drifting a little over the breath
     const k = high ? 1.12 : 1;
     const F = inhale ? [[420, 3, 0.8], [1900, 4, 0.55], [2900, 5, 0.25]] : [[680, 2.5, 1], [1150, 3, 0.7], [2450, 4, 0.3]];
@@ -650,7 +658,7 @@ export const AUDIO = {
     const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.frequency.value = rnd(700, 1100); f.Q.value = 1.6;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
-    s.connect(f); f.connect(g); g.connect(bus); s.start(t, Math.random()); s.stop(t + 0.2);
+    s.connect(f); f.connect(g); g.connect(bus); lease(g, 8); s.start(t, Math.random()); s.stop(t + 0.2);
   },
 
   // steel on steel: a bright strike and a ring of partials that don't quite agree, dying away
@@ -676,7 +684,7 @@ export const AUDIO = {
     o.type = "sawtooth"; o.frequency.setValueAtTime(200, t); o.frequency.linearRampToValueAtTime(260, t + 0.15); o.frequency.linearRampToValueAtTime(170, t + 0.5);
     f.type = "bandpass"; f.frequency.value = 700; f.Q.value = 3;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
-    o.connect(f); f.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.6);
+    o.connect(f); f.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + 0.6);
   },
 
   // a fly past the ear: a thin whine that swells and pans across
@@ -700,7 +708,7 @@ export const AUDIO = {
       const o = a.createOscillator(), g = a.createGain();
       o.type = "sine"; o.frequency.setValueAtTime(62, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.14);
       g.gain.setValueAtTime(vol * (d ? 0.7 : 1), t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-      o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.2);
+      o.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + 0.2);
     }
   },
 
@@ -757,7 +765,7 @@ export const AUDIO = {
   // dying away in the hills (on the game's own bus, so it's heard while the field's sounds are held)
   pauseBoom() {
     const a = ctx(); if (!a) return;
-    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 420; lp.connect(bus);
+    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 420; lp.connect(bus); lease(lp, 3);
     thump(a, lp, t, 62, 34, 0.32, 0.32);
     shotBurst(a, lp, t, { type: "lowpass", f: 260, sweep: 90, peak: 0.16, attack: 0.012, decay: 0.28 });
     shotBurst(a, lp, t + 0.09, { type: "lowpass", f: 140, peak: 0.07, attack: 0.08, decay: 0.9, len: 1.6 });
@@ -766,7 +774,7 @@ export const AUDIO = {
   // a muted knock in it (no ring, no chime: nothing a field ever made)
   killThud() {
     const a = ctx(); if (!a) return;
-    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1900; lp.connect(bus);
+    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1900; lp.connect(bus); lease(lp, 3);
     // the blow landing: a hard, dry smack into cloth and what's under it, with a crunch in it
     shotBurst(a, lp, t, { type: "bandpass", f: 1250, q: 1.3, peak: 0.26, attack: 0.001, decay: 0.035 });
     shotBurst(a, lp, t, { type: "highpass", f: 2400, peak: 0.1, attack: 0.001, decay: 0.018 });
@@ -783,7 +791,7 @@ export const AUDIO = {
   // softer — felt as much as heard, the chest's thud and no ring to it
   heartbeat(vol = 1) {
     const a = ctx(); if (!a) return;
-    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 160; lp.Q.value = 0.9; lp.connect(bus);
+    const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 160; lp.Q.value = 0.9; lp.connect(bus); lease(lp, 3);
     for (const [dt, f, k] of [[0, 52, 1], [0.17, 64, 0.65]]) {
       thump(a, lp, t + dt, f * 1.25, f * 0.75, 0.55 * vol * k, 0.11);
       shotBurst(a, lp, t + dt, { type: "lowpass", f: 120, peak: 0.25 * vol * k, attack: 0.008, decay: 0.07 });
@@ -965,7 +973,7 @@ export const AUDIO = {
         const t = a.currentTime, o = a.createOscillator(), og = a.createGain(), f = rnd(180, 420);
         o.type = "sine"; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * rnd(2.2, 3.4), t + 0.06);
         og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.05 * (0.4 + self.k), t + 0.01); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
-        o.connect(og); og.connect(bus); o.start(t); o.stop(t + 0.1);
+        o.connect(og); og.connect(bus); lease(og, 8); o.start(t); o.stop(t + 0.1);
         setTimeout(pop, rnd(60, 380) / (0.4 + self.k));
       };
       setTimeout(pop, 100);
@@ -979,7 +987,7 @@ export const AUDIO = {
     burst(a, t, 0.05, 0.08, 2400, 900, 1.5);
     const o = a.createOscillator(), g = a.createGain(); o.type = "triangle"; o.frequency.setValueAtTime(230, t + 0.02); o.frequency.exponentialRampToValueAtTime(120, t + 0.09);
     g.gain.setValueAtTime(0.0001, t + 0.02); g.gain.exponentialRampToValueAtTime(0.14, t + 0.025); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-    o.connect(g); g.connect(bus); o.start(t + 0.02); o.stop(t + 0.14);
+    o.connect(g); g.connect(bus); lease(g, 8); o.start(t + 0.02); o.stop(t + 0.14);
   },
   // a wooden spoon round an iron pot: a scrape, and a knock against the side
   stir() {
@@ -989,7 +997,7 @@ export const AUDIO = {
     burst(a, t + 0.35, 0.28, 0.04, 1000, 650, 3);
     const o = a.createOscillator(), g = a.createGain(); o.type = "sine"; o.frequency.value = rnd(520, 640);
     g.gain.setValueAtTime(0.0001, t + 0.62); g.gain.exponentialRampToValueAtTime(0.05, t + 0.625); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
-    o.connect(g); g.connect(bus); o.start(t + 0.6); o.stop(t + 0.95);
+    o.connect(g); g.connect(bus); lease(g, 8); o.start(t + 0.6); o.stop(t + 0.95);
   },
   // the pan given a shake and what's in it turned: a rattle of iron, a whoosh, and the slap of it landing
   toss() {
@@ -1006,7 +1014,7 @@ export const AUDIO = {
     for (const [f, v, d] of [[2100, 0.06, 0.25], [3350, 0.04, 0.18], [5200, 0.025, 0.12]]) {
       const o = a.createOscillator(), g = a.createGain(); o.type = "sine"; o.frequency.value = f * rnd(0.98, 1.02);
       g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.003); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
-      o.connect(g); g.connect(bus); o.start(t); o.stop(t + d + 0.02);
+      o.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + d + 0.02);
     }
     burst(a, t, 0.03, 0.06, 4000, 2000, 1);
   },

@@ -129,17 +129,18 @@ function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e
 export const ducats = (t = team()) => state().purse[t] | 0;
 export const owns = (k, t = team()) => WEAPON_PRICE[k] === 0 || (state().own[t] || []).includes(k);
 export const ownsTeam = k => !!TEAMS[k] && (TEAMS[k].price === 0 || state().teams.includes(k));
-export const ownsFinish = (slot, id) => !FINISH[slot] || !FINISH[slot][id] || FINISH[slot][id][1] === 0 || state().fin.includes(`${slot}.${id}`);
+// (a finish is bought for one arm: gilt on your musket is your musket's, not your pistol's too)
+export const ownsFinish = (slot, id, kind) => !FINISH[slot] || !FINISH[slot][id] || FINISH[slot][id][1] === 0 || state().fin.includes(`${kindKey(kind)}.${slot}.${id}`);
 export const ownsUp = (kind, id, t = team()) => (state().up[t] || []).includes(`${kind}.${id}`);
 // (a word for whoever fought before the armoury: once)
 export function welcome() { const s = state(); if (!s.welcome) return null; const t = s.welcome; s.welcome = false; save(); return `The armoury is open. For the battles you've already fought you have ${money(s.purse[t] | 0, t)} in the ${(TEAMS[t] && t) ? "purse of your colours" : "purse"}, and you keep the arms and colours you were using.`; }
 function spend(n) { const s = state(), t = team(); if ((s.purse[t] | 0) < n) return false; s.purse[t] = (s.purse[t] | 0) - n; save(); return true; }
 export function buyWeapon(k) { if (owns(k)) return true; if (!spend(WEAPON_PRICE[k])) return false; const s = state(), t = team(); (s.own[t] ||= [...START]).push(k); save(); return true; }
 export function buyTeam(k) { if (ownsTeam(k)) return true; if (!spend(TEAMS[k].price)) return false; state().teams.push(k); save(); return true; }
-export function buyFinish(slot, id) { if (ownsFinish(slot, id)) return true; if (!spend(FINISH[slot][id][1])) return false; state().fin.push(`${slot}.${id}`); save(); return true; }
+export function buyFinish(slot, id, kind) { if (ownsFinish(slot, id, kind)) return true; if (!spend(FINISH[slot][id][1])) return false; state().fin.push(`${kindKey(kind)}.${slot}.${id}`); save(); return true; }
 export function buyUp(kind, id) { if (ownsUp(kind, id)) return true; if (!spend(UPGRADES[kind][id].price)) return false; const s = state(), t = team(); (s.up[t] ||= []).push(`${kind}.${id}`); save(); return true; }
-export const finishOf = (kind, slot) => { const k = kindKey(kind), v = (state().skin[k] || {})[slot]; return FINISH[slot] && FINISH[slot][v] ? v : Object.keys(FINISH[slot])[0]; };
-export function setFinish(kind, slot, id) { if (!ownsFinish(slot, id)) return false; const s = state(), k = kindKey(kind); (s.skin[k] ||= {})[slot] = id; save(); return true; }
+export const finishOf = (kind, slot) => { const k = kindKey(kind), v = (state().skin[k] || {})[slot]; return FINISH[slot] && FINISH[slot][v] && ownsFinish(slot, v, k) ? v : Object.keys(FINISH[slot])[0]; };
+export function setFinish(kind, slot, id) { if (!ownsFinish(slot, id, kind)) return false; const s = state(), k = kindKey(kind); (s.skin[k] ||= {})[slot] = id; save(); return true; }
 const kindKey = k => k === "bayonet" ? "musket" : k;
 
 // ---- the arms you may carry: a ranked fight, your team's; otherwise, what you own ----
@@ -157,7 +158,8 @@ export function fitTo(lo, ranked, t, fit) {
 // what your arms look like, for those who'll see them: only the arms you carry, only what isn't plain
 export function skinOf(lo) {
   const out = {}, s = state().skin;
-  for (const k of [lo.long, lo.side, lo.blade]) if (k && k !== "none" && s[kindKey(k)]) out[kindKey(k)] = { ...s[kindKey(k)] };
+  // (each arm's own finishes, and only those bought for it)
+  for (const k0 of [lo.long, lo.side, lo.blade]) { const k = k0 && kindKey(k0); if (!k || k === "none" || !s[k] || !SLOTS[k]) continue; const o = {}; for (const sl of SLOTS[k]) { const v = finishOf(k, sl); if (FINISH[sl][v][1] > 0) o[sl] = v; } if (Object.keys(o).length) out[k] = o; }
   return Object.keys(out).length ? out : undefined;
 }
 // the gunsmiths' work on what you carry: in a ranked fight all of it, for everyone; otherwise what your team has bought
