@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.252", date: "8 November 2026", title: "A dearer armoury, and everyone begins again",
+    items: [
+      "Everything in the armoury costs three times as much: arms, every crown's colours, the gunsmith's work and the finishes. A musket is now about ten battles' pay, the Emperor's colours a long campaign of them.",
+      "Everyone's armoury is begun again: every purse emptied and every bought arm, colour, upgrade and finish set aside. Every player starts afresh as the Crimean Tatars with a bow and a knife. Ratings are unchanged.",
+    ],
+  },
+  {
     v: "1.99.251", date: "8 November 2026", title: "The armoury: arms bought, every crown's own money",
     items: [
       "Battles and duels now pay you, in the money of the colours you fight in: the Tatars and the Ottomans in silver akçe, Muscovy in kopecks, Poland in złoty, Hamburg in marks, the Dutch in guilders, Saxony and Brandenburg in thalers, Bavaria and the Emperor in gulden, Denmark in rigsdaler, Sweden in riksdaler, Spain in reales, England in shillings and France in livres, each at about its rate in the 1680s. A win pays more than a loss, a battle against another player more than one against bots, and the day's first victory a bonus. Each team keeps its own purse.",

@@ -16,10 +16,11 @@
 import { THREE } from "./core.js";
 import { makeArm, makeCrossbow, modelCopy, ensureModel } from "./models.js";
 
-const KEY = "reckoning.armoury";
+// (the second armoury, 1.99.252: prices tripled and everyone begun again — the first's purses and arms set aside)
+const KEY = "reckoning.armoury.2";
 
 // ---- the arms, and what each costs (a bow and a knife to begin with: what a man could make or find) ----
-export const WEAPON_PRICE = { none: 0, bow: 0, dagger: 0, spear: 40, axe: 40, warclub: 50, crossbow: 80, pistol: 90, sword: 100, battleaxe: 120, musket: 150 };
+export const WEAPON_PRICE = { none: 0, bow: 0, dagger: 0, spear: 120, axe: 120, warclub: 150, crossbow: 240, pistol: 270, sword: 300, battleaxe: 360, musket: 450 };
 
 // ---- the teams: each crown's colours, its price, and the arms its soldiers carried in 1683 (a ranked fight's kit) ----
 // (the West's foot all alike: the musket — matchlock or flintlock — the plug bayonet, the pike (a spear here), the
@@ -29,20 +30,20 @@ const WEST = { long: ["musket", "none"], side: ["pistol", "none"], blade: ["dagg
 const WEST_WHY = "Musket and plug bayonet, the pike, a sword at every hip, pistols for horse and officers, a hatchet for the grenadiers. No bow or crossbow: a century gone from the armies of the West.";
 export const TEAMS = {
   tatar: { price: 0, kit: { long: ["bow", "none"], side: ["none"], blade: ["sword", "dagger", "spear"] }, why: "The Crimean Khan's horsemen rode to Vienna in 1683 with the composite bow, the sabre and the lance — the last great army of archers in Europe." },
-  hamburg: { price: 60, kit: { long: ["musket", "none"], side: ["none"], blade: ["dagger", "spear", "axe", "sword", "none"] }, why: "A free city's burghers turned out with what the arsenal gave them: muskets, pikes, halberds and hangers. No pistols for the militia." },
-  muscovite: { price: 120, kit: { long: ["musket", "none"], side: ["none"], blade: ["battleaxe", "sword", "dagger", "none"] }, why: "The streltsy carried the musket and the berdysh — a long crescent axe that was also the rest they fired from — and the sabre." },
-  polish: { price: 150, kit: { long: ["musket", "none"], side: ["pistol", "none"], blade: ["battleaxe", "sword", "dagger", "none"] }, why: "Sobieski's haiduks: the musket, the czekan or berdysh axe, the szabla; pistols for the horse." },
-  ottoman: { price: 180, kit: { long: ["musket", "bow", "none"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "dagger", "none"] }, why: "The Janissaries fought with the long tüfek musket and the yatagan, still trained with the bow, and carried pistols and the teber axe." },
-  danish: { price: 200, kit: WEST, why: WEST_WHY },
-  dutch: { price: 220, kit: WEST, why: WEST_WHY },
-  saxon: { price: 220, kit: WEST, why: WEST_WHY },
-  bavarian: { price: 220, kit: WEST, why: WEST_WHY },
-  brandenburg: { price: 240, kit: WEST, why: WEST_WHY },
-  spanish: { price: 260, kit: WEST, why: "The tercios had kept the pike longest of all — still a third of the foot in 1683 — with the musket, the sword and the pistol. No bows." },
-  swedish: { price: 300, kit: WEST, why: "The Caroleans went in with the musket, the pike and the sword, and were drilled to close with cold steel. No bows." },
-  english: { price: 300, kit: WEST, why: WEST_WHY },
-  french: { price: 320, kit: WEST, why: "Louis XIV's foot was the first to take the bayonet to every company; musket, pike and sword besides. No bows." },
-  imperial: { price: 350, kit: WEST, why: "The Emperor's regiments that held Vienna: musket, pike and sword, and the hatchet for the grenadiers. No bows." },
+  hamburg: { price: 180, kit: { long: ["musket", "none"], side: ["none"], blade: ["dagger", "spear", "axe", "sword", "none"] }, why: "A free city's burghers turned out with what the arsenal gave them: muskets, pikes, halberds and hangers. No pistols for the militia." },
+  muscovite: { price: 360, kit: { long: ["musket", "none"], side: ["none"], blade: ["battleaxe", "sword", "dagger", "none"] }, why: "The streltsy carried the musket and the berdysh — a long crescent axe that was also the rest they fired from — and the sabre." },
+  polish: { price: 450, kit: { long: ["musket", "none"], side: ["pistol", "none"], blade: ["battleaxe", "sword", "dagger", "none"] }, why: "Sobieski's haiduks: the musket, the czekan or berdysh axe, the szabla; pistols for the horse." },
+  ottoman: { price: 540, kit: { long: ["musket", "bow", "none"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "dagger", "none"] }, why: "The Janissaries fought with the long tüfek musket and the yatagan, still trained with the bow, and carried pistols and the teber axe." },
+  danish: { price: 600, kit: WEST, why: WEST_WHY },
+  dutch: { price: 660, kit: WEST, why: WEST_WHY },
+  saxon: { price: 660, kit: WEST, why: WEST_WHY },
+  bavarian: { price: 660, kit: WEST, why: WEST_WHY },
+  brandenburg: { price: 720, kit: WEST, why: WEST_WHY },
+  spanish: { price: 780, kit: WEST, why: "The tercios had kept the pike longest of all — still a third of the foot in 1683 — with the musket, the sword and the pistol. No bows." },
+  swedish: { price: 900, kit: WEST, why: "The Caroleans went in with the musket, the pike and the sword, and were drilled to close with cold steel. No bows." },
+  english: { price: 900, kit: WEST, why: WEST_WHY },
+  french: { price: 960, kit: WEST, why: "Louis XIV's foot was the first to take the bayonet to every company; musket, pike and sword besides. No bows." },
+  imperial: { price: 1050, kit: WEST, why: "The Emperor's regiments that held Vienna: musket, pike and sword, and the hatchet for the grenadiers. No bows." },
 };
 export const TEAM_KEYS = Object.keys(TEAMS);
 // (a weapon no army of 1683 still fielded: yours to buy and carry against bots, never in a ranked fight)
@@ -55,11 +56,11 @@ export const NOT_IN_1683 = {
 // wood: a stain over the grain (a multiplier); fit: the metal of the fittings (never the steel); grip: the leather or
 // cloth of a grip; knot: a cord and tassel; sling: a strap
 export const FINISH = {
-  wood: { natural: ["As it grew", 0, [1, 1, 1]], walnut: ["Walnut stain", 20, [0.62, 0.5, 0.42]], honey: ["Honey oil", 20, [1.18, 0.98, 0.72]], red: ["Red-stained", 30, [1.0, 0.56, 0.46]], ebony: ["Ebonised", 40, [0.3, 0.27, 0.25]] },
-  fit: { made: ["As made", 0, null], brass: ["Brass", 15, 0xb8913f], iron: ["Iron", 15, 0x6e7074], silver: ["Silver", 50, 0xc9cdd3], gilt: ["Gilt", 60, 0xd8b048], black: ["Blackened", 30, 0x2a2a2c] },
-  grip: { made: ["As made", 0, null], black: ["Black", 10, 0x1e1a18], red: ["Red", 20, 0x8e2420], green: ["Green", 20, 0x2e5230], blue: ["Blue", 20, 0x283e6e], buff: ["Buff", 15, 0xc8b088] },
-  knot: { none: ["None", 0, null], red: ["Red knot", 15, 0x9a2420], gold: ["Gold knot", 30, 0xd4a83a], white: ["White knot", 15, 0xe6e0d0], blue: ["Blue knot", 15, 0x2a4a8a], black: ["Black knot", 15, 0x1c1a18] },
-  sling: { none: ["None", 0, null], leather: ["Leather sling", 15, 0x5a3a22], buff: ["Buff sling", 20, 0xc8b088], red: ["Red sling", 25, 0x8e2420], white: ["White sling", 25, 0xdcd6c4] },
+  wood: { natural: ["As it grew", 0, [1, 1, 1]], walnut: ["Walnut stain", 60, [0.62, 0.5, 0.42]], honey: ["Honey oil", 60, [1.18, 0.98, 0.72]], red: ["Red-stained", 90, [1.0, 0.56, 0.46]], ebony: ["Ebonised", 120, [0.3, 0.27, 0.25]] },
+  fit: { made: ["As made", 0, null], brass: ["Brass", 45, 0xb8913f], iron: ["Iron", 45, 0x6e7074], silver: ["Silver", 150, 0xc9cdd3], gilt: ["Gilt", 180, 0xd8b048], black: ["Blackened", 90, 0x2a2a2c] },
+  grip: { made: ["As made", 0, null], black: ["Black", 30, 0x1e1a18], red: ["Red", 60, 0x8e2420], green: ["Green", 60, 0x2e5230], blue: ["Blue", 60, 0x283e6e], buff: ["Buff", 45, 0xc8b088] },
+  knot: { none: ["None", 0, null], red: ["Red knot", 45, 0x9a2420], gold: ["Gold knot", 90, 0xd4a83a], white: ["White knot", 45, 0xe6e0d0], blue: ["Blue knot", 45, 0x2a4a8a], black: ["Black knot", 45, 0x1c1a18] },
+  sling: { none: ["None", 0, null], leather: ["Leather sling", 45, 0x5a3a22], buff: ["Buff sling", 60, 0xc8b088], red: ["Red sling", 75, 0x8e2420], white: ["White sling", 75, 0xdcd6c4] },
 };
 export const SLOT_NAME = { wood: "Wood", fit: "Fittings", grip: "Grip", knot: "Knot", sling: "Sling" };
 // (which parts each arm has to finish: what's steel, or one cast piece with its steel, has only what can hang from it)
@@ -81,11 +82,11 @@ const WOOD_HEX = new Set([0x8a6440, 0x5a3e26, 0x5a3820, 0x3e2614, 0x4e2f19, 0x9a
 // seven livres, seventeen Spanish reales, twelve Polish złoty, a Muscovite ruble of a hundred kopecks, and three
 // hundred of the Ottoman (and the Crimean) silver akçe ----
 export const COINS = {
-  tatar: ["akçe", 300, "the Crimean Khan's silver akçe"], ottoman: ["akçe", 300, "the Sultan's silver akçe"], muscovite: ["kopecks", 100, "the Tsar's wire kopecks"],
-  polish: ["złoty", 12, "the Commonwealth's złoty"], hamburg: ["marks", 6, "the Hamburg mark lübsch"], danish: ["rigsdaler", 2, "the Danish rigsdaler"],
-  dutch: ["guilders", 5, "the Dutch guilder"], saxon: ["thalers", 2, "the Saxon thaler"], bavarian: ["gulden", 4, "the Bavarian gulden"],
-  brandenburg: ["thalers", 2, "the Brandenburg thaler"], spanish: ["reales", 17, "the Spanish real"], swedish: ["riksdaler", 2, "the Swedish riksdaler"],
-  english: ["shillings", 9.5, "the English shilling"], french: ["livres", 7, "the French livre tournois"], imperial: ["gulden", 4, "the Emperor's gulden"],
+  tatar: ["akçe", 900, "the Crimean Khan's silver akçe"], ottoman: ["akçe", 900, "the Sultan's silver akçe"], muscovite: ["kopecks", 300, "the Tsar's wire kopecks"],
+  polish: ["złoty", 36, "the Commonwealth's złoty"], hamburg: ["marks", 18, "the Hamburg mark lübsch"], danish: ["rigsdaler", 6, "the Danish rigsdaler"],
+  dutch: ["guilders", 15, "the Dutch guilder"], saxon: ["thalers", 6, "the Saxon thaler"], bavarian: ["gulden", 12, "the Bavarian gulden"],
+  brandenburg: ["thalers", 6, "the Brandenburg thaler"], spanish: ["reales", 51, "the Spanish real"], swedish: ["riksdaler", 6, "the Swedish riksdaler"],
+  english: ["shillings", 9.5, "the English shilling"], french: ["livres", 21, "the French livre tournois"], imperial: ["gulden", 12, "the Emperor's gulden"],
 };
 const coinOf = t => COINS[t] || COINS.tatar;
 // (an amount, in one crown's coin: "450 akçe", "38 thalers")
@@ -95,12 +96,12 @@ export const coinName = (t = team()) => coinOf(t)[2];
 // ---- gunsmiths' work: bought for an arm, kept with your team's arms (in a ranked fight every arm is fully fitted) ----
 export const UPGRADES = {
   musket: {
-    sights: { name: "Sights", price: 60, note: "A V-notched rear leaf at the breech and a brass foresight at the muzzle, fitted by a gunsmith. Issue muskets of 1683 had at most a bead; a hunter's or an officer's piece had both." },
-    cartridges: { name: "Paper cartridges", price: 70, pace: 1.15, note: "Powder and ball made up beforehand in paper, as Europe's armies did by the 1680s: about a seventh quicker to load." },
+    sights: { name: "Sights", price: 180, note: "A V-notched rear leaf at the breech and a brass foresight at the muzzle, fitted by a gunsmith. Issue muskets of 1683 had at most a bead; a hunter's or an officer's piece had both." },
+    cartridges: { name: "Paper cartridges", price: 210, pace: 1.15, note: "Powder and ball made up beforehand in paper, as Europe's armies did by the 1680s: about a seventh quicker to load." },
   },
-  pistol: { cartridges: { name: "Paper cartridges", price: 50, pace: 1.15, note: "Charges made up in paper: about a seventh quicker to load." } },
-  crossbow: { lever: { name: "Goat's-foot lever", price: 50, pace: 1.3, note: "Spanned with a lever instead of the windlass: quicker to draw back." } },
-  bow: { thumbring: { name: "Thumb ring", price: 40, pace: 1.15, note: "The steppe archer's horn ring on the thumb: the string drawn and loosed quicker." } },
+  pistol: { cartridges: { name: "Paper cartridges", price: 150, pace: 1.15, note: "Charges made up in paper: about a seventh quicker to load." } },
+  crossbow: { lever: { name: "Goat's-foot lever", price: 150, pace: 1.3, note: "Spanned with a lever instead of the windlass: quicker to draw back." } },
+  bow: { thumbring: { name: "Thumb ring", price: 120, pace: 1.15, note: "The steppe archer's horn ring on the thumb: the string drawn and loosed quicker." } },
 };
 
 // ---------------------------------------------------------------------------
@@ -114,21 +115,10 @@ const START = ["bow", "dagger", "none"];
 function state() {
   if (S) return S;
   try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
-  // (the first armoury kept one purse of ducats for everything: shared out as the team's it was earned in)
-  if (S && typeof S.d === "number" && !S.v) {
-    const t = S.teams && S.teams.find(k => k !== "tatar") || "tatar";
-    S = { v: 2, purse: { [t]: S.d }, own: Object.fromEntries((S.teams || ["tatar"]).map(k => [k, [...new Set([...START, ...(S.own || [])])]])), up: {}, teams: S.teams || ["tatar"], fin: S.fin || [], skin: S.skin || {}, day: S.day || "", welcome: S.welcome };
-  }
   if (!S || typeof S !== "object" || !S.v) {
     S = { v: 2, purse: {}, own: {}, up: {}, teams: ["tatar"], fin: [], skin: {}, day: "" };
-    const s = seed && seed();
-    if (s) {
-      const t = s.team && TEAMS[s.team] ? s.team : "tatar";
-      if (!S.teams.includes(t)) S.teams.push(t);
-      S.own[t] = [...new Set([...START, ...(s.weapons || []).filter(k => WEAPON_PRICE[k] != null)])];
-      S.purse[t] = Math.min(1500, Math.round((s.fought || 0) * 30));
-      S.welcome = (s.fought || 0) > 0 ? t : false;
-    }
+    void seed;   // (since 1.99.252 nobody carries anything over: every player begins as the Tatars, with a bow and a knife)
+    try { localStorage.removeItem("reckoning.armoury"); } catch (e) {}
     save();
   }
   S.purse ||= {}; S.own ||= {}; S.up ||= {}; S.teams ||= ["tatar"]; S.fin ||= []; S.skin ||= {};
@@ -180,8 +170,8 @@ export function upsOf(lo, ranked, t = team()) {
 export function paceOf(ups) { const o = {}; for (const k in ups) for (const id in ups[k]) if (UPGRADES[k][id].pace) o[k] = (o[k] || 1) * UPGRADES[k][id].pace; return o; }
 
 // ---- pay: what a fight earns, in the coin of the colours you fought in ----
-// (enough for a first new arm in a battle or two, a musket in four or five; a crown's colours dearer, the best of them
-//  some dozens of battles — and a day's first win worth more, so a short evening still gets somewhere)
+// (the first new arm in two to five battles, a musket in ten or so; a crown's colours dearer, the best of them a long
+//  campaign of battles — and a day's first win worth more, so a short evening still gets somewhere)
 export function earn({ vsPlayer, won, kills = 0, left = false }, t = team()) {
   const s = state();
   let gain = vsPlayer ? (won ? 60 : 25) : (won ? 30 : 12);
