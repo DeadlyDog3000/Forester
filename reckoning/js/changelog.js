@@ -7,6 +7,21 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.265", date: "8 November 2026", title: "Smoke, the wounded, and the demo's battles",
+    items: [
+      "Powder smoke hides what's behind it. A man looking through a fresh volley's bank can't see to aim, and waits for it to clear or for them to come out of it; through the haze after it his shots and arrows go wide. A long firefight ends up shooting half blind, as they did.",
+      "Most hits wound rather than kill. A man badly hurt falls out of the line and limps to the rear, out of the fight for good; his mates see him go. A ball in the head still kills.",
+      "Morale: a man hit from the flank is shaken more than from the front, and from behind more again; and when you fall, every man of yours who saw it is shaken, the nearer the worse.",
+      "The demo comes into To Arms: your first battle, the guided one, and the challenge are the demo's to fight. Everything else there is marked as the full game's.",
+    ],
+  },
+  {
+    v: "1.99.264", date: "8 November 2026", title: "Battles start again",
+    items: [
+      "Battles on open ground with field guns didn't start in 1.99.263: the new check that keeps a gun out of a house went wrong as the guns were set out. They start again.",
+    ],
+  },
+  {
     v: "1.99.263", date: "8 November 2026", title: "Works before the battle, and a finer crossbow",
     items: [
       "Campaign battles: before each one you fight yourself, you choose your own arms — any of them, free. Your crown's armouries are yours; the Armoury's prices are for battles outside the campaign.",

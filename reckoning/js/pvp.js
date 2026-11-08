@@ -12,6 +12,7 @@ import { THREE, camera, makeFlame } from "./core.js";
 const CHAR = new THREE.Color(0x17110c);
 import { G, Actor, setWorld, setAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
+import { smokeAlong } from "./powder.js";
 import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
 import { pool, sever, heal, clearGore } from "./gore.js";
@@ -1596,7 +1597,7 @@ class Arena {
     // (a call that's only worth so much: once in a while, not with every breath)
     (this.rallyAt ||= {}); if (G.time - (this.rallyAt[team] ?? -99) < 8) return 0; this.rallyAt[team] = G.time;
     for (const u of this.alliesOf(team)) {
-      if (!u.routing || Math.hypot(u.pos.x - at.x, u.pos.z - at.z) > 22) continue;
+      if (!u.routing || u.wounded || Math.hypot(u.pos.x - at.x, u.pos.z - at.z) > 22) continue;
       u.nerve = Math.min(1, (u.nerve || 0) + 0.55 * Math.min(1.2, u.brave || 1));
       if (u.nerve > 0.42) { u.routing = false; u.a.person.crouching = false; u.a.path = []; u.hold(u.lo.long !== "none" ? u.lo.long : u.steel()); n++; }
     }
@@ -1606,7 +1607,7 @@ class Arena {
   // a man breaks: and when a company's breaking — a third of it running — word of it, and maybe the end of it
   broke(u) {
     this.showHud();
-    const co = this.alliesOf(u.team), run = co.filter(m => m.routing).length;
+    const co = this.alliesOf(u.team), run = co.filter(m => m.routing && !m.wounded).length;
     (this.brokeTold ||= {});
     if (run >= Math.max(2, co.length * 0.34) && !this.brokeTold[u.team]) {
       this.brokeTold[u.team] = true;
@@ -2661,6 +2662,8 @@ class Arena {
   }
   youDown(from) {
     if (G.player.horse) G.player.dismount();   // (thrown from the saddle)
+    // (their commander down in front of them: every man who saw it shaken, the nearer the worse)
+    if (this.battle) for (const m of this.alliesOf(0)) { const d = Math.hypot(m.pos.x - G.player.pos.x, m.pos.z - G.player.pos.z); if (d < 40) m.shaken && m.shaken(d < 15 ? 0.2 : 0.1); }
     G.downed = true; G.lockMove = true;
     if (this.netBattle) { this.net.send({ t: "dhp", hp: 0, r: this.round }); this.sendT = 0; this.sendState(0); }
     if (this.multi) return this.fallInBattle(from);
@@ -3416,6 +3419,11 @@ class Bot extends Fighter {
     this.nerve = Math.max(0, this.nerve - k / (this.brave || 1)); this.quietT = 0;
     if (!this.routing && this.nerve < 0.22) this.rout();
   }
+  // badly hurt: out of the fight, limping back to the rear, and not coming back
+  woundOut() {
+    this.wounded = true; this.routing = true; this.wind = 0; this.aimUp(false); this.releaseCover && this.releaseCover(); this.a.squareTo = null; this.a.person.crouching = false; this.a.person.setPose("idle"); this.a.path = [];
+    for (const m of this.arena.alliesOf(this.team)) if (m !== this && Math.hypot(m.pos.x - this.pos.x, m.pos.z - this.pos.z) < 8) m.shaken && m.shaken(0.03);
+  }
   // he breaks: weapon down, and away from them as fast as he can go — to the back of the field
   rout() {
     // (nobody breaks in the first minute of a battle: whatever the first volley does, a company stands it out a while —
@@ -3429,10 +3437,19 @@ class Bot extends Fighter {
   hit(power, head) { this.damage(dmgOf(power, head), false, head); if (head && this.alive && this.arena.youCanSee(this)) UI.hint("In the head.", 1.2); }
   damage(d, melee, head = false, from = null) {
     if (!this.alive || !this.arena.live) return;
+    // (a ball or an arrow that would have killed him, as often as not only maims: he's down to the rear, out of it,
+    //  not dead — not one in the head, though, and not a man already hurt)
+    if (this.hp - d <= 0 && !melee && !head && this.arena.battle && !this.wounded && !this.crewOf && !this.isNet && Math.random() < 0.4) d = this.hp - 12;
     this.hp = Math.max(0, this.hp - d);
     if (this.hp <= 0) { const f = from || (this.T && this.T.pos) || G.player.pos; this.fromX = f.x; this.fromZ = f.z; this.headShot = head; this.fallDown(f, head); this.arena.unitDown(this); return; }
     if (this.arena.host) this.arena.net.send({ t: "bhurt", id: this.uid });
     this.shaken(melee ? 0.07 : 0.1);
+    // (hit from the flank or from behind: worse than from in front, where a man can see it coming and his mates stand
+    //  with him — men broke far sooner taken in the flank than from the front)
+    if (from && this.arena.battle) { const dx = from.x - this.pos.x, dz = from.z - this.pos.z, dd = Math.hypot(dx, dz) || 1, fwd = (dx * Math.sin(this.a.yaw) + dz * Math.cos(this.a.yaw)) / dd; if (fwd < -0.35) this.shaken(0.12); else if (fwd < 0.35) this.shaken(0.05); }
+    // (most hits wounded rather than killed: a man badly hurt falls out of the line and makes his way to the rear, out
+    //  of the fight — and his mates see him go)
+    if (this.arena.battle && !this.wounded && !this.crewOf && !this.isNet && this.hp < 45 && Math.random() < 0.55) this.woundOut();
     if (this.arena.rec) this.arena.rec.hurt(this);
     blowLands(this.a, "hit", this.youHitPos && G.time - (this.youHitAt ?? -9) < 0.3 ? G.player : { pos: from || this.pos }); this.a.person.flinch && this.a.person.flinch();
     // (a hit man, as often as not, makes no sound at all; else a grunt, a groan through the teeth — a cry only sometimes)
@@ -3445,6 +3462,9 @@ class Bot extends Fighter {
   sees(T) {
     const w = this.arena.w, p = T.pos, a = this.pos;
     const ax = a.x, ay = a.y + 1.5, az = a.z, bx = p.x, by = p.y + 1.3, bz = p.z, d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / 0.5);
+    // (powder smoke between: a bank of it and he can't see to aim — he waits for it to clear, or for them to come out of it)
+    this.fog = this.arena.battle ? smokeAlong({ x: ax, y: ay, z: az }, { x: bx, y: by, z: bz }) : 0;
+    if (this.fog > 2.4 && d > 8) return false;
     for (let i = 2; i < n - 1; i++) {
       const t = i / n, x = ax + (bx - ax) * t, y = ay + (by - ay) * t, z = az + (bz - az) * t;
       if (y < w.heightAt(x, z) + 0.2 || w.col.solidAt(x, y, z, 0)) return false;
@@ -3603,10 +3623,10 @@ class Bot extends Fighter {
       if (!this.routing && this.nerve < 0.22) this.rout();
       if (this.routing) {
         // (rallied, once he's got his breath and his nerve back — and nobody on his heels)
-        if (this.nerve > 0.55 && !near) { this.routing = false; this.hold(this.lo.long !== "none" ? this.lo.long : this.steel()); return; }
+        if (this.nerve > 0.55 && !near && !this.wounded) { this.routing = false; this.hold(this.lo.long !== "none" ? this.lo.long : this.steel()); return; }
         const home = this.arena.spawns[this.team] || this.pos, away = Math.atan2(home.x - C.x, home.z - C.z), R = this.arena.bound - 4;
         const tx = C.x + Math.sin(away) * R, tz = C.z + Math.cos(away) * R;
-        if (Math.hypot(tx - a.pos.x, tz - a.pos.z) > 3) { if (!a.path.length || (this.stepT -= dt) <= 0) { this.stepT = 1; a.walkTo(tx + (Math.random() - 0.5) * 16, tz + (Math.random() - 0.5) * 16, 4.4); } }
+        if (Math.hypot(tx - a.pos.x, tz - a.pos.z) > 3) { if (!a.path.length || (this.stepT -= dt) <= 0) { this.stepT = 1; a.walkTo(tx + (Math.random() - 0.5) * 16, tz + (Math.random() - 0.5) * 16, this.wounded ? 1.3 : 4.4); } }
         else { a.path = []; a.person.crouching = true; }
         return;
       }
@@ -3807,7 +3827,7 @@ class Bot extends Fighter {
       //  goes up a good way, and comes down into the line)
       const hx = Math.hypot(to.x - from.x, to.z - from.z), hy = to.y - from.y, g = 9.8, v2 = v * v, disc = v2 * v2 - g * (g * hx * hx + 2 * hy * v2);
       const ang = disc > 0 ? Math.atan((v2 - Math.sqrt(disc)) / (g * hx)) : Math.PI / 4;
-      const dir = new THREE.Vector3((to.x - from.x) / hx * Math.cos(ang), Math.sin(ang), (to.z - from.z) / hx * Math.cos(ang)), wob = 0.075 - s * 0.06;
+      const dir = new THREE.Vector3((to.x - from.x) / hx * Math.cos(ang), Math.sin(ang), (to.z - from.z) / hx * Math.cos(ang)), wob = (0.075 - s * 0.06) * (1 + Math.min(2, (this.fog || 0) * 1.2));
       // (in a battle the line stands to it, and its shots go the steadier for it — wide of the man, more than short or long)
       dir.x += (Math.random() - 0.5) * wob; dir.y += (Math.random() - 0.5) * wob * (this.arena.battle ? 0.22 : 0.6); dir.z += (Math.random() - 0.5) * wob; dir.normalize();
       from.addScaledVector(dir, 0.3);
@@ -3823,7 +3843,7 @@ class Bot extends Fighter {
     to.y += 4.9 * flight * flight;
     // (in a pitched battle: two balls in five finding their man at fifty paces, from a soldier of middling skill — a
     //  steadier hand than in the duel, the line's men standing to their work)
-    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 0.6 : 1);
+    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 0.6 : 1) * (1 + Math.min(2.5, (this.fog || 0) * 1.6));
     const dir = to.sub(from).normalize(), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(), up = new THREE.Vector3().crossVectors(side, dir);
     dir.addScaledVector(side, randn() * sigma).addScaledVector(up, randn() * sigma).normalize();
     AUDIO.gunshot && AUDIO.gunshot(pis ? 0.75 : 0.95, a.pos);

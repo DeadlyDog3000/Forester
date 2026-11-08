@@ -87,6 +87,21 @@ const CAP = 420, ALL = new Set();
 // (a puff of a field since cleared away — its ticking stopped with the scene — doesn't count)
 const live = () => { if (ALL.size > CAP / 2) for (const m of ALL) { let o = m; while (o.parent) o = o.parent; if (o !== G.scene) ALL.delete(m); } return ALL.size; };
 window.__smokeN = () => live();
+// how thick the smoke is along a line of sight, from a to b ({x, y, z} each): every puff the line passes through, by how
+//  opaque and how big it is — a man seeing through a fresh volley's bank sees nothing; through the haze after it, a shape
+const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sp = new THREE.Vector3();
+export function smokeAlong(a, b) {
+  if (!ALL.size) return 0;
+  _sa.set(a.x, a.y, a.z); _sb.set(b.x, b.y, b.z).sub(_sa); const L2 = _sb.lengthSq() || 1;
+  let k = 0;
+  for (const m of ALL) {
+    const op = m.material.opacity; if (op < 0.03 || !m.parent) continue;
+    const t = Math.max(0.08, Math.min(0.92, _sp.copy(m.position).sub(_sa).dot(_sb) / L2));
+    const r = m.scale.x * 0.45, d2 = _sp.copy(_sa).addScaledVector(_sb, t).distanceToSquared(m.position);
+    if (d2 < r * r) k += op * Math.min(2, r) * (1 - Math.sqrt(d2) / r);
+  }
+  return k;
+}
 const _cd = new THREE.Vector3();
 // the smoke itself. o: { scale (1 a musket, about 3 a cannon), life (seconds), n (puffs), speed (of the jet) }
 export function powderSmoke(root, at, dir, o = {}) {
