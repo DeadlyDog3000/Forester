@@ -1983,16 +1983,26 @@ export function makeCrossbow() {
   const cord = mat(0x3a2c1e, { roughness: 0.95 }), horn = mat(0xd6c49a, { roughness: 0.5 }), str = mat(0x7a6c52, { roughness: 0.85 });
   const prodM = mat(0x4a4f58, { metalness: 0.78, roughness: 0.3 });
   const add = (m, x = 0, y = 0, z = 0) => { m.position.set(x, y, z); g.add(m); return m; };
-  // the tiller: its side drawn (forward is -z), and given its thickness
-  const sh = new THREE.Shape(), P = [[-0.25, 0.012], [-0.24, -0.1], [-0.2, -0.108], [-0.12, -0.07], [-0.04, -0.045], [0.02, -0.05], [0.16, -0.045], [0.3, -0.034], [0.47, -0.022], [0.47, 0.026], [0.06, 0.03], [-0.03, 0.03], [-0.14, 0.026], [-0.25, 0.012]];
-  sh.moveTo(P[0][0], P[0][1]); for (const [a, b] of P.slice(1)) sh.lineTo(a, b);
-  const tg = new THREE.ExtrudeGeometry(sh, { depth: 0.04, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.006, bevelSegments: 2, curveSegments: 4 });
-  tg.translate(0, 0, -0.02); tg.rotateY(Math.PI / 2);       // (the drawing's x becomes forward, -z)
-  add(new THREE.Mesh(tg, wood));
-  // bone set into the butt's sides, and a stripe along its comb
+  // the tiller: its side drawn (forward is -z), and given its thickness — a long slim fore-end, the grip where the hand
+  //  closes under the lock, and the butt dropping away in a full curve to sit against the cheek; well rounded at every edge
+  const sh = new THREE.Shape(), Vv = (x, y) => new THREE.Vector2(x, y);
+  sh.moveTo(-0.272, 0.016); sh.lineTo(-0.12, 0.028); sh.lineTo(0.06, 0.031); sh.lineTo(0.465, 0.026);
+  sh.quadraticCurveTo(0.478, 0.003, 0.465, -0.02);
+  sh.splineThru([Vv(0.3, -0.026), Vv(0.13, -0.031), Vv(0.02, -0.036), Vv(-0.06, -0.045), Vv(-0.14, -0.062), Vv(-0.21, -0.078), Vv(-0.255, -0.084)]);
+  sh.quadraticCurveTo(-0.285, -0.084, -0.286, -0.055); sh.splineThru([Vv(-0.284, -0.018), Vv(-0.272, 0.016)]);
+  const tg = new THREE.ExtrudeGeometry(sh, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.008, bevelSize: 0.007, bevelSegments: 4, curveSegments: 10 });
+  tg.translate(0, 0, -0.015); tg.rotateY(Math.PI / 2);       // (the drawing's x becomes forward, -z)
+  // (oiled walnut: smooth, its grain too fine to see at arm's length — the wood texture laid on this shape ran across it)
+  add(new THREE.Mesh(tg, Object.assign(mat(0x5a3820, { roughness: 0.55 }), { name: "crossbow_wood" })));
+  // bone let into the butt's sides: a leaf of it, its edge a line of dots; a band round the butt's heel; and dots
+  //  down the fore-end
+  const leaf = new THREE.Shape(); leaf.moveTo(-0.05, 0); leaf.quadraticCurveTo(0, 0.02, 0.05, 0); leaf.quadraticCurveTo(0, -0.02, -0.05, 0);
+  const leafG = new THREE.ExtrudeGeometry(leaf, { depth: 0.0016, bevelEnabled: false, curveSegments: 10 });
   for (const sd of [-1, 1]) {
-    const pl = add(new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.05, 0.12), bone), sd * 0.0265, -0.045, 0.18); pl.rotation.x = 0.28;
-    for (let i = 0; i < 3; i++) add(new THREE.Mesh(new THREE.SphereGeometry(0.005, 6, 4), bone), sd * 0.0262, -0.012, 0.06 - i * 0.045);
+    const pl = new THREE.Mesh(leafG, bone); pl.rotation.set(0.24 * sd, sd * Math.PI / 2, 0); pl.rotation.order = "YXZ"; pl.position.set(sd * 0.0232, -0.036, 0.19); g.add(pl);
+    for (let i = 0; i < 5; i++) add(new THREE.Mesh(new THREE.SphereGeometry(0.0032, 8, 5), bone), sd * 0.0225, -0.003, 0.02 - i * 0.075);
+    // (the lock plates' rivets)
+    for (const z of [-0.145, -0.095]) add(new THREE.Mesh(new THREE.SphereGeometry(0.0035, 6, 4), steel), sd * 0.0282, 0.006, z);
   }
   add(new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.003, 0.3), bone), 0, 0.0335, 0.02);
   // the groove the bolt lies in, darker, and its spring clip
@@ -2037,7 +2047,7 @@ export function makeCrossbow() {
   const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.03, 8).rotateZ(Math.PI / 2), dark); knob.position.set(0.017, 0.07, 0); crank.add(knob);
   void drum; void nut;
   // the string: two lengths of cord from the nocks to where it's held
-  const strand = () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.0028, 0.0028, 1, 5).translate(0, 0.5, 0), str); g.add(m); return m; };
+  const strand = () => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.0034, 0.0034, 1, 6).translate(0, 0.5, 0), str); g.add(m); return m; };
   const S1 = strand(), S2 = strand(), up = new THREE.Vector3(0, 1, 0), tmp = new THREE.Vector3();
   const lay = (m, a, b) => { tmp.subVectors(b, a); const L = tmp.length(); m.position.copy(a); m.quaternion.setFromUnitVectors(up, tmp.normalize()); m.scale.set(1, L, 1); };
   // a bolt in the groove: stout, a squared iron head, two vanes

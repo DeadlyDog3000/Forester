@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.263", date: "8 November 2026", title: "A finer crossbow",
+    items: [
+      "The crossbow's stock is shaped as a hunter's was: a long slim fore-end, the grip under the lock, and the butt dropping away in a full curve, every edge rounded, in smooth oiled walnut; bone let into the butt and a row of bone dots down each side, the lock plates riveted, and a heavier string.",
+    ],
+  },
+  {
     v: "1.99.262", date: "8 November 2026", title: "The challenge, bowmen that shoot, and a better bow",
     items: [
       "The challenge, on the To Arms page: the same field, the same two companies and the same officer against you for everyone, a new one every two days. A win counts most, then what you lose against what they do, then how quickly; your best goes on its board, and a battle you share is there for others to watch.",
