@@ -172,14 +172,15 @@ export function initPvp(c) {
   $("musTeam").addEventListener("click", teamClick);
   $("musField").addEventListener("click", armyClick);
   $("musForge").addEventListener("click", forgeClick);
-  $("btnPvp").onclick = () => gate("online") && openCamp();
+  // (the demo comes in too: the guided battle and the challenge are its to fight; the rest says it's the full game's)
+  $("btnPvp").onclick = () => openCamp();
   $("pvpBack").onclick = () => { leaveCamp(); ctx.screen("title"); };
   $("pvpQuick").onclick = () => gate("online") && quickPlay();
   $("pvpFirst").onclick = () => { sfx("muster"); firstBattle(); };
-  $("pvpBots").onclick = () => { pendingGhost = null; openMuster("bots"); };
-  $("pvpDuel").onclick = () => openMuster("duel");
-  $("pvpHist").onclick = () => openMuster("hist");
-  $("pvpCampaign").onclick = () => openCampaign(true, "pvp");
+  $("pvpBots").onclick = () => { if (!gate("online")) return; pendingGhost = null; openMuster("bots"); };
+  $("pvpDuel").onclick = () => gate("online") && openMuster("duel");
+  $("pvpHist").onclick = () => gate("online") && openMuster("hist");
+  $("pvpCampaign").onclick = () => gate("campaign") && openCampaign(true, "pvp");
   // (and from the title, beside the story: the campaign's a game for one as much as for two)
   $("btnCampaign").onclick = () => gate("campaign") && openCampaign(true, "title");
   // (a campaign's battle fought by hand: its field and its armies, as the campaign gives them)
@@ -188,6 +189,7 @@ export function initPvp(c) {
   $("pvpCancel").onclick = () => cancelSearch();
   $("pvpBotNow").onclick = () => botNow();
   $("pvpAgain").onclick = () => again();
+  $("pvpEndS").addEventListener("click", e => { if (e.target.closest("[data-demo-buy]")) gate("online"); });
   $("pvpLoadout").onclick = () => openCamp();
   $("pvpTitle").onclick = () => ctx.screen("title");
   $("musBack").onclick = () => leaveMuster();
@@ -250,7 +252,10 @@ const mine = () => { const r = record(); return { rating: Math.round(r.rating), 
 function openCamp() {
   lo = loadout(); ctx.screen("pvp");
   const r = record(), me = ctx.identity();
-  drawWeek(); $("pvpFirst").classList.toggle("hidden", coachDone());
+  drawWeek(); $("pvpFirst").classList.toggle("hidden", coachDone() && full());
+  // (the demo: what's the full game's marked so, and the guided battle always there to fight again)
+  for (const id of ["pvpQuick", "pvpBots", "pvpDuel", "pvpHist", "pvpCampaign"]) $(id).classList.toggle("locked", !full());
+  $("pvpFirst").querySelector("span").textContent = full() ? "Start here" : "In the demo";
   $("pvpRec").innerHTML = `<span class="pv-rank">${rankOf(r.rating)}</span> · rating <b>${Math.round(r.rating)}</b> · ${r.w} won, ${r.l} lost${r.streak > 1 ? ` · ${r.streak} in a row` : ""} · <b>${money(ducats())}</b><br><small>You fight as ${esc(me.name)}.</small>`;
   drawWho(); drawTalk(); drawBoard(); drawCard();
   connectCamp();
@@ -332,7 +337,7 @@ async function drawHl() {
 }
 async function pickReplay(e) {
   const gb = e.target.closest("button[data-ghost]");
-  if (gb) { window.__uisfx && window.__uisfx.click && window.__uisfx.click(); const rec = await fetchReplay(gb.dataset.ghost); if (!rec) { campNote("That battle couldn't be fetched just now."); return; } fightGhost(rec); return; }
+  if (gb) { if (!gate("online")) return; window.__uisfx && window.__uisfx.click && window.__uisfx.click(); const rec = await fetchReplay(gb.dataset.ghost); if (!rec) { campNote("That battle couldn't be fetched just now."); return; } fightGhost(rec); return; }
   const b = e.target.closest("button[data-id],button[data-pid]"); if (!b) return;
   window.__uisfx && window.__uisfx.click && window.__uisfx.click();
   let rec = null;
@@ -398,7 +403,7 @@ function quickPlay() {
 //  the way back to it from the result)
 let storyNext = null;
 export function storyBattle(b, next) { lastMode = "story"; must = null; storyNext = next; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); }
-function again() { if (lastMode === "story") { const f = storyNext; storyNext = null; lastMode = null; if (f) f(); return; } if (lastMode === "campaign") openCampaign(); else if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots" || lastMode === "ghost") openMuster("bots"); else if (lastMode === "challenge") playChallenge(); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
+function again() { if (lastMode === "story") { const f = storyNext; storyNext = null; lastMode = null; if (f) f(); return; } if (lastMode === "campaign") openCampaign(); else if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots" && !full()) firstBattle(); else if (lastMode === "bots" || lastMode === "ghost") openMuster("bots"); else if (lastMode === "challenge") playChallenge(); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
 
 // ---------------------------------------------------------------------------
 //  the muster: your arms, and your company from the purse — then Ready. (Against a player, both must be.)
@@ -2923,6 +2928,7 @@ class Arena {
     if (lastMode === "story" && this.hist && this.hist.b.after) $("pvpEndS").innerHTML += `<div class="pv-histend"><b>${won && !left ? "As it happened" : "The city held all the same"}</b> ${esc(this.hist.b.after[won && !left ? 0 : 1])}</div>`;
     $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : lastMode === "story" ? "Back to the story" : "Again";
     $("pvpLoadout").classList.toggle("hidden", lastMode === "story" || cmpB);
+    if (!full()) $("pvpEndS").innerHTML += `<div class="pv-demo">That's the demo's battle. The full game has every battle and duel against bots and players, the historical battles, the campaign and the whole story. <button class="btn" data-demo-buy="1">The full game</button></div>`;
     endReplay(rec);
     ctx.screen("pvpEnd");
   }

@@ -2489,3 +2489,8 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .scroll-sheet input.pv-tr-c { width: 40px; padding: 3px 2px; border: 1px solid transparent; border-radius: 6px; background: transparent; font: 600 16px var(--display); text-align: center; color: var(--ink); }
 .scroll-sheet input.pv-tr-c:hover { border-color: var(--edge); }
 .scroll-sheet input.pv-tr-c:focus { outline: none; border-color: #a8321f; background: #fff; }
+/* the demo on the To Arms page: what's the full game's marked so */
+#pvp .locked { position: relative; opacity: 0.62; }
+#pvp .locked::after { content: "Full game"; position: absolute; top: -7px; right: 8px; padding: 1px 6px; border-radius: 3px; background: var(--gold); color: #1a1208; font: 600 10px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; }
+.pv-demo { margin: 12px auto 0; max-width: 520px; font: 13px/1.5 var(--sans); color: var(--ink); }
+.pv-demo .btn { display: block; margin: 8px auto 0; min-width: 0; padding: 7px 18px; font-size: 14px; }
