@@ -2367,3 +2367,19 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 #deployBar .dp-a { display: flex; gap: 8px; }
 #deployBar .dp-a button { justify-content: center; align-items: center; }
 #deployBar button.go { color: #fff; background: linear-gradient(180deg, #b83a26, #8e2414); border: none; box-shadow: 0 4px 12px rgba(142, 36, 20, 0.35); padding: 10px 18px; font-size: 14px; }
+/* ---- buying: what you're looking at, its price, and the Buy button ---- */
+.scroll-sheet .buybar { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 12px; margin: 10px 0 12px; padding: 12px 14px; border-radius: 12px;
+  background: #fffaf0; border: 1px solid rgba(168, 50, 31, 0.35); box-shadow: 0 0 0 3px rgba(168, 50, 31, 0.08), 0 4px 14px rgba(60, 40, 20, 0.12); font-family: var(--sans); }
+.buybar .bb-n { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.buybar .bb-n b { font: 600 15px var(--sans); color: var(--ink); }
+.buybar .bb-n small { font-size: 12px; color: var(--ink-dim); }
+.buybar .bb-p { font: 700 16px var(--sans); color: var(--gold); white-space: nowrap; }
+.buybar .bb-buy { padding: 9px 22px; border: none; border-radius: 10px; color: #fff; font: 700 14px var(--sans); letter-spacing: 0.04em; cursor: pointer;
+  background: linear-gradient(180deg, #3e8a4c, #2a6a36); box-shadow: 0 4px 12px rgba(42, 106, 54, 0.35); transition: transform 0.12s, box-shadow 0.12s; }
+.buybar .bb-buy:hover:not([disabled]) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(42, 106, 54, 0.45); }
+.buybar .bb-buy[disabled] { background: #b8ab94; box-shadow: none; cursor: not-allowed; }
+.buybar .bb-x { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--edge); background: transparent; color: var(--ink-dim); font: 600 13px var(--sans); cursor: pointer; }
+@media (max-width: 700px) { .scroll-sheet .buybar { grid-template-columns: 1fr auto; } .buybar .bb-p { grid-column: 2; grid-row: 1; } }
+.fg-parts .buybar { grid-template-columns: 1fr auto; }
+.fg-parts .buybar .bb-n { grid-column: 1 / -1; }
+.fg-parts .buybar .bb-p { grid-column: 1 / -1; }

@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.253", date: "8 November 2026", title: "Buying with a button, and upgrades seen on the gun",
+    items: [
+      "Nothing is bought by a stray click any more: click anything in the armoury that isn't yours — an arm, a team's colours, a finish, a gunsmith's upgrade — and it's shown to you with its price and how much is in the purse, and you buy it with the Buy button (or Cancel).",
+      "A gunsmith's upgrade is shown on the arm before you buy it: click the sights and the view closes in on the musket's breech with the rear sight fitted; paper cartridges show their leather cartridge box under the stock; the crossbow's goat's-foot lever hangs on its side; the bow's horn thumb ring hangs at its grip. Finishes are tried on the arm the same way.",
+      "A purchase has its own sound: the coins counted out onto the table, the strongbox lid let down and its key turned.",
+      "Prices in each crown's coin show at their right rates again (they were showing three times too high in 1.99.252, purse and price alike).",
+    ],
+  },
+  {
     v: "1.99.252", date: "8 November 2026", title: "A dearer armoury, and everyone begins again",
     items: [
       "Everything in the armoury costs three times as much: arms, every crown's colours, the gunsmith's work and the finishes. A musket is now about ten battles' pay, the Emperor's colours a long campaign of them.",

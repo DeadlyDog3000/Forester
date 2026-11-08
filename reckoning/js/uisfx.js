@@ -99,6 +99,12 @@ const thud = (a, o, t, vol = 0.08, f = 80) => { note(a, o, f, t, { vol, decay: 0
 Object.assign(UISFX, {
   // coins counted out onto the table, a little run of them — the price paid
   pay: (n = 6) => play((a, o, t) => { n = Math.max(3, Math.min(14, n)); let at = t; for (let i = 0; i < n; i++) { coin(a, o, at, 0.045 + Math.random() * 0.02); at += 0.045 + Math.random() * 0.07; } burst(a, o, at + 0.02, { f: 500, q: 0.6, dur: 0.22, vol: 0.035, sweep: 900 }); }),
+  // a purchase made: the coins counted out onto the table, then the strongbox's lid let down and its key turned
+  buy: (n = 8) => play((a, o, t) => {
+    n = Math.max(4, Math.min(14, n)); let at = t; for (let i = 0; i < n; i++) { coin(a, o, at, 0.05 + Math.random() * 0.02); at += 0.04 + Math.random() * 0.05; }
+    at += 0.12; thud(a, o, at, 0.12, 95); knock(a, o, at, 0.12, 120); ring(a, o, at + 0.01, 700, { vol: 0.03, decay: 0.25, parts: [1, 2.4, 3.9] });
+    burst(a, o, at + 0.28, { f: 2400, q: 6, dur: 0.03, vol: 0.06 }); burst(a, o, at + 0.33, { f: 3000, q: 8, dur: 0.02, vol: 0.09 }); ring(a, o, at + 0.33, 2900, { vol: 0.03, decay: 0.12 });
+  }),
   // pay coming in: the coins poured into the purse, a quick tumbling rush, then the purse drawn shut
   purse: (n = 10) => play((a, o, t) => { n = Math.max(4, Math.min(28, n)); for (let i = 0; i < n; i++) { const at = t + Math.pow(i / n, 0.8) * 0.55 + Math.random() * 0.03; ring(a, o, at, 2000 + Math.random() * 1800, { vol: 0.03 + Math.random() * 0.02, decay: 0.12 + Math.random() * 0.1 }); } burst(a, o, t + 0.05, { f: 260, q: 0.5, dur: 0.5, vol: 0.03, type: "lowpass" }); burst(a, o, t + 0.68, { f: 900, q: 0.8, dur: 0.16, vol: 0.05, sweep: 1600 }); burst(a, o, t + 0.8, { f: 1400, q: 0.8, dur: 0.12, vol: 0.04, sweep: -700 }); }),
   // an arm taken up: what it is, as it sounds in the hand

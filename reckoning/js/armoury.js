@@ -14,7 +14,7 @@
 // Kept on this computer, as your record is.
 
 import { THREE } from "./core.js";
-import { makeArm, makeCrossbow, modelCopy, ensureModel } from "./models.js";
+import { makeArm, makeCrossbow, modelCopy, ensureModel, fpMusket } from "./models.js";
 
 // (the second armoury, 1.99.252: prices tripled and everyone begun again — the first's purses and arms set aside)
 const KEY = "reckoning.armoury.2";
@@ -82,11 +82,11 @@ const WOOD_HEX = new Set([0x8a6440, 0x5a3e26, 0x5a3820, 0x3e2614, 0x4e2f19, 0x9a
 // seven livres, seventeen Spanish reales, twelve Polish złoty, a Muscovite ruble of a hundred kopecks, and three
 // hundred of the Ottoman (and the Crimean) silver akçe ----
 export const COINS = {
-  tatar: ["akçe", 900, "the Crimean Khan's silver akçe"], ottoman: ["akçe", 900, "the Sultan's silver akçe"], muscovite: ["kopecks", 300, "the Tsar's wire kopecks"],
-  polish: ["złoty", 36, "the Commonwealth's złoty"], hamburg: ["marks", 18, "the Hamburg mark lübsch"], danish: ["rigsdaler", 6, "the Danish rigsdaler"],
-  dutch: ["guilders", 15, "the Dutch guilder"], saxon: ["thalers", 6, "the Saxon thaler"], bavarian: ["gulden", 12, "the Bavarian gulden"],
-  brandenburg: ["thalers", 6, "the Brandenburg thaler"], spanish: ["reales", 51, "the Spanish real"], swedish: ["riksdaler", 6, "the Swedish riksdaler"],
-  english: ["shillings", 9.5, "the English shilling"], french: ["livres", 21, "the French livre tournois"], imperial: ["gulden", 12, "the Emperor's gulden"],
+  tatar: ["akçe", 300, "the Crimean Khan's silver akçe"], ottoman: ["akçe", 300, "the Sultan's silver akçe"], muscovite: ["kopecks", 100, "the Tsar's wire kopecks"],
+  polish: ["złoty", 12, "the Commonwealth's złoty"], hamburg: ["marks", 6, "the Hamburg mark lübsch"], danish: ["rigsdaler", 2, "the Danish rigsdaler"],
+  dutch: ["guilders", 5, "the Dutch guilder"], saxon: ["thalers", 2, "the Saxon thaler"], bavarian: ["gulden", 4, "the Bavarian gulden"],
+  brandenburg: ["thalers", 2, "the Brandenburg thaler"], spanish: ["reales", 17, "the Spanish real"], swedish: ["riksdaler", 2, "the Swedish riksdaler"],
+  english: ["shillings", 9.5, "the English shilling"], french: ["livres", 7, "the French livre tournois"], imperial: ["gulden", 4, "the Emperor's gulden"],
 };
 const coinOf = t => COINS[t] || COINS.tatar;
 // (an amount, in one crown's coin: "450 akçe", "38 thalers")
@@ -286,14 +286,49 @@ function slingOn(obj, add, kind, col) {
   m.scale.set(1, 1, 1); m.castShadow = true; m.userData.skinPart = true; add.add(m);
 }
 
+// ---- the gunsmith's work, to be seen: what each upgrade puts on (or beside) the arm ----
+const UPM = {};
+const upMat = (k, c, o = {}) => UPM[k] || (UPM[k] = new THREE.MeshStandardMaterial({ color: c, roughness: 0.75, ...o }));
+export function fitUps(obj, kind, ups = {}) {
+  const old = obj.getObjectByName("up_parts"); if (old) old.parent.remove(old);
+  const g = new THREE.Group(); g.name = "up_parts";
+  const leather = upMat("leather", 0x3a2414), brass = upMat("brass", 0xb8913f, { metalness: 0.8, roughness: 0.35 }), paper = upMat("paper", 0xe8dcc0, { roughness: 0.95 }), horn = upMat("horn", 0x5a4a38, { roughness: 0.45 }), iron = upMat("iron", 0x4a4c50, { metalness: 0.7, roughness: 0.45 });
+  const box = (w, h, d, m, x, y, z) => { const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); b.castShadow = true; g.add(b); return b; };
+  // paper cartridges: a leather cartridge box hung under the stock, its brass badge, three charges standing out of it
+  if (ups.cartridges && (kind === "musket" || kind === "pistol")) {
+    const P = kind === "musket" ? { x: 0, y: -0.02, z: -0.15 } : { x: 0.055, y: -0.03, z: -0.06 }, s = kind === "musket" ? 1 : 0.7;
+    box(0.13 * s, 0.075 * s, 0.045 * s, leather, P.x, P.y, P.z).rotation.x = Math.PI / 2;
+    box(0.04 * s, 0.003, 0.03 * s, brass, P.x, P.y, P.z - 0.024 * s).rotation.x = Math.PI / 2;
+    for (let i = 0; i < 3; i++) { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.0075 * s, 0.0075 * s, 0.06 * s, 10), paper); c.position.set(P.x - 0.03 * s + i * 0.03 * s, P.y + 0.045 * s, P.z); g.add(c); }
+  }
+  // the goat's-foot lever: hung on the tiller's right side, its two claws forward
+  if (ups.lever && kind === "crossbow") {
+    box(0.016, 0.016, 0.3, iron, 0.045, -0.02, -0.05);
+    for (const sd of [-1, 1]) { const c = box(0.008, 0.008, 0.09, iron, 0.045 + sd * 0.018, -0.02, -0.22); c.rotation.y = sd * 0.25; }
+    box(0.03, 0.02, 0.02, leather, 0.045, -0.02, 0.1);
+  }
+  // the thumb ring: horn, on a cord at the bow's grip
+  if (ups.thumbring && kind === "bow") {
+    const b = new THREE.Box3().setFromObject(obj), cy = (b.min.y + b.max.y) / 2;
+    const r = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.006, 8, 18), horn); r.position.set((b.min.x + b.max.x) / 2 + 0.03, cy - 0.06, (b.min.z + b.max.z) / 2); r.castShadow = true; g.add(r);
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.0015, 0.0015, 0.06, 4), upMat("cord", 0x6a5034)); cord.position.set(r.position.x - 0.012, cy - 0.03, r.position.z); cord.rotation.z = 0.5; g.add(cord);
+  }
+  if (g.children.length) obj.add(g);
+  return obj;
+}
+
 // ---------------------------------------------------------------------------
 //  the arm on the table: turned slowly in the light, for the armoury tab
 // ---------------------------------------------------------------------------
-export function makeFor(kind) {
+export function makeFor(kind, ups = {}) {
+  // (the musket on the table as it is in your hands: its lock, and its sights if it has them)
+  if (kind === "musket") { const m = fpMusket({ sights: !!ups.sights }); if (m) return m; }
   if (kind === "bow") { const m = modelCopy("bow"); if (!m) return null; const g = new THREE.Group(); g.add(m.scene); return g; }
   if (kind === "crossbow") return makeCrossbow();
   return makeArm(kind);
 }
+// (where on each arm its gunsmith's work is, to look at it close)
+export const UP_FOCUS = { musket: { sights: [0, 0.12, 0.05], cartridges: [0, -0.02, -0.12] }, pistol: { cartridges: [0.055, -0.03, -0.06] }, crossbow: { lever: [0.045, -0.02, -0.08] } };
 export const MODEL_OF = { musket: "musket", pistol: "pistol", bow: "bow", sword: "sword", battleaxe: "battleaxe", spear: "spear", dagger: "dagger", axe: "axe" };
 export class Table {
   constructor(canvas) {
@@ -328,17 +363,21 @@ export class Table {
     const loop = () => { if (!this.on) return; requestAnimationFrame(loop); this.draw(); };
     this.loop = loop;
   }
-  async show(kind, skin) {
+  // focus: a point on the arm (its own frame) to bring close and to the middle — an upgrade being looked at
+  async show(kind, skin, ups = {}, focus = null) {
     this.kind = kind; const want = kind;
     if (MODEL_OF[kind]) await ensureModel(MODEL_OF[kind]).catch(() => {});
     if (this.kind !== want) return;
     if (this.obj) this.scene.remove(this.obj);
-    const o = makeFor(kind); if (!o) return;
-    skinArm(o, kind, skin);
+    const o = makeFor(kind, ups); if (!o) return;
+    skinArm(o, kind, skin); fitUps(o, kind, ups);
     // (laid along the table's width, centred, its size filling the view)
     const pivot = new THREE.Group(), inner = new THREE.Group(); pivot.add(inner); inner.add(o);
     const b = new THREE.Box3().setFromObject(o), c = b.getCenter(new THREE.Vector3()), sz = b.getSize(new THREE.Vector3());
     o.position.sub(c);
+    if (focus) { o.position.set(-focus[0], -focus[1], -focus[2]); this.zoom = 0.42; this.tilt = 0.18; this.spin = 0.35; this.idle = -600; }
+    else if (this.focused) { this.zoom = 1; this.tilt = 0.25; }
+    this.focused = !!focus;
     // (seen from its right side, as it lies on a table: along the arm left to right, its top up, the lock toward you)
     const V = (x, y, z) => new THREE.Vector3(x, y, z);
     inner.quaternion.setFromRotationMatrix(kind === "crossbow" ? new THREE.Matrix4().makeBasis(V(0, 0, 1), V(0, 1, 0), V(-1, 0, 0)) : new THREE.Matrix4().makeBasis(V(0, 0, 1), V(1, 0, 0), V(0, 1, 0)));

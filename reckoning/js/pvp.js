@@ -35,7 +35,7 @@ import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
-import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, owns, fitTo, skinOf, skinArm, earn, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf } from "./armoury.js";
+import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, owns, fitTo, skinOf, skinArm, earn, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
 const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
@@ -188,17 +188,14 @@ export function initPvp(c) {
   $("musArmy").addEventListener("click", armyClick);
   $("musMe").addEventListener("click", e => {
     const r = e.target.closest("[data-ride]"); if (r && !(must && must.mine)) { setRiding(!riding()); setArmy({}); drawMe(); drawArmy(); window.__uisfx && window.__uisfx.click && window.__uisfx.click(); return; }
+    if (!(must && must.mine) && buyClick(e)) return;
     const b = e.target.closest("[data-slot][data-id]"); if (!b || (must && must.mine)) return;
     // (not yours to carry here: in a ranked fight, not your team's; otherwise, not bought — a first click says what it
     //  costs, a second buys it)
     const id = b.dataset.id;
     if (ranked() && !inKit(teamNow(), b.dataset.slot, id)) { drawMe(`${TEAM_NAME(teamNow())} soldiers didn't carry ${nameOf(b.dataset.slot, id)} in 1683 — in a ranked fight you carry your team's arms. Change team for other arms.`); return; }
-    if (!ranked() && !owns(id)) {
-      if (pendingBuy !== `w.${id}`) { pendingBuy = `w.${id}`; drawMe(ducats() >= WEAPON_PRICE[id] ? `The ${nameOf(b.dataset.slot, id)}: ${money(WEAPON_PRICE[id])}. Click it again to buy it.` : `The ${nameOf(b.dataset.slot, id)} costs ${money(WEAPON_PRICE[id])} — ${money(WEAPON_PRICE[id] - ducats())} more than the ${esc(TEAM_NAME(teamNow()))} purse holds. Fight to earn it.`); return; }
-      pendingBuy = null; if (!buyWeapon(id)) { drawMe(`Not enough yet: ${money(WEAPON_PRICE[id] - ducats())} more.`); return; }
-      sfx("pay", 4 + Math.round(WEAPON_PRICE[id] / 60));
-    }
-    pendingBuy = null;
+    if (!ranked() && !owns(id)) { want = { k: "w", id, slot: b.dataset.slot }; drawMe(); sfx("arm", id); return; }
+    want = null;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
     const put = ["long", "side", "blade"].filter(k => k !== b.dataset.slot && lo[k] !== was[k]).map(k => ({ long: LONG, side: SIDE, blade: BLADE }[k][was[k]].name.toLowerCase()));
     const pair = lo.long === "musket" && (was.side !== "none" && lo.side === "none" || was.blade !== "none" && lo.blade === "none");
@@ -406,7 +403,7 @@ function leaveMuster() {
   if (M && M.kind === "mp" && M.net) { clearInterval(M.clock); M.net.send({ t: "dleave" }); M.net.close(); }
   openCamp();
 }
-let musTab = "arms", pendingBuy = null, table = null, forgeKind = null;
+let musTab = "arms", table = null, forgeKind = null;
 // (the muster's and the armoury's sounds: see uisfx.js — coins, arms, cloth, the gunsmith, men's feet)
 const sfx = (k, ...a) => { const S = window.__uisfx; S && S[k] && S[k](...a); };
 // a fight that's ranked: against another player (a duel looks for one), where every side carries its team's own arms
@@ -432,32 +429,59 @@ function drawMuster() {
 }
 function drawPurse() { $("musPurse").innerHTML = `${esc(TEAM_NAME(teamNow()))} purse: <b>${money(ducats())}</b>`; $("musPurse").title = `Paid in ${coinName()} — each team has its own purse, in its own coin`; }
 // ---- the team: whose colours you march in — each crown's price, and the arms its soldiers carried ----
+// ---- buying: whatever isn't yours is looked at first — shown on the scroll (on the gun, on the table) with its price —
+// and bought with the Buy button under it; never by a stray click ----
+let want = null;
+const wantPrice = W => W.k === "w" ? WEAPON_PRICE[W.id] : W.k === "t" ? TEAMS[W.id].price : W.k === "f" ? FINISH[W.slot][W.id][1] : UPGRADES[W.kind][W.id].price;
+const wantName = W => W.k === "w" ? `The ${W.id === "dagger" ? "knife" : nameOf(W.slot, W.id)}` : W.k === "t" ? `The ${TEAM_NAME(W.id)} colours` : W.k === "f" ? FINISH[W.slot][W.id][0] : UPGRADES[W.kind][W.id].name;
+const wantIs = (k, id, x) => !!want && want.k === k && want.id === id && (x == null || want.slot === x || want.kind === x);
+function buyBar() {
+  if (!want) return "";
+  const p = wantPrice(want), have = ducats(), ok = have >= p, T = TEAM_NAME(teamNow());
+  return `<div class="buybar"><div class="bb-n"><b>${esc(wantName(want))}</b><small>${ok ? `Paid from the ${esc(T)} purse, which holds ${money(have)}` : `${money(p - have)} more than the ${esc(T)} purse holds — fight in these colours to earn it`}</small></div>
+    <div class="bb-p">${money(p)}</div><button class="bb-x" data-unwant="1">Cancel</button><button class="bb-buy" data-buy="1"${ok ? "" : " disabled"}>Buy</button></div>`;
+}
+function buyNow() {
+  const W = want; if (!W) return;
+  const ok = W.k === "w" ? buyWeapon(W.id) : W.k === "t" ? buyTeam(W.id) : W.k === "f" ? buyFinish(W.slot, W.id) : buyUp(W.kind, W.id);
+  if (!ok) { sfx("click"); return; }
+  want = null; sfx("buy", 4 + Math.round(wantPrice(W) / 70));
+  if (W.k === "w") { lo[W.slot] = W.id; lo = fitLoad(lo, W.slot); saveLoadout(lo); setTimeout(() => sfx("arm", W.id), 950); }
+  else if (W.k === "t") { setArmy({ uniform: W.id }); setTimeout(() => sfx("colours"), 950); }
+  else if (W.k === "f") { setFinish(W.kind, W.slot, W.id); setTimeout(() => sfx("finish", W.slot), 950); }
+  else setTimeout(() => sfx("smith"), 950);
+  drawMuster();
+}
+// (the Buy and Cancel buttons, wherever they are on the scroll)
+function buyClick(e) {
+  if (e.target.closest("[data-buy]")) { buyNow(); return true; }
+  if (e.target.closest("[data-unwant]")) { want = null; drawMuster(); sfx("click"); return true; }
+  return false;
+}
+// ---- the team: whose colours you march in — each crown's price, and the arms its soldiers carried ----
 function drawTeam() {
   const el = $("musTeam"); if (!el || !must) return;
   const A = army(), sw = u => `<i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i>`;
   const kitWords = t => ["long", "side", "blade"].flatMap(s => TEAMS[t].kit[s].filter(x => x !== "none").map(x => x === "dagger" ? (TEAMS[t].kit.long.includes("musket") ? "bayonet or knife" : "knife") : nameOf(s, x))).join(", ");
-  const cur = TEAMS[A.uniform];
+  // (the card: the team looked at, if it's one not yet yours; otherwise the one you march in)
+  const shown = want && want.k === "t" ? want.id : A.uniform, cur = TEAMS[shown];
   el.classList.toggle("locked", !!must.mine);
   el.innerHTML = `<div class="pv-h big">Your team</div>
-    <div class="mus-rule">Each crown's colours are bought once and kept. Start with the Tatars; earn your way up to the Emperor's own regiments. In a ranked fight a team carries the arms its soldiers really carried in 1683.</div>
-    <div class="tm-list">${TEAM_KEYS.map(k => { const u = UNIFORMS[k], have = ownsTeam(k); return `<button class="tm${A.uniform === k ? " on" : ""}${have ? "" : " off"}${pendingBuy === `t.${k}` ? " ask" : ""}" data-team="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span><b>${esc(u.name)}</b><small>${have ? `${A.uniform === k ? "Marching" : "Yours"} · ${money(ducats(k), k)}` : money(TEAMS[k].price)}</small></button>`; }).join("")}</div>
-    <div class="tm-card"><div class="tm-t"><b>${esc(UNIFORMS[A.uniform].name)}</b> <span>${esc(UNIFORMS[A.uniform].note)}</span></div>
-      <div class="tm-kit"><b>Carries, ranked:</b> ${esc(kitWords(A.uniform))}</div>
-      <p class="tm-why"><b>In 1683.</b> ${esc(cur.why)}</p></div>
-    ${pendingNote ? `<div class="m-note">${esc(pendingNote)}</div>` : ""}`;
+    <div class="mus-rule">Each crown's colours are bought once and kept, each with its own purse in its own coin. Start with the Tatars; earn your way up to the Emperor's own regiments. In a ranked fight a team carries the arms its soldiers really carried in 1683.</div>
+    <div class="tm-list">${TEAM_KEYS.map(k => { const u = UNIFORMS[k], have = ownsTeam(k); return `<button class="tm${A.uniform === k ? " on" : ""}${have ? "" : " off"}${wantIs("t", k) ? " ask" : ""}" data-team="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span><b>${esc(u.name)}</b><small>${have ? `${A.uniform === k ? "Marching" : "Yours"} · ${money(ducats(k), k)}` : money(TEAMS[k].price)}</small></button>`; }).join("")}</div>
+    ${want && want.k === "t" ? buyBar() : ""}
+    <div class="tm-card"><div class="tm-t"><b>${esc(UNIFORMS[shown].name)}</b> <span>${esc(UNIFORMS[shown].note)}</span></div>
+      <div class="tm-kit"><b>Carries, ranked:</b> ${esc(kitWords(shown))} · <b>Paid in</b> ${esc(coinName(shown))}</div>
+      <p class="tm-why"><b>In 1683.</b> ${esc(cur.why)}</p></div>`;
 }
-let pendingNote = "";
 function teamClick(e) {
-  const b = e.target.closest("[data-team]"); if (!b || (must && must.mine)) return;
-  const k = b.dataset.team; pendingNote = "";
-  if (!ownsTeam(k)) {
-    if (pendingBuy !== `t.${k}`) { pendingBuy = `t.${k}`; pendingNote = ducats() >= TEAMS[k].price ? `The ${TEAM_NAME(k)} colours: ${money(TEAMS[k].price)} from the ${TEAM_NAME(teamNow())} purse. Click again to buy them.` : `The ${TEAM_NAME(k)} colours cost ${money(TEAMS[k].price)} — ${money(TEAMS[k].price - ducats())} more than the ${TEAM_NAME(teamNow())} purse holds.`; drawTeam(); return; }
-    pendingBuy = null; if (!buyTeam(k)) { pendingNote = `Not enough yet: ${money(TEAMS[k].price - ducats())} more.`; drawTeam(); return; }
-    pendingNote = `The ${TEAM_NAME(k)} colours are yours.`; sfx("pay", 6 + Math.round(TEAMS[k].price / 90));
-  }
-  pendingBuy = null; setArmy({ uniform: k });
-  // (against another player, the company's colours sent again if you'd said you were ready — you can't be, to change)
-  drawMuster(); setTimeout(() => sfx("colours"), pendingNote ? 650 : 0);
+  if (must && must.mine) return;
+  if (buyClick(e)) return;
+  const b = e.target.closest("[data-team]"); if (!b) return;
+  const k = b.dataset.team;
+  if (!ownsTeam(k)) { want = { k: "t", id: k }; drawTeam(); sfx("page"); return; }
+  want = null; setArmy({ uniform: k });
+  drawMuster(); sfx("colours");
 }
 // ---- the armoury: your arms on the table, turned in the hand, and how each looks ----
 function drawForge() {
@@ -466,35 +490,34 @@ function drawForge() {
   const I = ctx.ICON, ic = { musket: "musket", pistol: "pistol", bow: "bow", crossbow: "crossbow", sword: "sword5", battleaxe: "battleaxe", warclub: "battleaxe", spear: "spear", axe: "axe", dagger: "dagger" };
   const carried = new Set([lo.long, lo.side, lo.blade]);
   $("fgArms").innerHTML = `<div class="pv-h">Your arms</div>` + owned.map(k => { const o = LONG[k] || SIDE[k] || BLADE[k] || { name: k }; return `<button class="mc${forgeKind === k ? " on" : ""}" data-fk="${k}">${I[ic[k]] ? `<img src="${I[ic[k]]}" alt="">` : ""}<span>${esc(k === "dagger" ? "Knife" : o.name)}</span>${carried.has(k) ? `<i class="mc-c">carried</i>` : ""}</button>`; }).join("");
+  // (what's on the table: your own finishes and fitted work — and whatever you're looking at, tried on it)
   const sk = {}; for (const sl of SLOTS[forgeKind]) sk[sl] = finishOf(forgeKind, sl);
-  $("fgParts").innerHTML = `<div class="pv-h big">${esc((LONG[forgeKind] || SIDE[forgeKind] || BLADE[forgeKind] || { name: forgeKind }).name)}</div>` + SLOTS[forgeKind].map(sl => `<div class="fg-slot"><div class="pv-h">${SLOT_NAME[sl]}</div><div class="fg-fins">${Object.entries(FINISH[sl]).map(([id, [n, price, c]]) => {
-      const sw = c == null ? "" : Array.isArray(c) ? `background:rgb(${c.map(v => Math.round(Math.min(1, v * 0.55) * 255)).join(",")})` : `background:#${c.toString(16).padStart(6, "0")}`;
-      return `<button class="fin${sk[sl] === id ? " on" : ""}${ownsFinish(sl, id) ? "" : " off"}${pendingBuy === `f.${sl}.${id}` ? " ask" : ""}" data-fs="${sl}" data-fi="${id}"><i class="fin-sw" style="${sw}"></i><span>${esc(n)}</span>${ownsFinish(sl, id) ? "" : `<i class="mc-p">${money(price)}</i>`}</button>`; }).join("")}</div></div>`).join("")
+  if (want && want.k === "f" && want.kind === forgeKind) sk[want.slot] = want.id;
+  const ups = {}; for (const id in UPGRADES[forgeKind] || {}) if (ownsUp(forgeKind, id) || (want && want.k === "u" && want.kind === forgeKind && want.id === id)) ups[id] = true;
+  $("fgParts").innerHTML = `<div class="pv-h big">${esc((LONG[forgeKind] || SIDE[forgeKind] || BLADE[forgeKind] || { name: forgeKind }).name)}</div>`
+    + (want && (want.k === "f" || want.k === "u") ? buyBar() : "")
     + (UPGRADES[forgeKind] ? `<div class="fg-slot"><div class="pv-h">Gunsmith's work</div><div class="fg-ups">${Object.entries(UPGRADES[forgeKind]).map(([id, U]) => { const have = ownsUp(forgeKind, id);
-        return `<button class="up${have ? " on" : " off"}${pendingBuy === `u.${forgeKind}.${id}` ? " ask" : ""}" data-up="${id}" title="${esc(U.note)}"><b>${esc(U.name)}</b>${have ? `<i class="mc-c">fitted</i>` : `<i class="mc-p">${money(U.price)}</i>`}<small>${esc(U.note)}</small></button>`; }).join("")}</div><div class="fg-note">Bought for your ${esc(TEAM_NAME(teamNow()))} arms, for battles against bots. In a ranked fight every arm is fully fitted, for everyone.</div></div>` : "")
-    + `<div class="fg-note">The steel stays steel: blades, barrels, locks and spearheads aren't painted. Finishes are for looks only — they change nothing in a fight, and other players see them.</div>${pendingNote && musTab === "armoury" ? `<div class="m-note">${esc(pendingNote)}</div>` : ""}`;
+        return `<button class="up${have ? " on" : " off"}${wantIs("u", id, forgeKind) ? " ask" : ""}" data-up="${id}" title="${esc(U.note)}"><b>${esc(U.name)}</b>${have ? `<i class="mc-c">fitted</i>` : `<i class="mc-p">${money(U.price)}</i>`}<small>${esc(U.note)}</small></button>`; }).join("")}</div><div class="fg-note">Click one to see it on the arm. Bought for your ${esc(TEAM_NAME(teamNow()))} arms, for battles against bots; in a ranked fight every arm is fully fitted, for everyone.</div></div>` : "")
+    + SLOTS[forgeKind].map(sl => `<div class="fg-slot"><div class="pv-h">${SLOT_NAME[sl]}</div><div class="fg-fins">${Object.entries(FINISH[sl]).map(([id, [n, price, c]]) => {
+      const sw = c == null ? "" : Array.isArray(c) ? `background:rgb(${c.map(v => Math.round(Math.min(1, v * 0.55) * 255)).join(",")})` : `background:#${c.toString(16).padStart(6, "0")}`;
+      return `<button class="fin${sk[sl] === id ? " on" : ""}${ownsFinish(sl, id) ? "" : " off"}${wantIs("f", id, sl) ? " ask" : ""}" data-fs="${sl}" data-fi="${id}"><i class="fin-sw" style="${sw}"></i><span>${esc(n)}</span>${ownsFinish(sl, id) ? "" : `<i class="mc-p">${money(price)}</i>`}</button>`; }).join("")}</div></div>`).join("")
+    + `<div class="fg-note">The steel stays steel: blades, barrels, locks and spearheads aren't painted. Finishes are for looks only — they change nothing in a fight, and other players see them.</div>`;
   if (!table) table = new Table($("fgView"));
-  table.show(forgeKind, sk); table.start();
+  const fo = want && want.k === "u" && want.kind === forgeKind ? (UP_FOCUS[forgeKind] || {})[want.id] || null : null;
+  table.show(forgeKind, sk, ups, fo); table.start();
 }
 function forgeClick(e) {
-  const a = e.target.closest("[data-fk]"); if (a) { forgeKind = a.dataset.fk; pendingBuy = null; pendingNote = ""; drawForge(); sfx("arm", forgeKind); return; }
+  if (buyClick(e)) return;
+  const a = e.target.closest("[data-fk]"); if (a) { forgeKind = a.dataset.fk; want = null; drawForge(); sfx("arm", forgeKind); return; }
   const u = e.target.closest("[data-up]");
   if (u) {
-    const id = u.dataset.up, U = UPGRADES[forgeKind][id]; pendingNote = "";
-    if (ownsUp(forgeKind, id)) return;
-    if (pendingBuy !== `u.${forgeKind}.${id}`) { pendingBuy = `u.${forgeKind}.${id}`; pendingNote = ducats() >= U.price ? `${U.name}: ${money(U.price)}. Click again to have it fitted.` : `${U.name} costs ${money(U.price)} — ${money(U.price - ducats())} more than the ${TEAM_NAME(teamNow())} purse holds.`; drawForge(); return; }
-    pendingBuy = null; if (!buyUp(forgeKind, id)) { pendingNote = "Not enough in the purse yet."; drawForge(); return; }
-    pendingNote = `${U.name}: fitted.`; drawForge(); drawPurse(); sfx("pay", 4 + Math.round(U.price / 60)); setTimeout(() => sfx("smith"), 600); return;
+    const id = u.dataset.up; if (ownsUp(forgeKind, id)) return;
+    want = wantIs("u", id, forgeKind) ? null : { k: "u", id, kind: forgeKind }; drawForge(); if (want) sfx("smith"); return;
   }
   const f = e.target.closest("[data-fs]"); if (!f) return;
-  const sl = f.dataset.fs, id = f.dataset.fi, F = FINISH[sl][id]; pendingNote = ""; let bought = false;
-  if (!ownsFinish(sl, id)) {
-    if (pendingBuy !== `f.${sl}.${id}`) { pendingBuy = `f.${sl}.${id}`; pendingNote = ducats() >= F[1] ? `${F[0]}: ${money(F[1])}. Click again to buy it.` : `${F[0]} costs ${money(F[1])} — ${money(F[1] - ducats())} more than you have.`; drawForge(); return; }
-    pendingBuy = null; if (!buyFinish(sl, id)) { pendingNote = `Not enough in the purse yet.`; drawForge(); return; }
-    sfx("pay", 3 + Math.round(F[1] / 50)); bought = true;
-  }
-  pendingBuy = null; setFinish(forgeKind, sl, id); drawForge(); drawPurse();
-  setTimeout(() => sfx("finish", sl), bought ? 500 : 0);
+  const sl = f.dataset.fs, id = f.dataset.fi;
+  if (!ownsFinish(sl, id)) { want = { k: "f", id, slot: sl, kind: forgeKind }; drawForge(); sfx("finish", sl); return; }
+  want = null; setFinish(forgeKind, sl, id); drawForge(); drawPurse(); sfx("finish", sl);
 }
 function drawVs() {
   if (!must) return;
@@ -517,10 +540,10 @@ function drawMe(note = "") {
   { const f = fitTo(lo, R, T, fitLoad); if (f.long !== lo.long || f.side !== lo.side || f.blade !== lo.blade) { lo = f; saveLoadout(lo); } }
   const tag = (slot, id) => R ? (inKit(T, slot, id) ? "" : `<i class="mc-x">not ${esc(TEAM_NAME(T))}</i>`) : owns(id) ? "" : `<i class="mc-p">${money(WEAPON_PRICE[id])}</i>`;
   const off = (slot, id) => R ? !inKit(T, slot, id) : !owns(id);
-  const chip = (slot, id, o) => `<button class="mc${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}${off(slot, id) ? " off" : ""}${pendingBuy === `w.${id}` ? " ask" : ""}" data-slot="${slot}" data-id="${id}" title="${esc(o.stats.map(([a, b]) => a + " " + b).join(" · ") + " — " + o.note + (NOT_IN_1683[id] ? " " + NOT_IN_1683[id] : ""))}">${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="mc-none"></span>`}<span>${esc(id === "dagger" && lo.long !== "musket" ? "Knife" : o.name)}</span>${tag(slot, id)}</button>`;
+  const chip = (slot, id, o) => `<button class="mc${lo[slot] === id ? " on" : ""}${heavy(slot, id) ? " heavy" : ""}${off(slot, id) ? " off" : ""}${wantIs("w", id, slot) ? " ask" : ""}" data-slot="${slot}" data-id="${id}" title="${esc(o.stats.map(([a, b]) => a + " " + b).join(" · ") + " — " + o.note + (NOT_IN_1683[id] ? " " + NOT_IN_1683[id] : ""))}">${o.icon && I[o.icon] ? `<img src="${I[o.icon]}" alt="">` : `<span class="mc-none"></span>`}<span>${esc(id === "dagger" && lo.long !== "musket" ? "Knife" : o.name)}</span>${tag(slot, id)}</button>`;
   const row = (slot, title, list) => `<div class="mr"><div class="pv-h">${title}</div><div class="mcs">${Object.entries(list).filter(([, o]) => !o.hidden).map(([id, o]) => chip(slot, id, o)).join("")}</div></div>`;
   const w = weightOf(lo), sp = Math.round((loadMul(lo) - 1) * 100), pick = { long: LONG[lo.long], side: SIDE[lo.side], blade: BLADE[lo.blade] };
-  $("musMe").innerHTML = `<div class="pv-h big">Your soldier</div><div class="mus-rule">${R ? `<b>Ranked:</b> against another player you carry the arms ${esc(TEAM_NAME(T))} soldiers really carried in 1683 — all of them, bought or not. What you've bought is for battles against bots.` : `<b>Against bots:</b> the arms your ${esc(TEAM_NAME(T))} soldier owns. A bow and a knife to begin with; the rest bought with ${esc(coinName())} you earn fighting in these colours. Every team has its own purse and its own armoury.`}</div>` + row("long", "Long arm", LONG) + row("side", "Sidearm", SIDE) + row("blade", "Blade", BLADE)
+  $("musMe").innerHTML = `<div class="pv-h big">Your soldier</div><div class="mus-rule">${R ? `<b>Ranked:</b> against another player you carry the arms ${esc(TEAM_NAME(T))} soldiers really carried in 1683 — all of them, bought or not. What you've bought is for battles against bots.` : `<b>Against bots:</b> the arms your ${esc(TEAM_NAME(T))} soldier owns. A bow and a knife to begin with; the rest bought with ${esc(coinName())} you earn fighting in these colours. Click one that isn't yours to see its price.`}</div>${want && want.k === "w" ? buyBar() : ""}` + row("long", "Long arm", LONG) + row("side", "Sidearm", SIDE) + row("blade", "Blade", BLADE)
     + `<div class="m-load"><b>Load</b> ${w} of ${loadMax(lo)}${lo.long === "musket" ? " (with a musket: a pistol or the bayonet, not both)" : ""} · ${sp >= 0 ? `${sp}% quicker` : `${-sp}% slower`} on your feet</div>`
     + `<div class="m-pick">${["long", "side", "blade"].filter(k => pick[k] && pick[k].icon).map(k => `<div><b>${esc(pick[k].name)}</b> ${esc(pick[k].stats.map(([a, b]) => a + " " + b).join(" · "))}</div>`).join("")}</div>`
     + (must && must.kind !== "duel" ? `<div class="mr"><div class="pv-h">Mount</div><div class="mcs"><button class="mc${riding() ? " on" : ""}" data-ride="1"><span>${riding() ? "On horseback" : "On foot"}</span></button></div><div class="m-load">${riding() ? `You ride into battle: quicker than any man, a longer reach with the blade, and the weight of the horse in a charge — but pikes are death to a rider.${must.kind === "bots" || must.kind === "mp" ? ` ${RIDE_COST} thalers from the purse.` : ""}` : "Click to ride into battle instead."}</div></div>` : "")
