@@ -78,6 +78,60 @@ export const UISFX = {
   // not allowed: a low double knock
   deny: () => play((a, o, t) => { note(a, o, hz(45), t, { vol: 0.1, decay: 0.12, wood: 1 }); note(a, o, hz(43), t + 0.09, { vol: 0.1, decay: 0.16, wood: 1 }); }),
 };
+// ---- the armoury's and the muster's own sounds: the real thing each time, made the same way — coins on a table, a
+// blade out of its scabbard, a stock knocked down, a brush, a file, cloth shaken out, men's feet ----
+// (a struck piece of metal: partials that aren't a harmonic series, as a coin's or a blade's aren't, each dying at its own
+//  rate — the bright ones first)
+function ring(a, out, t, f, { vol = 0.06, decay = 0.35, parts = [1, 2.76, 5.4, 8.93], bright = 1 } = {}) {
+  const g = a.createGain(); g.gain.value = 1; g.connect(out);
+  parts.forEach((m, i) => {
+    const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.value = f * m * (1 + (Math.random() - 0.5) * 0.004);
+    const d = decay / (1 + i * 0.9 * bright), v = vol / (1 + i * 0.7);
+    og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(v, t + 0.002); og.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    o.connect(og); og.connect(g); o.start(t); o.stop(t + d + 0.02);
+  });
+  burst(a, out, t, { f: f * 3, q: 1.5, dur: 0.012, vol: vol * 0.8 });
+}
+// one coin set down on wood: its click, its ring, sometimes a little spin
+const coin = (a, o, t, vol = 0.05) => { const f = 2400 + Math.random() * 1400; ring(a, o, t, f, { vol, decay: 0.28 + Math.random() * 0.2 }); knock(a, o, t, vol * 0.25, 240 + Math.random() * 80); if (Math.random() < 0.3) for (let i = 1; i < 4; i++) ring(a, o, t + 0.05 * i * (1 - i * 0.12), f * 1.01, { vol: vol * 0.35 / i, decay: 0.08 }); };
+// a man's footfall on turf, or a heavy thing set down on it: a dull thud and the grass under it
+const thud = (a, o, t, vol = 0.08, f = 80) => { note(a, o, f, t, { vol, decay: 0.12, bright: 0, wood: 0 }); burst(a, o, t, { f: 420, q: 0.6, dur: 0.07, vol: vol * 0.6, type: "lowpass" }); };
+Object.assign(UISFX, {
+  // coins counted out onto the table, a little run of them — the price paid
+  pay: (n = 6) => play((a, o, t) => { n = Math.max(3, Math.min(14, n)); let at = t; for (let i = 0; i < n; i++) { coin(a, o, at, 0.045 + Math.random() * 0.02); at += 0.045 + Math.random() * 0.07; } burst(a, o, at + 0.02, { f: 500, q: 0.6, dur: 0.22, vol: 0.035, sweep: 900 }); }),
+  // pay coming in: the coins poured into the purse, a quick tumbling rush, then the purse drawn shut
+  purse: (n = 10) => play((a, o, t) => { n = Math.max(4, Math.min(28, n)); for (let i = 0; i < n; i++) { const at = t + Math.pow(i / n, 0.8) * 0.55 + Math.random() * 0.03; ring(a, o, at, 2000 + Math.random() * 1800, { vol: 0.03 + Math.random() * 0.02, decay: 0.12 + Math.random() * 0.1 }); } burst(a, o, t + 0.05, { f: 260, q: 0.5, dur: 0.5, vol: 0.03, type: "lowpass" }); burst(a, o, t + 0.68, { f: 900, q: 0.8, dur: 0.16, vol: 0.05, sweep: 1600 }); burst(a, o, t + 0.8, { f: 1400, q: 0.8, dur: 0.12, vol: 0.04, sweep: -700 }); }),
+  // an arm taken up: what it is, as it sounds in the hand
+  arm: kind => play((a, o, t) => {
+    if (kind === "sword" || kind === "dagger") { burst(a, o, t, { f: 3000, q: 4, dur: kind === "sword" ? 0.42 : 0.24, vol: 0.05, sweep: 2400 }); ring(a, o, t + (kind === "sword" ? 0.4 : 0.22), 1150, { vol: 0.05, decay: 0.9, parts: [1, 2.32, 4.25, 6.63] }); return; }
+    if (kind === "musket" || kind === "crossbow") { knock(a, o, t, 0.12, 150); ring(a, o, t + 0.03, 1800, { vol: 0.02, decay: 0.12 }); ring(a, o, t + 0.07, 2100, { vol: 0.016, decay: 0.1 }); burst(a, o, t + 0.12, { f: 2600, q: 5, dur: 0.03, vol: 0.06 }); burst(a, o, t + 0.17, { f: 3300, q: 6, dur: 0.02, vol: 0.05 }); return; }
+    if (kind === "pistol") { burst(a, o, t, { f: 2800, q: 4, dur: 0.025, vol: 0.12 }); burst(a, o, t + 0.09, { f: 3600, q: 5, dur: 0.022, vol: 0.16 }); ring(a, o, t + 0.09, 2600, { vol: 0.04, decay: 0.1 }); knock(a, o, t + 0.09, 0.04, 260); return; }
+    if (kind === "bow") { burst(a, o, t, { f: 300, q: 3, dur: 0.25, vol: 0.04, sweep: 200 }); const os = a.createOscillator(), g = a.createGain(); os.type = "triangle"; os.frequency.setValueAtTime(140, t + 0.26); os.frequency.exponentialRampToValueAtTime(118, t + 0.5); g.gain.setValueAtTime(0.0001, t + 0.26); g.gain.exponentialRampToValueAtTime(0.07, t + 0.264); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55); os.connect(g); g.connect(o); os.start(t + 0.26); os.stop(t + 0.6); return; }
+    // (an axe, a spear, a club: its haft knocked on the boards, its head heavy behind it)
+    knock(a, o, t, 0.12, 130); knock(a, o, t + 0.06, 0.05, 210); if (kind === "spear" || kind === "battleaxe" || kind === "axe") ring(a, o, t + 0.02, 1300, { vol: 0.018, decay: 0.2 });
+  }),
+  // a finish chosen: a brush through stain, a fitting tapped, leather worked, cloth shaken
+  finish: slot => play((a, o, t) => {
+    if (slot === "wood") { for (let i = 0; i < 2; i++) burst(a, o, t + i * 0.16, { f: 1800, q: 0.7, dur: 0.15, vol: 0.04, sweep: i ? -900 : 900 }); return; }
+    if (slot === "fit") { ring(a, o, t, 1650, { vol: 0.05, decay: 0.5, parts: [1, 2.6, 4.9] }); ring(a, o, t + 0.11, 1650, { vol: 0.03, decay: 0.35, parts: [1, 2.6, 4.9] }); return; }
+    if (slot === "grip") { for (let i = 0; i < 3; i++) burst(a, o, t + i * 0.07, { f: 500 + i * 120, q: 6, dur: 0.06, vol: 0.05 }); return; }
+    burst(a, o, t, { f: 1200, q: 0.8, dur: 0.12, vol: 0.05, sweep: 1400 }); burst(a, o, t + 0.1, { f: 900, q: 0.8, dur: 0.1, vol: 0.035, sweep: -500 });
+  }),
+  // the gunsmith's work: a file drawn across steel a few strokes, a screw driven home, and the piece snapped shut
+  smith: () => play((a, o, t) => { for (let i = 0; i < 4; i++) burst(a, o, t + i * 0.17, { f: 4200, q: 1.5, dur: 0.14, vol: 0.045, sweep: i % 2 ? -1800 : 1800 }); for (let i = 0; i < 3; i++) burst(a, o, t + 0.75 + i * 0.07, { f: 3000, q: 7, dur: 0.02, vol: 0.06 }); ring(a, o, t + 1.0, 2200, { vol: 0.04, decay: 0.25 }); knock(a, o, t + 1.0, 0.07, 170); }),
+  // new colours: the cloth shaken out with a crack, and a stroke of the drum
+  colours: () => play((a, o, t) => { for (let i = 0; i < 4; i++) burst(a, o, t + i * 0.09, { f: 500 + i * 140, q: 0.6, dur: 0.11, vol: 0.06 - i * 0.008, sweep: 900 }); burst(a, o, t + 0.36, { f: 1600, q: 1, dur: 0.05, vol: 0.07 }); note(a, o, 92, t + 0.45, { vol: 0.12, decay: 0.45, bright: 0 }); burst(a, o, t + 0.45, { f: 1800, q: 0.5, dur: 0.18, vol: 0.05, type: "highpass" }); }),
+  // a page of the muster turned
+  page: () => play((a, o, t) => { burst(a, o, t, { f: 1400, q: 0.6, dur: 0.18, vol: 0.045, sweep: 2200 }); burst(a, o, t + 0.13, { f: 2800, q: 0.7, dur: 0.06, vol: 0.03 }); }),
+  // a company taken up off the ground: their kit rattling as they come to the shoulder
+  muster: () => play((a, o, t) => { for (let i = 0; i < 7; i++) { const at = t + Math.random() * 0.22; burst(a, o, at, { f: 2200 + Math.random() * 1600, q: 5, dur: 0.02, vol: 0.03 }); } for (let i = 0; i < 4; i++) thud(a, o, t + 0.05 + i * 0.06 + Math.random() * 0.03, 0.04, 70 + Math.random() * 20); }),
+  // and set down: the ranks halting, their feet as one, a musket butt or two grounded
+  halt: () => play((a, o, t) => { for (let i = 0; i < 9; i++) thud(a, o, t + Math.random() * 0.06, 0.035, 65 + Math.random() * 25); thud(a, o, t + 0.22, 0.09, 72); knock(a, o, t + 0.3, 0.06, 150); knock(a, o, t + 0.34, 0.04, 165); }),
+  // turned: feet shuffling round
+  wheel: () => play((a, o, t) => { for (let i = 0; i < 4; i++) burst(a, o, t + i * 0.05 + Math.random() * 0.02, { f: 600, q: 0.8, dur: 0.06, vol: 0.03, type: "lowpass" }); }),
+  // the word to begin: a short roll on the side drum
+  roll: () => play((a, o, t) => { const n = 14; for (let i = 0; i < n; i++) { const k = i / n; burst(a, o, t + i * 0.045, { f: 2400, q: 0.7, dur: 0.05, vol: 0.03 + k * 0.05 }); } burst(a, o, t + n * 0.045, { f: 2000, q: 0.6, dur: 0.18, vol: 0.1 }); note(a, o, 170, t + n * 0.045, { vol: 0.1, decay: 0.2, bright: 0 }); }),
+});
 window.__uisfx = UISFX;
 
 // every button in the game's screens: a tick when pressed, a softer one when the pointer finds it

@@ -163,7 +163,7 @@ export function initPvp(c) {
     const L = loadout(); let a = {}; try { a = JSON.parse(localStorage.getItem(ARMY_KEY) || "{}") || {}; } catch (e) {}
     return { weapons: [L.long, L.side, L.blade], team: a.uniform || "imperial", fought };
   }, () => army().uniform);
-  $("musTabs").addEventListener("click", e => { const b = e.target.closest("[data-mt]"); if (!b) return; musTab = b.dataset.mt; drawMuster(); window.__uisfx && window.__uisfx.click && window.__uisfx.click(); });
+  $("musTabs").addEventListener("click", e => { const b = e.target.closest("[data-mt]"); if (!b) return; musTab = b.dataset.mt; drawMuster(); sfx("page"); });
   $("musTeam").addEventListener("click", teamClick);
   $("musField").addEventListener("click", armyClick);
   $("musForge").addEventListener("click", forgeClick);
@@ -196,14 +196,14 @@ export function initPvp(c) {
     if (!ranked() && !owns(id)) {
       if (pendingBuy !== `w.${id}`) { pendingBuy = `w.${id}`; drawMe(ducats() >= WEAPON_PRICE[id] ? `The ${nameOf(b.dataset.slot, id)}: ${money(WEAPON_PRICE[id])}. Click it again to buy it.` : `The ${nameOf(b.dataset.slot, id)} costs ${money(WEAPON_PRICE[id])} — ${money(WEAPON_PRICE[id] - ducats())} more than the ${esc(TEAM_NAME(teamNow()))} purse holds. Fight to earn it.`); return; }
       pendingBuy = null; if (!buyWeapon(id)) { drawMe(`Not enough yet: ${money(WEAPON_PRICE[id] - ducats())} more.`); return; }
-      window.__uisfx && window.__uisfx.coin && window.__uisfx.coin();
+      sfx("pay", 4 + Math.round(WEAPON_PRICE[id] / 60));
     }
     pendingBuy = null;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
     const put = ["long", "side", "blade"].filter(k => k !== b.dataset.slot && lo[k] !== was[k]).map(k => ({ long: LONG, side: SIDE, blade: BLADE }[k][was[k]].name.toLowerCase()));
     const pair = lo.long === "musket" && (was.side !== "none" && lo.side === "none" || was.blade !== "none" && lo.blade === "none");
     drawMe(put.length ? `${pair ? "With a musket, a pistol or the bayonet, not both" : "Too heavy to carry it all"}: you put down the ${put.join(" and the ")}.` : "");
-    window.__uisfx && window.__uisfx.click && window.__uisfx.click();
+    sfx("arm", id === "none" ? null : id);
   });
   for (const b of document.querySelectorAll(".camp-tabs [data-tab]")) b.onclick = () => {
     for (const x of document.querySelectorAll(".camp-tabs [data-tab]")) x.classList.toggle("on", x === b);
@@ -407,6 +407,8 @@ function leaveMuster() {
   openCamp();
 }
 let musTab = "arms", pendingBuy = null, table = null, forgeKind = null;
+// (the muster's and the armoury's sounds: see uisfx.js — coins, arms, cloth, the gunsmith, men's feet)
+const sfx = (k, ...a) => { const S = window.__uisfx; S && S[k] && S[k](...a); };
 // a fight that's ranked: against another player (a duel looks for one), where every side carries its team's own arms
 const ranked = () => !!must && (must.kind === "mp" || must.kind === "duel");
 const TEAM_NAME = k => (UNIFORMS[k] || {}).name || k;
@@ -451,11 +453,11 @@ function teamClick(e) {
   if (!ownsTeam(k)) {
     if (pendingBuy !== `t.${k}`) { pendingBuy = `t.${k}`; pendingNote = ducats() >= TEAMS[k].price ? `The ${TEAM_NAME(k)} colours: ${money(TEAMS[k].price)} from the ${TEAM_NAME(teamNow())} purse. Click again to buy them.` : `The ${TEAM_NAME(k)} colours cost ${money(TEAMS[k].price)} — ${money(TEAMS[k].price - ducats())} more than the ${TEAM_NAME(teamNow())} purse holds.`; drawTeam(); return; }
     pendingBuy = null; if (!buyTeam(k)) { pendingNote = `Not enough yet: ${money(TEAMS[k].price - ducats())} more.`; drawTeam(); return; }
-    pendingNote = `The ${TEAM_NAME(k)} colours are yours.`;
+    pendingNote = `The ${TEAM_NAME(k)} colours are yours.`; sfx("pay", 6 + Math.round(TEAMS[k].price / 90));
   }
   pendingBuy = null; setArmy({ uniform: k });
   // (against another player, the company's colours sent again if you'd said you were ready — you can't be, to change)
-  drawMuster(); window.__uisfx && window.__uisfx.click && window.__uisfx.click();
+  drawMuster(); setTimeout(() => sfx("colours"), pendingNote ? 650 : 0);
 }
 // ---- the armoury: your arms on the table, turned in the hand, and how each looks ----
 function drawForge() {
@@ -475,23 +477,24 @@ function drawForge() {
   table.show(forgeKind, sk); table.start();
 }
 function forgeClick(e) {
-  const a = e.target.closest("[data-fk]"); if (a) { forgeKind = a.dataset.fk; pendingBuy = null; pendingNote = ""; drawForge(); return; }
+  const a = e.target.closest("[data-fk]"); if (a) { forgeKind = a.dataset.fk; pendingBuy = null; pendingNote = ""; drawForge(); sfx("arm", forgeKind); return; }
   const u = e.target.closest("[data-up]");
   if (u) {
     const id = u.dataset.up, U = UPGRADES[forgeKind][id]; pendingNote = "";
     if (ownsUp(forgeKind, id)) return;
     if (pendingBuy !== `u.${forgeKind}.${id}`) { pendingBuy = `u.${forgeKind}.${id}`; pendingNote = ducats() >= U.price ? `${U.name}: ${money(U.price)}. Click again to have it fitted.` : `${U.name} costs ${money(U.price)} — ${money(U.price - ducats())} more than the ${TEAM_NAME(teamNow())} purse holds.`; drawForge(); return; }
     pendingBuy = null; if (!buyUp(forgeKind, id)) { pendingNote = "Not enough in the purse yet."; drawForge(); return; }
-    pendingNote = `${U.name}: fitted.`; drawForge(); drawPurse(); window.__uisfx && window.__uisfx.click && window.__uisfx.click(); return;
+    pendingNote = `${U.name}: fitted.`; drawForge(); drawPurse(); sfx("pay", 4 + Math.round(U.price / 60)); setTimeout(() => sfx("smith"), 600); return;
   }
   const f = e.target.closest("[data-fs]"); if (!f) return;
-  const sl = f.dataset.fs, id = f.dataset.fi, F = FINISH[sl][id]; pendingNote = "";
+  const sl = f.dataset.fs, id = f.dataset.fi, F = FINISH[sl][id]; pendingNote = ""; let bought = false;
   if (!ownsFinish(sl, id)) {
     if (pendingBuy !== `f.${sl}.${id}`) { pendingBuy = `f.${sl}.${id}`; pendingNote = ducats() >= F[1] ? `${F[0]}: ${money(F[1])}. Click again to buy it.` : `${F[0]} costs ${money(F[1])} — ${money(F[1] - ducats())} more than you have.`; drawForge(); return; }
     pendingBuy = null; if (!buyFinish(sl, id)) { pendingNote = `Not enough in the purse yet.`; drawForge(); return; }
+    sfx("pay", 3 + Math.round(F[1] / 50)); bought = true;
   }
   pendingBuy = null; setFinish(forgeKind, sl, id); drawForge(); drawPurse();
-  window.__uisfx && window.__uisfx.click && window.__uisfx.click();
+  setTimeout(() => sfx("finish", sl), bought ? 500 : 0);
 }
 function drawVs() {
   if (!must) return;
@@ -1615,26 +1618,26 @@ class Arena {
     // (for the test scripts: what's placed where, and the pointer's ground)
     this.dp = { tokens, ground, pickAt, view, get held() { return held; } };
     const onBar = e => { const b = e.target.closest && e.target.closest("[data-dp]"); if (!b) return false; const id = b.dataset.dp;
-      if (id === "go") finish(); else if (id === "auto") { held = null; officer(); drawBar(); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); }
-      window.__uisfx && window.__uisfx.click && window.__uisfx.click(); return true; };
+      if (id === "go") { sfx("roll"); finish(); } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); sfx(held ? "muster" : "halt"); }
+      return true; };
     // (a press, pointer's or mouse's — whichever the browser sends, once)
     let lastPress = 0;
     const press = e => {
       if (!G.deploying) return; const now = performance.now(); if (now - lastPress < 120) { e.stopImmediatePropagation(); return; } lastPress = now;
       if (bar.contains(e.target)) { e.stopImmediatePropagation(); onBar(e); return; }
       e.stopImmediatePropagation(); e.preventDefault(); mouse = { x: e.clientX, y: e.clientY };
-      if (e.button === 2) { if (held) { held.face += Math.PI / 8; stand(held); } return; }
-      if (held) { const g = ground(e.clientX, e.clientY); if (g) { held.at = g; stand(held); } held = null; FOLEY.thunk && FOLEY.thunk(null, 0.15); drawBar(); return; }
-      const T = pickAt(e.clientX, e.clientY); if (T) { held = T; drawBar(); }
+      if (e.button === 2) { if (held) { held.face += Math.PI / 8; stand(held); sfx("wheel"); } return; }
+      if (held) { const g = ground(e.clientX, e.clientY); if (g) { held.at = g; stand(held); } held = null; sfx("halt"); drawBar(); return; }
+      const T = pickAt(e.clientX, e.clientY); if (T) { held = T; drawBar(); sfx("muster"); }
     };
     const L = [
       ["pointerdown", e => press(e)],
       ["mousedown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); press(e); }],
       ["pointermove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
       ["mousemove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
-      ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) { held.face += Math.sign(e.deltaY) * Math.PI / 16; stand(held); } else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
+      ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) { held.face += Math.sign(e.deltaY) * Math.PI / 16; stand(held); const n = performance.now(); if (n - (held.wt || 0) > 180) { held.wt = n; sfx("wheel"); } } else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
       ["contextmenu", e => { if (G.deploying) e.preventDefault(); }],
-      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); finish(); return; } if (e.code === "Escape") { held = null; drawBar(); return; } if (e.code === "KeyR" && held) { held.face += Math.PI / 2; stand(held); return; } keys.add(e.code); }],
+      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); sfx("roll"); finish(); return; } if (e.code === "Escape") { held = null; drawBar(); return; } if (e.code === "KeyR" && held) { held.face += Math.PI / 2; stand(held); sfx("wheel"); return; } keys.add(e.code); }],
       ["keyup", e => { keys.delete(e.code); }],
     ];
     for (const [t, fn] of L) addEventListener(t, fn, { capture: true, passive: false });
@@ -2588,6 +2591,7 @@ class Arena {
     // (a campaign's: its outcome back to the campaign, which takes or loses the town)
     // (two players of a campaign: rated nowhere, and the outcome back to the campaign they share)
     if (pay) { const g = nextGoal(), gn = g && (g.team ? `${TEAM_NAME(g.what)} colours` : nameOf(LONG[g.what] ? "long" : SIDE[g.what] ? "side" : "blade", g.what));
+      setTimeout(() => sfx("purse", Math.round(pay.gain / 5)), 900);
       $("pvpEndS").innerHTML += `<div class="pv-pay"><b>+${money(pay.gain, pay.team)}</b>${pay.daily ? ` (the day's first victory, +${money(pay.daily, pay.team)})` : ""} · ${money(pay.total, pay.team)} in the ${esc(TEAM_NAME(pay.team))} purse${g ? ` · ${g.short ? `${money(g.short, pay.team)} more for the ${esc(gn)}` : `enough for the ${esc(gn)} — in the armoury`}` : ""}</div>`; }
     this.toCampaign(won, left);
     if (this.hist && !this.hist.b.campaign && !left) {

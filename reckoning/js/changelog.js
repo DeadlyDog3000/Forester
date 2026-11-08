@@ -10,6 +10,7 @@ export const CHANGELOG = [
     v: "1.99.252", date: "8 November 2026", title: "A dearer armoury, and everyone begins again",
     items: [
       "Everything in the armoury costs three times as much: arms, every crown's colours, the gunsmith's work and the finishes. A musket is now about ten battles' pay, the Emperor's colours a long campaign of them.",
+      "The armoury and the muster sound like what they are: coins counted onto the table when you buy and poured into the purse when you're paid, a sword drawn from its scabbard, a musket's stock grounded and its swivels rattling, a pistol cocked, a bow's creak and string, a brush through stain, a fitting tapped, the gunsmith's file and screwdriver, new colours shaken out to a stroke of the drum, the muster's pages turning — and, placing your company, their kit rattling as you take them up, their feet halting as one when you set them down, and a roll of the drum to begin.",
       "Everyone's armoury is begun again: every purse emptied and every bought arm, colour, upgrade and finish set aside. Every player starts afresh as the Crimean Tatars with a bow and a knife. Ratings are unchanged.",
     ],
   },
