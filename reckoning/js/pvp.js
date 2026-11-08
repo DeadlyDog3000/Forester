@@ -1485,7 +1485,7 @@ class Arena {
       this.counting = false;
       if (lead) this.goT = setTimeout(go, lead * 1000); else go();
     };
-    if (this.canDeploy()) { this.autoDeploy(); if (!window.__noDeploy) { this.deploy(open); return; } }
+    if (this.canDeploy()) { this.autoDeploy(); if (!window.__noDeploy && !window.__noIntro) { this.deploy(open); return; } }
     open();
   }
   // ---- placing your company yourself: the field from above, your ground marked out, each arm of the company picked up

@@ -1,3 +1,4 @@
+window.__noDeploy = true;   // (battles against bots open on placing the company: these scripts skip it)
 // ===========================================================================
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
