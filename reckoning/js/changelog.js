@@ -17,6 +17,7 @@ export const CHANGELOG = [
       "A gunsmith's work is bought too: the musket's sights (the V-notched leaf and brass foresight — issue muskets of 1683 had at most a bead, so without them you aim along the bare barrel), paper cartridges for the musket and the pistol (about a seventh quicker to load), a goat's-foot lever for the crossbow and a thumb ring for the bow.",
       "A new armoury, with your arms on the table in 3D: drag to turn one over, scroll or pinch to bring it close. Stain the wood walnut, honey, red or ebonised; make the fittings brass, iron, silver, gilt or blackened; colour a grip; hang a sword knot or a tassel; give a musket or crossbow a sling. The steel is never painted. Finishes change nothing in a fight, and other players see them on your arms.",
       "The muster is a scroll now, its parts on tabs — your arms, your team, your company, the field and the armoury — in a cleaner, more modern style.",
+      "Before a battle against bots you place your company yourself: the view rises over the field with your ground marked out, and you pick up each arm of your company — the musketeers, the pikes, the bowmen, the horse — and set it down where you want it, turning its front with the wheel, and choose your own place. The other side's lines are hidden until you give the word to begin. Officer's choice puts them where your officer would.",
     ],
   },
   {

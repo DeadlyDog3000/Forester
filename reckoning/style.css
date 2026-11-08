@@ -2352,3 +2352,18 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .scroll-sheet .up.on { border-color: rgba(46, 106, 58, 0.5); cursor: default; }
 .up b { font-size: 13.5px; }
 .up small { grid-column: 1 / -1; font: 12px/1.4 var(--sans); color: var(--ink-dim); }
+
+/* ---- placing your company before a battle: a bar along the foot of the screen over the field ---- */
+#deployBar { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 60; width: min(1100px, calc(100% - 32px)); display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: center;
+  padding: 14px 18px; border-radius: 16px; background: rgba(246, 238, 221, 0.94); color: #231a12; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5); font-family: var(--sans); backdrop-filter: blur(6px); }
+#deployBar .dp-t { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 2px; }
+#deployBar .dp-t b { font: 600 20px var(--serif); font-variant: small-caps; color: #a8321f; }
+#deployBar .dp-t span { font-size: 12.5px; color: #7a6650; }
+#deployBar .dp-g { display: flex; flex-wrap: wrap; gap: 6px; }
+#deployBar button { display: flex; flex-direction: column; align-items: flex-start; padding: 7px 12px; border-radius: 10px; border: 1px solid rgba(60, 40, 20, 0.16); background: rgba(255, 252, 244, 0.8); color: #231a12; font: 600 13px var(--sans); cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+#deployBar button small { font-weight: 400; font-size: 11px; color: #7a6650; }
+#deployBar button:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(60, 40, 20, 0.16); }
+#deployBar button.on { border-color: #a8321f; box-shadow: 0 0 0 2px rgba(168, 50, 31, 0.3); background: #fff; }
+#deployBar .dp-a { display: flex; gap: 8px; }
+#deployBar .dp-a button { justify-content: center; align-items: center; }
+#deployBar button.go { color: #fff; background: linear-gradient(180deg, #b83a26, #8e2414); border: none; box-shadow: 0 4px 12px rgba(142, 36, 20, 0.35); padding: 10px 18px; font-size: 14px; }

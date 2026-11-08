@@ -2,7 +2,8 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// THE ARMOURY. Ducats earned on the field — a battle won or lost, a duel, a day's first victory — and spent on arms,
+// THE ARMOURY. Pay earned on the field, in the coin of the colours you fight in — a battle won or lost, a duel, a
+// day's first victory — each team's purse its own, and spent on arms,
 // on the right to march in another crown's colours, and on how your own arms look. Never sold for money: every ducat
 // is earned. And none of it buys a ranked fight: against another player each side fights with its team's own arms (the
 // kit that crown's soldiers really carried in 1683), all of it to hand whether you've bought it or not — what you've

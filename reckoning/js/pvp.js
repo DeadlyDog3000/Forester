@@ -1462,7 +1462,8 @@ class Arena {
       UI.fadeNow(1); UI.fade(0, 1.2);
       // the opening: the field from the air, each side in its ranks, the ground, and down into your own eyes (a battle
       // only; a skirmish in the woods goes straight to it)
-      const lead = this.battle && !window.__noIntro ? this.intro() : 0;
+      // (after you've placed your company yourself, from above, the field's been seen: straight to the word)
+      const lead = this.battle && !window.__noIntro && !this.deployed ? this.intro() : 0;
       const say = () => {
         this.banner(this.place ? esc(this.place.text) : this.battle ? "Battle" : "Skirmish",
           `${this.custom ? `${sidesWord(this.custom)} · ` : ""}${allies ? `${allies} with you` : "On your own"} · ${foes} against you${this.place ? ` · ${this.place.at}` : ""}${allies || this.battle ? " · the numbers are your orders" : ""}`);
@@ -1484,8 +1485,161 @@ class Arena {
       this.counting = false;
       if (lead) this.goT = setTimeout(go, lead * 1000); else go();
     };
-    if (this.canDeploy()) this.autoDeploy();
+    if (this.canDeploy()) { this.autoDeploy(); if (!window.__noDeploy) { this.deploy(open); return; } }
     open();
+  }
+  // ---- placing your company yourself: the field from above, your ground marked out, each arm of the company picked up
+  // and set down where you want it, its front turned with the wheel — and the other side's lines not to be seen until
+  // the battle begins ----
+  deploy(done) {
+    const w = this.w, pl = G.player, home = { ...this.spawns[0] }, there = { ...this.spawns[1] };
+    const dx = there.x - home.x, dz = there.z - home.z, dist = Math.hypot(dx, dz) || 1, f = { x: dx / dist, z: dz / dist }, r = { x: f.z, z: -f.x };
+    // (your ground: a band across the field round where your company stands — no nearer them than a little short of the
+    //  middle, and inside the trees)
+    const fwd = Math.max(4, Math.min(16, dist / 2 - 14)), back = 18, half = Math.min(34, this.bound - 8);
+    const Z = { home, f, r, fwd, back, half };
+    const inZone = (x, z) => { const a = (x - home.x) * r.x + (z - home.z) * r.z, b = (x - home.x) * f.x + (z - home.z) * f.z; return Math.abs(a) <= half && b <= fwd && b >= -back && Math.hypot(x - C.x, z - C.z) < this.bound - 4; };
+    const clampZone = (x, z) => { let a = (x - home.x) * r.x + (z - home.z) * r.z, b = (x - home.x) * f.x + (z - home.z) * f.z; a = clamp(a, -half, half); b = clamp(b, -back, fwd); let p = { x: home.x + r.x * a + f.x * b, z: home.z + r.z * a + f.z * b }; const dc = Math.hypot(p.x - C.x, p.z - C.z), lim = this.bound - 5; if (dc > lim) p = { x: C.x + (p.x - C.x) / dc * lim, z: C.z + (p.z - C.z) / dc * lim }; return p; };
+    this.deployed = true; G.deploying = true; G.lockMove = true;
+    try { document.exitPointerLock && document.exitPointerLock(); } catch (e) {}
+    // (theirs out of sight: the men, and their guns)
+    const hidden = [];
+    for (const u of this.enemiesOf(0)) if (u.a && u.a.root && u.a.root.visible) { u.a.root.visible = false; hidden.push(u.a.root); }
+    if (this.field) for (const g of this.field.guns) if (g.side !== 0 && g.model && g.model.visible) { g.model.visible = false; hidden.push(g.model); }
+    // the ground marked out: a wash over it, following its rise and fall, and its edge
+    const root = new THREE.Group(); w.root.add(root);
+    { const NX = 34, NZ = 16, pos = [], idx = [];
+      for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) { const a = -half + 2 * half * i / NX, b = -back + (fwd + back) * j / NZ, x = home.x + r.x * a + f.x * b, z = home.z + r.z * a + f.z * b; pos.push(x, groundY(x, z) + 0.12, z); }
+      for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const k = j * (NX + 1) + i; idx.push(k, k + NX + 1, k + 1, k + 1, k + NX + 1, k + NX + 2); }
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx);
+      const wash = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xf0c060, transparent: true, opacity: 0.055, depthWrite: false, side: THREE.DoubleSide, fog: false })); wash.renderOrder = 2; root.add(wash);
+      const edge = []; const E = (a, b) => { const x = home.x + r.x * a + f.x * b, z = home.z + r.z * a + f.z * b; edge.push(new THREE.Vector3(x, groundY(x, z) + 0.25, z)); };
+      for (let i = 0; i <= 40; i++) E(-half + 2 * half * i / 40, fwd); for (let i = 0; i <= 16; i++) E(half, fwd - (fwd + back) * i / 16);
+      for (let i = 0; i <= 40; i++) E(half - 2 * half * i / 40, -back); for (let i = 0; i <= 16; i++) E(-half, -back + (fwd + back) * i / 16);
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(edge), new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9, depthTest: false })); line.renderOrder = 3; root.add(line);
+      // (the front edge, toward them, in red: no further than this)
+      const fl = []; for (let i = 0; i <= 40; i++) { const a = -half + 2 * half * i / 40, x = home.x + r.x * a + f.x * fwd, z = home.z + r.z * a + f.z * fwd; fl.push(new THREE.Vector3(x, groundY(x, z) + 0.3, z)); }
+      const front = new THREE.Line(new THREE.BufferGeometry().setFromPoints(fl), new THREE.LineBasicMaterial({ color: 0xd84a32, depthTest: false })); front.renderOrder = 4; root.add(front); }
+    // what's yours to place: each arm of the company, and you
+    const label = (text, sub) => {
+      const cv = document.createElement("canvas"); cv.width = 512; cv.height = 128; const x = cv.getContext("2d");
+      x.fillStyle = "rgba(20,14,8,0.78)"; const rr = 26; x.beginPath(); x.roundRect ? x.roundRect(8, 8, 496, 112, rr) : x.rect(8, 8, 496, 112); x.fill();
+      x.fillStyle = "#f6ecd0"; x.font = "600 44px 'Open Sans', sans-serif"; x.textAlign = "center"; x.fillText(text, 256, 62);
+      x.fillStyle = "#e0b25a"; x.font = "28px 'Open Sans', sans-serif"; x.fillText(sub, 256, 102);
+      const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); sp.renderOrder = 6; sp.scale.set(9, 2.25, 1); return sp;
+    };
+    const groups = this.groupsHere().map(g => ({ id: g.id, key: g.key, name: g.name, men: this.alliesOf(0).filter(u => !u.crewOf && groupOf(u) === g.id) }));
+    const cen = l => ({ x: l.reduce((a, u) => a + u.pos.x, 0) / l.length, z: l.reduce((a, u) => a + u.pos.z, 0) / l.length });
+    const faceTo = Math.atan2(f.x, f.z);
+    // (to begin with, the arms side by side along the front where the officer stood the company — the muskets in the
+    //  middle, the rest out to either side of them — each its own block, to be moved as you like)
+    const mid = cen(this.alliesOf(0).filter(u => !u.crewOf)), wide = g => Math.max(6, Math.min(g.men.length, 12) * 1.05 + 3);
+    let lft = 0, rgt = 0;
+    const tokens = groups.sort((a, b) => b.men.length - a.men.length).map((g, i) => { let o = 0; if (i === 0) { lft = rgt = wide(g) / 2; } else if (i % 2) { o = -(lft + wide(g) / 2); lft += wide(g); } else { o = rgt + wide(g) / 2; rgt += wide(g); } return { ...g, at: { x: mid.x + r.x * o, z: mid.z + r.z * o }, face: faceTo }; });
+    tokens.push({ id: "you", name: "You", men: [], at: { x: pl.pos.x, z: pl.pos.z }, face: faceTo });
+    for (const T of tokens) { T.sp = label(T.name, T.id === "you" ? "your own place" : `${T.men.length} men`); root.add(T.sp); T.ring = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.1, 32), new THREE.MeshBasicMaterial({ color: T.id === "you" ? 0xffffff : 0xffd27a, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide })); T.ring.rotation.x = -Math.PI / 2; T.ring.renderOrder = 5; root.add(T.ring); }
+    const O0 = this.orders[0];
+    // a group stood at a place, in line, facing the way it's turned
+    const stand = T => {
+      const p = clampZone(T.at.x, T.at.z); T.at = p;
+      const look = { x: p.x + Math.sin(T.face) * 30, z: p.z + Math.cos(T.face) * 30 };
+      if (T.id === "you") pl.place(p.x, p.z, T.face + Math.PI);
+      else { const O = new Orders(0); O.form = "line"; T.men.forEach((u, i) => { const q = O.slot(i, T.men.length, p, T.face); const c = this.clearSpot(q.x, q.z); u.reset(c, look); u.a.sync && u.a.sync(); }); }
+      // (the labels at heights of their own, so arms stood near each other can each be read)
+      const y = groundY(p.x, p.z), k = tokens.indexOf(T); T.sp.position.set(p.x, y + 5 + k * 2.6, p.z); T.ring.position.set(p.x, y + 0.3, p.z);
+    };
+    for (const T of tokens) stand(T);
+    // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
+    //  or further with the wheel (when nothing's in hand), turned with Q and E
+    const cam = { x: home.x - f.x * 6, z: home.z - f.z * 6, d: 58, yaw: faceTo, pitch: 0.95 };
+    const keys = new Set(); let held = null, mouse = { x: innerWidth / 2, y: innerHeight / 2 }, lastT = performance.now();
+    G.forceThird = true; UI.show("hud", false);
+    G.deathCam = c => {
+      const now = performance.now(), dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+      const sp = cam.d * 0.9 * dt, fw = { x: Math.sin(cam.yaw), z: Math.cos(cam.yaw) }, rt = { x: -fw.z, z: fw.x };
+      if (keys.has("KeyW") || keys.has("ArrowUp")) { cam.x += fw.x * sp; cam.z += fw.z * sp; }
+      if (keys.has("KeyS") || keys.has("ArrowDown")) { cam.x -= fw.x * sp; cam.z -= fw.z * sp; }
+      if (keys.has("KeyA") || keys.has("ArrowLeft")) { cam.x -= rt.x * sp; cam.z -= rt.z * sp; }
+      if (keys.has("KeyD") || keys.has("ArrowRight")) { cam.x += rt.x * sp; cam.z += rt.z * sp; }
+      if (keys.has("KeyQ")) cam.yaw += dt * 1.2; if (keys.has("KeyE")) cam.yaw -= dt * 1.2;
+      { const dc = Math.hypot(cam.x - home.x, cam.z - home.z); if (dc > 70) { cam.x = home.x + (cam.x - home.x) / dc * 70; cam.z = home.z + (cam.z - home.z) / dc * 70; } }
+      const gy = groundY(cam.x, cam.z), hz = Math.cos(cam.pitch) * cam.d, vy = Math.sin(cam.pitch) * cam.d;
+      c.position.set(cam.x - Math.sin(cam.yaw) * hz, gy + vy, cam.z - Math.cos(cam.yaw) * hz);
+      c.fov = 50; c.updateProjectionMatrix(); c.up.set(0, 1, 0); c.lookAt(cam.x, gy, cam.z);
+      // (the view as it's drawn, kept: the game's own camera is moved about between frames, for other work)
+      c.updateMatrixWorld(); view.copy(c); view.aspect = c.aspect; view.updateProjectionMatrix(); view.updateMatrixWorld(true);
+      // (the haze of the field pushed back while you look down on it from so high: you can see your ground clearly)
+      if (G.scene.fog && G.scene.fog.far != null) { G.scene.fog.near = Math.max(G.scene.fog.near, cam.d * 1.4); G.scene.fog.far = Math.max(G.scene.fog.far, cam.d * 5 + 120); }
+      // (what's in hand follows the pointer on the ground)
+      if (held) { const g = ground(mouse.x, mouse.y); if (g && now - (held.t || 0) > 40) { held.t = now; held.at = g; stand(held); } }
+      for (const T of tokens) T.ring.material.opacity = T === held ? 1 : 0.75;
+    };
+    // where the pointer falls on the ground: walked out along the ray till it meets the land
+    const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), view = new THREE.PerspectiveCamera();
+    const ground = (mx, my) => {
+      ndc.set(mx / innerWidth * 2 - 1, -(my / innerHeight) * 2 + 1); ray.setFromCamera(ndc, view);
+      const o = ray.ray.origin, d = ray.ray.direction;
+      for (let t = 1; t < 400; t += 0.8) { const x = o.x + d.x * t, z = o.z + d.z * t, y = o.y + d.y * t; if (y <= groundY(x, z)) return { x, z }; }
+      return null;
+    };
+    const pickAt = (mx, my) => {
+      const g = ground(mx, my); if (!g) return null;
+      let best = null, bd = 6;
+      for (const T of tokens) { const d = T.id === "you" ? Math.hypot(T.at.x - g.x, T.at.z - g.z) : Math.min(Math.hypot(T.at.x - g.x, T.at.z - g.z), ...T.men.map(u => Math.hypot(u.pos.x - g.x, u.pos.z - g.z) + 1)); if (d < bd) { bd = d; best = T; } }
+      return best;
+    };
+    // the bar along the bottom: what to do, an arm to pick up by name, the officer's choice, and Begin
+    const bar = document.createElement("div"); bar.id = "deployBar";
+    const drawBar = () => {
+      bar.innerHTML = `<div class="dp-t"><b>Place your company</b><span>Click an arm to pick it up, click again to set it down · wheel turns its front · WASD or the arrows move the view, Q and E turn it · their lines are hidden until the battle begins</span></div>
+        <div class="dp-g">${tokens.map(T => `<button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : `${T.men.length} men`}</small></button>`).join("")}</div>
+        <div class="dp-a"><button data-dp="auto" class="ghost">Officer's choice</button><button data-dp="go" class="go">Begin the battle</button></div>`;
+    };
+    drawBar(); document.getElementById("hud").parentElement.appendChild(bar);
+    const officer = () => { this.autoDeploy(); const by = {}; for (const T of tokens) { if (T.id === "you") T.at = { x: pl.pos.x, z: pl.pos.z }; else T.at = cen(T.men); T.face = faceTo; stand(T); void by; } };
+    const finish = () => {
+      if (!G.deploying) return;
+      G.deploying = false; G.deathCam = null; G.forceThird = false; UI.show("hud", true);
+      for (const h of hidden) h.visible = true;
+      w.root.remove(root); root.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+      bar.remove(); for (const [t, fn] of L) removeEventListener(t, fn, true);
+      // (each arm holds where it was set, its front as you turned it; the company's own orders at your side)
+      this.sub = [{}, {}];
+      for (const T of tokens) if (T.id !== "you" && T.men.length) { const O = Object.assign(new Orders(0), O0, { target: null }); O.mode = "hold"; O.at = { ...T.at }; O.form = "line"; this.sub[0][T.id] = O; }
+      O0.mode = "hold"; O0.at = { x: pl.pos.x, z: pl.pos.z };
+      this.spawns[0] = { x: pl.pos.x, z: pl.pos.z };
+      done();
+    };
+    this.deployEnd = finish;
+    // (for the test scripts: what's placed where, and the pointer's ground)
+    this.dp = { tokens, ground, pickAt, view, get held() { return held; } };
+    const onBar = e => { const b = e.target.closest && e.target.closest("[data-dp]"); if (!b) return false; const id = b.dataset.dp;
+      if (id === "go") finish(); else if (id === "auto") { held = null; officer(); drawBar(); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; drawBar(); }
+      window.__uisfx && window.__uisfx.click && window.__uisfx.click(); return true; };
+    // (a press, pointer's or mouse's — whichever the browser sends, once)
+    let lastPress = 0;
+    const press = e => {
+      if (!G.deploying) return; const now = performance.now(); if (now - lastPress < 120) { e.stopImmediatePropagation(); return; } lastPress = now;
+      if (bar.contains(e.target)) { e.stopImmediatePropagation(); onBar(e); return; }
+      e.stopImmediatePropagation(); e.preventDefault(); mouse = { x: e.clientX, y: e.clientY };
+      if (e.button === 2) { if (held) { held.face += Math.PI / 8; stand(held); } return; }
+      if (held) { const g = ground(e.clientX, e.clientY); if (g) { held.at = g; stand(held); } held = null; FOLEY.thunk && FOLEY.thunk(null, 0.15); drawBar(); return; }
+      const T = pickAt(e.clientX, e.clientY); if (T) { held = T; drawBar(); }
+    };
+    const L = [
+      ["pointerdown", e => press(e)],
+      ["mousedown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); press(e); }],
+      ["pointermove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
+      ["mousemove", e => { if (G.deploying) mouse = { x: e.clientX, y: e.clientY }; }],
+      ["wheel", e => { if (!G.deploying) return; e.stopImmediatePropagation(); e.preventDefault(); if (held) { held.face += Math.sign(e.deltaY) * Math.PI / 16; stand(held); } else cam.d = clamp(cam.d * Math.exp(e.deltaY * 0.0012), 18, 110); }],
+      ["contextmenu", e => { if (G.deploying) e.preventDefault(); }],
+      ["keydown", e => { if (!G.deploying) return; e.stopImmediatePropagation(); if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); finish(); return; } if (e.code === "Escape") { held = null; drawBar(); return; } if (e.code === "KeyR" && held) { held.face += Math.PI / 2; stand(held); return; } keys.add(e.code); }],
+      ["keyup", e => { keys.delete(e.code); }],
+    ];
+    for (const [t, fn] of L) addEventListener(t, fn, { capture: true, passive: false });
+    this.deployL = L;
+    UI.fadeNow(1); UI.fade(0, 0.8);
   }
   // ---- deployment: your company put on the best ground near where it starts, by its officer, before the opening ----
   // (any battle of companies against bots — not one where you hold a fort, whose wall is your men's place; and not one
@@ -2474,6 +2628,7 @@ class Arena {
     if (G.arena !== this) return;
     AUDIO.melee && AUDIO.melee(0, 0); clearGore();
     if (G.freecam && G.endFreecam) G.endFreecam();
+    if (G.deploying && this.deployEnd) { G.deploying = false; G.deathCam = null; G.forceThird = false; const b = document.getElementById("deployBar"); if (b) b.remove(); for (const [t, fn] of this.deployL || []) removeEventListener(t, fn, true); }
     G.arena = null; this.live = false; G.armSkin = null; G.armPace = null; G.armSights = undefined;
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
     G.onSwing = null; G.onDowned = null; G.onGunshot = null; G.onLoose = null; G.onSwingStart = null;
