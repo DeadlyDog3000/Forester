@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.251", date: "8 November 2026", title: "The armoury: arms bought, every crown's own money",
+    items: [
+      "Battles and duels now pay you, in the money of the colours you fight in: the Tatars and the Ottomans in silver akçe, Muscovy in kopecks, Poland in złoty, Hamburg in marks, the Dutch in guilders, Saxony and Brandenburg in thalers, Bavaria and the Emperor in gulden, Denmark in rigsdaler, Sweden in riksdaler, Spain in reales, England in shillings and France in livres, each at about its rate in the 1680s. A win pays more than a loss, a battle against another player more than one against bots, and the day's first victory a bonus. Each team keeps its own purse.",
+      "You begin as the Crimean Tatars with a bow and a knife — the Khan's horsemen rode to Vienna in 1683 with the bow and the sabre — and buy everything else with what you earn: the spear, the axes, the war club, the crossbow, the pistol, the sword, the battle axe and the musket. Each team has its own armoury, so to carry a fine kit in every crown's colours you work your way up through them.",
+      "The other crowns' colours are bought with what you've earned, from Hamburg's militia up to the Emperor's own regiments. Each team's card says what its soldiers really carried in 1683.",
+      "Ranked fights stay fair: against another player each side carries the arms its team's soldiers really carried in 1683 — the West's foot the musket, bayonet, pike, sword and pistol, the streltsy and haiduks the axe, the Janissaries the bow and yatagan too, the Tatars the bow, sabre and lance — every one of them to hand and fully fitted whether you've bought it or not. What you buy is for battles against bots. Nothing is ever sold for real money.",
+      "The crossbow and the war club aren't carried by any team in a ranked fight: no army of 1683 still fielded crossbows, and the club's nations of the Eastern Woodlands aren't a team.",
+      "A gunsmith's work is bought too: the musket's sights (the V-notched leaf and brass foresight — issue muskets of 1683 had at most a bead, so without them you aim along the bare barrel), paper cartridges for the musket and the pistol (about a seventh quicker to load), a goat's-foot lever for the crossbow and a thumb ring for the bow.",
+      "A new armoury, with your arms on the table in 3D: drag to turn one over, scroll or pinch to bring it close. Stain the wood walnut, honey, red or ebonised; make the fittings brass, iron, silver, gilt or blackened; colour a grip; hang a sword knot or a tassel; give a musket or crossbow a sling. The steel is never painted. Finishes change nothing in a fight, and other players see them on your arms.",
+      "The muster is a scroll now, its parts on tabs — your arms, your team, your company, the field and the armoury — in a cleaner, more modern style.",
+    ],
+  },
+  {
     v: "1.99.250", date: "7 November 2026", title: "The campaign map in 3D, and lighter battles",
     items: [
       "Aiming the musket brings it right up to your eye and holds it steady: you look down the barrel over a low iron leaf at the breech with a V filed in it, to the small brass blade near the muzzle standing in the bottom of the V, as the sights of the time were, and the view closes in a little more as you aim.",

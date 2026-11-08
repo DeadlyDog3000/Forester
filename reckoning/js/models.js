@@ -1824,7 +1824,7 @@ export function makeMusket() {
 // pan to fly open on its pivot when the flint strikes it — and sights on it to aim by, a notch at the breech and a blade
 // at the muzzle, their tops level along the barrel (SIGHT_Z, the line the eye looks down). null till the model is in.
 export const SIGHT_Z = 0.058;
-export function fpMusket() {
+export function fpMusket({ sights = true } = {}) {
   const m = MODELS.musket && modelCopy("musket"); if (!m) return null;
   const g = new THREE.Group(); g.add(m.scene); m.scene.updateMatrixWorld(true);
   let steel = null, horn = null;
@@ -1850,7 +1850,9 @@ export function fpMusket() {
       g.add(cock, friz); g.userData.lock = { cock, friz, pan: new THREE.Vector3(0.03, 0.052, 0.03) };
     }
   }
-  // the sights: a notch of two little posts at the breech, a blade at the muzzle
+  // the sights: a notch of two little posts at the breech, a blade at the muzzle (a gunsmith's work, bought — without
+  //  them, the bare barrel to look along, as an issue musket of 1683 had)
+  if (sights) {
   const brass = (() => { let b = null; m.scene.traverse(o => { if (!b && o.isMesh && /_brass/.test((o.material && o.material.name) || "")) b = o.material; }); return b || new THREE.MeshStandardMaterial({ color: 0xb48c3c, metalness: 0.8, roughness: 0.35 }); })();
   const iron = (() => { let b = null; m.scene.traverse(o => { if (!b && o.isMesh && /_iron/.test((o.material && o.material.name) || "")) b = o.material; }); return b || brass; })();
   // (the rear: a low leaf of iron across the breech, its top a shallow curve, a V filed down into the middle of it; the
@@ -1877,6 +1879,7 @@ export function fpMusket() {
     // (polished brass catches the light whichever way it falls: a glint of its own, so the bead reads against the field)
     const bm = brass.clone(); bm.emissive = new THREE.Color(0x6a4a14); bm.emissiveIntensity = 0.9;
     const blade = new THREE.Mesh(geo, bm); blade.position.set(0, 1.096, 0); g.add(blade);
+  }
   }
   g.userData.muzzle = new THREE.Object3D(); g.userData.muzzle.position.set(0, 1.13, 0.032); g.add(g.userData.muzzle);
   g.userData.grips = [new THREE.Vector3(0, -0.07, -0.02), new THREE.Vector3(0, 0.3, -0.016)];

@@ -2204,3 +2204,151 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .cmp-first li.now b { color: #f3dc8a; }
 .cmp-first li.now::before { border-color: #f3dc8a; box-shadow: 0 0 6px rgba(232, 201, 106, 0.8); }
 @media (prefers-reduced-motion: reduce) { .cmp-coach i, .coach { animation: none; } }
+
+/* ===========================================================================
+   The muster as a scroll: a sheet of paper unrolled between two turned rods, its
+   sections as ribbon tabs along the top. Iron-gall ink, rubric heads.
+   =========================================================================== */
+#pvpMuster { width: min(1180px, calc(100% - 24px)); }
+.mus.scroll { width: 100%; gap: 0; align-items: stretch; filter: drop-shadow(0 18px 40px rgba(0, 0, 0, 0.65)); }
+.scroll-rod { height: 26px; margin: 0 -18px; position: relative; z-index: 2; border-radius: 13px;
+  background: linear-gradient(180deg, #2a170a 0%, #7a4a26 22%, #b07a46 40%, #6a3e1e 70%, #2a170a 100%); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.55); }
+.scroll-rod::before, .scroll-rod::after { content: ""; position: absolute; top: -7px; width: 30px; height: 40px; border-radius: 50%;
+  background: radial-gradient(ellipse at 40% 35%, #d8a868, #8a5a2c 45%, #3a200c 100%); box-shadow: 0 3px 8px rgba(0, 0, 0, 0.6); }
+.scroll-rod::before { left: -16px; } .scroll-rod::after { right: -16px; }
+.scroll-rod.bottom { margin-top: -4px; }
+.scroll-sheet { --ink: #2b1d10; --ink-dim: #6b5234; --gold: #9a2b1c; --edge: rgba(59, 38, 18, 0.4);
+  position: relative; z-index: 1; margin-top: -4px; padding: 22px 34px 18px; color: var(--ink); text-align: left;
+  background:
+    radial-gradient(ellipse at 18% 10%, rgba(255, 250, 230, 0.6), transparent 55%),
+    radial-gradient(ellipse at 85% 92%, rgba(150, 110, 60, 0.3), transparent 60%),
+    repeating-linear-gradient(0deg, rgba(120, 90, 50, 0.035) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgba(120, 80, 30, 0.22), transparent 6%, transparent 94%, rgba(120, 80, 30, 0.22)),
+    linear-gradient(180deg, #e6d4a8, #efe2bf 12%, #e9d8ae 88%, #dcc58f);
+  box-shadow: inset 0 14px 18px -12px rgba(60, 30, 10, 0.55), inset 0 -14px 18px -12px rgba(60, 30, 10, 0.55); }
+.scroll-sheet .mus-head h2 { font: 34px/1.1 var(--serif); font-variant: small-caps; letter-spacing: 0.04em; color: var(--gold); text-shadow: none; }
+.scroll-sheet #musVs, .scroll-sheet .mv-n { color: var(--ink); font-family: var(--serif); }
+.scroll-tabs { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 12px 0 0; border-bottom: 2px solid rgba(59, 38, 18, 0.55); }
+.scroll-tabs button { position: relative; padding: 7px 20px 6px; font: 17px var(--serif); font-variant: small-caps; letter-spacing: 0.06em; color: var(--ink-dim); cursor: pointer;
+  background: linear-gradient(180deg, rgba(110, 78, 40, 0.18), rgba(110, 78, 40, 0.08)); border: 1px solid rgba(59, 38, 18, 0.45); border-bottom: none; border-radius: 6px 6px 0 0; margin-bottom: -2px; }
+.scroll-tabs button:hover { color: var(--ink); background: rgba(154, 43, 28, 0.08); }
+.scroll-tabs button.on { color: #f6ecd0; background: linear-gradient(180deg, #a8392a, #7a2216); border-color: #5a160c; }
+.scroll-body { min-height: 380px; max-height: calc(100vh - 300px); overflow-y: auto; padding: 16px 4px 8px; }
+.scroll-sheet .mus-pane { border: none; background: none; padding: 0; }
+.scroll-sheet .pv-h { color: var(--gold); font: 15px var(--serif); font-variant: small-caps; letter-spacing: 0.08em; text-transform: none; margin: 10px 0 4px; }
+.scroll-sheet .pv-h.big { font: 22px var(--serif); font-variant: small-caps; color: var(--ink); border-bottom: 1px solid var(--edge); padding-bottom: 4px; margin: 0 0 8px; }
+.scroll-sheet .m-load, .scroll-sheet .m-pick, .scroll-sheet .pv-sn, .scroll-sheet .pv-pf, .scroll-sheet .pv-spent span { color: var(--ink-dim); font-family: var(--serif); }
+.scroll-sheet .m-load b, .scroll-sheet .m-pick b { color: var(--ink); }
+.scroll-sheet .m-note { color: var(--gold); }
+.mus-rule { font: italic 14px/1.45 var(--serif); color: var(--ink-dim); margin: 0 0 10px; }
+.mus-rule b { font-style: normal; color: var(--gold); font-variant: small-caps; }
+.scroll-sheet .mc, .scroll-sheet .pv-gr, .scroll-sheet .pv-tr, .scroll-sheet .pv-uni, .scroll-sheet .hist-b, .scroll-sheet .hb-side, .scroll-sheet .tm, .scroll-sheet .fin {
+  color: var(--ink); background: rgba(110, 78, 40, 0.1); border: 1px solid rgba(59, 38, 18, 0.4); border-radius: 2px; font-family: var(--serif); }
+.scroll-sheet .mc:hover, .scroll-sheet .pv-gr:hover, .scroll-sheet .tm:hover, .scroll-sheet .fin:hover, .scroll-sheet .hist-b:hover, .scroll-sheet .hb-side:hover { border-color: var(--gold); background: rgba(154, 43, 28, 0.08); }
+.scroll-sheet .mc.on, .scroll-sheet .pv-gr.on, .scroll-sheet .tm.on, .scroll-sheet .fin.on, .scroll-sheet .hist-b.on, .scroll-sheet .hb-side.on { border-color: #7a2216; background: rgba(154, 43, 28, 0.14); box-shadow: inset 0 0 0 1px #7a2216; }
+.scroll-sheet .mc img { filter: drop-shadow(0 1px 1px rgba(60, 40, 20, 0.45)); }
+.scroll-sheet .mc.off, .scroll-sheet .tm.off, .scroll-sheet .fin.off { opacity: 0.62; }
+.scroll-sheet .mc.off img { filter: grayscale(0.8); }
+.scroll-sheet .ask { outline: 2px dashed var(--gold); outline-offset: 1px; opacity: 1 !important; }
+.mc-p, .mc-x, .mc-c { font: italic 12px var(--serif); margin-left: 4px; color: var(--gold); }
+.mc-x { color: var(--ink-dim); }
+.mc-c { color: var(--ink-dim); }
+.scroll-sheet .pv-tr button { color: var(--ink); border-color: rgba(59, 38, 18, 0.45); background: rgba(255, 250, 230, 0.35); }
+.scroll-sheet .pv-tr-n b, .scroll-sheet .pv-tr-c { color: var(--ink); }
+.scroll-sheet .pv-tr-n small { color: var(--ink-dim); }
+.scroll-sheet .pv-spent { background: rgba(59, 38, 18, 0.15); }
+.scroll-sheet .pv-gr small { color: var(--ink-dim); }
+.scroll-sheet .hb-card, .tm-card { border: 1px solid var(--edge); background: rgba(255, 250, 230, 0.3); padding: 10px 12px; margin-top: 10px; }
+.scroll-sheet .hb-brief, .scroll-sheet .hb-t span, .scroll-sheet .hb-co, .scroll-sheet .hist-b small { color: var(--ink-dim); }
+.scroll-sheet #musArmy.locked, .scroll-sheet #musTeam.locked, .scroll-sheet #musField.locked, #pvpMuster.ready .scroll-sheet #musMe { opacity: 0.6; pointer-events: none; }
+.scroll-sheet .pv-acts { border-top: 1px solid var(--edge); padding-top: 12px; margin-top: 6px; align-items: center; }
+.mus-purse { font: 16px var(--serif); color: var(--ink-dim); margin: 0 auto; }
+.mus-purse b { color: var(--gold); font-size: 20px; }
+/* the team */
+.tm-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.tm { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 6px 8px; cursor: pointer; text-align: left; }
+.tm .pv-sw { grid-row: span 2; }
+.tm b { font: 15px var(--serif); }
+.tm small { font: italic 12px var(--serif); color: var(--ink-dim); }
+.tm-t b { font: 20px var(--serif); font-variant: small-caps; color: var(--gold); }
+.tm-t span { font: italic 13px var(--serif); color: var(--ink-dim); }
+.tm-kit { font: 14px var(--serif); margin: 6px 0; }
+.tm-why { font: 14px/1.45 var(--serif); margin: 4px 0 0; }
+.tm-why b { color: var(--gold); font-variant: small-caps; }
+/* the armoury: the arm on the table between its list and its finishes */
+.fg { display: grid; grid-template-columns: 170px minmax(0, 1fr) 280px; gap: 14px; align-items: start; }
+.fg-arms { display: flex; flex-direction: column; gap: 4px; }
+.fg-arms .mc { justify-content: flex-start; }
+.fg-view { position: relative; height: 380px; border: 1px solid var(--edge);
+  background: radial-gradient(ellipse at 50% 40%, rgba(255, 248, 225, 0.75), rgba(160, 120, 70, 0.35) 75%), #d8c290; box-shadow: inset 0 0 40px rgba(80, 50, 20, 0.35); }
+.fg-view canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.fg-help { position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font: italic 12px var(--serif); color: var(--ink-dim); pointer-events: none; }
+.fg-parts { max-height: 380px; overflow-y: auto; padding-right: 4px; }
+.fg-fins { display: flex; flex-wrap: wrap; gap: 4px; }
+.fin { display: flex; align-items: center; gap: 5px; padding: 4px 8px 4px 5px; cursor: pointer; font-size: 13px !important; }
+.fin-sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(59, 38, 18, 0.6); background: repeating-linear-gradient(45deg, transparent 0 3px, rgba(59, 38, 18, 0.4) 3px 4px); }
+.fg-note { font: italic 13px/1.4 var(--serif); color: var(--ink-dim); margin-top: 12px; }
+.pv-pay { margin-top: 10px; font: 15px var(--serif); color: var(--ink-dim); }
+.pv-pay b { color: var(--gold); }
+@media (max-width: 900px) { .fg { grid-template-columns: 1fr; } .fg-arms { flex-direction: row; flex-wrap: wrap; } .fg-view { height: 300px; } .scroll-sheet { padding: 18px 16px 14px; } .scroll-rod { margin: 0 -6px; } }
+.scroll-sheet .btn.ghost { color: var(--ink) !important; background: rgba(110, 78, 40, 0.12) !important; border: 1px solid rgba(59, 38, 18, 0.5) !important; box-shadow: none !important; font-family: var(--serif); font-variant: small-caps; }
+.scroll-sheet .btn.ghost:hover { background: rgba(154, 43, 28, 0.1) !important; }
+
+/* ---- the scroll, modernised: the same sheet and rods, cleaner — smooth paper, soft depth, rounded cards, a pill
+   row of tabs, crisp labels in the sans, the serif kept for the heads ---- */
+.scroll-rod { height: 16px; border-radius: 8px; margin: 0 -10px; background: linear-gradient(180deg, #3a2414, #8a5a32 45%, #4a2c16); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45); }
+.scroll-rod::before, .scroll-rod::after { top: -4px; width: 14px; height: 24px; border-radius: 7px; background: linear-gradient(180deg, #c8945a, #6a3e1c); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+.scroll-rod::before { left: -8px; } .scroll-rod::after { right: -8px; }
+.scroll-sheet { --ink: #231a12; --ink-dim: #7a6650; --gold: #a8321f; --edge: rgba(60, 40, 20, 0.14); --card: rgba(255, 252, 244, 0.72);
+  padding: 26px 36px 20px; background: linear-gradient(180deg, #efe4cc, #f6eedd 14%, #f4ead6 86%, #e8dbbd);
+  box-shadow: inset 0 10px 14px -10px rgba(60, 30, 10, 0.35), inset 0 -10px 14px -10px rgba(60, 30, 10, 0.35); }
+.scroll-sheet .mus-head h2 { font: 600 30px/1.1 var(--serif); font-variant: small-caps; letter-spacing: 0.03em; }
+.scroll-sheet #musVs, .scroll-sheet .mv-n { font: 14px var(--sans); color: var(--ink-dim); }
+.scroll-tabs { display: inline-flex; align-self: center; gap: 2px; padding: 4px; margin: 16px auto 0; border: none; border-radius: 999px; background: rgba(60, 40, 20, 0.08); box-shadow: inset 0 1px 2px rgba(60, 40, 20, 0.12); }
+.scroll-sheet .mus-head + .scroll-tabs { display: flex; width: max-content; max-width: 100%; }
+.scroll-tabs button { margin: 0; padding: 8px 18px; border: none; border-radius: 999px; background: none; font: 600 13px var(--sans); font-variant: normal; letter-spacing: 0.04em; color: var(--ink-dim); transition: background 0.15s, color 0.15s; }
+.scroll-tabs button:hover { background: rgba(255, 255, 255, 0.6); color: var(--ink); }
+.scroll-tabs button.on { background: #fff; color: var(--gold); box-shadow: 0 1px 3px rgba(60, 40, 20, 0.22); border: none; }
+.scroll-body { padding: 18px 2px 8px; }
+.scroll-sheet .pv-h { font: 700 11px var(--sans); font-variant: normal; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-dim); margin: 14px 0 6px; }
+.scroll-sheet .pv-h.big { font: 600 22px var(--serif); font-variant: small-caps; text-transform: none; letter-spacing: 0.02em; color: var(--ink); border: none; padding: 0; margin: 0 0 6px; }
+.mus-rule { font: 13.5px/1.5 var(--sans); color: var(--ink-dim); background: var(--card); border-radius: 10px; padding: 10px 14px; box-shadow: 0 1px 2px rgba(60, 40, 20, 0.08); }
+.mus-rule b { font-variant: normal; font-weight: 700; color: var(--gold); }
+.scroll-sheet .mc, .scroll-sheet .pv-gr, .scroll-sheet .pv-tr, .scroll-sheet .pv-uni, .scroll-sheet .hist-b, .scroll-sheet .hb-side, .scroll-sheet .tm, .scroll-sheet .fin {
+  font-family: var(--sans); background: var(--card); border: 1px solid var(--edge); border-radius: 10px; box-shadow: 0 1px 2px rgba(60, 40, 20, 0.08); transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s; }
+.scroll-sheet .mc:hover, .scroll-sheet .pv-gr:hover, .scroll-sheet .tm:hover, .scroll-sheet .fin:hover, .scroll-sheet .hist-b:hover, .scroll-sheet .hb-side:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(60, 40, 20, 0.14); border-color: rgba(168, 50, 31, 0.45); background: #fffdf7; }
+.scroll-sheet .mc.on, .scroll-sheet .pv-gr.on, .scroll-sheet .tm.on, .scroll-sheet .fin.on, .scroll-sheet .hist-b.on, .scroll-sheet .hb-side.on { background: #fff; border-color: var(--gold); box-shadow: 0 0 0 2px rgba(168, 50, 31, 0.22), 0 2px 6px rgba(60, 40, 20, 0.12); }
+.scroll-sheet .mc { padding: 7px 12px 7px 8px; font-size: 13px; font-weight: 600; }
+.scroll-sheet .mc.off, .scroll-sheet .tm.off, .scroll-sheet .fin.off { opacity: 1; background: rgba(255, 252, 244, 0.4); color: var(--ink-dim); }
+.scroll-sheet .ask { outline: none; box-shadow: 0 0 0 2px var(--gold), 0 4px 12px rgba(168, 50, 31, 0.25) !important; }
+.mc-p, .mc-x, .mc-c { font: 700 10.5px var(--sans); letter-spacing: 0.02em; padding: 2px 7px; border-radius: 999px; margin-left: 6px; }
+.mc-p { color: #fff; background: var(--gold); }
+.mc-x { color: var(--ink-dim); background: rgba(60, 40, 20, 0.08); }
+.mc-c { color: #2e6a3a; background: rgba(46, 106, 58, 0.12); }
+.tm { padding: 10px 12px; }
+.tm b { font: 600 14px var(--sans); }
+.tm small { font: 12px var(--sans); }
+.tm-card, .scroll-sheet .hb-card { background: var(--card); border: 1px solid var(--edge); border-radius: 12px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(60, 40, 20, 0.08); }
+.tm-t b { font: 600 22px var(--serif); }
+.tm-t span, .tm-kit, .tm-why { font-family: var(--sans); font-style: normal; }
+.tm-why b { font-variant: normal; }
+.fg-view { border: none; border-radius: 14px; overflow: hidden; background: radial-gradient(ellipse at 50% 38%, #fffaf0, #e6d6b4 72%, #d2bd92); box-shadow: inset 0 0 0 1px var(--edge), inset 0 -30px 60px rgba(80, 50, 20, 0.12), 0 2px 8px rgba(60, 40, 20, 0.12); }
+.fg-help { font: 12px var(--sans); }
+.fin { padding: 6px 10px 6px 7px; font-size: 12.5px !important; }
+.fin-sw { width: 16px; height: 16px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3); }
+.fg-note { font: 12.5px/1.45 var(--sans); }
+.scroll-sheet .pv-acts { border-top: 1px solid var(--edge); }
+.scroll-sheet .btn { border-radius: 10px !important; }
+.scroll-sheet .btn.ghost { font: 600 14px var(--sans) !important; font-variant: normal !important; background: var(--card) !important; border: 1px solid var(--edge) !important; }
+.scroll-sheet .btn.primary { border-radius: 10px !important; background: linear-gradient(180deg, #b83a26, #8e2414) !important; box-shadow: 0 4px 12px rgba(142, 36, 20, 0.35) !important; font-family: var(--sans) !important; font-variant: normal; font-weight: 700; letter-spacing: 0.04em; }
+.mus-purse { font: 600 14px var(--sans); padding: 6px 14px; border-radius: 999px; background: var(--card); box-shadow: 0 1px 2px rgba(60, 40, 20, 0.1); }
+.mus-purse b { font-size: 16px; }
+.scroll-sheet .m-load, .scroll-sheet .m-pick, .scroll-sheet .pv-sn, .scroll-sheet .pv-pf { font-family: var(--sans); font-size: 13px; }
+.scroll-sheet .m-note { font: 600 13px var(--sans); background: rgba(168, 50, 31, 0.08); border-radius: 8px; padding: 8px 12px; }
+.scroll-sheet .pv-tr button { border-radius: 6px; }
+.fg-ups { display: flex; flex-direction: column; gap: 6px; }
+.scroll-sheet .up { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; padding: 9px 12px; cursor: pointer; font-family: var(--sans); color: var(--ink); background: var(--card); border: 1px solid var(--edge); border-radius: 10px; box-shadow: 0 1px 2px rgba(60, 40, 20, 0.08); transition: transform 0.12s, box-shadow 0.12s; }
+.scroll-sheet .up:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(60, 40, 20, 0.14); }
+.scroll-sheet .up.on { border-color: rgba(46, 106, 58, 0.5); cursor: default; }
+.up b { font-size: 13.5px; }
+.up small { grid-column: 1 / -1; font: 12px/1.4 var(--sans); color: var(--ink-dim); }

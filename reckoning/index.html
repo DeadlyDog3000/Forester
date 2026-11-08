@@ -288,10 +288,21 @@
       </div>
     </section>
     <section id="pvpMuster" class="screen hidden">
-      <div class="mus">
-        <div class="mus-head"><h2 id="musT">Muster</h2><div id="musVs"></div></div>
-        <div class="mus-cols"><div id="musMe"></div><div id="musArmy"></div></div>
-        <div class="pv-acts"><button class="btn ghost" id="musBack">Back</button><button class="btn primary" id="musReady">Ready</button></div>
+      <div class="mus scroll">
+        <div class="scroll-rod"></div>
+        <div class="scroll-sheet">
+          <div class="mus-head"><h2 id="musT">Muster</h2><div id="musVs"></div></div>
+          <div class="scroll-tabs" id="musTabs"></div>
+          <div class="scroll-body">
+            <div id="musMe" class="mus-pane"></div>
+            <div id="musTeam" class="mus-pane"></div>
+            <div id="musArmy" class="mus-pane"></div>
+            <div id="musField" class="mus-pane"></div>
+            <div id="musForge" class="mus-pane"><div class="fg"><div id="fgArms" class="fg-arms"></div><div class="fg-view"><canvas id="fgView"></canvas><div class="fg-help">Drag to turn it over · scroll or pinch to bring it closer · double-click to set it straight</div></div><div id="fgParts" class="fg-parts"></div></div></div>
+          </div>
+          <div class="pv-acts"><button class="btn ghost" id="musBack">Back</button><span id="musPurse" class="mus-purse"></span><button class="btn primary" id="musReady">Ready</button></div>
+        </div>
+        <div class="scroll-rod bottom"></div>
       </div>
     </section>
     <section id="pvpFind" class="screen hidden">

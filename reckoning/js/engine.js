@@ -489,6 +489,7 @@ export class Player {
       this.axe.rotation.order = "YXZ";
       const a = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe");
       a.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(-1, 0, 0)));
+      G.armSkin && G.armSkin(a, this.blade || "axe");
       this.axe.add(a);
       vm.add(this.axe);
       // your two hands on the haft, and your sleeves back to your shoulders, so hands and axe are one
@@ -519,7 +520,7 @@ export class Player {
       });
       this.axeRest();
       // and one in the hand of your body, for when the camera is behind you
-      this.axeBody = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe"); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0);
+      this.axeBody = (G.town ? k => makeOwnArm(k, !!(G.town.playerArm && G.town.playerArm() === "sword")) : makeArm)(this.blade || "axe"); this.axeBody.rotation.x = Math.PI / 2; this.axeBody.position.set(0, 0, 0); G.armSkin && G.armSkin(this.axeBody, this.blade || "axe");
       // (a spear or a bayonet in both hands, as a pike, seen from behind; anything else in the right)
       if (this.model && THRUST.has(this.blade) && pikeHold(this.model, this.axeBody, this.blade)) this.axeBody.rotation.x = 0;
       else if (this.model && this.model.held) this.model.held.add(this.axeBody);
@@ -544,7 +545,7 @@ export class Player {
       const pis = this.gunKind === "pistol"; this.gunIs = pis ? "pistol" : "musket";
       const sv = (this.gunSaved ??= {})[this.gunIs]; if (sv) { this.gunLoaded = sv.l; this.gunReload = sv.r; } else { this.gunLoaded = true; this.gunReload = 0; }
       const g = new THREE.Group(); g.rotation.order = "YXZ";
-      const m = pis ? makePistol() : (fpMusket() || makeMusket()); m.rotation.x = -Math.PI / 2; g.add(m); this.gunModel = m;
+      const m = pis ? makePistol() : (fpMusket({ sights: G.armSights !== false }) || makeMusket()); G.armSkin && G.armSkin(m, this.gunIs); m.rotation.x = -Math.PI / 2; g.add(m); this.gunModel = m;
       // (the lock's fire: sparks thrown off the steel into the pan, and the flash of the priming going up — see gunLock)
       if (m.userData.lock) {
         const L = m.userData.lock, N = 18, pos = new Float32Array(N * 3);
@@ -611,7 +612,7 @@ export class Player {
     // loading: only when you set about it (R), fired and empty — then as the drill goes (reload.js), each step heard
     if (free && input.hit("KeyR") && !this.gunLoaded && !(this.gunReload > 0) && !(this.thrustT >= 0) && G.time >= (this.fixUntil || 0)) this.gunReload = RL;
     if (this.gunReload > 0 && !(this.thrustT >= 0)) {
-      const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt * loadPace(this) * (this.bayonet && !pis ? 0.8 : 1));   // (the bayonet in the way of the rod)
+      const before = this.gunReload; this.gunReload = Math.max(0, this.gunReload - dt * loadPace(this) * (this.bayonet && !pis ? 0.8 : 1) * (G.armPace && G.armPace[this.gunIs] || 1));   // (the bayonet in the way of the rod)
       const F = window.__foley;
       for (const st of loadSteps(kind, RL - before, RL - this.gunReload + (this.gunReload === 0 ? 1 : 0))) F && F.load && F.load(st, null, 0.6, pis);
       if (this.gunReload === 0) this.gunLoaded = true;
@@ -729,6 +730,7 @@ export class Player {
       const g = new THREE.Group(); g.rotation.order = "YXZ";
       const m = modelCopy("bow");
       const limbs = m ? m.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a }));
+      G.armSkin && G.armSkin(limbs, "bow");
       limbs.rotation.y = Math.PI;                    // its belly toward you, the tips drawn back toward you
       limbs.traverse(o => { if (o.isMesh) o.castShadow = false; });
       g.add(limbs);
@@ -811,7 +813,7 @@ export class Player {
     if (free && input.rdown && !this.noDraw && (this.arrows || 0) > 0 && this.reload <= 0) {
       if (this.draw === 0) { const F = window.__foley; F && F.load && F.load("drawBow", null, 0.45); this.heldFull = 0; this.creakT = 0; this.breathHeld = 0; this.letdown = false; }
       // (it comes easily at first and harder the further back it comes: the bow stacks)
-      this.draw = Math.min(1, this.draw + dt / 0.85 * (1.35 - 0.75 * this.draw));
+      this.draw = Math.min(1, this.draw + dt / 0.85 * (1.35 - 0.75 * this.draw) * (G.armPace && G.armPace.bow || 1));
       if (this.draw < 1 && (this.creakT -= dt) <= 0) { this.creakT = 0.14 + Math.random() * 0.12; AUDIO.bowCreak && AUDIO.bowCreak(this.draw); }
       if (this.draw >= 1) this.heldFull += dt;
     } else if (this.draw > 0) {
@@ -851,7 +853,7 @@ export class Player {
     if (on) { this.dropFood(); if (this.gun) this.showGun(false); if (this.bow) this.showBow(false); }
     if (on && !this.xbow) {
       if (this.axe) this.holsterAxe(true);
-      const g = makeCrossbow(); g.scale.setScalar(0.86);
+      const g = makeCrossbow(); G.armSkin && G.armSkin(g, "crossbow"); g.scale.setScalar(0.86);
       g.traverse(o => { if (o.isMesh) o.castShadow = false; });
       vm.add(g); this.xbow = g;
       this.xcrank = g.userData.crank; this.xbolt = g.userData.bolt; this.xtrig = g.userData.trig;
@@ -932,7 +934,7 @@ export class Player {
     else if (free && input.click && this.xspan < 1 && !this.xwinding) { input.click = false; if (G.time > (this.emptyTold || 0)) { this.emptyTold = G.time + 2.5; UI.hint("Unspanned — R to wind it.", 1.6); } }
     // spanning it again (R): the crank wound, the string drawn back to the nut, a bolt laid in the groove
     if (this.xspan < 1 && bolts > 0 && this.xwinding) {
-      const pace = loadPace(this), was = this.xspan; this.xspan = Math.min(1, this.xspan + dt / 2.6 * pace);
+      const pace = loadPace(this), was = this.xspan; this.xspan = Math.min(1, this.xspan + dt / 2.6 * pace * (G.armPace && G.armPace.crossbow || 1));
       this.xcrank.rotation.x += dt * 14 * pace;
       const F = window.__foley;
       // (the windlass ratcheting round, the string caught on the nut, a bolt laid in the groove)
