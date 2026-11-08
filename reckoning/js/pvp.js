@@ -601,7 +601,7 @@ function drawArmy() {
   const tr = (k, T, n, cost, max) => `<div class="pv-tr">${k !== "guns" && plateOf(wayOfUniform(A.uniform), k) ? `<img class="pv-tr-img" src="${plateOf(wayOfUniform(A.uniform), k)}" alt="">` : ""}<span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><b class="pv-tr-c">${n}</b><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
   const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest || (host && must.theirs) ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? (must.theirs ? ` — ${esc(must.foe.name || "the other player")} is ready, so the size of battle is set` : " — you're the host: the size of battle is yours to choose") : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
-    <div class="pv-muster">${Object.entries(TROOPS).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
+    <div class="pv-muster">${Object.entries(TROOPS).filter(([k]) => troopOk(A.uniform, k)).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>` : "";
   if (!A.battle) { el.innerHTML = ""; return; }
   const locked = must && must.mine;
   el.classList.toggle("locked", !!locked);
@@ -788,11 +788,11 @@ export function army() {
   const others = keys.filter(k => k !== uniform);
   const ground = ["open", "ours", "theirs"].includes(a.ground) ? a.ground : "open";
   const purse = PURSES[a.purse] ? +a.purse : 900;
-  const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? livePurse(a) : purse, riding());
+  const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? livePurse(a) : purse, riding(), a.uniform);
   return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)], ground, vs: a.vs === "player" ? "player" : "bots",
     purse: a.vs === "player" ? livePurse(a) : purse, ppurse: prefPurse(a), muster: F.muster, guns: F.guns, sides: fitSides(a.sides), ride: riding() };
 }
-export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900), riding()); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
+export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900), riding(), a.uniform); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
 // ---- the treasury: what a company costs to raise ----
 // Every side has the same purse, and spends it as its commander sees fit: a few men with the best of arms, or many
 // with cheap ones; guns cost dearest of all (and come with their crews)
@@ -841,10 +841,13 @@ export const menOf = A => Object.values(A.muster || {}).reduce((t, n) => t + (n 
 function scaleMuster(a, from, to) {
   if (!from || from === to) return {};
   const k = to / from, m = {}; for (const t in a.muster || {}) m[t] = Math.round((a.muster[t] | 0) * k);
-  const F = fitMuster(m, Math.round((a.guns | 0) * k), to, riding()); return { muster: F.muster, guns: F.guns };
+  const F = fitMuster(m, Math.round((a.guns | 0) * k), to, riding(), a.uniform); return { muster: F.muster, guns: F.guns };
 }
-function fitMuster(m, guns, purse, ride = false) {
-  const out = {}; for (const k in TROOPS) out[k] = Math.max(0, Math.min(MAX_MEN, (m && m[k]) | 0));
+// the men a side may raise: those armed as its colours were — horse for anyone; foot by the arm they carry (no musketeers
+// among the Tatars, no bowmen or crossbowmen in the armies of the West). Colours with no kit of their own: any.
+export const troopOk = (team, k) => { const T = TROOPS[k]; if (!T) return false; if (T.horse || !TEAMS[team]) return true; return T.lo.long !== "none" ? inKit(team, "long", T.lo.long) : inKit(team, "blade", T.lo.blade); };
+function fitMuster(m, guns, purse, ride = false, team = null) {
+  const out = {}; for (const k in TROOPS) out[k] = troopOk(team, k) ? Math.max(0, Math.min(MAX_MEN, (m && m[k]) | 0)) : 0;
   guns = Math.max(0, Math.min(MAX_GUNS, guns | 0));
   const A = { muster: out, guns, ride };
   // (over the purse: a gun given up first, then the dearest men)
@@ -854,10 +857,12 @@ function fitMuster(m, guns, purse, ride = false) {
 }
 // the other side's officer raising his company: a gun or two if the purse runs to it, then men — mostly muskets, the
 // rest as it falls
-function botMuster(purse) {
+function botMuster(purse, team = null) {
   const guns = purse >= 2000 ? 2 + (Math.random() < 0.5 ? 1 : 0) : purse >= 900 ? 1 + (Math.random() < 0.5 ? 1 : 0) : Math.random() < 0.4 ? 1 : 0, m = {};
   let left = purse - guns * GUN_COST;
-  const pick = () => { const r = Math.random(); return r < 0.44 ? "musketeer" : r < 0.52 ? "grenadier" : r < 0.62 ? "pike" : r < 0.72 ? "crossbow" : r < 0.81 ? "bow" : r < 0.89 ? "sword" : r < 0.94 ? "axe" : "cavalry"; };
+  const pick0 = () => { const r = Math.random(); return r < 0.44 ? "musketeer" : r < 0.52 ? "grenadier" : r < 0.62 ? "pike" : r < 0.72 ? "crossbow" : r < 0.81 ? "bow" : r < 0.89 ? "sword" : r < 0.94 ? "axe" : "cavalry"; };
+  // (only the men its colours raise: drawn again till one is, the bowmen of the Tatars, say, in place of musketeers)
+  const pick = () => { for (let i = 0; i < 12; i++) { const k = pick0(); if (troopOk(team, k)) return k; } return Object.keys(TROOPS).find(k => troopOk(team, k)) || "pike"; };
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
   return { muster: m, guns };
 }
@@ -1163,7 +1168,7 @@ class Arena {
         this.musters = []; this.gunsBought = [];
         if (HB) this.cos.forEach((c, i) => { const H = this.hist.cos[i]; this.musters.push(Object.entries(H.muster).flatMap(([k, n]) => Array(n | 0).fill(k))); c.guns = Math.min(2, H.guns | 0); c.hold = H.hold; this.gunsBought.push(c.guns); });
         else this.cos.forEach((c, i) => {
-          const M = i ? botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1)) : A;
+          const M = i ? botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), this.uni && Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[c.al ?? i])) : A;
           let l = list(M); if (i) { l.sort(() => Math.random() - 0.5); l = l.slice(0, per); }
           this.musters.push(l); c.guns = i ? Math.min(M.guns | 0, many ? 1 : 2) : Math.min(A.guns | 0, N === 2 ? 3 : 2); this.gunsBought.push(c.guns);
         });
@@ -1176,7 +1181,7 @@ class Arena {
       // (a battle: each side's company as its purse raised it — yours as you mustered it; theirs as their officer, or
       //  the other player, did)
       if (this.battle && !this.remote && !this.custom) {
-        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride)) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1));   // (an easy officer's company a little the smaller)
+        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride), foe.army && foe.army.uniform) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), A.enemyUniform);   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;

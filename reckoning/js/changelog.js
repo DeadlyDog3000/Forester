@@ -11,6 +11,7 @@ export const CHANGELOG = [
     items: [
       "Battles against another player: when the host changes the size of battle, the other player's company is raised (or cut down) to match it, the same make-up in proportion, instead of staying the size it was — a host could choose a grand battle and meet a company raised for a small one. Once the other player says they're ready, the size is set and can't be changed under them.",
       "Battles against another player: each side carries only its colours' own arms, whatever the other game sends — a Tatar has the bow, the sabre and the lance, never a musket.",
+      "Every side raises only the men its colours armed: the Tatars horse, bowmen, swordsmen and lancers, never musketeers; the armies of the West musketeers, grenadiers, pikes, swords and horse, never bowmen; the Ottomans and Muscovites their axes too. The same holds for the computer's companies and the other player's. Crossbowmen, long gone from every army of 1683, are no longer raised.",
     ],
   },
   {
