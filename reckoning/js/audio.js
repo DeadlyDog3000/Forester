@@ -72,6 +72,19 @@ function loadVoices(a) {
     fetch(new URL(`../art/voice/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
       .then(b => a.decodeAudioData(b)).then(b => (VBUF[k] ||= []).push(b)).catch(() => {});
 }
+// ---- the orders, shouted: an officer's or a sergeant's word of command at the top of his voice — "Make ready!",
+// "Present!", "Fire!", "Charge!" — recorded, several voices of each; art/voice/orders.json says which there are (and
+// till there are any, an order is given in silence) ----
+const OBUF = {}, OLAST = {};
+let oLoad = null;
+function loadOrders(a) {
+  if (oLoad) return; oLoad = true;
+  fetch(new URL("../art/voice/orders.json", import.meta.url)).then(r => r.ok ? r.json() : Promise.reject()).then(N => {
+    for (const [k, n] of Object.entries(N)) for (let i = 0; i < n; i++)
+      fetch(new URL(`../art/voice/order_${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+        .then(b => a.decodeAudioData(b)).then(b => (OBUF[k] ||= []).push(b)).catch(() => {});
+  }).catch(() => {});
+}
 // (which of them for each cry: a scream of fear is a dying man's, cut short; a sob, a short moan)
 const VOICE_OF = { pain: "pain", death: "death", fear: "death", moan: "moan", sob: "moan", grunt: "grunt" };
 // (the cries kept under the field's other sound, not over it: a man's cry carries, but it isn't a shriek in your ear)
@@ -96,7 +109,7 @@ function ctx() {
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
   ac = window.__foresterAC;
   if (!ac) return null;
-  budget(ac); loadVoices(ac);
+  budget(ac); loadVoices(ac); loadOrders(ac);
   bus = ac.createGain(); bus.gain.value = 1;
   // (and a limiter on it, as the first Forester's sounds have: a battle's cries and shots, all of them heard now, summed
   //  past full scale and broke up; caught and rounded over instead — nothing alone comes near it)
@@ -222,6 +235,19 @@ const VOWELS = { a: [[800, 1], [1200, 0.5], [2600, 0.2]], ae: [[660, 1], [1700, 
 
 export const AUDIO = {
   init: ctx,
+  // an order shouted: key one of the orders (see loadOrders); at: where the man shouting it stands (null: you); delay:
+  //  seconds from now. A different voice of the recordings each time, a woman's higher; heard a long way off, as they
+  //  were meant to be
+  order(key, { at = null, vol = 1, high = false, delay = 0 } = {}) {
+    const a = ctx(); if (!a) return 0;
+    const list = OBUF[key]; if (!list || !list.length) return 0;
+    const { node, k } = placed(a, at, 140); if (k * vol < 0.02 || !room(at ? Math.min(1, 0.6 + k * vol) : 1)) return 0;
+    let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === OLAST[key]) i = (i + 1) % list.length; OLAST[key] = i;
+    const s = a.createBufferSource(), g = a.createGain(), t = a.currentTime + Math.max(0, delay);
+    s.buffer = list[i]; s.playbackRate.value = high ? rnd(1.14, 1.2) : rnd(0.96, 1.03);
+    g.gain.value = 1.1 * vol * k; s.connect(g); g.connect(node); s.start(t);
+    return list[i].duration / s.playbackRate.value;
+  },
   // a footfall on whatever is underfoot: grass, leaves, dirt, stone, wood, snow, marsh.
   // vol is how loud (distance already taken off); heavy is a big man in boots; at, where the foot fell (to your left or
   // right, and dulled with distance); kit, a soldier's — the charges on his bandolier knocking, his sword in its scabbard

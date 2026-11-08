@@ -20,3 +20,7 @@ Men crying out — in pain, dying, groaning, and the grunts of effort — cut fr
 - **death_22.ogg, death_23.ogg, moan_15.ogg** — from "long scream.mp3" by doctorsex. CC0 — http://creativecommons.org/publicdomain/zero/1.0/. Source: https://freesound.org/people/doctorsex/sounds/699908/
 - **grunt_23.ogg, grunt_24.ogg, grunt_25.ogg, grunt_26.ogg, grunt_27.ogg, grunt_28.ogg, grunt_29.ogg, grunt_30.ogg, grunt_31.ogg** — from "Soft Male Vocal, Short Pained/Exhertion Groans" by salemaudio. CC0 — http://creativecommons.org/publicdomain/zero/1.0/. Source: https://freesound.org/people/salemaudio/sounds/803168/
 - **moan_16.ogg, moan_17.ogg, moan_18.ogg, pain_16.ogg** — from "Man in excruciating pain" by Sebasteks. CC0 — http://creativecommons.org/publicdomain/zero/1.0/. Source: https://freesound.org/people/Sebasteks/sounds/876075/
+
+## The shouted orders
+
+- **order_*.ogg** (with **orders.json**) — the words of command ("Make ready!", "Present!", "Fire!", "Charge!" and the rest), made for this game with Google Gemini's text-to-speech (reckoning/tools/gen_orders.py), each in four voices; DeadlyDog Productions' own. Trimmed, levelled and encoded to Opus for the game.

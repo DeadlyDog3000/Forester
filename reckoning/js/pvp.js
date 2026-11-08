@@ -1937,17 +1937,20 @@ class Arena {
     if (!theirs.length || !ours.length) return;
     const cen = l => ({ x: l.reduce((s, u) => s + u.pos.x, 0) / l.length, z: l.reduce((s, u) => s + u.pos.z, 0) / l.length });
     const a = cen(theirs), b = cen(ours), d = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-    const shout = () => { const o = theirs[0]; AUDIO.voice && AUDIO.voice("war", { at: o.pos, vol: 0.9, high: isF(o.info.look) }); };
+    // (their officer's word of command, heard across the field: "Present!", and "Fire!" as their muskets go off)
+    const shout = (lead = 1.1) => { const o = theirs[0]; if (!o || !AUDIO.order) return; const me = { at: o.pos, vol: 0.95, high: isF(o.info.look) }; if (lead > 0.6) AUDIO.order("present", me); AUDIO.order("volley", { ...me, delay: Math.max(0, lead - 0.05) }); };
+    // (and his other words: "Form square!", "Forward!", "Charge!", "Fall back!")
+    const call = key => { const o = theirs[0]; if (o && AUDIO.order) AUDIO.order(key, { at: o.pos, vol: 0.95, high: isF(o.info.look) }); };
     // (horse coming at them: a seasoned officer forms square till it's past — and back into line after)
     { const horse = ours.filter(u => (u.isPlayer ? !!G.player.horse : u.mounted) && Math.hypot(u.pos.x - a.x, u.pos.z - a.z) < 24).length, gen0 = K.gen ?? generalship();
-      if (horse >= 1 && gen0 > 0.4 && O.form !== "square" && !O.charge) { K.lineForm = O.form; O.form = "square"; shout(); }
+      if (horse >= 1 && gen0 > 0.4 && O.form !== "square" && !O.charge) { K.lineForm = O.form; O.form = "square"; call("square"); }
       else if (!horse && O.form === "square" && K.lineForm !== undefined) { O.form = K.lineForm; K.lineForm = undefined; } }
     // (holding a fort: they stay on its wall and fire, volley as you come, and only go at you with the steel when you're
     //  inside it)
     if (this.fortSide === 1) {
       const F = this.field.fortAt, inFort = ours.some(u => (u.pos.x - F.front) * F.sx > -0.5 && (u.pos.x - F.back) * F.sx < 0.5 && Math.abs(u.pos.z - F.z) < F.W);
       O.charge = inFort;
-      if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) { K.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(); }
+      if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) { K.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(1.1); }
       return;
     }
     // (holding a palisaded town: they stay inside it, at the stakes, and loose and fire through the gaps as you come on;
@@ -1959,7 +1962,7 @@ class Arena {
       const breached = ours.some(inside);
       O.charge = breached; O.cover = !breached;
       if (!breached) { O.mode = "hold"; O.at = K.palAt ||= { x: cx + ((front ? front.x : cx) - cx) * 0.6, z: cz }; }
-      if ((K.volT -= dt) <= 0 && d < 70 && !O.charge) { K.volT = 7 + Math.random() * 5; O.volleyAt = G.time + 1.1; O.fire = true; shout(); }
+      if ((K.volT -= dt) <= 0 && d < 70 && !O.charge) { K.volT = 7 + Math.random() * 5; O.volleyAt = G.time + 1.1; O.fire = true; shout(1.1); }
       return;
     }
     // his generalship, as your record has earned you an opponent: a green officer is rash — on at you and in with the
@@ -1982,12 +1985,12 @@ class Arena {
     // (your charge coming on: he meets it with every loaded musket at a dozen paces — then the steel at it)
     const youCharge = !!this.orders[fc] && this.ordersOf(fc).some(o => o.charge);
     if (youCharge && !O.charge && gen > 0.4) {
-      if (d < 26 && theirsLoaded > 0.4 && G.time - (K.metAt || -99) > 8) { K.metAt = G.time; O.volleyAt = G.time + 0.35; O.fire = true; shout(); }
-      if (d < 11 || (K.metAt && G.time - K.metAt > 1.2 && d < 18)) { O.charge = true; O.cover = false; K.chargedAt = G.time; shout(); }
+      if (d < 26 && theirsLoaded > 0.4 && G.time - (K.metAt || -99) > 8) { K.metAt = G.time; O.volleyAt = G.time + 0.35; O.fire = true; shout(0.35); }
+      if (d < 11 || (K.metAt && G.time - K.metAt > 1.2 && d < 18)) { O.charge = true; O.cover = false; K.chargedAt = G.time; call("charge"); }
     }
     // (the fewer, and a head on him: he stays where he is, in cover, and lets you come on into his fire)
     if (O.mode === "hold") O.cover = outnumbered && !O.charge;
-    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; shout(); }
+    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; call("advance"); }
     const needRatioK = L(0.9, 1.35);
     // the advance, as the drill had it: a march of some paces, the line kept together — then, once in range, a halt and
     // a volley — and on again, until they're close enough for the steel
@@ -1998,7 +2001,7 @@ class Arena {
         // (the first volley held until it'll tell: the seasoned officer halts well inside a musket-shot, not at its end)
         const telling = d < RANGE.musket * this.sight * L(1, 0.6);
         adv.march = !adv.march || !telling; adv.until = G.time + (adv.march ? 7 + Math.random() * 3 : 5 + Math.random() * 2);
-        if (!adv.march) { O.volleyAt = G.time + 0.9; shout(); if (telling && !K.firedAt) K.firedAt = G.time; }
+        if (!adv.march) { O.volleyAt = G.time + 0.9; shout(0.9); if (telling && !K.firedAt) K.firedAt = G.time; }
       }
       if (adv.march) {
         // (on only as fast as the line keeps up: the men in their places, near enough)
@@ -2017,18 +2020,18 @@ class Arena {
     // (or yours is all anyhow — strung out on the march, men off on their own — and his isn't)
     const spread = l => { const c = cen(l); return l.reduce((s2, u) => s2 + Math.hypot(u.pos.x - c.x, u.pos.z - c.z), 0) / l.length; };
     const broken = gen > 0.6 && nO > 3 && spread(ours) > spread(theirs) * 1.8 && ratio >= 0.9;
-    if (!O.charge && d < chargeD && (ratio >= needRatio || caught || broken || nO <= 2 || t > K.holdFor + patience)) { O.charge = true; O.cover = false; K.chargedAt = G.time; shout(); }
+    if (!O.charge && d < chargeD && (ratio >= needRatio || caught || broken || nO <= 2 || t > K.holdFor + patience)) { O.charge = true; O.cover = false; K.chargedAt = G.time; call("charge"); }
     // (a charge going against him, called off — the men back to re-form at a musket-shot, and the firing taken up again)
     if (O.charge && gen > 0.45 && G.time - (K.chargedAt || 0) > 6 && ratio < L(0.5, 0.75) && nO > 2) {
       O.charge = false; O.mode = "advance"; const away = Math.hypot(a.x - b.x, a.z - b.z) || 1;
-      O.at = { x: a.x + (a.x - b.x) / away * 14, z: a.z + (a.z - b.z) / away * 14 }; K.adv = { march: false, until: G.time + 8 }; K.cmdT = 8; shout();
+      O.at = { x: a.x + (a.x - b.x) / away * 14, z: a.z + (a.z - b.z) / away * 14 }; K.adv = { march: false, until: G.time + 8 }; K.cmdT = 8; call("fallback");
     }
     // (taking losses where he stands: answered at once, with whatever's loaded)
     if (K.nWas != null && nT < K.nWas) K.hitAt = G.time; K.nWas = nT;
     if (K.hitAt && G.time - K.hitAt < 1.5 && !O.charge && d < RANGE.musket * this.sight + 10 && theirsLoaded > 0.3 && K.volT > 1.2) K.volT = 0.5 + Math.random() * 0.6;
     // the volleys: on a clock, if he's rash; when his men are loaded and you're in range, if he isn't
     if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) {
-      if (gen < 0.3 || (theirsLoaded > 0.7 && inRange)) { K.volT = L(11, 6) + Math.random() * L(8, 3); O.volleyAt = G.time + 1.1; shout(); }
+      if (gen < 0.3 || (theirsLoaded > 0.7 && inRange)) { K.volT = L(11, 6) + Math.random() * L(8, 3); O.volleyAt = G.time + 1.1; shout(1.1); }
       else K.volT = 1;
     }
   }
@@ -2259,31 +2262,32 @@ class Arena {
     return this.ordersOf(team);
   }
   giveNow(id) {
-    const O = this.selOrders(), pl = G.player, say = (t, v = "war") => { UI.hint(this.sel ? `${GROUPS.find(g => g.id === this.sel).name}: ${t}` : t, 2.2); AUDIO.voice && AUDIO.voice(v, { high: G.who === "sister", vol: 0.8 }); };
+    // (the order given aloud, in words, at the top of your voice — key: which of the shouted orders; see audio.js order)
+    const O = this.selOrders(), pl = G.player, shout = (key, delay = 0) => AUDIO.order && AUDIO.order(key, { high: G.who === "sister", delay }), say = (t, key) => { UI.hint(this.sel ? `${GROUPS.find(g => g.id === this.sel).name}: ${t}` : t, 2.2); if (key) shout(key); };
     const all = this.ordersFor(0, this.sel), pos = { x: pl.pos.x, z: pl.pos.z }, go = (at, tgt) => { for (const o of all) this.applyOrder(0, o, id, at, pos, tgt); };
-    if (id.startsWith("form:")) { go(); say(`${FORM_WORD[O.form] || "Form up"}!`); return; }
+    if (id.startsWith("form:")) { go(); say(`${FORM_WORD[O.form] || "Form up"}!`, O.form); return; }
     switch (id) {
-      case "follow": { go(); const n = this.rally(0, pl.pos); say(n ? `Rally! On me! — ${n} back in the ranks` : "On me — fall in!"); break; }
-      case "hold": go(); this.mark(pos); say("Halt! Hold here."); break;
-      case "advance": { const at = this.lookPoint(); go(at); this.mark(at); say("Forward — there!"); break; }
-      case "cover": go(); say("Get down — take cover!"); break;
-      case "fire": { const on = !O.fire; for (const o of all) o.fire = on; say(on ? "Fire at will!" : "Hold your fire!"); break; }
-      case "volley": go(); say("Make ready… present… fire!"); break;
+      case "follow": { go(); const n = this.rally(0, pl.pos); say(n ? `Rally! On me! — ${n} back in the ranks` : "On me — fall in!", "follow"); break; }
+      case "hold": go(); this.mark(pos); say("Halt! Hold here.", "hold"); break;
+      case "advance": { const at = this.lookPoint(); go(at); this.mark(at); say("Forward — there!", "advance"); break; }
+      case "cover": go(); say("Get down — take cover!", "cover"); break;
+      case "fire": { const on = !O.fire; for (const o of all) o.fire = on; say(on ? "Fire at will!" : "Hold your fire!", on ? "fire" : "holdfire"); break; }
+      case "volley": go(); say("Make ready… present… fire!", "ready"); shout("present", 0.55); shout("volley", 1.05); break;
       case "target": {
         const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
         let best = null, ba = 0.12;
         for (const u of this.enemiesOf(0)) { const v = new THREE.Vector3(u.pos.x - camera.position.x, u.pos.y + 1.2 - camera.position.y, u.pos.z - camera.position.z), d = v.length(); if (d > 150) continue; const ang = v.normalize().angleTo(dir); if (ang < ba) { ba = ang; best = u; } }
         if (!best) { UI.hint("Look at the man you want brought down, then give the order.", 2.5); return; }
-        go(null, best); this.mark(best.pos, 0xd86a50); say("That one — bring him down!"); break;
+        go(null, best); this.mark(best.pos, 0xd86a50); say("That one — bring him down!", "target"); break;
       }
-      case "charge": { const on = !O.charge; for (const o of all) { o.charge = on; if (on) o.cover = false; } say(on ? "Charge!" : "Halt — fall back in!"); break; }
+      case "charge": { const on = !O.charge; for (const o of all) { o.charge = on; if (on) o.cover = false; } say(on ? "Charge!" : "Halt — fall back in!", on ? "charge" : "fallback"); break; }
       case "guns:there": case "guns:will": case "guns:abandon": {
         if (!this.field || !this.field.guns.some(g => g.side === 0)) { UI.hint("Your company has no guns here.", 2); return; }
-        if (id === "guns:abandon") { const on = !(this.abandoned && this.abandoned[0]); this.abandonGuns(0, on); say(on ? "Leave the guns — fall in with the line!" : "Back to your guns!"); break; }
+        if (id === "guns:abandon") { const on = !(this.abandoned && this.abandoned[0]); this.abandonGuns(0, on); say(on ? "Leave the guns — fall in with the line!" : "Back to your guns!", on ? "follow" : "guns"); break; }
         if (this.abandoned && this.abandoned[0]) this.abandonGuns(0, false);
         this.gunsOn = id === "guns:there";
         const at = this.gunsOn ? this.lookPoint() : null; this.field.order(0, at); if (at) this.mark(at, 0xd86a50);
-        say(this.gunsOn ? "Guns — on that ground there!" : "Guns — fire at will!"); break;
+        say(this.gunsOn ? "Guns — on that ground there!" : "Guns — fire at will!", "guns"); break;
       }
     }
   }
