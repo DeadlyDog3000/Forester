@@ -13,7 +13,7 @@ import { renderFrame, post, warmViews, warmOnce } from "./post.js";
 import { reflectWater } from "./water.js";
 import { SunLight } from "../lib/lights/SunLight.js";
 export { post };
-import { addBayonet, makeMusket, makePistol, makeCrossbow, shoulderArm, pikeHold, lodGuns, rigLod, rigFar, fpMusket, SIGHT_Z } from "./models.js";
+import { addBayonet, makeMusket, makePistol, makeCrossbow, makeBow, bowString, shoulderArm, pikeHold, lodGuns, rigLod, rigFar, fpMusket, SIGHT_Z } from "./models.js";
 import { makeFPArms, gripAt, wrapHand, restArm, handAt, closeHand } from "./fparms.js";
 import { LOAD, loadPose, loadSteps, rodEnds } from "./reload.js";
 import { powderSmoke, muzzleFlash, panPuff } from "./powder.js";
@@ -25,6 +25,7 @@ import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
 import { tickTemperature } from "./temperature.js";
 import { roomFor, freshBody, practise, damageTaken, rattle, healDelay, healRate, staminaDrain, aimSteady, hungerTick, ILLS, BODY_SKILLS, ROCKS, ITEM, TIER_NAME, skillK, loseSkills, wearTool } from "./body.js";
+const _bsA = new THREE.Vector3(), _bsN = new THREE.Vector3(), _bsB = new THREE.Vector3();   // (the bowstring's three points, each frame)
 // (what's only ever thrust, never swung: the spear, and a musket with its bayonet fixed)
 const THRUST = new Set(["spear", "bayonet"]);
 const SHORT = new Set(["sword", "dagger"]);
@@ -728,14 +729,12 @@ export class Player {
     if (on && !this.bow) {
       if (this.axe) this.holsterAxe(true);
       const g = new THREE.Group(); g.rotation.order = "YXZ";
-      const m = modelCopy("bow");
-      const limbs = m ? m.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a }));
+      const limbs = makeBow();
       G.armSkin && G.armSkin(limbs, "bow");
       limbs.rotation.y = Math.PI;                    // its belly toward you, the tips drawn back toward you
       limbs.traverse(o => { if (o.isMesh) o.castShadow = false; });
       g.add(limbs);
-      const sg = new THREE.BufferGeometry(); sg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(9), 3));
-      this.bowString = new THREE.Line(sg, new THREE.LineBasicMaterial({ color: 0xe8e0c8 }));
+      this.bowStr = bowString(0.0013); this.bowString = this.bowStr.obj;
       g.add(this.bowString);
       const am = modelCopy("arrow");
       this.nocked = new THREE.Group();
@@ -779,9 +778,7 @@ export class Player {
     const back = 0.15, L = 0.66, nockZ = back + 0.02 + e * 0.4;
     // (the string, let go, shivers back and forth a few times and is still)
     const shiver = rel > 0 ? Math.sin((1 - rel) * 70) * 0.03 * rel : 0;
-    const a = this.bowString.geometry.attributes.position;
-    a.setXYZ(0, 0, L, back); a.setXYZ(1, 0, 0.012, nockZ + shiver); a.setXYZ(2, 0, -L, back); a.needsUpdate = true;
-    this.bowString.geometry.computeBoundingSphere();
+    this.bowStr.set(_bsA.set(0, L, back), _bsN.set(0, 0.012, nockZ + shiver), _bsB.set(0, -L, back));
     const RL = 0.9, p = this.reload > 0 ? 1 - this.reload / RL : 1, ez = x => x * x * (3 - 2 * x);
     // the drawing hand: on the string; or flown back after the shot; or away to the quiver and back with an arrow
     const hx = 0.02, hy = 0.0, hz = nockZ + 0.03;

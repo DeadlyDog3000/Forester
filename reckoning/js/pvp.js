@@ -19,7 +19,7 @@ import { full, gate } from "./licence.js";
 import { Woods, HUNT } from "./woods.js";
 import { Hunt, arrowSpeed } from "./hunt.js";
 import { WIND, strikeYou, blowLands, glint, stanceTick, slowMo, burst, killMark, chestOf } from "./fight.js";
-import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, bowHold, makeHorse, mergeRig, makeLadder } from "./models.js";
+import { makeArm, makeBow, modelCopy, shoulderArm, addBayonet, pikeHold, bowHold, makeHorse, mergeRig, makeLadder } from "./models.js";
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
@@ -98,6 +98,9 @@ function fitLoad(l, keep) {
 const AMMO = { bow: 20, crossbow: 12 };
 const RELOAD = { musket: 6.5, pistol: 4.2, bow: 0.9, crossbow: 2.6 };
 const RANGE = { musket: 100, pistol: 12, bow: 38, crossbow: 45 };   // (a musket's reach: the two lines as they first stand, and a little more)
+// (in a battle, a line of bowmen looses at a line of men, not one man: arrows dropped into the mass from well out —
+//  the Tatars' composite bows carried a long way — so they shoot before the muskets close, not only at forty paces)
+const BATTLE_RANGE = { ...RANGE, bow: 85, crossbow: 70 };
 const HP = 100, ROUNDS_TO_WIN = 2, ROUND_SECS = 150;
 
 // what a shot or an arrow does to a man (by its power, as the hunt tells it): a musket ball, a pistol's, a bolt, an
@@ -3222,7 +3225,7 @@ class Fighter {
     if (!k) return;
     // (another player's arms: in their finishes)
     const SK = !this.info.bot && this.info.lo && this.info.lo.skin, sk = (o, kk) => SK && SK[kk === "bayonet" ? "musket" : kk] && skinArm(o, kk, SK[kk === "bayonet" ? "musket" : kk]);
-    if (k === "bow") { const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a })); sk(bow, "bow"); if (!bowHold(P, bow)) { bow.rotation.set(0, Math.PI / 2, 0); this.a.hold(bow, true); } return; }
+    if (k === "bow") { const bow = makeBow(); sk(bow, "bow"); if (!bowHold(P, bow)) { bow.rotation.set(0, Math.PI / 2, 0); this.a.hold(bow, true); } return; }
     if (k === "crossbow" || k === "musket" || k === "pistol") { this.gun = shoulderArm(P, k); sk(this.gun, k); return; }
     // (a spear or the bayonet: in both hands, as a pike — see pikeHold; anything else in the right hand)
     const arm = makeArm(k); arm.traverse(o => { if (o.isMesh) o.castShadow = true; }); sk(arm, k);
@@ -3666,14 +3669,14 @@ class Bot extends Fighter {
       // (on the march, loaded, and a man of theirs in range and in sight: he halts, presents, fires — and loads as he
       //  goes on again)
       // (only in loose order, though: a line on the march keeps its place and fires when it's halted and given the word)
-      const engage = O.form === "loose" && useK && useK !== "bow" && O.fire && this.los && O.mode === "advance" && d < RANGE[useK] * this.arena.sight * 0.8;
+      const engage = O.form === "loose" && useK && useK !== "bow" && O.fire && this.los && O.mode === "advance" && d < BATTLE_RANGE[useK] * this.arena.sight * 0.8;
       if (gd > 1.4 && !engage) {
         this.aimT = 0; this.aimUp(false); a.person.setPose("idle");
         if (!a.path.length || this.stepT <= 0) { this.stepT = 0.5; a.walkTo(goal.x, goal.z, gd > 6 || O.mode === "advance" ? 3.4 + s * 0.8 : 1.8); }
         return;
       }
       a.path = [];
-      if (!useK || !O.fire || !this.los || d > RANGE[useK] * this.arena.sight) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
+      if (!useK || !O.fire || !this.los || d > BATTLE_RANGE[useK] * this.arena.sight) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
       if (this.heldK !== useK) { this.hold(useK); this.aimT = -0.5; }
       a.faceTo(fp.x, fp.z); a.person.setPose("idle"); this.aimUp(true);
       this.aimT += dt;
@@ -3726,9 +3729,13 @@ class Bot extends Fighter {
       const power = k === "bow" ? 0.95 : 1.75, v = arrowSpeed(power, k === "crossbow");
       const to = new THREE.Vector3(tp.x, tp.y + (low ? 0.95 : 1.25), tp.z), flight = from.distanceTo(to) / v;
       if (tv) to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), flight * (0.4 + s * 0.6));
-      to.y += 4.9 * flight * flight;
-      const dir = to.sub(from).normalize(), wob = 0.075 - s * 0.06;
-      dir.x += (Math.random() - 0.5) * wob; dir.y += (Math.random() - 0.5) * wob * 0.6; dir.z += (Math.random() - 0.5) * wob; dir.normalize();
+      // (the arc laid as an archer lays it: the low angle that drops the arrow onto him at that range — a long shot
+      //  goes up a good way, and comes down into the line)
+      const hx = Math.hypot(to.x - from.x, to.z - from.z), hy = to.y - from.y, g = 9.8, v2 = v * v, disc = v2 * v2 - g * (g * hx * hx + 2 * hy * v2);
+      const ang = disc > 0 ? Math.atan((v2 - Math.sqrt(disc)) / (g * hx)) : Math.PI / 4;
+      const dir = new THREE.Vector3((to.x - from.x) / hx * Math.cos(ang), Math.sin(ang), (to.z - from.z) / hx * Math.cos(ang)), wob = 0.075 - s * 0.06;
+      // (in a battle the line stands to it, and its shots go the steadier for it — wide of the man, more than short or long)
+      dir.x += (Math.random() - 0.5) * wob; dir.y += (Math.random() - 0.5) * wob * (this.arena.battle ? 0.22 : 0.6); dir.z += (Math.random() - 0.5) * wob; dir.normalize();
       from.addScaledVector(dir, 0.3);
       this.arena.hunt.loose(from, dir, power, k === "crossbow", this, atYou);
       if (this.arena.hearable(a.pos)) AUDIO.twang && AUDIO.twang(k === "crossbow" ? 1.2 : 0.8);

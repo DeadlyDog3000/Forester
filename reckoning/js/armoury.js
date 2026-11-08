@@ -14,7 +14,7 @@
 // Kept on this computer, as your record is.
 
 import { THREE } from "./core.js";
-import { makeArm, makeCrossbow, modelCopy, ensureModel, fpMusket } from "./models.js";
+import { makeArm, makeCrossbow, makeBow, modelCopy, ensureModel, fpMusket } from "./models.js";
 
 // (the third armoury, 1.99.254: everyone begun again once more — the first's and second's purses and arms set aside)
 const KEY = "reckoning.armoury.3";
@@ -389,7 +389,7 @@ export function fitUps(obj, kind, ups = {}) {
 export function makeFor(kind, ups = {}) {
   // (the musket on the table as it is in your hands: its lock, and its sights if it has them)
   if (kind === "musket") { const m = fpMusket({ sights: !!ups.sights }); if (m) return m; }
-  if (kind === "bow") { const m = modelCopy("bow"); if (!m) return null; const g = new THREE.Group(); g.add(m.scene); return g; }
+  if (kind === "bow") { const g = new THREE.Group(), b = makeBow({ string: true }); b.rotation.y = Math.PI; g.add(b); return g; }
   if (kind === "crossbow") return makeCrossbow();
   return makeArm(kind);
 }

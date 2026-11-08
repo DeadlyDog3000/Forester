@@ -21,7 +21,7 @@ import { THREE, Builder, MAT, mat, clamp, TAU, groundTexture, prismGeo, rng, add
 import { G, Actor, sfxEngine } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
-import { makeStump, modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, bowHold, SWAY, addSway, swayGeo } from "./models.js";
+import { makeStump, makeBow, modelCopy, makeAxe, makeArm, makeLogs, ensureModel, makeHorse, makeSpade, makeSheaf, makeSack, bowHold, SWAY, addSway, swayGeo } from "./models.js";
 import { arrowSpeed } from "./hunt.js";
 import { wallVis, wallEnds, WALL_H } from "./walls.js";
 import { Smoke, Breath, chimneyMark } from "./smoke.js";
@@ -2808,7 +2808,7 @@ export class Town {
         // meat and the hide carried home; missed, it bolts, and there's another try or two before they give it up
         const H = G.hunt; let cur = null;
         a.doing = "hunting in the deer ride";
-        const bm = modelCopy("bow"), bow = bm ? bm.scene : new THREE.Mesh(new THREE.BoxGeometry(0.02, 1.3, 0.03), new THREE.MeshStandardMaterial({ color: 0x7a4e2a }));
+        const bow = makeBow();
         const held = bowHold(a.person, bow); if (!held) { bow.rotation.set(0, Math.PI / 2, 0); a.hold(bow, true); }
         try {
           const ang = Math.random() * Math.PI * 2;
