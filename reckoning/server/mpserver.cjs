@@ -1477,6 +1477,9 @@ async function start(opts = {}) {
     if (u.pathname.startsWith("/list/")) { mailList.handle(u, req, res).catch(e => { log("list:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the battles fought, as they were: sent in when each is over; listed (the latest, or a commander's best); fetched
     if (u.pathname === "/replays" || u.pathname.startsWith("/replays/")) return replays(u, res, req);
+    // the week's challenge: its board; and how the colours fare, battle by battle, counted
+    if (u.pathname === "/challenge") return challenge(u, res, req);
+    if (u.pathname === "/balance") return balance(u, res, req);
     res.statusCode = 404; res.end("{}");
   });
   // ---- replays: every battle recorded on the games that fought it, kept here for anyone to watch ----
@@ -1543,6 +1546,60 @@ async function start(opts = {}) {
         fs.mkdir(repDir, { recursive: true }, () => fs.writeFile(repFile(id), buf, er => { if (er) { res.statusCode = 500; return res.end(JSON.stringify({ error: "couldn't keep it" })); } done(); }));
       });
     });
+  }
+  // ---- small bodies sent in: read whole, refused past a few KB ----
+  const bodyOf = (req, max = 4096) => new Promise(ok => { let d = "", over = false; req.on("data", c => { d += c; if (d.length > max) { over = true; req.destroy(); } }); req.on("end", () => { if (over) return ok(null); try { ok(JSON.parse(d)); } catch (e) { ok(null); } }); req.on("error", () => ok(null)); });
+  const askedTooOften = (map, req, n, ms) => { const ip = ipOf(req), t = now(), l = (map.get(ip) || []).filter(x => t - x < ms); if (l.length >= n) return true; l.push(t); map.set(ip, l); return false; };
+  const keepFile = (file, get) => { let T = null; return () => { if (!file || T) return; T = setTimeout(() => { T = null; try { fs.writeFileSync(file + ".tmp", JSON.stringify(get())); fs.renameSync(file + ".tmp", file); } catch (e) { log("couldn't keep " + path.basename(file) + ": " + e.message); } }, 2000); }; };
+  const readFile = (file, d) => { try { if (file && fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8")) || d; } catch (e) {} return d; };
+  const corsPost = (req, res) => { if (req.method !== "OPTIONS") return false; res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Token"); res.statusCode = 204; res.end(); return true; };
+  // ---- the week's challenge: the same field and the same two companies for everyone (the game makes them from the
+  //  week), and each commander's best result that week — kept eight weeks ----
+  // (the ISO week, as the game reckons it: "2026-W45")
+  const weekOf = t => { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); const y0 = Date.UTC(d.getUTCFullYear(), 0, 1); return `${d.getUTCFullYear()}-W${String(Math.ceil(((d - y0) / 864e5 + 1) / 7)).padStart(2, "0")}`; };
+  const chFile = dataDir ? path.join(dataDir, "challenge.json") : null;
+  let chData = readFile(chFile, {}); const chAsks = new Map(), chSave = keepFile(chFile, () => chData);
+  const chPublic = r => ({ name: r.name, score: r.score, won: r.won, k: r.k, l: r.l, secs: r.secs, rep: r.rep || "", at: r.at });
+  async function challenge(u, res, req) {
+    if (corsPost(req, res)) return;
+    if (req.method === "GET") {
+      const q = String(u.searchParams.get("week") || ""), wk = /^\d{4}-W\d{2}$/.test(q) ? q : weekOf(now()), all = Object.entries(chData[wk] || {});
+      const pid = String(u.searchParams.get("pid") || ""), list = all.map(([p, r]) => r).sort((a, b) => b.score - a.score || a.at - b.at);
+      const mine = pid ? all.find(([p]) => p === pid) : null, place = mine ? list.indexOf(mine[1]) + 1 : 0;
+      return res.end(JSON.stringify({ ok: true, week: wk, n: list.length, list: list.slice(0, 25).map(chPublic), mine: mine ? { ...chPublic(mine[1]), place } : null }));
+    }
+    if (req.method !== "POST") { res.statusCode = 405; return res.end("{}"); }
+    if (askedTooOften(chAsks, req, 20, 600000)) { res.statusCode = 429; return res.end(JSON.stringify({ error: "too many" })); }
+    const m = await bodyOf(req), token = String(req.headers["x-token"] || "");
+    if (!m || token.length < 16) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad" })); }
+    // (this week's, or last week's in the first hours of the new one: a battle begun on Sunday night still counts)
+    const wk = String(m.week || ""); if (wk !== weekOf(now()) && wk !== weekOf(now() - 6 * 3600000)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "not this week" })); }
+    const pid = pidOf(token), r = { name: clean(m.name, 24) || "Stranger", score: Math.max(0, Math.min(5000, Math.round(num(m.score)))), won: !!m.won, k: Math.max(0, Math.min(400, num(m.k) | 0)), l: Math.max(0, Math.min(400, num(m.l) | 0)), secs: Math.max(0, Math.min(7200, Math.round(num(m.secs)))), rep: /^[a-f0-9]{12}$/.test(String(m.rep || "")) ? m.rep : "", at: now() };
+    const W = chData[wk] ||= {}, was = W[pid], better = !was || r.score > was.score;
+    if (better) W[pid] = r; else if (r.rep && !was.rep && r.score === was.score) was.rep = r.rep;
+    for (const k of Object.keys(chData).sort().slice(0, -8)) delete chData[k];
+    chSave();
+    const list = Object.values(W).sort((a, b) => b.score - a.score || a.at - b.at);
+    return res.end(JSON.stringify({ ok: true, best: better, place: list.indexOf(W[pid]) + 1, n: list.length, score: W[pid].score }));
+  }
+  // ---- how the colours fare: each battle's two colours, its size and who won, counted — no name, no id, nothing of who
+  //  fought it; read back as each colour's wins and losses, against bots and against players ----
+  const balFile = dataDir ? path.join(dataDir, "balance.json") : null;
+  let balData = readFile(balFile, { since: now(), t: {} }); const balAsks = new Map(), balSave = keepFile(balFile, () => balData);
+  const PURSE_OK = [500, 900, 1500, 2000, 2500, 3500, 5000];
+  async function balance(u, res, req) {
+    if (corsPost(req, res)) return;
+    if (req.method === "GET") {
+      const by = {};
+      for (const [k, [w, l]] of Object.entries(balData.t)) { const [vs, mine, foe, purse] = k.split("|"), T = by[mine] ||= { bots: [0, 0], player: [0, 0], vs: {}, size: {} }; T[vs][0] += w; T[vs][1] += l; const V = T.vs[foe] ||= [0, 0]; V[0] += w; V[1] += l; const S = T.size[purse] ||= [0, 0]; S[0] += w; S[1] += l; }
+      return res.end(JSON.stringify({ ok: true, since: balData.since, teams: by }));
+    }
+    if (req.method !== "POST") { res.statusCode = 405; return res.end("{}"); }
+    if (askedTooOften(balAsks, req, 30, 600000)) { res.statusCode = 429; return res.end(JSON.stringify({ error: "too many" })); }
+    const m = await bodyOf(req, 512), key = /^[a-z_]{2,20}$/;
+    if (!m || !["bots", "player"].includes(m.vs) || !key.test(String(m.mine)) || !key.test(String(m.foe)) || !PURSE_OK.includes(+m.purse)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad" })); }
+    const k = `${m.vs}|${m.mine}|${m.foe}|${+m.purse}`, c = balData.t[k] ||= [0, 0]; c[m.won ? 0 : 1]++;
+    balSave(); return res.end(JSON.stringify({ ok: true }));
   }
   // (passed on as it is: activate a key on a machine, or check a key already activated; a few a minute from anyone)
   const licAsks = new Map();

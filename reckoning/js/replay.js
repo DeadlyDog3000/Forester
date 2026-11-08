@@ -62,7 +62,7 @@ export class Recorder {
       if (this.ids.has(u)) continue;
       let id = u.uid; if (id == null || id < 0) { while ([...this.ids.values()].includes(this.nextId)) this.nextId++; id = this.nextId++; }
       const g = u.crewOf && A.field ? A.field.guns.indexOf(u.crewOf) : -1;
-      add(u, id, { team: A.alOf ? A.alOf(u.team ?? 1) : u.team ?? 1, name: u.info.name, look: u.info.look, lo: u.lo || u.info.lo, horse: u.info.horse ? 1 : undefined, gun: g, ci: u.crewIdx | 0, them: !A.multi && u === A.foe ? 1 : undefined });
+      add(u, id, { team: A.alOf ? A.alOf(u.team ?? 1) : u.team ?? 1, kind: u.info.kind || undefined, name: u.info.name, look: u.info.look, lo: u.lo || u.info.lo, horse: u.info.horse ? 1 : undefined, gun: g, ci: u.crewIdx | 0, them: !A.multi && u === A.foe ? 1 : undefined });
     }
   }
   idOf(x) { if (x == null) return ME; return this.ids.has(x) ? this.ids.get(x) : null; }

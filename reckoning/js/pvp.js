@@ -23,7 +23,7 @@ import { makeArm, modelCopy, shoulderArm, addBayonet, pikeHold, bowHold, makeHor
 import { resetForMode } from "./story.js";
 import { loadSteps } from "./reload.js";
 import { ragdoll, dropThing, clearDropped } from "./ragdoll.js";
-import { Net, addressOf, HOST, globalServer } from "./mp/net.js";
+import { Net, addressOf, HOST, globalServer, myToken } from "./mp/net.js";
 import { Wilds } from "./mp/wilds.js";
 import { WATER } from "./mp/terrain.js";
 import { EARTH_SIZES } from "./mp/rules.js";
@@ -172,7 +172,8 @@ export function initPvp(c) {
   $("btnPvp").onclick = () => gate("online") && openCamp();
   $("pvpBack").onclick = () => { leaveCamp(); ctx.screen("title"); };
   $("pvpQuick").onclick = () => gate("online") && quickPlay();
-  $("pvpBots").onclick = () => openMuster("bots");
+  $("pvpFirst").onclick = () => { sfx("muster"); firstBattle(); };
+  $("pvpBots").onclick = () => { pendingGhost = null; openMuster("bots"); };
   $("pvpDuel").onclick = () => openMuster("duel");
   $("pvpHist").onclick = () => openMuster("hist");
   $("pvpCampaign").onclick = () => openCampaign(true, "pvp");
@@ -241,6 +242,7 @@ const mine = () => { const r = record(); return { rating: Math.round(r.rating), 
 function openCamp() {
   lo = loadout(); ctx.screen("pvp");
   const r = record(), me = ctx.identity();
+  drawWeek(); $("pvpFirst").classList.toggle("hidden", coachDone());
   $("pvpRec").innerHTML = `<span class="pv-rank">${rankOf(r.rating)}</span> · rating <b>${Math.round(r.rating)}</b> · ${r.w} won, ${r.l} lost${r.streak > 1 ? ` · ${r.streak} in a row` : ""} · <b>${money(ducats())}</b><br><small>You fight as ${esc(me.name)}.</small>`;
   drawWho(); drawTalk(); drawBoard(); drawCard();
   connectCamp();
@@ -279,16 +281,34 @@ function drawTalk() {
   el.innerHTML = camp.talk.length ? camp.talk.map(m => m.sys ? `<div class="ct sys">${esc(m.text)}</div>` : `<div class="ct"><b>${esc(m.name)}</b> ${esc(m.text)}</div>`).join("") : `<div class="ct sys">The camp is quiet.</div>`;
   if (near) el.scrollTop = el.scrollHeight;
 }
+// ---- how the colours fare, as the server counts every battle fought: and the pay for those that lose the more ----
+let colours = null, coloursAt = 0;
+async function fetchColours() { if (colours && performance.now() - coloursAt < 600000) return colours; const j = await getJSON("/balance"); if (j && j.ok) { colours = j.teams || {}; coloursAt = performance.now(); } return colours; }
+// (by how much a colour loses more than it wins — against players for ranked pay, against bots otherwise — once there
+//  are enough of its battles to go by: up to half as much again)
+function underdog(t, vsPlayer) {
+  const T = colours && colours[t], c = T && (vsPlayer ? T.player : T.bots), n = c ? c[0] + c[1] : 0;
+  if (n < 30) return { k: 1, n, rate: n ? c[0] / n : null };
+  const rate = c[0] / n; return { k: rate < 0.45 ? Math.min(1.5, 1 + (0.45 - rate) * 2.5) : 1, n, rate };
+}
+function coloursTable() {
+  if (!colours) return "";
+  const rows = Object.entries(colours).map(([t, T]) => ({ t, p: T.player, b: T.bots, n: T.player[0] + T.player[1] + T.bots[0] + T.bots[1] })).filter(r => r.n >= 5).sort((a, b) => b.n - a.n);
+  if (!rows.length) return `<div class="pv-h">How the colours fare</div><div class="cw-empty">Not enough battles counted yet.</div>`;
+  const pc = c => c[0] + c[1] ? `${Math.round(c[0] / (c[0] + c[1]) * 100)}%<small> of ${c[0] + c[1]}</small>` : "<small>—</small>";
+  return `<div class="pv-h">How the colours fare</div><table class="col-t"><tr><th>Colours</th><th>Won vs players</th><th>Won vs bots</th><th>Pay</th></tr>${rows.map(r => { const u = Math.max(underdog(r.t, true).k, underdog(r.t, false).k); return `<tr><td>${esc(TEAM_NAME(r.t))}</td><td>${pc(r.p)}</td><td>${pc(r.b)}</td><td>${u > 1.01 ? `+${Math.round((u - 1) * 100)}%` : ""}</td></tr>`; }).join("")}</table><p class="col-note">Colours that lose more battles than they win are paid more for fighting in them, up to half as much again.</p>`;
+}
 function drawBoard() {
   const el = $("campBoard"); if (!el || !camp) return;
+  if (!colours) fetchColours().then(c => c && drawBoard());
   const b = camp.board || [];
-  el.innerHTML = b.length ? `<table><tr><th></th><th>Commander</th><th>Rank</th><th>Rating</th><th>Won–lost</th><th>Battles</th></tr>${b.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.rank || "")}</td><td>${p.rating}</td><td>${p.w}–${p.l}</td><td class="cb-hl">${p.pid && p.reps ? `<button data-pid="${esc(p.pid)}" data-sort="best" title="${esc(p.name)}'s best battle">Best</button><button data-pid="${esc(p.pid)}" data-sort="recent" title="${esc(p.name)}'s latest battle">Latest</button>` : ""}</td></tr>`).join("")}</table>` : `<div class="cw-empty">No one has fought yet. Be the first.</div>`;
+  el.innerHTML = b.length ? `<table><tr><th></th><th>Commander</th><th>Rank</th><th>Rating</th><th>Won–lost</th><th>Battles</th></tr>${b.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.rank || "")}</td><td>${p.rating}</td><td>${p.w}–${p.l}</td><td class="cb-hl">${p.pid && p.reps ? `<button data-pid="${esc(p.pid)}" data-sort="best" title="${esc(p.name)}'s best battle">Best</button><button data-pid="${esc(p.pid)}" data-sort="recent" title="${esc(p.name)}'s latest battle">Latest</button>` : ""}</td></tr>`).join("")}</table>` : `<div class="cw-empty">No one has fought yet. Be the first.</div>` + coloursTable();
 }
 // the highlights tab: the battles lately fought (from the server), and your own (kept here)
 let hlList = [], hlMine = [], hlFind = "", hlFound = null, hlT = 0;
 async function drawHl() {
   const el = $("campHl"); if (!el) return;
-  const row = (r, src) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b"><button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Watch</button></span></div>`; };
+  const row = (r, src) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b">${src === "srv" && (m.kind || "battle") === "battle" ? `<button data-ghost="${esc(r.id)}" title="Their company, set out as they set it, against yours">Fight it</button>` : ""}<button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Watch</button></span></div>`; };
   // (looked for by name: what a battle was called when it was shared, or who fought it — or, empty, every named one)
   const found = () => `<div class="pv-h">${hlFind ? `Named “${esc(hlFind)}”` : "Named battles"}</div>${hlFound && hlFound.length ? hlFound.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${!hlFound ? "Looking…" : hlFind ? "No battle on the server goes by that name." : "Nobody has named a battle yet."}</div>`}`;
   const list = () => { const l = el.querySelector(".hl-list"); if (l) l.innerHTML = found() + `<div class="pv-h">Lately, on the server</div>${hlList.length ? hlList.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${hlList.loading ? "Looking…" : "No battles on the server yet — or it can't be reached."}</div>`}<div class="pv-h">Your own</div>${hlMine.length ? hlMine.map(r => row(r, "mine")).join("") : `<div class="cw-empty">Your battles are kept here once you've fought one.</div>`}`; };
@@ -303,6 +323,8 @@ async function drawHl() {
   hlList = a; hlMine = b; list();
 }
 async function pickReplay(e) {
+  const gb = e.target.closest("button[data-ghost]");
+  if (gb) { window.__uisfx && window.__uisfx.click && window.__uisfx.click(); const rec = await fetchReplay(gb.dataset.ghost); if (!rec) { campNote("That battle couldn't be fetched just now."); return; } fightGhost(rec); return; }
   const b = e.target.closest("button[data-id],button[data-pid]"); if (!b) return;
   window.__uisfx && window.__uisfx.click && window.__uisfx.click();
   let rec = null;
@@ -368,7 +390,7 @@ function quickPlay() {
 //  the way back to it from the result)
 let storyNext = null;
 export function storyBattle(b, next) { lastMode = "story"; must = null; storyNext = next; stopAmbient(); startDuel({ bot: true, army: histArmy(b, 0) }); }
-function again() { if (lastMode === "story") { const f = storyNext; storyNext = null; lastMode = null; if (f) f(); return; } if (lastMode === "campaign") openCampaign(); else if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots") openMuster("bots"); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
+function again() { if (lastMode === "story") { const f = storyNext; storyNext = null; lastMode = null; if (f) f(); return; } if (lastMode === "campaign") openCampaign(); else if (lastMode === "hist") openMuster("hist"); else if (lastMode === "bots" || lastMode === "ghost") openMuster("bots"); else if (lastMode === "challenge") playChallenge(); else if (lastMode === "duel") openMuster("duel"); else { openCamp(); quickPlay(); } }
 
 // ---------------------------------------------------------------------------
 //  the muster: your arms, and your company from the purse — then Ready. (Against a player, both must be.)
@@ -571,7 +593,7 @@ function musterReady() {
   if (!must) return;
   if (table) table.stop();
   const k = must.kind;
-  if (k === "bots") { lastMode = "bots"; must = null; startDuel({ bot: true }); return; }
+  if (k === "bots") { const H = pendingGhost; lastMode = H ? "ghost" : "bots"; must = null; startDuel({ bot: true, army: H ? { ...army(), enemyUniform: H.uniform, ghost: H } : undefined }); return; }
   if (k === "hist") { const P = histPick(), b = battleById(P.id); lastMode = "hist"; must = null; if (b.sea) { seaHist(b, P.side); return; } startDuel({ bot: true, army: histArmy(b, P.side) }); return; }
   // (a duel in the demo: against a bot, at once — another player is the full game's)
   if (k === "duel") { lastMode = "duel"; must = null; if (full()) findMatch(); else startDuel({ bot: true }); return; }
@@ -866,6 +888,109 @@ function botMuster(purse, team = null) {
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
   return { muster: m, guns };
 }
+// ---------------------------------------------------------------------------
+//  the week's challenge: the same field, the same two companies and the same officer against you for everyone, a
+//  week at a time — the best result each commander has that week on a board for all to see
+// ---------------------------------------------------------------------------
+// (the ISO week: "2026-W45", as the server reckons it too)
+const weekNo = (t = Date.now()) => { const d = new Date(t); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7)); const y0 = Date.UTC(d.getUTCFullYear(), 0, 1); return `${d.getUTCFullYear()}-W${String(Math.ceil(((d - y0) / 864e5 + 1) / 7)).padStart(2, "0")}`; };
+const hashStr = s => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; };
+const seeded = s => { let a = s >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
+// (what chance gives a thing, given by the week instead: the same for everyone who plays it)
+const withSeed = (seed, fn) => { const was = Math.random; Math.random = seeded(seed); try { return fn(); } finally { Math.random = was; } };
+export function challengeOf(week = weekNo()) {
+  const r = seeded(hashStr("reckoning-" + week)), pick = l => l[Math.floor(r() * l.length)];
+  const mine = pick(TEAM_KEYS); let theirs = pick(TEAM_KEYS); if (theirs === mine) theirs = TEAM_KEYS[(TEAM_KEYS.indexOf(mine) + 5) % TEAM_KEYS.length];
+  const purse = pick([900, 1500, 2000]), M = withSeed(hashStr("muster-" + week), () => botMuster(purse, mine));
+  return { week, seed: hashStr("field-" + week), mine, theirs, purse, muster: M.muster, guns: M.guns };
+}
+// (the score: a win counts most, then the men they lost against the men you did, then how quickly it was done)
+const challengeScore = (won, k, l, secs) => Math.max(0, (won ? 600 : 0) + k * 12 - l * 6 + (won ? Math.max(0, 420 - secs) : 0));
+const srvHttp = () => { const g = globalServer(), a = g && addressOf(g); return a ? a.http : null; };
+const myPid = () => { try { return localStorage.getItem("reckoning.mp.pid") || ""; } catch (e) { return ""; } };
+async function getJSON(path, ms = 4000) { const h = srvHttp(); if (!h) return null; const ac = new AbortController(), to = setTimeout(() => ac.abort(), ms); try { const r = await fetch(h + path, { signal: ac.signal, cache: "no-store" }); return r.ok ? await r.json() : null; } catch (e) { return null; } finally { clearTimeout(to); } }
+async function postJSON(path, body) { const h = srvHttp(); if (!h) return null; try { const r = await fetch(h + path, { method: "POST", headers: { "Content-Type": "application/json", "X-Token": myToken() }, body: JSON.stringify(body) }); return r.ok ? await r.json() : null; } catch (e) { return null; } }
+function playChallenge() {
+  const W = challengeOf(); lastMode = "challenge"; must = null; stopAmbient();
+  startDuel({ bot: true, challenge: W, army: { ...army(), battle: true, vs: "bots", allies: 0, enemies: 1, ground: "open", purse: W.purse, uniform: W.mine, enemyUniform: W.theirs, muster: { ...W.muster }, guns: W.guns, challenge: W, ghost: null } });
+}
+// the card on the To Arms page: the week's two sides, what you have, the Fight button, and the board
+async function drawWeek() {
+  fetchColours();
+  const el = $("pvpWeek"); if (!el) return;
+  const W = challengeOf(), men = Object.entries(W.muster).filter(([, n]) => n).map(([k, n]) => `${n} ${(n > 1 ? TROOPS[k].name : TROOPS[k].one).toLowerCase()}`).join(", ");
+  const head = j => `<div class="wk-h"><b>This week's challenge</b><small>${esc(W.week.replace("-W", " · week "))}</small></div>
+    <div class="wk-b">You lead the <b>${esc(TEAM_NAME(W.mine))}</b> against the <b>${esc(TEAM_NAME(W.theirs))}</b>: ${men}${W.guns ? `, ${W.guns} gun${W.guns > 1 ? "s" : ""}` : ""}. The same field and the same companies for everyone this week. A win counts most, then what you lose against what they do, then how quickly.</div>
+    <div class="wk-a"><button class="btn primary" id="wkGo">Fight it</button>${j && j.mine ? `<span>Your best: <b>${j.mine.score}</b> · ${ordinal(j.mine.place)} of ${j.n}</span>` : `<span>${j ? `${j.n} commander${j.n === 1 ? " has" : "s have"} fought it` : ""}</span>`}</div>
+    ${j && j.list.length ? `<ol class="wk-list">${j.list.slice(0, 10).map(r => `<li><span>${esc(r.name)}</span><small>${r.won ? "won" : "lost"} · ${r.k}–${r.l} · ${mmss(r.secs)}</small><b>${r.score}</b>${r.rep ? `<button data-id="${esc(r.rep)}" data-src="srv" data-mode="full">Watch</button>` : ""}</li>`).join("")}</ol>` : ""}`;
+  el.innerHTML = head(null);
+  el.onclick = e => { if (e.target.closest("#wkGo")) { sfx("muster"); playChallenge(); return; } pickReplay(e); };
+  const j = await getJSON(`/challenge?week=${W.week}&pid=${encodeURIComponent(myPid())}`);
+  if (j && j.ok && $("pvpWeek") === el) el.innerHTML = head(j);
+}
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : ["th", "st", "nd", "rd"][n % 10] || "th");
+
+// ---------------------------------------------------------------------------
+//  your first battle: a guided one — a small field, a cautious officer against you, and the few things worth knowing
+//  shown one at a time as you fight
+// ---------------------------------------------------------------------------
+const COACH_KEY = "reckoning.coach.battle.1";
+const coachDone = () => { try { return localStorage.getItem(COACH_KEY) === "1"; } catch (e) { return true; } };
+function coachOff() { try { localStorage.setItem(COACH_KEY, "1"); } catch (e) {} const b = $("pvpFirst"); if (b) b.classList.add("hidden"); }
+const COACH = [
+  { t: "Walk on with W", s: "Your company follows you: where you go, they go. Look about with the mouse.", done: A => A.coach.moved > 6 },
+  { t: "Halt them: press 2", s: "The numbers are your orders, on the page at the side. 2 holds them where they stand; 1 has them follow you again.", done: A => A.coach.order },
+  { t: "Send them on: press 3", s: "Advance — there: they march to the place you're looking at, and wait.", done: A => A.coach.adv },
+  { t: "Fight yourself: hold the right button to aim, click to shoot or strike", s: "Your own blows count. With a musket or a bow, wait till they're close enough to hit.", done: A => A.coach.shot },
+  { t: "A volley: press 6", s: "Every loaded musket at once, on your word: worse for their nerve than men firing one by one.", done: A => A.coach.volley, skip: A => !A.alliesOf(0).some(u => u.lo && u.lo.long === "musket") },
+  { t: "One arm alone: press its letter", s: "L for the musketeers, P the pikes, O the horse — the next order goes to them alone. The same letter again: the whole company.", done: A => A.coach.sel, skip: A => A.groupsHere().length < 2 },
+  { t: "When they waver, charge: press 8", s: "Steel, and at them. Too soon and they meet you whole; too late and they've shot you to pieces.", done: A => A.coach.charge },
+];
+function firstBattle() {
+  lastMode = "bots"; must = null; stopAmbient(); pendingGhost = null;
+  setArmy({ battle: true, vs: "bots", allies: 0, enemies: 1, purse: 900 });
+  startDuel({ bot: true, easy: true, army: { ...army(), battle: true, vs: "bots", allies: 0, enemies: 1, purse: 900, ground: "open", coach: true } });
+}
+
+// ---------------------------------------------------------------------------
+//  their plan: a battle someone shared, fought again — their company as they raised it, in their colours, each arm
+//  standing where they set it at the start; the computer leads it from there
+// ---------------------------------------------------------------------------
+const rosterArm = r => armOf({ info: { kind: r.kind || null, horse: r.horse, lo: r.lo || {} } });
+export function ghostOf(rec) {
+  const R = rec && rec.roster || [], S = rec && rec.setup || {}, side = R.filter(r => r.team === 0 && !r.you), men = side.filter(r => !(r.gun >= 0));
+  if (men.length < 4) return null;
+  const muster = {}; for (const r of men) { const k = TROOPS[rosterArm(r)] ? rosterArm(r) : "musketeer"; muster[k] = (muster[k] || 0) + 1; }
+  const guns = new Set(side.filter(r => r.gun >= 0).map(r => r.gun)).size;
+  // (where each arm stood at the first beat: across the company's front and forward of its middle, as they faced the other side)
+  const f0 = rec.frames && rec.frames[0], at = new Map(); if (f0) for (const e of f0[1]) at.set(e[0], { x: e[1] / 10, z: e[2] / 10 });
+  const cen = l => { const p = l.map(r => at.get(r.id)).filter(Boolean); return p.length ? { x: p.reduce((a, q) => a + q.x, 0) / p.length, z: p.reduce((a, q) => a + q.z, 0) / p.length } : null; };
+  const me = cen(men), them = cen(R.filter(r => r.team !== 0)); let layout = null;
+  if (me && them) {
+    const dx = them.x - me.x, dz = them.z - me.z, d = Math.hypot(dx, dz) || 1, f = { x: dx / d, z: dz / d }, rt = { x: f.z, z: -f.x }, by = {};
+    for (const r of men) { const p = at.get(r.id), g = groupOf({ info: { kind: rosterArm(r) } }); if (!p || !g) continue; const o = by[g] ||= { a: 0, b: 0, n: 0 }; o.a += (p.x - me.x) * rt.x + (p.z - me.z) * rt.z; o.b += (p.x - me.x) * f.x + (p.z - me.z) * f.z; o.n++; }
+    layout = {}; for (const [g, o] of Object.entries(by)) layout[g] = { a: clamp(o.a / o.n, -34, 34), b: clamp(o.b / o.n, -16, 16) };
+  }
+  const uni = S.uni && S.uni[0] && UNIFORMS[S.uni[0]] ? S.uni[0] : "imperial", spent = spentOf({ muster, guns });
+  const purse = +Object.keys(PURSES).find(v => +v >= spent) || 5000;
+  return { muster, guns, uniform: uni, layout, purse, name: rec.meta && rec.meta.name || "Someone", title: titleOf(rec).t };
+}
+function fightGhost(rec) {
+  const H = ghostOf(rec); if (!H) { campNote("There's no company in that battle to fight."); return; }
+  lastMode = "ghost"; must = null; stopAmbient();
+  setArmy({ battle: true, vs: "bots", allies: 0, enemies: 1, purse: H.purse });
+  pendingGhost = H; openMuster("bots");
+  setTimeout(() => UI.hint(`${H.name}'s company: ${menOf({ muster: H.muster, guns: 0 })} men${H.guns ? ` and ${H.guns} gun${H.guns > 1 ? "s" : ""}` : ""} in ${TEAM_NAME(H.uniform)} colours, set out as they set it. Raise yours to meet it.`, 6), 400);
+}
+let pendingGhost = null;
+
+// ---------------------------------------------------------------------------
+//  how the colours fare: each battle's two colours, its size and who won, sent to be counted (nothing of who fought it)
+// ---------------------------------------------------------------------------
+function tally(A, vsPlayer, won, foeUni) {
+  if (!A || !A.battle || !A.uniform || !foeUni || !PURSES[A.purse]) return;
+  postJSON("/balance", { vs: vsPlayer ? "player" : "bots", mine: A.uniform, foe: foeUni, purse: +A.purse, won: !!won });
+}
 // ---- a custom battle: two to four sides, and one to four companies to a side — you lead one of the first side's,
 // bots lead all the rest (each its own officer, as the one against you always was) ----
 export const SIDE_PRESETS = [[1, 2], [2, 2], [3, 3], [4, 4], [2, 1], [1, 1, 1], [1, 1, 1, 1], [2, 2, 2]];
@@ -942,6 +1067,10 @@ function startDuel(o) {
   const A = o.bot ? o.army || army() : null, multi = A && (A.allies > 0 || A.enemies > 1 || A.battle);
   // (a campaign's difficulty: their men the better or the worse for it)
   const foe = o.bot ? { ...botFoe(), bot: true, skill: clamp(skillOf(botRecord().rating) + (o.skillAdd || 0), 0.06, 0.98) } : { ...o.foe, bot: false };
+  // (the week's challenge: the field, the weather, their officer and his company all as chance gives them for that week —
+  //  the same for everyone — and you armed as your colours were, as in a ranked battle)
+  if (o.easy) foe.skill = Math.min(foe.skill, 0.3);
+  if (o.challenge) { foe.skill = 0.62; withSeed(o.challenge.seed, () => new Arena({ me, lo: armedLo(true), foe, net: null, side: 0, army: A })); return; }
   new Arena({ me, lo: armedLo(!!o.net), foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
 }
 
@@ -968,7 +1097,7 @@ function endReplay(rec) {
     if (!box.checked || rec.id) return;
     box.disabled = true; const t = box.nextElementSibling, nm = $("pvpShareName"); t.textContent = "Sending it to the server…";
     const title = nm ? nm.value.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 60) : ""; rec.meta = { ...rec.meta, title }; if (nm) nm.disabled = true; if (title) keepMine(rec);
-    upload(rec).then(id => { if (id) { rec.id = id; t.textContent = title ? `Shared as “${title}”, for everyone to watch` : "Shared, for everyone to watch"; } else { box.checked = false; box.disabled = false; if (nm) nm.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
+    upload(rec).then(id => { if (id) { rec.id = id; if (rec.chal) postJSON("/challenge", { ...rec.chal, rep: id }); t.textContent = title ? `Shared as “${title}”, for everyone to watch` : "Shared, for everyone to watch"; } else { box.checked = false; box.disabled = false; if (nm) nm.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
   };
 }
 
@@ -1176,12 +1305,12 @@ class Arena {
         A.enemies = this.musters.filter((m, i) => this.cos[i].al !== 0).reduce((t, m) => t + m.length, 0);
       }
       // (the field made the same on both games: the same seed, and built as the host's side has it — west the host's)
-      this.fieldSeed = setup ? setup.fieldSeed : (Math.random() * 1e9) | 0;
+      this.fieldSeed = setup ? setup.fieldSeed : A && A.challenge ? A.challenge.seed % 1e9 : (Math.random() * 1e9) | 0;
       const hostFort = this.remote && this.fortSide != null ? 1 - this.fortSide : this.fortSide;
       // (a battle: each side's company as its purse raised it — yours as you mustered it; theirs as their officer, or
       //  the other player, did)
       if (this.battle && !this.remote && !this.custom) {
-        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride), foe.army && foe.army.uniform) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), A.enemyUniform);   // (an easy officer's company a little the smaller)
+        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride), foe.army && foe.army.uniform) : A.ghost ? { muster: { ...A.ghost.muster }, guns: A.ghost.guns | 0 } : A.challenge ? withSeed(A.challenge.seed + 7, () => botMuster(A.purse, A.enemyUniform)) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), A.enemyUniform);   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;
@@ -1515,6 +1644,20 @@ class Arena {
       list.forEach((u, i) => { const p = this.clearSpot(...Object.values(team === 0 && O.mode === "follow" && this.battle ? this.slotFor(u) : O.slot(i, list.length, at, face))); u.reset(p, look); });
       for (const u of this.alliesOf(team).filter(u => u.crewOf)) u.reset(this.field.station(u.crewOf, u.crewIdx), look);
     }
+    // (their plan: each of their arms where its commander set it, holding there till their officer sends them on)
+    this.coach = this.battle && !this.net && !this.hist && !this.custom && lastMode !== "story" && lastMode !== "campaign" && !(this.army && this.army.challenge) && ((this.army && this.army.coach) || !coachDone()) ? { i: 0, drawn: -1 } : null;
+    this.ghostSub = null;
+    if (this.army && this.army.ghost && this.army.ghost.layout && !this.custom) {
+      const f = { x: Math.sin(face1), z: Math.cos(face1) }, rt = { x: f.z, z: -f.x }, S1 = {};
+      for (const [gid, p] of Object.entries(this.army.ghost.layout)) {
+        const men = this.alliesOf(1).filter(u => !u.crewOf && groupOf(u) === gid); if (!men.length) continue;
+        const at = this.clearSpot(theirs.x + rt.x * p.a + f.x * p.b, theirs.z + rt.z * p.a + f.z * p.b), look = { x: at.x + f.x * 30, z: at.z + f.z * 30 };
+        const O = Object.assign(new Orders(1), O1, { target: null }); O.mode = "hold"; O.at = { ...at }; O.form = "line";
+        men.forEach((u, i) => { const q = O.slot(i, men.length, at, face1); u.reset(this.clearSpot(q.x, q.z), look); });
+        S1[gid] = O;
+      }
+      this.ghostSub = S1; this.sub = [{}, S1];
+    }
     this.cmds = [];
     pl.swingRate = BLADE[this.lo.blade].rate; G.loadMul = loadMul(this.lo);
     this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
@@ -1695,7 +1838,7 @@ class Arena {
       w.root.remove(root); root.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
       bar.remove(); for (const [t, fn] of L) removeEventListener(t, fn, true);
       // (each arm holds where it was set, its front as you turned it; the company's own orders at your side)
-      this.sub = [{}, {}];
+      this.sub = [{}, this.ghostSub || {}];
       for (const T of tokens) if (T.id !== "you" && T.men.length) { const O = Object.assign(new Orders(0), O0, { target: null }); O.mode = "hold"; O.at = { ...T.at }; O.form = "line"; this.sub[0][T.id] = O; }
       O0.mode = "hold"; O0.at = { x: pl.pos.x, z: pl.pos.z };
       this.spawns[0] = { x: pl.pos.x, z: pl.pos.z };
@@ -2042,7 +2185,7 @@ class Arena {
     }
     // (the fewer, and a head on him: he stays where he is, in cover, and lets you come on into his fire)
     if (O.mode === "hold") O.cover = outnumbered && !O.charge;
-    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; call("advance"); }
+    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { if (co && this.sub && this.sub[co]) this.sub[co] = {}; O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; call("advance"); }
     const needRatioK = L(0.9, 1.35);
     // the advance, as the drill had it: a march of some paces, the line kept together — then, once in range, a halt and
     // a volley — and on again, until they're close enough for the steel
@@ -2284,6 +2427,7 @@ class Arena {
   groupsHere() { const have = new Set(this.alliesOf(0).filter(u => !u.crewOf).map(groupOf)); return GROUPS.filter(g => have.has(g.id)); }
   // a letter: that arm picked out, to take the orders by itself — the same letter again, the whole company
   pickGroup(g) {
+    if (this.coach) this.coach.sel = true;
     if (this.sel === g.id) { this.sel = null; UI.hint("The whole company — your orders go to every man.", 2.2); }
     else {
       const n = this.alliesOf(0).filter(u => !u.crewOf && groupOf(u) === g.id).length;
@@ -2314,6 +2458,7 @@ class Arena {
     return this.ordersOf(team);
   }
   giveNow(id) {
+    if (this.coach) { const c = this.coach; if (id === "hold" || id === "follow") c.order = true; if (id === "advance") c.adv = true; if (id === "volley") c.volley = true; if (id === "charge") c.charge = true; }
     // (the order given aloud, in words, at the top of your voice — key: which of the shouted orders; see audio.js order)
     const O = this.selOrders(), pl = G.player, shout = (key, delay = 0) => AUDIO.order && AUDIO.order(key, { high: G.who === "sister", delay }), say = (t, key) => { UI.hint(this.sel ? `${GROUPS.find(g => g.id === this.sel).name}: ${t}` : t, 2.2); if (key) shout(key); };
     const all = this.ordersFor(0, this.sel), pos = { x: pl.pos.x, z: pl.pos.z }, go = (at, tgt) => { for (const o of all) this.applyOrder(0, o, id, at, pos, tgt); };
@@ -2678,7 +2823,7 @@ class Arena {
     const cmpB = lastMode === "campaign" || !!this.cmpEnd || !!(this.hist && this.hist.b.campaign);
     // (pay, in the coin of the colours fought in: every battle and duel earns some, a win more, a day's first win more again — not a campaign's or the story's,
     //  and not a historical battle's: many of them are easily won, the field set up for the side that won it)
-    const pay = cmpB || lastMode === "story" || this.hist ? null : earn({ vsPlayer: rated, won: won && !left, kills: this.multi ? this.killed | 0 : (this.wins[0] | 0) * 3, left });
+    const pay = cmpB || lastMode === "story" || this.hist ? null : earn({ vsPlayer: rated, won: won && !left, kills: this.multi ? this.killed | 0 : (this.wins[0] | 0) * 3, left, under: this.battle && this.army ? underdog(this.army.uniform, rated).k : 1 });
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}${cmpB ? "" : "<br>"}${cmpB ? "" : rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
     // (a historical battle: kept as won or not, on that side — and how it went in truth)
     // (a campaign's: its outcome back to the campaign, which takes or loses the town)
@@ -2687,6 +2832,17 @@ class Arena {
     if (pay) { const g = nextGoal(), gn = g && (g.team ? `${TEAM_NAME(g.what)} colours` : nameOf(LONG[g.what] ? "long" : SIDE[g.what] ? "side" : "blade", g.what));
       setTimeout(() => sfx("purse", Math.round(pay.gain / 5)), 900);
       $("pvpEndS").innerHTML += `<div class="pv-pay"><b>+${money(pay.gain, pay.team)}</b>${pay.daily ? ` (the day's first victory, +${money(pay.daily, pay.team)})` : ""} · ${money(pay.total, pay.team)} in the ${esc(TEAM_NAME(pay.team))} purse${g ? ` · ${g.short ? `${money(g.short, pay.team)} more for the ${esc(gn)}` : `enough for the ${esc(gn)} — in the armoury`}` : ""}</div>`; }
+    // (the week's challenge: the result scored and sent to its board; the place it takes said when the server answers)
+    const CH = this.army && this.army.challenge;
+    if (CH && !left) {
+      const k = this.killed | 0, l = this.lost | 0, secs = this.rec ? Math.round(this.rec.t) : 0, sc = challengeScore(won, k, l, secs), body = { week: CH.week, score: sc, won: !!won, k, l, secs, name: this.me.name };
+      if (rec) rec.chal = body;
+      $("pvpEndS").innerHTML += `<div class="pv-pay" id="pvpWkLine">This week's challenge: <b>${sc}</b> · sending it to the board…</div>`;
+      postJSON("/challenge", body).then(j => { const el = $("pvpWkLine"); if (el) el.innerHTML = j && j.ok ? `This week's challenge: <b>${sc}</b> · ${j.best ? "your best yet" : `your best is ${j.score}`} · ${ordinal(j.place)} of ${j.n}` : `This week's challenge: <b>${sc}</b> · the board couldn't be reached just now`; });
+    }
+    // (how the colours fare: each side's colours and who won, counted — not a story's, a campaign's, history's, the
+    //  challenge's or a plan fought again, whose sides weren't chosen)
+    if (this.battle && !this.custom && !this.hist && !cmpB && lastMode !== "story" && !CH && !(this.army && this.army.ghost) && !left) tally(this.army, rated, won, this.uni ? Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[1]) : null);
     this.toCampaign(won, left);
     if (this.hist && !this.hist.b.campaign && !left) {
       const HB = this.hist.b, sd = this.hist.side; histResult(HB.id, sd, won);
@@ -2703,10 +2859,26 @@ class Arena {
   // new ground
   restart() {
     if (this.net || (this.hist && this.hist.b.campaign)) return;   // (a campaign's battle is fought once: no second try)
+    if (this.army && this.army.challenge) { this.over = true; this.stop(); playChallenge(); return; }
     const a = { me: this.me, lo: { ...lo }, foe: this.foeInfo, net: null, side: this.side, army: this.army };
     this.over = true; this.stop(); ctx.begin(); new Arena(a);
   }
   // gone from the arena (the match done, or quit from the pause menu)
+  // ---- the first battle, taught as it's fought: one thing to try at a time, ticked off as you do it ----
+  coachTick() {
+    const c = this.coach; if (!c || c.over || !this.live || this.over) return;
+    const pl = G.player;
+    c.from ||= { x: pl.pos.x, z: pl.pos.z }; c.moved = Math.hypot(pl.pos.x - c.from.x, pl.pos.z - c.from.z);
+    if (!c.shot && ((pl.gun && pl.gunReload > 0) || (pl.hasBow && pl.arrows < AMMO.bow) || pl.swingT >= 0)) c.shot = true;
+    while (COACH[c.i] && (COACH[c.i].done(this) || (COACH[c.i].skip && COACH[c.i].skip(this)))) { c.i++; c.drawn = -1; if (COACH[c.i]) sfx("page"); }
+    let el = document.getElementById("coach");
+    if (!el) { el = document.createElement("div"); el.id = "coach"; document.getElementById("hud").parentElement.appendChild(el); el.addEventListener("click", e => { if (e.target.closest("[data-coach-off]")) { coachOff(); c.over = true; el.remove(); } }); }
+    if (c.drawn === c.i) return; c.drawn = c.i;
+    const S = COACH[c.i];
+    if (!S) { c.over = true; coachOff(); el.innerHTML = `<div class="co-k">Your first battle</div><b>That's the whole of it.</b><span>The orders' page at the side has the rest: cover, formations, the guns. Win the day.</span>`; setTimeout(() => el.remove(), 7000); return; }
+    const n = COACH.filter(s => !(s.skip && s.skip(this))).length, at = COACH.slice(0, c.i).filter(s => !(s.skip && s.skip(this))).length + 1;
+    el.innerHTML = `<div class="co-k">Your first battle · ${at} of ${n}</div><b>${S.t}</b><span>${S.s}</span><button data-coach-off="1">I know how to fight</button>`;
+  }
   // the din of the fighting round you: men at close quarters near you, and men running (a charge coming on), heard as one
   dinTick(dt) {
     if (!this.battle || (this.dinT = (this.dinT || 0) - dt) > 0) return;
@@ -2726,6 +2898,7 @@ class Arena {
     if (G.arena !== this) return;
     AUDIO.melee && AUDIO.melee(0, 0); clearGore();
     if (G.freecam && G.endFreecam) G.endFreecam();
+    { const co = document.getElementById("coach"); if (co) co.remove(); }
     if (G.deploying && this.deployEnd) { G.deploying = false; G.deathCam = null; G.forceThird = false; const b = document.getElementById("deployBar"); if (b) b.remove(); for (const [t, fn] of this.deployL || []) removeEventListener(t, fn, true); }
     G.arena = null; this.live = false; G.armSkin = null; G.armPace = null; G.armSights = undefined;
     const i = G.onFrame.indexOf(this.tick); if (i >= 0) G.onFrame.splice(i, 1);
@@ -2808,6 +2981,7 @@ class Arena {
     const dx = pl.pos.x - C.x, dz = pl.pos.z - C.z, d = Math.hypot(dx, dz), B = this.bound;
     if (d > B) { pl.pos.x = C.x + dx / d * B; pl.pos.z = C.z + dz / d * B; if (!this.boundTold || G.time - this.boundTold > 4) { this.boundTold = G.time; UI.hint(this.battle ? "The battle's here — your company's behind you." : "The fight's here, in the ride.", 1.5); } }
     this.dinTick(dt);
+    this.coachTick();
     if (this.multi) { this.updateField(dt); return; }
     this.foe.tick(dt);
     stanceTick();

@@ -228,7 +228,7 @@ function refreshTitle() {
   $("btnContinue").innerHTML = s ? `Continue<small class="btn-sub">${chapterOf(s.chapter || 1).title}${getSlot() > 1 ? ` · save ${getSlot()}` : ""}</small>` : "Continue";
   UI.show("btnChapters", !!s);
   // (a story under way: Continue is the big button, and starting another is a quieter one under it)
-  $("btnNew").innerHTML = s ? "New story" : `Begin the story<small class="btn-sub">Hamburg, 1683 · ${CHAPTERS[0].title}</small>`;
+  $("btnNew").innerHTML = s ? "New story" : `<span class="start-here">Start here</span>Begin the story<small class="btn-sub">Hamburg, 1683 · ${CHAPTERS[0].title}</small>`;
   $("btnNew").classList.toggle("primary", !s); $("btnNew").classList.toggle("tm-second", !!s);
   // (the demo: said so on the cards, and the way to the rest)
   const f = full();

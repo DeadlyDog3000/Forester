@@ -174,9 +174,11 @@ export function paceOf(ups) { const o = {}; for (const k in ups) for (const id i
 // ---- pay: what a fight earns, in the coin of the colours you fought in ----
 // (the first new arm in two to five battles, a musket in ten or so; a crown's colours dearer, the best of them a long
 //  campaign of battles — and a day's first win worth more, so a short evening still gets somewhere)
-export function earn({ vsPlayer, won, kills = 0, left = false }, t = team()) {
+export function earn({ vsPlayer, won, kills = 0, left = false, under = 1 }, t = team()) {
   const s = state();
   let gain = vsPlayer ? (won ? 60 : 25) : (won ? 30 : 12);
+  // (colours that lose more often than they win, by every battle counted: paid more for fighting in them)
+  gain = Math.round(gain * Math.max(1, Math.min(1.5, under)));
   if (left) gain = Math.round(gain * (won ? 0.6 : 0));
   gain += Math.min(30, Math.max(0, kills | 0) * 2);
   const today = new Date().toISOString().slice(0, 10); let daily = 0;

@@ -2421,3 +2421,41 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .crd-priv p { font-size: 12.5px; color: var(--ink-dim); }
 #credits .crd-back { align-self: center; flex: 0 0 auto; min-width: 180px; position: relative; z-index: 3; }
 @media (max-width: 600px) { .crd-sheet { padding: 22px 18px; } .crd-game { font-size: 28px; } }
+
+/* the week's challenge, on the To Arms page */
+.wk { margin: 14px 0 6px; padding: 12px 14px; border: 1px solid rgba(224, 178, 90, 0.35); border-radius: 8px; background: rgba(8, 18, 12, 0.45); text-align: left; }
+.wk:empty { display: none; }
+.wk-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.wk-h b { font: 600 16px var(--serif); color: var(--gold); letter-spacing: 0.02em; }
+.wk-h small { font: 12px var(--sans); color: var(--ink-dim); }
+.wk-b { margin: 6px 0 10px; font: 13px/1.45 var(--sans); color: var(--ink); }
+.wk-a { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font: 13px var(--sans); color: var(--ink-dim); }
+.wk-a .btn { min-width: 0; padding: 7px 18px; }
+.wk-list { list-style: none; margin: 10px 0 0; padding: 0; counter-reset: wk; max-height: 180px; overflow-y: auto; }
+.wk-list li { counter-increment: wk; display: grid; grid-template-columns: 22px 1fr auto auto auto; align-items: center; gap: 8px; padding: 4px 2px; font: 13px var(--sans); color: var(--ink); border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.wk-list li::before { content: counter(wk); color: var(--ink-dim); font-size: 12px; text-align: right; }
+.wk-list li small { color: var(--ink-dim); font-size: 12px; }
+.wk-list li b { color: var(--gold); min-width: 34px; text-align: right; }
+.wk-list li button { background: rgba(255, 255, 255, 0.06); border: 1px solid var(--edge); border-radius: 3px; color: var(--ink); font: 600 11.5px var(--sans); padding: 3px 8px; cursor: pointer; }
+.wk-list li button:hover { border-color: var(--gold); color: var(--gold); }
+.hl-b button[data-ghost] { margin-right: 6px; }
+.col-t { width: 100%; margin-top: 4px; border-collapse: collapse; font: 13px var(--sans); color: var(--ink); }
+.col-t th { text-align: left; font-weight: 600; color: var(--ink-dim); font-size: 12px; padding: 4px 6px; }
+.col-t td { padding: 4px 6px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.col-t td small { color: var(--ink-dim); }
+.col-t td:last-child { color: var(--gold); }
+.col-note { margin: 6px 0 0; font: italic 12.5px var(--serif); color: var(--ink-dim); }
+
+/* the first battle, taught as it's fought */
+#coach { position: fixed; left: 50%; top: 84px; transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); padding: 12px 16px 12px; background: rgba(14, 10, 6, 0.86); border: 1px solid rgba(224, 178, 90, 0.5); border-radius: 8px; color: var(--ink); text-align: left; pointer-events: auto; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4); z-index: 20; }
+#coach .co-k { font: 600 11px var(--sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--gold); margin-bottom: 4px; }
+#coach b { display: block; font: 600 17px var(--serif); margin-bottom: 3px; }
+#coach span { display: block; font: 13px/1.45 var(--sans); color: var(--ink-dim); }
+#coach button { margin-top: 8px; background: none; border: none; padding: 0; font: 12px var(--sans); color: var(--ink-dim); text-decoration: underline; cursor: pointer; }
+#coach button:hover { color: var(--gold); }
+.camp-first { display: flex; flex-direction: column; align-items: flex-start; width: 100%; margin: 0 0 10px; padding: 12px 16px; text-align: left; background: rgba(224, 178, 90, 0.14); border: 1px solid var(--gold); border-radius: 8px; color: var(--ink); cursor: pointer; }
+.camp-first:hover { background: rgba(224, 178, 90, 0.22); }
+.camp-first span, .start-here { display: inline-block; font: 600 10.5px var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: #1a1208; background: var(--gold); border-radius: 3px; padding: 2px 6px; margin-bottom: 5px; }
+.camp-first b { font: 600 17px var(--serif); }
+.camp-first small { font: 13px var(--sans); color: var(--ink-dim); }
+.start-here { display: table; margin: 0 auto 4px; }

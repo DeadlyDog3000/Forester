@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.262", date: "8 November 2026", title: "The week's challenge, their plan, and your first battle",
+    items: [
+      "This week's challenge, on the To Arms page: the same field, the same two companies and the same officer against you for everyone, a new one each week. A win counts most, then what you lose against what they do, then how quickly; your best goes on the week's board, and a battle you share is there for others to watch.",
+      "Fight their plan: a battle someone shared has a Fight it button in the replays. Their company comes on as they raised it, in their colours, each arm standing where they set it at the start; you raise yours to meet it.",
+      "Your first battle is a guided one: a cautious officer against you, and the few things worth knowing shown one at a time as you fight — walking on with your company, halting and sending them on, fighting yourself, the volley, one arm alone, the charge. It's at the top of the To Arms page until you've fought it, and the title says where to start.",
+      "How the colours fare: under the best commanders, how often each colour wins, against players and against bots, from every battle fought. Colours that lose more than they win are paid more for fighting in them, up to half as much again. Only the two colours, the size of battle and who won are counted — nothing of who fought it.",
+    ],
+  },
+  {
     v: "1.99.261", date: "8 November 2026", title: "Campaigns of two begin",
     items: [
       "A campaign with another player no longer sticks on the list of crowns. When the host chose first, the campaign was made as the other player chose theirs, and then the list of crowns was drawn again over the map on the host's game, so the year never turned.",
