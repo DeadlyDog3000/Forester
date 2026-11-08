@@ -89,12 +89,16 @@ export function shapeField(w, C, b, flip) {
     for (const R of M.rivers || []) {
       // (never ruled straight: it winds a little, as a river does)
       const d = R.u != null ? Math.abs(u - R.u - Math.sin(v * 0.019 + R.u) * R.w * 0.35 - Math.sin(v * 0.047) * 2.5) : Math.abs(v - R.v - Math.sin(u * 0.017 + R.v) * R.w * 0.35 - Math.sin(u * 0.043) * 2.5), hw = R.w / 2, bank = R.bank || 5;
-      if (d > hw + bank || r > R2 + 20) continue;
+      // (its banks low, a hand or two over the water: the field slopes gently down to it over a broad strip — a river's
+      //  meadows — instead of dropping into a gully a man's height deep before the water begins)
+      const lip = WATER + 0.3, flat = Math.max(22 + R.w * 0.25, (y - lip) * 8);
+      if (d > hw + bank + flat || r > R2 + 20) continue;
+      if (d > hw + bank) { if (y > lip) y = lip + (y - lip) * ss((d - hw - bank) / flat); continue; }
       // (fordable: never more than waist deep in the middle, so a man wades it, slowed, and isn't swimming — the field's
       //  rivers were crossed on foot, the guns dragged through)
       const bed = WATER - Math.min(R.d, 0.85) * (1 - ss((d - hw * 0.4) / (hw * 0.6 + 0.01)) * 0.75) - 0.05;
       const e = d < hw ? 0 : ss((d - hw) / bank);
-      y = Math.min(y, bed + (Math.max(y, WATER + 0.3) - bed) * e);
+      y = Math.min(y, bed + (lip - bed) * e);
     }
     return y;
   });
