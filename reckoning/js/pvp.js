@@ -903,8 +903,11 @@ function startDuel(o) {
       new Arena({ me, lo: armedLo(true), foe: { ...o.foe, bot: false }, net: o.net, side: 0, army: A });
     } else {
       $("pvpFindT").textContent = `${o.foe.name || "Your opponent"} has the field`; $("pvpFindS").textContent = "They're choosing the ground — somewhere on the Earth…";
+      const rparts = [];
+      o.net.on.brost = m => { if (Array.isArray(m.r)) rparts[m.i | 0] = m.r; };
       o.net.on.bsetup = m => {
-        o.net.on.bsetup = null; if (must) { clearInterval(must.clock); must = null; }
+        o.net.on.bsetup = null; o.net.on.brost = null; if (must) { clearInterval(must.clock); must = null; }
+        if (!Array.isArray(m.roster)) m.roster = rparts.flat();
         // (the field as theirs, seen from the other side: their company is "them" here, and yours "you")
         const A = { battle: true, allies: m.counts[1], enemies: m.counts[0], ground: m.fort === 1 ? "ours" : m.fort === 0 ? "theirs" : "open", uniform: m.uni[1], enemyUniform: m.uni[0], vs: "player", cmpEnd: o.cmpEnd || null, at: o.at || null };
         ctx.begin();
@@ -1286,8 +1289,13 @@ class Arena {
     // (against a player: the host tells the other game the field and the men, and waits for it to be ready; the other
     //  says it is, and both begin)
     if (this.host) {
+      // (the men sent in parts first: all of them in one went past what the server passes on — sixty thousand
+      //  characters — in a great battle, and the other game was left waiting on the field for ever)
+      const roster = this.units.filter(u => !u.isNet).map(u => ({ id: u.uid, team: u.team, look: u.info.look, name: u.info.name, lo: u.lo, horse: u.info.horse ? 1 : 0, kind: u.info.kind || null, gun: u.crewOf ? this.field.guns.indexOf(u.crewOf) : -1, ci: u.crewIdx | 0, idx: u.idx })) , parts = [];
+      for (let q = 0; q < roster.length; q += 60) parts.push(roster.slice(q, q + 60));
+      parts.forEach((r, q) => this.net.send({ t: "brost", i: q, n: parts.length, r }));
       this.net.send({ t: "bsetup", ride: riding() ? 1 : 0, seed: ground.seed, x: C.x, z: C.z, fieldSeed: this.fieldSeed, hour: this.hour, fort: this.fortSide, uni: [A.uniform, A.enemyUniform], counts: [A.allies, A.enemies], guns: this.gunsBought,
-        roster: this.units.filter(u => !u.isNet).map(u => ({ id: u.uid, team: u.team, look: u.info.look, name: u.info.name, lo: u.lo, horse: u.info.horse ? 1 : 0, kind: u.info.kind || null, gun: u.crewOf ? this.field.guns.indexOf(u.crewOf) : -1, ci: u.crewIdx | 0, idx: u.idx })) });
+        roster: null, rparts: parts.length});
       this.banner(this.place ? esc(this.place.text) : "Battle", `Waiting for ${esc(foe.name || "the other side")} to take the field…`);
       UI.fadeNow(1); UI.fade(0, 1.2);
       this.waitT = setTimeout(() => { if (G.arena === this && !this.round) this.finish(true, true); }, 90000);
@@ -3548,6 +3556,8 @@ class Puppet extends Fighter {
   snap(e) {
     const [, x, z, yaw, fl, pose, held, ld] = e;
     if (!this.alive) return;
+    // (the first word of where he is: put there, not slid there from the one spot every man was made at)
+    if (!this.seen) { this.seen = true; this.a.place(x, z, yaw); this.tx = x; this.tz = z; this.tyaw = yaw; this.spd = 0; }
     this.spd = Math.hypot(x - this.tx, z - this.tz) * 10; this.tx = x; this.tz = z; this.tyaw = yaw;
     if (held !== undefined && (held || null) !== (this.heldK || null)) this.hold(held || null);
     const P = this.a.person;
