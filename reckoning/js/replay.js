@@ -55,7 +55,7 @@ export class Recorder {
   cast() {
     const A = this.A;
     const add = (b, id, extra) => { if (!b || this.ids.has(b)) return; this.ids.set(b, id); if (b.a) this.ids.set(b.a, id); this.bodies.push({ b, id }); this.roster.push({ id, ...extra }); };
-    add(A.you, ME, { team: 0, name: A.me.name, look: A.myLook || A.me.look, lo: { ...A.lo }, you: 1 });
+    add(A.you, ME, { team: 0, name: A.me.name, look: A.myLook || A.me.look, lo: { ...A.lo }, you: 1, horse: G.player && G.player.horse ? 1 : undefined });
     if (A.netFoe) add(A.netFoe, THEM, { team: 1, name: A.netFoe.info.name, look: A.netFoe.info.look, lo: A.netFoe.info.lo || { long: "musket", side: "none", blade: "dagger" }, them: 1 });
     // (the duel's one foe has no number of its own: given one)
     for (const u of A.units) {
