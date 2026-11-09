@@ -1478,8 +1478,10 @@ async function start(opts = {}) {
     // the battles fought, as they were: sent in when each is over; listed (the latest, or a commander's best); fetched
     if (u.pathname === "/replays" || u.pathname.startsWith("/replays/")) return replays(u, res, req);
     // the week's challenge: its board; and how the colours fare, battle by battle, counted
-    if (u.pathname === "/challenge") return challenge(u, res, req);
-    if (u.pathname === "/balance") return balance(u, res, req);
+    // (and a fault in either answered, not left to bring the whole server down)
+    const fail = e => { log("handler: " + (e && e.message)); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } };
+    if (u.pathname === "/challenge") return challenge(u, res, req).catch(fail);
+    if (u.pathname === "/balance") return balance(u, res, req).catch(fail);
     res.statusCode = 404; res.end("{}");
   });
   // ---- replays: every battle recorded on the games that fought it, kept here for anyone to watch ----
@@ -1558,7 +1560,7 @@ async function start(opts = {}) {
   // (the round, as the game reckons it: "C10251", two days from midnight UTC)
   const ROUND_MS = 2 * 864e5, roundOf = t => "C" + Math.floor(t / ROUND_MS);
   const chFile = dataDir ? path.join(dataDir, "challenge.json") : null;
-  let chData = readFile(chFile, {}); const chAsks = new Map(), chSave = keepFile(chFile, () => chData);
+  let chData = Object.assign(Object.create(null), readFile(chFile, {})); const chAsks = new Map(), chSave = keepFile(chFile, () => chData);
   const chPublic = r => ({ name: r.name, score: r.score, won: r.won, k: r.k, l: r.l, secs: r.secs, rep: r.rep || "", at: r.at });
   async function challenge(u, res, req) {
     if (corsPost(req, res)) return;
@@ -1575,7 +1577,7 @@ async function start(opts = {}) {
     // (this round's, or the last one's in the first hour of the next: a battle begun just before midnight still counts)
     const wk = String(m.round || ""); if (wk !== roundOf(now()) && wk !== roundOf(now() - 3600000)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "not this round" })); }
     const pid = pidOf(token), r = { name: clean(m.name, 24) || "Stranger", score: Math.max(0, Math.min(5000, Math.round(num(m.score)))), won: !!m.won, k: Math.max(0, Math.min(400, num(m.k) | 0)), l: Math.max(0, Math.min(400, num(m.l) | 0)), secs: Math.max(0, Math.min(7200, Math.round(num(m.secs)))), rep: /^[a-f0-9]{12}$/.test(String(m.rep || "")) ? m.rep : "", at: now() };
-    const W = chData[wk] ||= {}, was = W[pid], better = !was || r.score > was.score;
+    const W = chData[wk] ||= Object.create(null), was = W[pid], better = !was || r.score > was.score;
     if (better) W[pid] = r; else if (r.rep && !was.rep && r.score === was.score) was.rep = r.rep;
     for (const k of Object.keys(chData).sort().slice(0, -8)) delete chData[k];
     chSave();
@@ -1585,19 +1587,22 @@ async function start(opts = {}) {
   // ---- how the colours fare: each battle's two colours, its size and who won, counted — no name, no id, nothing of who
   //  fought it; read back as each colour's wins and losses, against bots and against players ----
   const balFile = dataDir ? path.join(dataDir, "balance.json") : null;
-  let balData = readFile(balFile, { since: now(), t: {} }); const balAsks = new Map(), balSave = keepFile(balFile, () => balData);
+  let balData = readFile(balFile, { since: now(), t: {} }); balData.t = Object.assign(Object.create(null), balData.t || {}); const balAsks = new Map(), balSave = keepFile(balFile, () => balData);
   const PURSE_OK = [500, 900, 1500, 2000, 2500, 3500, 5000];
+  // (the colours there are — the game's own list — and nothing else: a name like "constructor" or "__proto__" written into
+  //  the counts would have broken every read of them after, the server with it)
+  const COLOURS = new Set(["tatar", "hamburg", "muscovite", "polish", "ottoman", "danish", "dutch", "saxon", "bavarian", "brandenburg", "spanish", "swedish", "english", "french", "imperial"]);
   async function balance(u, res, req) {
     if (corsPost(req, res)) return;
     if (req.method === "GET") {
       const by = {};
-      for (const [k, [w, l]] of Object.entries(balData.t)) { const [vs, mine, foe, purse] = k.split("|"), T = by[mine] ||= { bots: [0, 0], player: [0, 0], vs: {}, size: {} }; T[vs][0] += w; T[vs][1] += l; const V = T.vs[foe] ||= [0, 0]; V[0] += w; V[1] += l; const S = T.size[purse] ||= [0, 0]; S[0] += w; S[1] += l; }
+      for (const [k, c] of Object.entries(balData.t)) { const [vs, mine, foe, purse] = k.split("|"); if (!COLOURS.has(mine) || !COLOURS.has(foe) || !Array.isArray(c) || (vs !== "bots" && vs !== "player")) continue; const [w, l] = c, T = by[mine] ||= { bots: [0, 0], player: [0, 0], vs: {}, size: {} }; T[vs][0] += w; T[vs][1] += l; const V = T.vs[foe] ||= [0, 0]; V[0] += w; V[1] += l; const S = T.size[purse] ||= [0, 0]; S[0] += w; S[1] += l; }
       return res.end(JSON.stringify({ ok: true, since: balData.since, teams: by }));
     }
     if (req.method !== "POST") { res.statusCode = 405; return res.end("{}"); }
     if (askedTooOften(balAsks, req, 30, 600000)) { res.statusCode = 429; return res.end(JSON.stringify({ error: "too many" })); }
     const m = await bodyOf(req, 512), key = /^[a-z_]{2,20}$/;
-    if (!m || !["bots", "player"].includes(m.vs) || !key.test(String(m.mine)) || !key.test(String(m.foe)) || !PURSE_OK.includes(+m.purse)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad" })); }
+    if (!m || !["bots", "player"].includes(m.vs) || !key.test(String(m.mine)) || !key.test(String(m.foe)) || !COLOURS.has(m.mine) || !COLOURS.has(m.foe) || !PURSE_OK.includes(+m.purse)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad" })); }
     const k = `${m.vs}|${m.mine}|${m.foe}|${+m.purse}`, c = balData.t[k] ||= [0, 0]; c[m.won ? 0 : 1]++;
     balSave(); return res.end(JSON.stringify({ ok: true }));
   }
@@ -1865,6 +1870,8 @@ module.exports = { start, discover, lanAddresses };
 
 // run on its own
 if (require.main === module) {
+  // (a fault in an answer that slipped through is written down, not the end of every game on the server)
+  process.on("unhandledRejection", e => console.error(`[${new Date().toISOString()}] unhandled: ${e && (e.stack || e.message || e)}`));
   const arg = (k, d) => { const i = process.argv.indexOf("--" + k); return i < 0 ? d : (process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : true); };
   start({ port: +(arg("port", process.env.PORT || 8080)), world: !!arg("world", false), data: arg("data", "./world-data"), name: arg("name", ""), lan: !!arg("lan", false), seed: arg("seed") ? +arg("seed") : undefined, stock: arg("stock") ? +arg("stock") : 0, hour: arg("hour") ? +arg("hour") : undefined })
     .then(s => { const bye = () => s.stop().then(() => process.exit(0)); process.on("SIGINT", bye); process.on("SIGTERM", bye); })
