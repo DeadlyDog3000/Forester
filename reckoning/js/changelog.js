@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.270", date: "9 November 2026", title: "Telling us when something goes wrong",
+    items: [
+      "Error reports, only if you want them: the first time something goes wrong behind the scenes, a note in the corner asks whether to send it to us so it can be fixed. Send this one, always send, or no. Settings → Error reports has the same choice. A report holds the error and the game's version, nothing about you.",
+      "On a machine still too slow on Balanced graphics, the game steps down to Performance by itself, once, and says so.",
+      "Before every release the whole game is now played through by itself as well: a campaign's first years, a campaign battle won and one left, a battle at sea, the siege of Hamburg, and how quickly your men take an order.",
+    ],
+  },
+  {
     v: "1.99.269", date: "9 November 2026", title: "Drums and fifes as they were, and the bows loosed as one",
     items: [
       "The band is hired in the muster now, with the rest of your company: under Your company, pick the arms a band marches with, 40 thalers each. Each band takes its place behind its arm, and moves with it when you set the arm down.",
