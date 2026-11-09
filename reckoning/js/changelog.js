@@ -7,8 +7,11 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.270", date: "9 November 2026", title: "Telling us when something goes wrong",
+    v: "1.99.270", date: "9 November 2026", title: "Grounds worth paying for, and word when something goes wrong",
     items: [
+      "New grounds to fight on against bots, bought from the purse under The field: a winter field, a river with a ford and a bridge of boats, a village to fight through, the heights, an old castle on its rise, and a walled town — to storm with ladders and guns, or to hold from its walls.",
+      "Supplies for works: buy loads of them in the muster, under Your company, and spend them in the deployment on gabions, chevaux-de-frise, palisades and earth banks.",
+      "Unshare any battle of yours wherever it's listed in the highlights, not only under Shared by you.",
       "Error reports, only if you want them: the first time something goes wrong behind the scenes, a note in the corner asks whether to send it to us so it can be fixed. Send this one, always send, or no. Settings → Error reports has the same choice. A report holds the error and the game's version, nothing about you.",
       "On a machine still too slow on Balanced graphics, the game steps down to Performance by itself, once, and says so.",
       "Before every release the whole game is now played through by itself as well: a campaign's first years, a campaign battle won and one left, a battle at sea, the siege of Hamburg, and how quickly your men take an order.",

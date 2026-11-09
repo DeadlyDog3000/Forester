@@ -58,6 +58,48 @@ export function fieldMap(seed, dx) {
   return M;
 }
 
+// A GROUND BOUGHT IN THE MUSTER (against bots): the field made for a fight of its own kind, from the battle's seed like
+// any other — you at u = −dx, they at +dx. null: the ordinary field.
+//   winter: the ordinary field under snow; river: a river across the middle, a ford and a bridge of boats over it;
+//   heights: the ridge yours, the slope theirs to climb, a chapel on its crest; village: a village between the lines,
+//   its cottages round a green and its church, to be fought through; castle: a castle on a rise on the flank, the field
+//   at its foot; holdtown / stormtown: a walled town, its walls yours to hold, or theirs and yours to storm
+export function groundMap(k, seed, dx) {
+  let s = ((seed | 0) ^ 0x2c1b3c6d) || 7;
+  const r = () => (s = Math.imul(s ^ (s >>> 15), 2246822519) + 0x9e3779b9 | 0, ((s >>> 0) % 1e6) / 1e6);
+  const base = () => fieldMap(seed, dx);
+  if (k === "winter") return { ...base(), snow: true };
+  if (k === "river") {
+    const M = base(); M.ramp = null; M.rivers = [{ u: (r() - 0.5) * 6, w: 13 + r() * 4, d: 0.85, bank: 4 }]; const bv = (r() < 0.5 ? -1 : 1) * (18 + r() * 14);
+    M.things = M.things.filter(t => t[0] !== "mill" && t[0] !== "vines"); M.things.push(["bridge", -13, 13, bv, 4.5], ["mill", (r() < 0.5 ? -1 : 1) * 22, -bv * 1.9]);
+    return M;
+  }
+  if (k === "heights") {
+    const M = { hills: [{ u: -dx * 0.9, v: -40, r: 30, h: 5 }, { u: -dx * 0.9, v: 42, r: 28, h: 4 }], rivers: [], r1: dx * 2.4, r2: dx * 4, ramp: [-dx * 0.2, 0, -dx + 6, 9 + r() * 3] };
+    M.things = [["church", -dx - 14, (r() - 0.5) * 30, Math.PI / 2, 14, 8], ["house", dx * 0.55, 44, 0.2, 7, 5], ["house", dx * 0.55 + 10, 52, -0.1, 6.5, 5, "tile"]];
+    return M;
+  }
+  if (k === "village") {
+    const M = { ...base(), things: [] }; M.ramp = null; M.rivers = [];
+    const ring = 9; for (let i = 0; i < ring; i++) { const a = i / ring * Math.PI * 2 + r() * 0.2, rr = 17 + r() * 5, u = Math.cos(a) * rr * 0.75, v = Math.sin(a) * rr * 1.35;
+      if (Math.abs(v) < 6) continue;   // (the street through it left open, east and west)
+      M.things.push(["house", u, v, -a + (r() - 0.5) * 0.3, 6.5 + r() * 2, 4.5 + r() * 1.2, r() < 0.35 ? "tile" : "thatch"]); }
+    M.things.push(["church", (r() - 0.5) * 8, (r() < 0.5 ? -1 : 1) * 36, Math.PI / 2, 16, 10], ["vines", -dx * 0.55, -dx * 0.25, 30, 48]);
+    return M;
+  }
+  if (k === "castle") {
+    const sv = r() < 0.5 ? -1 : 1, M = { ...base(), things: [] }; M.ramp = null;
+    M.hills = [{ u: 0, v: sv * 62, r: 34, h: 7 }, ...M.hills.filter(H => Math.sign(H.v) !== sv)];
+    M.things.push(["castle", 0, sv * 66, 1.1], ["house", -dx * 0.3, sv * 34, 0.3, 7, 5], ["house", dx * 0.3, sv * 36, -0.2, 6.5, 5, "tile"]);
+    return M;
+  }
+  if (k === "holdtown" || k === "stormtown") {
+    const d = k === "holdtown" ? -1 : 1;
+    return { snow: false, things: [["town", d, 2, 1, (seed % 100000) | 0, 0], ["tents", -d * (dx + 14), -d * (dx + 34), -30, 30, 10, "canvas", "ridge"]] };
+  }
+  return null;
+}
+
 // the ground reshaped: called before any of it is built (the terrain's chunks, its trees, the field's works)
 export function shapeField(w, C, b, flip) {
   const M = b.map || {}, L = w.land; if (!L.setSculpt) return;
