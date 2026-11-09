@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.272", date: "9 November 2026", title: "Four guns, the charge, and the field as chance has it",
+    items: [
+      "Buy four guns and all four come to the field: on the open field, behind the battery, in your fort and on a town's walls. Only three had come.",
+      "A charge hits harder the faster the horse is going: a horseman at the halt strikes no harder than a man on foot, at the full gallop twice as hard and more — and a lance, made for the charge, near three times.",
+      "The river, the village, the heights and the winter field are no longer bought: any battle on open ground may fall on one of them, as chance has it — for both sides of a battle online alike. The castle and the walled town are still yours to choose.",
+    ],
+  },
+  {
     v: "1.99.271", date: "9 November 2026", title: "Dressed for their rank and their arm",
     items: [
       "Your rank shows on your uniform, as the foot of the 1680s wore it: a corporal's worsted tape round his hat; a sergeant's sash in his regiment's facing colour and his hat laced in silver; a lieutenant's and a captain's coat made for them, a laced and plumed hat, the gorget at the throat — silvered for a lieutenant, gilt for a captain — and the sash in their prince's colours. In a historical battle, a campaign's or the story's, you lead your company as its captain.",

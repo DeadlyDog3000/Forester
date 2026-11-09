@@ -575,8 +575,9 @@ export class Field {
       this.gabion(x, z, side); this.claim(x, z, 0.5);
     }
     const ng0 = 1 + Math.floor(r() * 2.4), ng = this.gunsWant ? this.gunsWant[side] : ng0;
-    for (let g = 0; g < Math.min(ng, gaps.length + 1); g++) {
-      const t = (g === 0 ? gaps[0] : g === 1 ? gaps[1] : Math.floor(n / 2)) / (n - 1) - 0.5, z = C.z + t * 18, x = lineX + sx * 1.6;
+    // (the battery's gaps first; any more guns than it has gaps for out at its ends)
+    for (let g = 0; g < Math.min(ng, gaps.length + 3); g++) {
+      const t = g < gaps.length + 1 ? (g === 0 ? gaps[0] : g === 1 ? gaps[1] : Math.floor(n / 2)) / (n - 1) - 0.5 : (g === gaps.length + 1 ? -0.68 : 0.68), z = C.z + t * 18, x = lineX + sx * 1.6;
       this.gun(side, x, z, sx); this.claim(x, z, 1.4);
       // (the gun's line of fire out through its gap: nothing set down in it for a good way)
       for (let k = 4; k <= 16; k += 4) this.claim(x - sx * k, z, 1.2);
@@ -601,8 +602,9 @@ export class Field {
   fieldGuns(side) {
     const r = this.r, C = this.C, sx = side === 0 ? -1 : 1, lineX = C.x + sx * this.dx;
     for (let z = -16; z <= 16; z += 4) this.claim(lineX, C.z + z, 2.5);
-    const ng = this.gunsWant ? this.gunsWant[side] : 1 + Math.floor(r() * 2.4), at = [-1, 1, 0];
-    for (let g = 0; g < Math.min(ng, 3); g++) {
+    // (as many as were bought, up to the muster's four: three on the flanks and the middle, a fourth further out)
+    const ng = this.gunsWant ? this.gunsWant[side] : 1 + Math.floor(r() * 2.4), at = ng >= 4 ? [-1.5, -0.5, 0.5, 1.5].map(a => a * 0.95) : [-1, 1, 0];
+    for (let g = 0; g < Math.min(ng, 4); g++) {
       const { x, z } = this.gunSpot(lineX - sx * (2 + r()), C.z + at[g] * (17 + r() * 3));
       this.gun(side, x, z, sx); this.claim(x, z, 1.4);
       for (let k = 4; k <= 16; k += 4) this.claim(x - sx * k, z, 1.2);
@@ -676,6 +678,8 @@ export class Field {
     const cuts = [-W, ...emb.flatMap(e => [e - gapW / 2, e + gapW / 2]), W];
     for (let i = 0; i < cuts.length; i += 2) { const z0 = C.z + cuts[i], z1 = C.z + cuts[i + 1]; this.rampart(fx, (z0 + z1) / 2, z1 - z0, Math.PI / 2, side, inside); }
     emb.forEach((e, i) => { this.gabion(fx - sx * 0.2, C.z + e - gapW / 2 - 0.45); this.gabion(fx - sx * 0.2, C.z + e + gapW / 2 + 0.45); if (!this.gunsWant || i < this.gunsWant[side]) this.gun(side, fx + sx * 1.3, C.z + e, sx); });
+    // (a third and a fourth gun, if they were bought: in the front's corners, firing over the rampart)
+    if (this.gunsWant) for (let i = 2; i < Math.min(4, this.gunsWant[side]); i++) this.gun(side, fx + sx * 1.6, C.z + (i === 2 ? -9.5 : 9.5), sx);
     // the flanks: bank and palisade, one with its breach
     const breach = r() < 0.5 ? -1 : 1;
     for (const zs of [-1, 1]) {

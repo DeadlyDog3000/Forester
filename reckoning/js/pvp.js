@@ -954,16 +954,16 @@ const MAX_MEN = 90, MAX_GUNS = 4;
 export const spentOf = A => Object.entries(A.muster || {}).reduce((t, [k, n]) => t + (TROOPS[k] ? TROOPS[k].cost * n : 0), 0) + (A.guns | 0) * GUN_COST + (A.ride ? RIDE_COST : 0) + (A.bands || []).length * BAND_COST + groundCost(A) + (A.vs !== "player" ? (A.supplies | 0) * SUPPLY_COST : 0);
 // (a band — a drummer and a fifer — hired in the muster for one arm, to march with it)
 export const BAND_COST = 40;
+// a horseman's blow, by how fast his horse is going: from the halt no more than a man on foot's, at the full gallop
+//  twice that and more — the horse's weight behind the sword; and a lance, made for the charge, more again
+//  (v: the horse's speed now; full: its gallop)
+export const chargeK = (v, full, blade) => { const k = Math.pow(clamp((v || 0) / full, 0, 1), 1.3); return (1 + 1.1 * k) * (blade === "spear" ? 1 + 0.4 * k : 1); };
 // the grounds to fight on, against bots: the open field and the forts for nothing; the others bought from the purse —
 //  the dearer, the more there is to them (histmap.js groundMap builds each)
 export const GROUNDS = {
-  open: { name: "Open field", sub: "wherever the armies meet", cost: 0 },
+  open: { name: "Wherever they meet", sub: "open ground, a river, a village, the heights or a winter field — as chance has it", cost: 0 },
   ours: { name: "Your fort", sub: "an earthwork to hold", cost: 0 },
   theirs: { name: "Their fort", sub: "an earthwork to storm", cost: 0 },
-  winter: { name: "A winter field", sub: "snow lying, breath smoking", cost: 40 },
-  river: { name: "The river", sub: "a ford and a bridge of boats between you", cost: 90 },
-  village: { name: "The village", sub: "cottages and a church to fight through", cost: 140 },
-  heights: { name: "The heights", sub: "the ridge yours, the slope theirs to climb", cost: 180 },
   castle: { name: "The castle", sub: "an old castle on its rise over the field", cost: 220 },
   stormtown: { name: "Storm the town", sub: "ladders and guns against its walls", cost: 350 },
   holdtown: { name: "Hold the town", sub: "its walls, gate and guns yours to defend", cost: 450 },
@@ -1433,7 +1433,11 @@ class Arena {
     // (any other battle: a field of its own — a rise one side holds, knolls, a brook to ford, a hamlet on a flank — from
     //  its seed, the same for both players and for its replay)
     // (or the ground bought in the muster, against bots: the river, the village, the heights, the castle, the town…)
-    this.gk = this.battle && !this.net && !this.custom && !HB && !TW && A && A.ground && groundMap(A.ground, 1, this.dx) ? A.ground : null;
+    // (and the ordinary field, wherever the armies meet, as chance has it — from the battle's seed, so both games of a
+    //  battle online, and its replay, have the same: open ground most often, else a river, a village, the heights or a
+    //  winter field)
+    const chance = sd => { const x = Math.abs(Math.sin((sd | 0) * 12.9898 + 4.1) * 43758.5453) % 1; return x < 0.4 ? null : x < 0.55 ? "river" : x < 0.7 ? "village" : x < 0.85 ? "heights" : "winter"; };
+    this.gk = this.battle && !this.custom && !HB && !TW && ground ? (!this.net && A && A.ground && A.ground !== "open" && groundMap(A.ground, 1, this.dx) ? A.ground : !A || !A.ground || A.ground === "open" || (this.net && A.ground !== "ours" && A.ground !== "theirs") ? chance(ground.seed) : null) : null;
     const RF = this.battle && !HB && !TW && ground && !this.custom ? { map: (this.gk && groundMap(this.gk, ground.seed, this.dx)) || fieldMap(ground.seed, this.dx) } : null;
     if (RF) shapeField(w, C, RF, false);
     this.place = HB ? { text: `${HB.name} · ${HB.date}`, at: HB.at } : CA ? { text: `${String(CA.name).slice(0, 40)} · ${String(CA.date || "").slice(0, 30)}`, at: String(CA.at || "").slice(0, 80) } : ground ? ground.name : null;
@@ -1501,7 +1505,7 @@ class Arena {
         else this.cos.forEach((c, i) => {
           const M = i ? botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), this.uni && Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[c.al ?? i])) : A;
           let l = list(M); if (i) { l.sort(() => Math.random() - 0.5); l = l.slice(0, per); }
-          this.musters.push(l); c.guns = i ? Math.min(M.guns | 0, many ? 1 : 2) : Math.min(A.guns | 0, N === 2 ? 3 : 2); this.gunsBought.push(c.guns);
+          this.musters.push(l); c.guns = i ? Math.min(M.guns | 0, many ? 1 : 2) : Math.min(A.guns | 0, N === 2 ? 4 : 2); this.gunsBought.push(c.guns);
         });
         A.allies = this.musters.filter((m, i) => i && this.cos[i].al === 0).reduce((t, m) => t + m.length, this.musters[0].length);
         A.enemies = this.musters.filter((m, i) => this.cos[i].al !== 0).reduce((t, m) => t + m.length, 0);
@@ -1519,7 +1523,7 @@ class Arena {
       }
       // (a custom battle of two sides: each end's works with the guns of all its companies; of more: every company its
       //  own little battery)
-      const sumGuns = a => Math.min(3, this.cos.filter(c => c.al === a).reduce((t, c) => t + c.guns, 0));
+      const sumGuns = a => Math.min(4, this.cos.filter(c => c.al === a).reduce((t, c) => t + c.guns, 0));
       const gunsHost = this.battle ? (setup ? setup.guns : this.custom ? (this.custom.length === 2 ? [sumGuns(0), sumGuns(1)] : null) : this.gunsBought) : null;
       const camps = this.custom && this.custom.length > 2 ? this.cos.map((c, i) => ({ side: c.al, co: i, x: c.x, z: c.z, guns: c.guns })) : null;
       // (a walled town: its defenders on the walk behind the parapet, their guns in its embrasures)
@@ -2863,8 +2867,8 @@ class Arena {
   // what your blade is now: the bayonet on your musket, if it's fixed; else the one in your belt
   myBlade() {
     const pl = G.player, B = (pl.gun && pl.bayonet && pl.gunIs === "musket") || pl.blade === "bayonet" ? BLADE.bayonet : BLADE[this.lo.blade] || BLADE.dagger;
-    // (from the saddle: further, and harder at the gallop)
-    return pl.horse ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * (pl.speed > 6 ? 1.7 : 1.25) } : B;
+    // (from the saddle: further, and the harder the faster the horse is going — see chargeK)
+    return pl.horse ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * chargeK(pl.speed, 8.5, this.lo.blade) } : B;
   }
   canBayonet() { return this.lo.long === "musket" && this.lo.blade === "dagger" && this.myTech("bayonet"); }
   myTech(k) { const c = this.hist && this.hist.cos && this.hist.cos[0]; return !c || !c.tech || c.tech[k] !== false; }
@@ -3660,7 +3664,7 @@ class Bot extends Fighter {
   }
   // his blade as he uses it: from the saddle, longer in the reach, and heavier at the gallop; a man winded from a long
   // run at the enemy hits weakly and slowly
-  blade() { const B = BLADE[this.steel()], w = 1 - (this.blown || 0) * 0.45; return this.mounted ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * (this.a.speed > 5 ? 1.7 : 1.25) * w, rate: B.rate * (0.6 + w * 0.4) } : { ...B, dmg: B.dmg * w, rate: B.rate * (0.6 + w * 0.4) }; }
+  blade() { const B = BLADE[this.steel()], w = 1 - (this.blown || 0) * 0.45; return this.mounted ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * chargeK(this.a.speed, 5.5, this.steel()) * w, rate: B.rate * (0.6 + w * 0.4) } : { ...B, dmg: B.dmg * w, rate: B.rate * (0.6 + w * 0.4) }; }
   // shaken — by a comrade falling by him, a ball in him, a volley into his line: steadier men less
   shaken(k) {
     if (!this.alive || this.nerve == null || !this.arena.battle) return;
