@@ -2503,3 +2503,21 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 #crashAsk span { display: block; opacity: 0.85; }
 #crashAsk div { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 #crashAsk .btn { padding: 5px 10px; font-size: 12px; }
+
+/* your regiment's colours, made in the muster (pvp.js coloursRow) */
+.cl-wrap { display: flex; gap: 16px; align-items: flex-start; margin: 8px 0; flex-wrap: wrap; }
+#colPrev { width: 240px; height: 160px; border: 2px solid #6a5434; border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.35); flex: none; }
+.cl-opts { flex: 1; min-width: 260px; }
+.cl-l { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; margin: 8px 0 4px; }
+.cl-ts { display: flex; gap: 5px; flex-wrap: wrap; margin: 4px 0; }
+.cl-t { width: 24px; height: 24px; border-radius: 50%; border: 2px solid rgba(60,40,20,.35); padding: 0; cursor: pointer; }
+.cl-t.on { border-color: #2a1c10; box-shadow: 0 0 0 2px #e8c46a; }
+.cl-g .pv-gr { padding: 4px 9px; }
+#colCipher { width: 60px; font: italic bold 18px Georgia, serif; text-align: center; }
+.cl-took { margin-top: 8px; font-size: 13px; }
+/* your regiment's rolls (pvp.js regimentRow) */
+.rg-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 4px 10px; margin: 6px 0; }
+.rg-m { display: flex; flex-direction: column; }
+.rg-m b { font: 600 12px var(--sans); }
+.rg-m small { font: italic 11px var(--serif); color: var(--ink-dim); }
+.rg-hon { font-size: 13px; margin-top: 4px; }

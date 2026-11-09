@@ -37,7 +37,9 @@ import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
-import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
+import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, teamOpen, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
+import { rollFor, regimentOf, muster as callRoll, vetSkill, vetBrave } from "./regiment.js";
+import { designOf, setDesign, addTaken, takenAll, drawDesign, DEFAULT as DEFAULT_COLOURS, TINCTURES, DIVISIONS, BADGES } from "./colours.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, unshare, ago, mmss } from "./replay.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
 const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
@@ -172,6 +174,8 @@ export function initPvp(c) {
   }, () => army().uniform);
   $("musTabs").addEventListener("click", e => { const b = e.target.closest("[data-mt]"); if (!b) return; musTab = b.dataset.mt; drawMuster(); sfx("page"); });
   $("musTeam").addEventListener("click", teamClick);
+  $("musTeam").addEventListener("change", e => { if (e.target.id === "colCipher") { setDesign(army().uniform, { cipher: e.target.value }); drawTeam(); } });
+  $("musTeam").addEventListener("keydown", e => { if (e.target.id === "colCipher") { e.stopPropagation(); if (e.key === "Enter") e.target.blur(); } });
   $("musField").addEventListener("click", armyClick);
   $("musForge").addEventListener("click", forgeClick);
   // (the demo comes in too: the guided battle and the challenge are its to fight; the rest says it's the full game's)
@@ -498,7 +502,9 @@ const wantName = W => W.k === "w" ? `The ${W.id === "dagger" ? "knife" : nameOf(
 const wantIs = (k, id, x) => !!want && want.k === k && want.id === id && (x == null || want.slot === x || want.kind === x);
 function buyBar() {
   if (!want) return "";
-  const p = wantPrice(want), have = ducats(), ok = have >= p, T = TEAM_NAME(teamNow());
+  const p = wantPrice(want), have = ducats(), T = TEAM_NAME(teamNow()), shut = want.k === "t" && !teamOpen(want.id), ok = have >= p && !shut;
+  if (shut) return `<div class="buybar"><div class="bb-n"><b>${esc(wantName(want))}</b><small>Not to be had for money alone: take the ${esc(TEAM_NAME(want.id))} colours in battle first — fight them (The field, The enemy), bring their ensign down, and carry their colours off. Then their men are yours to raise.</small></div>
+    <div class="bb-p">${money(p)}</div><button class="bb-x" data-unwant="1">Cancel</button><button class="bb-buy" data-buy="1" disabled>Buy</button></div>`;
   return `<div class="buybar"><div class="bb-n"><b>${esc(wantName(want))}</b><small>${ok ? `Paid from the ${esc(T)} purse, which holds ${money(have)}` : `${money(p - have)} more than the ${esc(T)} purse holds — fight in these colours to earn it`}</small></div>
     <div class="bb-p">${money(p)}</div><button class="bb-x" data-unwant="1">Cancel</button><button class="bb-buy" data-buy="1"${ok ? "" : " disabled"}>Buy</button></div>`;
 }
@@ -529,15 +535,33 @@ function drawTeam() {
   el.classList.toggle("locked", !!must.mine);
   el.innerHTML = `<div class="pv-h big">Your team</div>
     <div class="mus-rule">Each crown's colours are bought once and kept, each with its own purse in its own coin. Start with the Tatars; earn your way up to the Emperor's own regiments. In a ranked fight a team carries the arms its soldiers really carried in 1683.</div>
-    <div class="tm-list">${TEAM_KEYS.map(k => { const u = UNIFORMS[k], have = ownsTeam(k); return `<button class="tm${A.uniform === k ? " on" : ""}${have ? "" : " off"}${wantIs("t", k) ? " ask" : ""}" data-team="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span><b>${esc(u.name)}</b><small>${have ? `${A.uniform === k ? "Marching" : "Yours"} · ${money(ducats(k), k)}` : money(TEAMS[k].price)}</small></button>`; }).join("")}</div>
+    <div class="tm-list">${TEAM_KEYS.map(k => { const u = UNIFORMS[k], have = ownsTeam(k); return `<button class="tm${A.uniform === k ? " on" : ""}${have ? "" : " off"}${wantIs("t", k) ? " ask" : ""}" data-team="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span><b>${esc(u.name)}</b><small>${have ? `${A.uniform === k ? "Marching" : "Yours"} · ${money(ducats(k), k)}` : teamOpen(k) ? money(TEAMS[k].price) : "Take their colours first"}</small></button>`; }).join("")}</div>
     ${want && want.k === "t" ? buyBar() : ""}
     <div class="tm-card"><div class="tm-t"><b>${esc(UNIFORMS[shown].name)}</b> <span>${esc(UNIFORMS[shown].note)}</span></div>
       <div class="tm-kit"><b>Carries, ranked:</b> ${esc(kitWords(shown))} · <b>Paid in</b> ${esc(coinName(shown))}</div>
-      <p class="tm-why"><b>In 1683.</b> ${esc(cur.why)}</p></div>`;
+      <p class="tm-why"><b>In 1683.</b> ${esc(cur.why)}</p></div>
+    ${ownsTeam(A.uniform) ? coloursRow(A.uniform) : ""}`;
+  const cv = el.querySelector("#colPrev"); if (cv) { const D = designOf(A.uniform) || DEFAULT_COLOURS; drawDesign(cv.getContext("2d"), D); }
+}
+// (your regiment's own colours, for the team you march in: made here, carried into battle by your ensign)
+function coloursRow(t) {
+  const D = designOf(t) || DEFAULT_COLOURS, tc = (k, sel) => TINCTURES.map(([n, c]) => `<button class="cl-t${D[k] === n ? " on" : ""}" data-cd="${k}:${n}" title="${n}" style="background:${c}"></button>`).join("");
+  const opts = (k, list) => list.map(([id, n]) => `<button class="pv-gr${D[k] === id ? " on" : ""}" data-cd="${k}:${id}"><b>${esc(n)}</b></button>`).join("");
+  const took = takenAll(), tk = Object.entries(took).filter(([k, n]) => n > 0 && UNIFORMS[k]);
+  return `<div class="pv-h big">Your colours</div>
+    <div class="pv-sn">Your regiment's own, carried by your ensign in the middle of your foot. Men near them stand steadier; if he falls, take them up again before the enemy does. Bring theirs down and carry them off, and their men are yours to raise.</div>
+    <div class="cl-wrap"><canvas id="colPrev" width="192" height="128"></canvas><div class="cl-opts">
+      <div class="cl-l">Field</div><div class="cl-ts">${tc("field")}</div>
+      <div class="cl-l">Laid over it</div><div class="pv-grounds cl-g">${opts("div", DIVISIONS)}</div><div class="cl-ts">${tc("divC")}</div>
+      <div class="cl-l">The badge</div><div class="pv-grounds cl-g">${opts("badge", BADGES)}</div><div class="cl-ts">${tc("badgeC")}</div>
+      ${D.badge === "cipher" ? `<div class="cl-l">The cipher</div><input id="colCipher" maxlength="2" value="${esc(D.cipher)}">` : ""}
+    </div></div>
+    <div class="cl-took"><b>Colours taken:</b> ${tk.length ? tk.map(([k, n]) => `${esc(UNIFORMS[k].name)}${n > 1 ? ` ×${n}` : ""}`).join(", ") : "none yet"}</div>`;
 }
 function teamClick(e) {
   if (must && must.mine) return;
   if (buyClick(e)) return;
+  const cd = e.target.closest("[data-cd]"); if (cd) { const [k, v] = cd.dataset.cd.split(":"); setDesign(army().uniform, { [k]: v }); drawTeam(); sfx("click"); return; }
   const b = e.target.closest("[data-team]"); if (!b) return;
   const k = b.dataset.team;
   if (!ownsTeam(k)) { want = { k: "t", id: k }; drawTeam(); sfx("page"); return; }
@@ -660,7 +684,7 @@ function drawArmy() {
   const tr = (k, T, n, cost, max) => `<div class="pv-tr">${k !== "guns" && plateOf(wayOfUniform(A.uniform), k) ? `<img class="pv-tr-img" src="${plateOf(wayOfUniform(A.uniform), k)}" alt="">` : ""}<span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><input class="pv-tr-c" data-trn="${k}" value="${n}" inputmode="numeric" maxlength="3" title="Type how many"><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
   const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest || (host && must.theirs) ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? (must.theirs ? ` — ${esc(must.foe.name || "the other player")} is ready, so the size of battle is set` : " — you're the host: the size of battle is yours to choose") : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
-    <div class="pv-muster">${Object.entries(TROOPS).filter(([k]) => troopOk(A.uniform, k)).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>${A.vs === "player" ? "" : bandRow(A, left) + supplyRow(A, left)}` : "";
+    <div class="pv-muster">${Object.entries(TROOPS).filter(([k]) => troopOk(A.uniform, k)).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>${A.vs === "player" ? "" : drillRow(A) + bandRow(A, left) + supplyRow(A, left) + regimentRow(A)}` : "";
   if (!A.battle) { el.innerHTML = ""; return; }
   const locked = must && must.mine;
   el.classList.toggle("locked", !!locked);
@@ -710,6 +734,20 @@ function bandRow(A, left) {
   return `<div class="pv-h">The band</div><div class="pv-sn">${BAND_COST} thalers a band, to march with one arm and play its music: the foot to the drum, the horse to the trumpet. Its men stand the steadier for it.</div>
     <div class="pv-grounds pv-bands">${arms.map(g => { const on = A.bands.includes(g), G0 = GROUPS.find(x => x.id === g), T = tuneFor(A.uniform, g); return `<button class="pv-gr${on ? " on" : ""}" data-band="${g}"${!on && left < BAND_COST ? " disabled" : ""} title="${esc(T.name)}"><b>${esc(G0.name)}</b><small>${on ? T.who : `${T.who} · ${BAND_COST} thalers`}</small></button>`; }).join("")}</div>`;
 }
+// (the drill your company fights by: its own crown's, or another's learnt)
+function drillRow(A) {
+  const own = DRILL_OF[A.uniform] || "ranks", cur = drillOf(A, A.uniform);
+  return `<div class="pv-h">The drill</div><div class="pv-sn">How your company fights. Each crown drilled its own way; yours is marked.</div>
+    <div class="pv-grounds pv-gnd">${Object.entries(DRILLS).map(([k, D]) => `<button class="pv-gr${cur === k ? " on" : ""}" data-drill="${k}"><b>${esc(D.name)}${k === own ? " · your crown's" : ""}</b><small>${esc(D.sub)}</small></button>`).join("")}</div>`;
+}
+// (your regiment: its longest-serving men, and the fields it has won)
+function regimentRow(A) {
+  const R = regimentOf(A.uniform), men = R.men.slice(0, 12);
+  if (!R.men.length) return `<div class="pv-h">Your regiment</div><div class="pv-sn">The men who come through a battle against bots march in the next, the steadier and the better shots for it, and are made corporal and sergeant as they earn it. None yet: fight, and the rolls begin.</div>`;
+  return `<div class="pv-h">Your regiment</div><div class="pv-sn">${R.men.length} men on the rolls${R.fought ? `, ${R.fought} battle${R.fought > 1 ? "s" : ""} fought` : ""}. The longest-serving go first into the places of their arm.</div>
+    <div class="rg-list">${men.map(m => `<div class="rg-m"><b>${esc(m.name)}</b><small>${m.rank ? m.rank[0].toUpperCase() + m.rank.slice(1) + " · " : ""}${esc((TROOPS[m.kind] || { one: m.kind }).one)} · ${m.battles} battle${m.battles > 1 ? "s" : ""}</small></div>`).join("")}</div>
+    ${(R.honours || []).length ? `<div class="rg-hon"><b>Battle honours:</b> ${R.honours.slice(0, 8).map(h => esc(h.place)).join(" · ")}</div>` : ""}`;
+}
 // (supplies for works: loads of fascines, stakes and tools, bought here, and in the deployment spent on the works)
 function supplyRow(A, left) {
   const n = A.supplies | 0, W = Field.WORKS, step = 5;
@@ -757,6 +795,7 @@ function armyClick(e) {
   else if (b.dataset.bt) setArmy({ battle: !A.battle, enemies: !A.battle && A.enemies < 6 ? 8 : A.enemies, allies: !A.battle && A.allies < 4 ? 6 : A.allies });
   else if (b.dataset.uni) setArmy({ uniform: b.dataset.uni });
   else if (b.dataset.gr) setArmy({ ground: b.dataset.gr });
+  else if (b.dataset.drill) setArmy({ drill: b.dataset.drill });
   else if (b.dataset.sup) { const left = A.purse - spentOf(A), d = +b.dataset.sup; setArmy({ supplies: Math.max(0, Math.min(SUPPLY_MAX, (A.supplies | 0) + (d > 0 ? Math.min(d, Math.floor(left / SUPPLY_COST)) : d))) }); }
   else if (b.dataset.foe != null) setArmy({ foe: b.dataset.foe });
   else if (b.dataset.band) setArmy({ bands: A.bands.includes(b.dataset.band) ? A.bands.filter(g => g !== b.dataset.band) : [...A.bands, b.dataset.band] });
@@ -889,7 +928,7 @@ export function army() {
   // (the bands, against bots: one to an arm that's raised, as many as the purse has left for)
   const bands = a.vs === "player" || !Array.isArray(a.bands) ? [] : [...new Set(a.bands)].filter(g => armsIn(F.muster).includes(g));
   while (bands.length && spentOf({ ...F, ride: riding(), bands }) + reserve > purse) bands.pop();
-  return { bands, supplies, allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: foe || others[Math.floor(Math.random() * others.length)], foe, ground, vs: a.vs === "player" ? "player" : "bots",
+  return { bands, supplies, drill: DRILLS[a.drill] ? a.drill : null, allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: foe || others[Math.floor(Math.random() * others.length)], foe, ground, vs: a.vs === "player" ? "player" : "bots",
     purse: a.vs === "player" ? livePurse(a) : purse, ppurse: prefPurse(a), muster: F.muster, guns: F.guns, sides: fitSides(a.sides), ride: riding() };
 }
 export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900) - groundCost(a) - (a.supplies | 0) * SUPPLY_COST, riding(), a.uniform); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
@@ -954,6 +993,23 @@ const MAX_MEN = 90, MAX_GUNS = 4;
 export const spentOf = A => Object.entries(A.muster || {}).reduce((t, [k, n]) => t + (TROOPS[k] ? TROOPS[k].cost * n : 0), 0) + (A.guns | 0) * GUN_COST + (A.ride ? RIDE_COST : 0) + (A.bands || []).length * BAND_COST + groundCost(A) + (A.vs !== "player" ? (A.supplies | 0) * SUPPLY_COST : 0);
 // (a band — a drummer and a fifer — hired in the muster for one arm, to march with it)
 export const BAND_COST = 40;
+// THE DRILL: how a company fights, as the armies of the 1680s differed — a choice in the muster for yours, and each
+//  enemy crown's own way for theirs:
+//   fire by ranks: the common drill of the age — the whole line's muskets at the word, together;
+//   platoon fire: the Dutch way (and the English after 1688) — the line in platoons, firing one after another down it,
+//     so it's never all empty at once: its men drilled to load the quicker, and steadier for the fire never stopping;
+//   gå-på: the Swedes' — "go on": no firing at long range; one volley close, then straight in with the sword — slower
+//     to load, harder with the steel, and the bolder for it;
+//   pike and shot: the Emperor's and the Spaniard's — the muskets close by the pikes' hedge, the pikemen steadiest of all
+//     and the musketeers by them steadier too
+export const DRILLS = {
+  ranks: { name: "Fire by ranks", sub: "The common drill: the whole line at the word", reload: 1, steel: 1, brave: 1, pike: 1 },
+  platoon: { name: "Platoon fire", sub: "The Dutch way: fire rolling down the line, never all empty at once · loads quicker", reload: 1.12, steel: 1, brave: 1.06, pike: 1, roll: true },
+  gapa: { name: "Gå-på", sub: "The Swedes' way: one volley close, then the sword · harder with the steel, slower to load", reload: 0.88, steel: 1.25, brave: 1.15, pike: 1 },
+  pikeshot: { name: "Pike and shot", sub: "The Emperor's way: the muskets by the pikes' hedge · pikemen steadiest of all", reload: 1, steel: 1, brave: 1.06, pike: 1.3 },
+};
+export const DRILL_OF = { swedish: "gapa", dutch: "platoon", english: "platoon", scottish: "platoon", brandenburg: "platoon", danish: "platoon", imperial: "pikeshot", reich: "pikeshot", bavarian: "pikeshot", saxon: "pikeshot", spanish: "pikeshot", aragonese: "pikeshot", milanese: "pikeshot", neapolitan: "pikeshot" };
+export const drillOf = (A, uni) => DRILLS[A && A.drill] ? A.drill : DRILL_OF[uni] || "ranks";
 // a horseman's blow, by how fast his horse is going: from the halt no more than a man on foot's, at the full gallop
 //  twice that and more — the horse's weight behind the sword; and a lance, made for the charge, more again
 //  (v: the horse's speed now; full: its gallop)
@@ -1523,6 +1579,9 @@ class Arena {
         const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride), foe.army && foe.army.uniform) : A.ghost ? { muster: { ...A.ghost.muster }, guns: A.ghost.guns | 0 } : A.challenge ? withSeed(A.challenge.seed + 7, () => botMuster(A.purse, A.enemyUniform)) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), A.enemyUniform, generalship());   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
+        // (your regiment, against bots: the men who came through the last battles, in their places again — see regiment.js)
+        this.regOn = !this.net && !HB && !A.challenge && !A.cmpEnd && !A.ghost && ["bots", "quick"].includes(lastMode) && !!A.uniform;
+        if (this.regOn) { this.roll = rollFor(A.uniform, this.musters[0]); this.rollKinds = new Set(regimentOf(A.uniform).men.map(m => m.kind)); }
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;
       }
       // (a custom battle of two sides: each end's works with the guns of all its companies; of more: every company its
@@ -1553,7 +1612,9 @@ class Arena {
         this.flags.forEach((f, a) => this.field.colours(a, f.key, f));
       }
       // (no colours on a staff for the woods' nations: they carried none)
-      else if (this.battle && this.uni) for (const t of [0, 1]) if (!/^warrior/.test((this.uni[t] && this.uni[t].body) || "")) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t]));
+      // (a side whose ensign carries them — see raiseColours — has none on a staff: only a fort's or a town's, or a
+      //  battle online, plants them)
+      else if (this.battle && this.uni) for (const t of [0, 1]) if (!/^warrior/.test((this.uni[t] && this.uni[t].body) || "") && !this.carriesColours(t)) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t]));
       if (this.remote) {
         // (and then turned about: the east line, and the guns there, are ours here)
         this.spawns.reverse();
@@ -1577,7 +1638,7 @@ class Arena {
       if (this.battle) this.orders.forEach((O, t) => { const U = this.coUni && this.coUni[t] || (this.uni && this.uni[this.alOf(t)]); if (U && /^warrior/.test(U.body || "") && t !== 0) O.form = "loose"; });
       this.book = new OrderBook(id => this.give(id));
       const sk = this.netBattle ? skillOf(botRecord().rating) : foe.skill, mk = (team, i) => {
-        const b = botFoe(), seed = 1000 + team * 100 + i;
+        const vet = team === 0 && this.roll ? this.roll[i] : null, b = botFoe(), seed = vet ? vet.seed : team === 0 && this.roll ? ((Math.random() * 1e9) | 0) : 1000 + team * 100 + i;
         const U = this.coUni && this.coUni[team] || (this.uni && this.uni[this.alOf(team)]);
         const tk = this.musters && this.musters[team] && this.musters[team][i], T = tk && TROOPS[tk], call = this.hist && this.hist.cos[team] && this.hist.cos[team].call;
         // (militia in their own grey homespun, not the crown's dyed coats: only the facings in its colour, to tell the sides)
@@ -1586,14 +1647,22 @@ class Arena {
         // (and each arm in its own dress: see battle.js armDress)
         if (U && tk) look = armDress(look, tk, U);
         let rank = null;
-        if (U && T && this.battle && !T.horse && tk !== "band" && tk !== "militia") { const gk = GROUPS.find(g => g.kinds.includes(tk)), n = gk ? this.musters[team].slice(0, i).filter(k => gk.kinds.includes(k)).length : -1; rank = n === 0 ? "sergeant" : n > 0 && n % 10 === 5 ? "corporal" : null; if (rank) look = rankDress(look, rank, U); }
+        if (U && T && this.battle && !T.horse && tk !== "band" && tk !== "militia") { const gk = GROUPS.find(g => g.kinds.includes(tk)), n = gk ? this.musters[team].slice(0, i).filter(k => gk.kinds.includes(k)).length : -1; rank = n === 0 ? "sergeant" : n > 0 && n % 10 === 5 ? "corporal" : null;
+          // (your regiment's men wear the rank their service earned; an arm new to it has its ranks as any company does)
+          if (team === 0 && this.roll && this.rollKinds.has(tk)) rank = vet ? vet.rank : null;
+          if (rank) look = rankDress(look, rank, U); }
         // (a name to go with the face: a man's for a man; a band's drummers and fifers men and boys, as they were)
-        if (U) { const f = isF(look) && tk !== "band"; const F = FIRST.filter((_, i) => f ? i >= 8 : i < 8); b.name = `${F[Math.floor(Math.random() * F.length)]} ${LAST[Math.floor(Math.random() * LAST.length)]}`; }
+        if (U) { const f = isF(look) && tk !== "band"; const F = FIRST.filter((_, i) => f ? i >= 8 : i < 8); b.name = vet ? vet.name : `${F[Math.floor(Math.random() * F.length)]} ${LAST[Math.floor(Math.random() * LAST.length)]}`; }
         const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i, kind: tk || null };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; if (T.raw) info.skill *= 0.45; }
         // (the higher the rank, the better the soldier — he was made sergeant for it: a surer aim, quicker hands, and the
         //  nerve to stand when the men about him waver)
-        if (rank) { info.name = info.name.replace(/^(\S+(?: \S+)?) [^—]+ —/, (m0, nat) => `${U.name} ${rank} —`); const R = rank === "sergeant" ? [1.22, 0.06, 1.4] : [1.1, 0.03, 1.18]; info.skill = Math.min(0.98, info.skill * R[0] + R[1]); info.rankBrave = R[2]; info.rank = rank; }
+        // (a veteran: the steadier and the surer for every field he's stood on)
+        if (vet) { info.skill = Math.min(0.98, info.skill + vetSkill(vet)); info.rankBrave = (info.rankBrave || 1) * vetBrave(vet); }
+        if (team === 0 && this.roll && tk && tk !== "band") { info.roll = { vet, kind: tk, name: b.name, seed }; }
+        // (his company's drill: yours as you chose it; the enemy's, his crown's own)
+        if (this.battle && U) { const uk = Object.keys(UNIFORMS).find(k => UNIFORMS[k] === U); info.drill = DRILLS[this.alOf(team) === 0 && !this.remote ? drillOf(this.army, uk) : DRILL_OF[uk] || "ranks"]; }
+        if (rank) { info.name = info.name.replace(/^(\S+(?: \S+)?) [^—]+ —/, (m0, nat) => `${U.name} ${rank} —`); const R = rank === "sergeant" ? [1.22, 0.06, 1.4] : [1.1, 0.03, 1.18]; info.skill = Math.min(0.98, info.skill * R[0] + R[1]); info.rankBrave = (info.rankBrave || 1) * R[2]; info.rank = rank; }
         // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
         if (U && /^warrior/.test(U.body || "")) { if (info.lo.blade === "battleaxe") info.lo.blade = "warclub"; info.name = `${U.name} warrior — ${b.name}`; }
         // (a man with no muster of his own — a skirmish's — mostly a musket, if his colours carried one; a man raised as
@@ -1618,6 +1687,7 @@ class Arena {
           u.info.name = `${c ? "Loader" : "Gunner"} — ${u.info.name.split(" — ").pop()}`;
         }
         this.units.forEach((u, i) => { u.uid = i; });
+        this.raiseColours();
       }
       // and yours to work yourself: F at one, and it's laid on where you're looking and fired
       //  (where the gun is now: the deployment may have run it somewhere else since)
@@ -1767,6 +1837,78 @@ class Arena {
     O._po = { key, map }; return map;
   }
   // a man down: the duel's round, or the battle's tally
+  // ---- the colours: each side's carried by its ensign in the middle of its foot. Men near them stand the steadier; if
+  //  he falls they lie where he fell till a comrade takes them up — or an enemy, with none of theirs near, carries them
+  //  off: a blow to every man of that side, and a trophy to the side that took them (see colours.js) ----
+  carriesColours(t) { return !!(this.battle && !this.net && !this.custom && this.uni && this.uni[t] && !/^warrior/.test(this.uni[t].body || "") && this.fortSide !== t && !(this.siege && this.siege.side === t)); }
+  raiseColours() {
+    this.cols = [];
+    for (const t of [0, 1]) {
+      if (!this.carriesColours(t)) continue;
+      const key = Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[t]), design = t === 0 && !this.hist ? designOf(key) : null;
+      const C = { side: t, key, design, ...this.field.carried(key, design), ens: null, down: null, taken: false, pick: 0 };
+      this.cols[t] = C; this.giveColours(C, this.ensignFor(t));
+    }
+    if (!this.cols.length) return;
+    // (yours to take up where they lie: theirs, to carry off — or your own, to raise again)
+    const A = this, it = this.colIt = this.w.addInteract({ C: null, reach: 2.6,
+      get x() { return this.C ? this.C.down.x : 0; }, get z() { return this.C ? this.C.down.z : 0; }, get y() { return this.C ? A.w.heightAt(this.C.down.x, this.C.down.z) + 0.6 : 0; },
+      can: () => { it.C = A.cols.find(C => C && C.down && !C.taken && Math.hypot(C.down.x - G.player.pos.x, C.down.z - G.player.pos.z) < 3) || null; return !!it.C && A.live && !G.downed; },
+      label: () => it.C && it.C.side === 0 ? "Raise your colours again" : "Take their colours",
+      use: () => { const C = it.C; if (!C) return; if (C.side === 0) { const f = A.ensignFor(0, C.down); if (f) A.giveColours(C, f); } else A.colsTaken(C, 0); } });
+  }
+  // (the man to carry them: one of the pikes in the middle, where the ensign stood — or of the muskets, or any foot)
+  ensignFor(t, near = null) {
+    const foot = this.alliesOf(t).filter(u => u.alive && !u.crewOf && !u.mounted && !u.routing && u.info.kind !== "band" && u.a && u.a.root);
+    if (!foot.length) return null;
+    if (near) return foot.sort((p, q) => Math.hypot(p.pos.x - near.x, p.pos.z - near.z) - Math.hypot(q.pos.x - near.x, q.pos.z - near.z))[0];
+    const by = g => foot.filter(u => groupOf(u) === g), l = by("pike").length ? by("pike") : by("line").length ? by("line") : foot;
+    return l[Math.floor(l.length / 2)];
+  }
+  giveColours(C, u) {
+    if (!u) return;
+    if (C.g.parent) C.g.parent.remove(C.g);
+    C.g.position.set(-0.24, 0.55, 0.12); C.g.rotation.set(0.08, 0, -0.12); u.a.root.add(C.g);
+    C.ens = u; u.ensign = C; C.down = null; C.pick = 0;
+    if (C.side === 0 && this.live) UI.hint(`${u.info.name.split(" — ").pop()} carries the colours.`, 1.8);
+  }
+  colsTaken(C, by) {
+    if (C.taken) return; C.taken = true; C.down = null;
+    if (C.g.parent) C.g.parent.remove(C.g);
+    // (every man of that side shaken by it; the other heartened)
+    for (const m of this.units) if (m.alive && m.nerve != null) { if (this.alOf(m.team) === C.side) m.shaken && m.shaken(0.28); else m.nerve = Math.min(1, m.nerve + 0.15); }
+    const nm = UNIFORMS[C.key] ? UNIFORMS[C.key].name : "Their";
+    if (C.side !== 0) { this.tookColours = (this.tookColours || 0) + 1; const n = addTaken(C.key); this.banner("Their colours are taken!", `The ${nm} colours${n === 1 ? " — the first of theirs you've taken: their men are yours to raise now, in the armoury" : ""}`); }
+    else { this.lostColours = true; this.banner("Your colours are lost!", "The enemy has carried them off"); }
+    setTimeout(() => G.arena === this && !this.ended && this.banner(null), 2800);
+  }
+  colsTick(dt) {
+    if (!this.cols || this.remote) return;
+    for (const C of this.cols) {
+      if (!C || C.taken) continue;
+      const e = C.ens;
+      if (e && e.alive && !e.routing) {
+        // (the men about them steadied: see the nerve, Bot)
+        for (const u of this.alliesOf(C.side)) if (u.alive && Math.hypot(u.pos.x - e.pos.x, u.pos.z - e.pos.z) < 25) u.colT = G.time;
+        continue;
+      }
+      // (he's down, or running: the colours on the ground where he was)
+      if (!C.down) {
+        const p = e ? { x: e.pos.x, z: e.pos.z } : { x: this.spawns[C.side].x, z: this.spawns[C.side].z };
+        if (e) e.ensign = null; C.ens = null; if (C.g.parent) C.g.parent.remove(C.g);
+        C.g.position.set(p.x, this.w.heightAt(p.x, p.z) + 0.15, p.z); C.g.rotation.set(0, Math.random() * 6.28, 1.45); this.w.root.add(C.g);
+        C.down = { x: p.x, z: p.z, t: G.time }; C.pick = 0;
+        if (C.side === 0) UI.hint("Your colours are down! Raise them again (F), or they'll be lost.", 3);
+      }
+      const near = (side, r) => this.alliesOf(side).filter(u => u.alive && !u.routing && !u.crewOf && Math.hypot(u.pos.x - C.down.x, u.pos.z - C.down.z) < r);
+      const friends = near(C.side, 3.5), foes = near(1 - C.side, 3);
+      if (friends.length && !foes.length) { if ((C.pick += dt) > 1.2) this.giveColours(C, friends[0]); }
+      else if (foes.length && !friends.length) { if ((C.pick += dt) > 2) this.colsTaken(C, 1 - C.side); }
+      else C.pick = 0;
+      // (lying there a while with none of the enemy at them, a comrade near enough runs to take them up)
+      if (C.down && !C.taken && !foes.length && G.time - C.down.t > 3) { const f = near(C.side, 12)[0]; if (f) this.giveColours(C, f); }
+    }
+  }
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
     // (the men round him see him fall: the nearer, the more it shakes them)
@@ -2372,6 +2514,7 @@ class Arena {
     }
     if (this.netBattle) { this.sendState(dt); if (this.host) this.sendSnap(dt); }
     stanceTick();
+    if (this.live) this.colsTick(dt);
     if (this.live) { this.clock += dt; this.commander(dt); if ((this.recrewT = (this.recrewT || 0) - dt) <= 0) { this.recrewT = 1; this.recrew(); } }
     // (the guns fall silent when it's over, and between rounds)
     if (this.field) this.field.active = this.live && !this.over && !this.ended;
@@ -3170,6 +3313,17 @@ class Arena {
     // (a campaign's: its outcome back to the campaign, which takes or loses the town)
     // (two players of a campaign: rated nowhere, and the outcome back to the campaign they share)
     if (!pay && this.hist && !cmpB && lastMode !== "story") $("pvpEndS").innerHTML += `<div class="pv-pay">Historical battles are fought for the history, not for pay: nothing for the purse.</div>`;
+    // (colours taken: a reward of their own, paid with the rest — and theirs lost, said)
+    if (pay && this.tookColours) { const P = grant(25 * this.tookColours, pay.team); $("pvpEndS").innerHTML += `<div class="pv-pay">Their colours taken: <b>+${money(P.gain, P.team)}</b> · ${money(P.total, P.team)} in the ${esc(TEAM_NAME(P.team))} purse</div>`; }
+    if (this.lostColours && !left) $("pvpEndS").innerHTML += `<div class="pv-pay">Your colours were lost to the enemy.</div>`;
+    // (the roll called: who of your regiment came through, who fell, who was made corporal or sergeant for it)
+    if (this.regOn && this.army) {
+      const men = this.units.filter(u => u.info && u.info.roll && this.alOf(u.team) === 0).map(u => ({ ...u.info.roll, alive: !!u.alive }));
+      const r = callRoll(this.army.uniform, men, won && !left, won && this.place ? this.place.text.replace(" · by night", "") : null), bits = [];
+      if (r.fell) bits.push(`${r.fell} fell`); if (r.wounded) bits.push(`${r.wounded} wounded, back for the next`); if (r.joined) bits.push(`${r.joined} new men on the rolls`);
+      const pr = r.promoted.slice(0, 4).map(p => `${esc(p.name)} made ${p.rank}`).join(", ") + (r.promoted.length > 4 ? `, and ${r.promoted.length - 4} more` : "");
+      $("pvpEndS").innerHTML += `<div class="pv-pay"><b>The roll:</b> ${bits.join(" · ") || "all present"}${pr ? ` · ${pr}` : ""}${r.honour ? ` · a battle honour: <b>${esc(r.honour)}</b>` : ""}</div>`;
+    }
     if (pay) { const g = nextGoal(), gn = g && (g.team ? `${TEAM_NAME(g.what)} colours` : nameOf(LONG[g.what] ? "long" : SIDE[g.what] ? "side" : "blade", g.what));
       setTimeout(() => sfx("purse", Math.round(pay.gain / 5)), 900);
       $("pvpEndS").innerHTML += `<div class="pv-pay"><b>+${money(pay.gain, pay.team)}</b>${pay.daily ? ` (the day's first victory, +${money(pay.daily, pay.team)})` : ""} · ${money(pay.total, pay.team)} in the ${esc(TEAM_NAME(pay.team))} purse${g ? ` · ${g.short ? `${money(g.short, pay.team)} more for the ${esc(gn)}` : `enough for the ${esc(gn)} — in the armoury`}` : ""}</div>`; }
@@ -3642,7 +3796,7 @@ class Bot extends Fighter {
     this.ammo = AMMO[this.lo.long] || 0;
     this.wind = 0; this.cool = 1; this.stun = 0; this.aimT = 0; this.stepT = 0; this.losT = 0; this.los = true; this.awake = false;
     this.mode = "range"; this.guardT = 0; this.T = null; this.pickT = 0; this.cover = null; this.dodgeT = 0;
-    this.nerve = 1; this.brave = (STEADY[this.info.kind] || 1) * (this.info.rankBrave || 1) * (0.85 + this.s * 0.3) * ((this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].brave) || 1); this.routing = false; this.blown = 0; this.quietT = 0;
+    this.nerve = 1; this.brave = (STEADY[this.info.kind] || 1) * (this.info.rankBrave || 1) * (this.info.drill ? this.info.drill.brave * (groupOf(this) === "pike" ? this.info.drill.pike : 1) : 1) * (0.85 + this.s * 0.3) * ((this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].brave) || 1); this.routing = false; this.blown = 0; this.quietT = 0;
     this.fixed = this.arena.battle && this.steel() === "bayonet"; this.heldK = undefined; this.nades = this.info.nades || 0; this.nadeT = undefined;
     this.hold(this.lo.long); this.a.squareTo = null;
   }
@@ -3693,11 +3847,11 @@ class Bot extends Fighter {
   }
   // his blade as he uses it: from the saddle, longer in the reach, and heavier at the gallop; a man winded from a long
   // run at the enemy hits weakly and slowly
-  blade() { const B = BLADE[this.steel()], w = 1 - (this.blown || 0) * 0.45; return this.mounted ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * chargeK(this.a.speed, 5.5, this.steel()) * w, rate: B.rate * (0.6 + w * 0.4) } : { ...B, dmg: B.dmg * w, rate: B.rate * (0.6 + w * 0.4) }; }
+  blade() { const B = BLADE[this.steel()], w = 1 - (this.blown || 0) * 0.45; return this.mounted ? { ...B, reach: B.reach + 0.8, dmg: B.dmg * chargeK(this.a.speed, 5.5, this.steel()) * w, rate: B.rate * (0.6 + w * 0.4) } : { ...B, dmg: B.dmg * w * (this.info.drill ? this.info.drill.steel : 1), rate: B.rate * (0.6 + w * 0.4) }; }
   // shaken — by a comrade falling by him, a ball in him, a volley into his line: steadier men less
   shaken(k) {
     if (!this.alive || this.nerve == null || !this.arena.battle) return;
-    this.nerve = Math.max(0, this.nerve - k / ((this.brave || 1) * (G.time - (this.bandT ?? -9) < 1.5 ? 1.25 : 1))); this.quietT = 0;
+    this.nerve = Math.max(0, this.nerve - k / ((this.brave || 1) * (G.time - (this.bandT ?? -9) < 1.5 ? 1.25 : 1) * (G.time - (this.colT ?? -9) < 1.5 ? 1.2 : 1))); this.quietT = 0;
     if (!this.routing && this.nerve < 0.22) this.rout();
   }
   // a musician: behind his arm, a few paces back, keeping its step; the band playing while the arm marches, and its men
@@ -3923,7 +4077,8 @@ class Bot extends Fighter {
       const byYou = this.al === 0 && this.arena.you.alive && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 14;
       const mates = this.arena.alliesOf(this.team).length, was = (this.arena.musters && this.arena.musters[this.team] ? this.arena.musters[this.team].length : mates) || 1;
       const band = G.time - (this.bandT ?? -9) < 1.5;
-      this.nerve = clamp(this.nerve + dt * ((this.quietT > 4 && !near ? 0.035 : 0) + (byYou ? 0.02 : 0) + (band ? 0.025 : 0) - (mates / was < 0.45 ? 0.012 : 0)), 0, 1);
+      const colours = G.time - (this.colT ?? -9) < 1.5;
+      this.nerve = clamp(this.nerve + dt * ((this.quietT > 4 && !near ? 0.035 : 0) + (byYou ? 0.02 : 0) + (band ? 0.025 : 0) + (colours ? 0.02 : 0) - (mates / was < 0.45 ? 0.012 : 0)), 0, 1);
       if (!this.routing && this.nerve < 0.22) this.rout();
       if (this.routing) {
         // (rallied, once he's got his breath and his nerve back — and nobody on his heels)
@@ -3937,7 +4092,7 @@ class Bot extends Fighter {
     }
     // reloading goes on whatever he's doing, as yours does (each weapon its own time)
     const moving = a.path.length > 0;
-    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1) * (k === "long" && this.fixed ? 0.8 : 1) * (this.info.kind === "militia" ? 0.62 : 1) * (this.tech("linear") && /^(musketeer|grenadier)$/.test(this.info.kind || "") && this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].tech ? 1.15 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
+    for (const k of ["long", "side"]) if (!this.loaded[k] && this.rl[k] > 0) { this.rl[k] -= dt * (moving ? 0.6 : 1) * (k === "long" && this.info.drill ? this.info.drill.reload : 1) * (k === "long" && this.fixed ? 0.8 : 1) * (this.info.kind === "militia" ? 0.62 : 1) * (this.tech("linear") && /^(musketeer|grenadier)$/.test(this.info.kind || "") && this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].tech ? 1.15 : 1); if (this.rl[k] <= 0) this.loaded[k] = true; }
     // (the gun in his hands, if it's being loaded: the drill, seen and heard)
     { const hk = this.heldK, slot = hk === "pistol" ? "side" : "long";
       if ((hk === "musket" || hk === "pistol") && !this.loaded[slot] && this.rl[slot] > 0) {
@@ -4058,9 +4213,11 @@ class Bot extends Fighter {
         return;
       }
       // the volley: every loaded piece brought up at the word, and fired together
-      if (O.volleyAt && G.time < O.volleyAt + 0.4 && useK && useK !== "bow" && this.los) {
+      // (platoon fire: the line in three platoons, each firing after the one before it)
+      const roll = this.info.drill && this.info.drill.roll;
+      if (O.volleyAt && G.time < O.volleyAt + (roll ? 1.5 : 0.4) && useK && useK !== "bow" && this.los) {
         a.path = []; a.faceTo(fp.x, fp.z); this.aimUp(true);
-        if (G.time >= O.volleyAt + this.idx * 0.02 && this.volleyed !== O.volleyAt) { this.volleyed = O.volleyAt; this.fire(useK, T); }
+        if (G.time >= O.volleyAt + (roll ? (this.idx % 3) * 0.5 : this.idx * 0.02) && this.volleyed !== O.volleyAt) { this.volleyed = O.volleyAt; this.fire(useK, T); }
         return;
       }
       // (a grenadier, a man close enough and in sight: a grenade lobbed at him — now and then, while he has any — on the

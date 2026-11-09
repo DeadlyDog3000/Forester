@@ -20,6 +20,7 @@ import { shake } from "./fight.js";
 import { P, makeLogs, makeSack, realPart } from "./models.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 import { FlagCloth, flagWind } from "./flagcloth.js";
+import { drawDesign } from "./colours.js";
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3(), _q1 = new THREE.Quaternion(), _z = new THREE.Vector3(0, 0, 1), _up = new THREE.Vector3(0, 1, 0);
@@ -30,7 +31,8 @@ const DRILL = [["back", 0, 0.05], ["sponge", 0.05, 0.3], ["load", 0.3, 0.42], ["
 // (a crown's colours on a canvas of their own, made once: for the campaign's armies on the land)
 const COLOURS_CV = {};
 export function coloursCanvas(key) { if (COLOURS_CV[key]) return COLOURS_CV[key]; const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawColours(cv.getContext("2d"), key); return COLOURS_CV[key] = cv; }
-function drawColours(x, key) {
+function drawColours(x, key, design = null) {
+  if (design) { drawDesign(x, design); return; }
   const W = 192, H = 128, fill = (c, ...r) => { x.fillStyle = c; x.fillRect(...r); };
   const eagle = (c, cx, cy, s, two = true) => {
     x.fillStyle = c; x.beginPath();
@@ -1071,6 +1073,20 @@ export class Field {
     this.cols.push(this.w.col.addCircle(x, z, 0.08, this.y(x, z) + 2));
   }
   // a side's colours: its flag on a tall staff behind its line (or over its fort), the cloth worked in the wind
+  // a staff of colours, its cloth hung out in the wind: planted (colours below) or carried by an ensign (carried)
+  staff(key, design, h = 7) {
+    const g = new THREE.Group(), cw = h > 5 ? 1.9 : 1.5, ch = h > 5 ? 1.3 : 1.05;
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, h, 7), this.M.wood); pole.position.y = h / 2; g.add(pole);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 6), mat(0xb8963e, { metalness: 0.6, roughness: 0.4 })); tip.position.y = h + 0.14; g.add(tip);
+    const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawColours(cv.getContext("2d"), key, design);
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    const sim = new FlagCloth({ w: cw, h: ch, metres: cw, material: new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.82 }), seed: this.r() * 100 });
+    const cloth = sim.mesh; cloth.position.set(0.04, h - 0.75, 0); cloth.castShadow = true; g.add(cloth);
+    sim.settle(3, flagWind(G.windV)); (this.flags ||= []).push(sim);
+    return { g, sim };
+  }
+  // the colours carried by a regiment's ensign: on his shoulder, in his hands, where he goes (see pvp.js Arena.ensigns)
+  carried(key, design) { const { g, sim } = this.staff(key, design, 4.4); return { g, sim }; }
   colours(side, key, at = null) {
     const sx = at ? (at.x < this.C.x ? -1 : 1) : side === 0 ? -1 : 1, F = !at && this.fortAt && this.fortAt.side === side ? this.fortAt : null;
     let x = at ? at.x : F ? F.mx : this.C.x + sx * (this.dx + 6), z = at ? at.z : F ? this.C.z : this.C.z + 2.5;

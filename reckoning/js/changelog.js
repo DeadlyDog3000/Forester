@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.274", date: "9 November 2026", title: "Colours, a regiment that remembers, and the drill",
+    items: [
+      "Your regiment's own colours: in the muster, under Team, make them — the field, a cross or saltire, the French flames, quarters, a border; a lion, an eagle, a crown, a star, a lily, a sword, a tower or your cipher — in the silks of the age.",
+      "Colours are carried into battle by an ensign in the middle of the foot, as they were. Men near them stand steadier. If he falls they lie where he fell: a comrade takes them up, or you can (F) — and if the enemy reaches them first, they're carried off, and every man of that side is shaken by it.",
+      "Take the enemy's colours: bring their ensign down and carry them off, for a reward of their own and a blow to every man of theirs. A crown's men can now only be raised once you've taken its colours in battle — fight them, take their colours, then buy their team. The teams you already have are yours still.",
+      "Your regiment remembers. Against bots, the men who come through a battle march in the next — the same names and faces — the steadier and the better shots for every field they've stood on, and made corporal and sergeant by their service. The fallen leave the rolls, a few only wounded and back for the next; the fields you win become your battle honours. See them under Company.",
+      "The drill: choose how your company fights — fire by ranks, the Dutch platoon fire rolling down the line, the Swedes' gå-på (one volley close, then the sword), or the Emperor's pike and shot. Every enemy crown fights by its own.",
+    ],
+  },
+  {
     v: "1.99.273", date: "9 November 2026", title: "Your guns answer to F again, and a harder enemy",
     items: [
       "Fixed: a gun you'd moved in the deployment couldn't be taken with F — the place to take it stayed where the gun had first stood.",

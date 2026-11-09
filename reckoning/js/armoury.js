@@ -13,6 +13,7 @@
 //
 // Kept on this computer, as your record is.
 
+import { taken } from "./colours.js";
 import { THREE } from "./core.js";
 import { makeArm, makeCrossbow, makeBow, modelCopy, ensureModel, fpMusket } from "./models.js";
 
@@ -150,7 +151,9 @@ export const ownsUp = (kind, id, t = team()) => (state().up[t] || []).includes(`
 export function welcome() { const s = state(); if (!s.welcome) return null; const t = s.welcome; s.welcome = false; save(); return `The armoury is open. For the battles you've already fought you have ${money(s.purse[t] | 0, t)} in the ${(TEAMS[t] && t) ? "purse of your colours" : "purse"}, and you keep the arms and colours you were using.`; }
 function spend(n) { const s = state(), t = team(); if ((s.purse[t] | 0) < n) return false; s.purse[t] = (s.purse[t] | 0) - n; save(); return true; }
 export function buyWeapon(k) { if (owns(k)) return true; if (!spend(WEAPON_PRICE[k])) return false; const s = state(), t = team(); (s.own[t] ||= [...START]).push(k); save(); return true; }
-export function buyTeam(k) { if (ownsTeam(k)) return true; if (!spend(TEAMS[k].price)) return false; state().teams.push(k); save(); return true; }
+// (a crown's men are raised only once you've taken its colours in battle: see colours.js)
+export const teamOpen = k => ownsTeam(k) || taken(k) > 0;
+export function buyTeam(k) { if (ownsTeam(k)) return true; if (!teamOpen(k)) return false; if (!spend(TEAMS[k].price)) return false; state().teams.push(k); save(); return true; }
 export function buyFinish(slot, id, kind) { if (ownsFinish(slot, id, kind)) return true; if (!spend(FINISH[slot][id][1])) return false; (state().finT[team()] ||= []).push(`${kindKey(kind)}.${slot}.${id}`); save(); return true; }
 export function buyUp(kind, id) { if (ownsUp(kind, id)) return true; if (!spend(UPGRADES[kind][id].price)) return false; const s = state(), t = team(); (s.up[t] ||= []).push(`${kind}.${id}`); save(); return true; }
 export const finishOf = (kind, slot, t = team()) => { const k = kindKey(kind), v = ((state().skinT[t] || {})[k] || {})[slot]; return FINISH[slot] && FINISH[slot][v] && ownsFinish(slot, v, k, t) ? v : Object.keys(FINISH[slot])[0]; };
