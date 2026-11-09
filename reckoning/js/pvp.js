@@ -3078,6 +3078,9 @@ class Arena {
     const score = this.multi ? `${this.killed || 0} of theirs down, ${this.lost || 0} of yours${this.place ? ` · ${esc(this.place.text)}` : ""}` : `${this.wins[0]} – ${this.wins[1]}`;
     this.stop();
     ctx.end();
+    // (the result written out: whatever goes wrong in the writing, the result is still shown — never the title in its
+    //  place, with the campaign or the battle left behind)
+    try {
     $("pvpEndK").textContent = left ? "They left the field" : won ? "Victory" : "Defeat";
     $("pvpEndT").textContent = this.multi ? (won ? (this.routEnd ? "They broke and ran" : "The field is yours") : (this.routEnd ? "Your men broke and ran" : "The day is lost")) : won ? `You beat ${this.foeInfo.name}` : `${this.foeInfo.name} beat you`;
     // (a battle of a campaign: no word of ratings — it's the campaign's, not the frontier's)
@@ -3128,6 +3131,10 @@ class Arena {
     $("pvpLoadout").classList.toggle("hidden", lastMode === "story" || cmpB);
     if (!full()) $("pvpEndS").innerHTML += `<div class="pv-demo">That's the demo's battle. The full game has every battle and duel against bots and players, the historical battles, the campaign and the whole story. <button class="btn" data-demo-buy="1">The full game</button></div>`;
     endReplay(rec);
+    } catch (e) {
+      console.error(e); try { this.toCampaign(won, left); } catch (e2) {}
+      $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : lastMode === "story" ? "Back to the story" : "Again";
+    }
     ctx.screen("pvpEnd");
   }
   // begun again from the start, the same sides and loads (a fight against bots: the pause menu's Restart); a battle on

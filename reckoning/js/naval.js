@@ -181,8 +181,9 @@ class Ship {
     // (a real ship of the age where it's loaded — the large Dutch-built one for a frigate or a ship of the line, the middling
     //  one for a sloop — her sails as they're set on her; else the built one, whose sails are let fall and shot away)
     // (a sloop the pinnace — small, quick, lightly gunned; a frigate the middling Dutch ship; a ship of the line the large one)
-    const real = modelCopy(S.scale < 0.9 ? "ship_pinnace" : S.scale < 1.15 ? "ship_dutch_m" : "ship_dutch") || modelCopy(S.scale < 0.9 ? "ship_dutch_m" : "ship_dutch"), m = real || modelCopy("ship");
-    if (m) { m.scene.position.z = real ? 0 : -2.4; inner.add(m.scene); m.scene.traverse(o => { if (o.isMesh && o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(color); this.flag = o; } }); }
+    const rk = [S.scale < 0.9 ? "ship_pinnace" : S.scale < 1.15 ? "ship_dutch_m" : "ship_dutch", S.scale < 0.9 ? "ship_dutch_m" : "ship_dutch"].find(k => modelCopy(k)), real = rk && modelCopy(rk), m = real || modelCopy("ship");
+    // (the Dutch-built ones are made with the bow at -z: turned about, so she sails bow first, not stern first)
+    if (m) { m.scene.position.z = real ? 0 : -2.4; if (/^ship_dutch/.test(rk || "")) m.scene.rotation.y = Math.PI; inner.add(m.scene); m.scene.traverse(o => { if (o.isMesh && o.material && /flag/.test(o.material.name || "")) { o.material = o.material.clone(); o.material.color.set(color); this.flag = o; } }); }
     else { const hull = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 24), new THREE.MeshStandardMaterial({ color: 0x5a3e28 })); hull.position.y = 1; inner.add(hull); const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.4, 20), new THREE.MeshStandardMaterial({ color: 0x4a3a2a })); mast.position.y = 11; inner.add(mast); const sail = new THREE.Mesh(new THREE.PlaneGeometry(10, 12), new THREE.MeshStandardMaterial({ color: 0xeee6d0, side: THREE.DoubleSide })); sail.position.set(0, 11, 0.5); inner.add(sail); }
     inner.scale.setScalar(S.scale); this.inner = inner;
     // (her sails set, each let fall from its yard: see RIG)
@@ -387,7 +388,7 @@ class Battle {
     addEventListener("mousemove", this.onMove = e => { if (!drag) return; this.orbit.a -= (e.clientX - drag.x) * 0.006; this.orbit.e = clamp(this.orbit.e + (e.clientY - drag.y) * 0.004, 0.06, 1.3); drag = { x: e.clientX, y: e.clientY }; });
     cv.addEventListener("wheel", e => { e.preventDefault(); this.orbit.d = clamp(this.orbit.d * Math.exp(e.deltaY * 0.001), 30, 700); }, { passive: false });
     addEventListener("resize", this.onResize = () => { this.renderer.setSize(innerWidth, innerHeight); this.cam.aspect = innerWidth / innerHeight; this.cam.updateProjectionMatrix(); });
-    this.last = performance.now(); this.loop = () => { if (!this.el.isConnected) return; const now = performance.now(), dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.step(dt * (this.started ? this.speedK : 0.4)); this.raf = requestAnimationFrame(this.loop); };
+    this.last = performance.now(); this.loop = () => { if (!this.el.isConnected) return; const now = performance.now(), dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.step(this.paused ? 0 : dt * (this.started ? this.speedK : 0.4)); this.raf = requestAnimationFrame(this.loop); };
     this.raf = requestAnimationFrame(this.loop);
     try { FOLEY.wash(0.4); } catch (e) {}
   }
@@ -487,9 +488,10 @@ class Battle {
       <div class="nv-note"></div><div class="nv-me"></div><div class="nv-fleets"></div>
       <div class="nv-keys"><b>W</b>/<b>S</b> make or shorten sail · <b>A</b>/<b>D</b> helm · your guns fire when an enemy is on the beam · <b>Q</b>/<b>E</b> fire larboard/starboard now · <b>Tab</b> change ship · <b>T</b> time · drag to look · <b>Esc</b> withdraw</div>
       <div class="nv-intro"><div class="nv-box"><h2>${o.title || "A battle at sea"}</h2><p>${o.sub || ""}</p><p>You command from the ${this.flag ? this.flag.S.one.toLowerCase() : "flagship"}; your other captains fight their own ships. The wind is everything: no ship sails into it. Her guns are along her sides, so turn to bring a broadside to bear: her gun crews fire on their own as soon as an enemy is on the beam and in range, or give the word sooner with Q and E. Shot in the hull kills her crew and sinks her; shot aloft cuts her rigging, and her sails come down and she slows; a ship that loses her crew strikes her colours and is taken as a prize.</p><button class="btn primary" data-nv="go">Clear for action</button></div></div>`);
-    this.el.addEventListener("click", e => { const b = e.target.closest("[data-nv]"); if (!b) return; const a = b.dataset.nv; if (a === "go") this.begin(); if (a === "stay") this.el.querySelector(".nv-ask")?.remove(); if (a === "leave") { this.el.querySelector(".nv-ask")?.remove(); this.end(false, true); } if (a === "done") this.close(); });
+    this.el.addEventListener("click", e => { const b = e.target.closest("[data-nv]"); if (!b) return; const a = b.dataset.nv; if (a === "go") this.begin(); if (a === "stay") { this.el.querySelector(".nv-ask")?.remove(); this.paused = false; } if (a === "leave") { this.paused = false; this.el.querySelector(".nv-ask")?.remove(); this.end(false, true); } if (a === "done") this.close(); });
   }
-  ask() { if (this.el.querySelector(".nv-ask")) return; this.el.insertAdjacentHTML("beforeend", `<div class="nv-ask"><div class="nv-box"><h2>Withdraw?</h2><p>Your ships break off and make what sail they can. The ones still fighting get away; the battle is lost.</p><button class="btn" data-nv="leave">Withdraw</button><button class="btn primary" data-nv="stay">Fight on</button></div></div>`); }
+  // (Escape: the fight held still, and the choice — on with it, or break off)
+  ask() { if (this.el.querySelector(".nv-ask")) { this.el.querySelector(".nv-ask").remove(); this.paused = false; return; } this.paused = true; this.el.insertAdjacentHTML("beforeend", `<div class="nv-ask"><div class="nv-box"><h2>Paused</h2><p>Fight on, or withdraw: your ships break off and make what sail they can. The ones still fighting get away; the battle is lost.</p><button class="btn" data-nv="leave">Withdraw</button><button class="btn primary" data-nv="stay">Fight on</button></div></div>`); }
   drawHud() {
     const f = this.flag, me = this.el.querySelector(".nv-me");
     if (f) {
