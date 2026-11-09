@@ -3133,7 +3133,7 @@ class Arena {
     if (!full()) $("pvpEndS").innerHTML += `<div class="pv-demo">That's the demo's battle. The full game has every battle and duel against bots and players, the historical battles, the campaign and the whole story. <button class="btn" data-demo-buy="1">The full game</button></div>`;
     endReplay(rec);
     } catch (e) {
-      console.error(e); try { this.toCampaign(won, left); } catch (e2) {}
+      console.error(e); window.__reportError && window.__reportError(e, "battle result"); try { this.toCampaign(won, left); } catch (e2) {}
       $("pvpAgain").textContent = lastMode === "campaign" ? "Back to the campaign" : lastMode === "story" ? "Back to the story" : "Again";
     }
     ctx.screen("pvpEnd");

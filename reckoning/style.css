@@ -2497,3 +2497,9 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 #pvp .locked::after { content: "Full game"; position: absolute; top: -7px; right: 8px; padding: 1px 6px; border-radius: 3px; background: var(--gold); color: #1a1208; font: 600 10px var(--sans); letter-spacing: 0.06em; text-transform: uppercase; }
 .pv-demo { margin: 12px auto 0; max-width: 520px; font: 13px/1.5 var(--sans); color: var(--ink); }
 .pv-demo .btn { display: block; margin: 8px auto 0; min-width: 0; padding: 7px 18px; font-size: 14px; }
+/* (the note asking whether to send an error report: a corner, out of the way) */
+#crashAsk { position: fixed; right: 16px; bottom: 16px; z-index: 9000; max-width: 360px; padding: 12px 14px; background: rgba(20, 16, 12, 0.94); border: 1px solid rgba(200, 170, 110, 0.5); border-radius: 6px; color: #eadfc8; font-size: 13px; line-height: 1.4; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); }
+#crashAsk b { display: block; margin-bottom: 4px; }
+#crashAsk span { display: block; opacity: 0.85; }
+#crashAsk div { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+#crashAsk .btn { padding: 5px 10px; font-size: 12px; }

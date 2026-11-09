@@ -184,7 +184,13 @@ function meterFps(dtReal) {
   //  said so: a machine the first guess got wrong isn't left struggling)
   if (s.quality === "high" && G.mode === "play" && !s.autoEased) {
     slowFor = fps < 28 ? slowFor + 0.5 : Math.max(0, slowFor - 1);
-    if (slowFor >= 30) { s.autoEased = true; s.quality = "balanced"; applySettings(); G.saveSettings(); UI.hint("The game was running slowly, so the graphics are now Balanced. Settings → Graphics to change it back.", 6); }
+    if (slowFor >= 30) { slowFor = 0; s.autoEased = true; s.quality = "balanced"; applySettings(); G.saveSettings(); UI.hint("The game was running slowly, so the graphics are now Balanced. Settings → Graphics to change it back.", 6); }
+  }
+  // (and still slow on Balanced — a weak machine, or one built into the processor that was taken for more: Performance,
+  //  once, the same way)
+  else if (s.quality === "balanced" && G.mode === "play" && !s.autoEased2) {
+    slowFor = fps < 22 ? slowFor + 0.5 : Math.max(0, slowFor - 1);
+    if (slowFor >= 30) { s.autoEased = s.autoEased2 = true; s.quality = "performance"; applySettings(); G.saveSettings(); UI.hint("The game was still running slowly, so the graphics are now Performance. Settings → Graphics to change it back.", 6); }
   }
   if (s.dynres && G.mode === "play") {
     const aim = s.cap ? s.cap * 0.92 : 50;
@@ -2379,6 +2385,11 @@ if (/[?&]raid\b/.test(location.search)) loadModels().finally(() => {
 // ---- the key to the map: beside the minimap (K), and always in the corner of the big map ----
 import { drawLegend, LEGEND } from "./map.js";
 import "./dev.js";
+import { crashChoice, setCrashChoice } from "./crash.js";
+// (error reports: sent only if the player said so, here or when first asked)
+$("setCrash").checked = crashChoice() === "yes";
+$("setCrash").addEventListener("change", e => setCrashChoice(e.target.checked ? "yes" : "no"));
+$("btnSettings").addEventListener("click", () => { $("setCrash").checked = crashChoice() === "yes"; });
 import { startMenuArt } from "./menuart.js";
 startMenuArt();
 function legendCanvas(rows) {

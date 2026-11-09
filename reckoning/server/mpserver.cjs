@@ -1470,6 +1470,7 @@ async function start(opts = {}) {
     if (u.pathname === "/visit") return counts.visit(u, req, res);
     if (u.pathname === "/play") return counts.play(u, req, res);      // (time played, a beat a minute: see stats.cjs)
     if (u.pathname === "/stats") return counts.stats(u, res);
+    if (u.pathname === "/crash") { crashes.handle(u, req, res).catch(e => { log("crash:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     if (u.pathname.startsWith("/shop/")) { shop.handle(u, req, res).catch(e => { log("shop:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
     // the website's reviews: accounts, and two reviews each on every game (see reviews.cjs)
     if (u.pathname.startsWith("/reviews/")) { reviews.handle(u, req, res).catch(e => { log("reviews:", e.message); if (!res.writableEnded) { res.statusCode = 500; res.end("{}"); } }); return; }
@@ -1624,6 +1625,8 @@ async function start(opts = {}) {
   const mailList = require("./list.cjs")({ dataDir, envFile: opts.shopEnv || (dataDir ? path.join(dataDir, "stripe.env") : null), tokenOk: t => shop.tokenOk(t), log });
   // (how many play: an anonymous count, see stats.cjs)
   const counts = require("./stats.cjs")({ dataDir, tokenOk: t => shop.tokenOk(t), log });
+  // (what went wrong in the games of those who agreed to send it: see crashes.cjs)
+  const crashes = require("./crashes.cjs")({ dataDir, tokenOk: t => shop.tokenOk(t), log });
   function licence(u, res, req) {
     const op = u.searchParams.get("op"), key = String(u.searchParams.get("key") || "").slice(0, 80), inst = String(u.searchParams.get("inst") || "").slice(0, 80), name = String(u.searchParams.get("name") || "Forester Reckoning").slice(0, 60), user = String(u.searchParams.get("user") || "").slice(0, 32);
     if (!["activate", "validate", "deactivate"].includes(op) || !/^[A-Za-z0-9-]{8,80}$/.test(key)) { res.statusCode = 400; return res.end(JSON.stringify({ error: "bad request" })); }
