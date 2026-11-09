@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.268", date: "8 November 2026", title: "Choose your enemy",
+    items: [
+      "A battle against bots lets you name the enemy: under The field, pick any crown but your own to march against you, each shown with its colours and its own soldiers. Leave it on Any and chance decides, as before.",
+    ],
+  },
+  {
     v: "1.99.267", date: "8 November 2026", title: "Each army its own, and seven more crowns",
     items: [
       "Bowmen in a battle loose high into the sky — forty-five degrees and more — and the arrows come down steeply into the other line, as massed archers shot. Up there for seconds, they're best into men who stand; a line on the move walks out from under many of them.",

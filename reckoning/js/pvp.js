@@ -660,6 +660,7 @@ function drawArmy() {
   // (the field, against bots: how many sides, and the ground)
   const fe = $("musField"); fe.classList.toggle("locked", !!locked);
   fe.innerHTML = A.vs !== "player" ? `<div class="pv-h big">The field</div>${sidesRow(A)}
+    ${pendingGhost ? "" : foeRow(A)}
     ${!isCustom(A) ? `<div class="pv-h">The ground</div><div class="pv-grounds">${[["open", "Open field"], ["ours", "Your fort"], ["theirs", "Their fort"]].map(([k, n]) => `<button class="pv-gr${A.ground === k ? " on" : ""}" data-gr="${k}"><b>${n}</b></button>`).join("")}</div>` : ""}` : "";
   void step; void multi; void sw;
 }
@@ -692,6 +693,15 @@ function drawHist(el) {
       <p class="pv-sn">${b.won == null ? "Neither side won it outright." : `In ${b.year}, ${esc(b.sides[b.won].name.replace(/^The /, "the "))} won the day.`} ${b.sea ? "You command the flagship; the other captains fight their own ships." : "You lead one company, and the bots lead the rest."}</p>
     </div>`;
 }
+// (the enemy, against bots: any crown but your own, or whoever chance sends)
+function foeRow(A) {
+  const sw = u => `<span class="pv-sw"><i style="background:#${u.coat.toString(16).padStart(6, "0")}"></i><i style="background:#${u.vest.toString(16).padStart(6, "0")}"></i></span>`;
+  return `<div class="pv-h">The enemy</div>
+    <div class="tm-list pv-foes"><button class="pv-gr tm${A.foe ? "" : " on"}" data-foe=""><b>Any</b><small>Chance decides</small></button>${TEAM_KEYS.filter(k => k !== A.uniform).map(k => { const u = UNIFORMS[k]; return `<button class="pv-gr tm${A.foe === k ? " on" : ""}" data-foe="${k}" title="${esc(u.note)}">${sw(u)}<b>${esc(u.name)}</b><small>${troopsOf(k)}</small></button>`; }).join("")}</div>
+    <div class="pv-sn">${A.foe ? `You'll face ${/^[AEIOU]/.test(UNIFORMS[A.foe].name) ? "an" : "a"} ${esc(UNIFORMS[A.foe].name)} company${isCustom(A) ? " on the first side against you; the other sides are left to chance" : ""}.` : "A crown other than yours, chosen at random each battle."}</div>`;
+}
+// (a crown's own soldiers, if it had any, named on its button)
+const troopsOf = k => Object.values(TROOPS).filter(T => T.teams && T.teams.includes(k)).map(T => T.name).join(", ") || "No soldiers of its own";
 // (the sides, against bots: one against one, as a battle's always been — or any of the usual others, or your own: up to
 //  four sides, up to four companies to a side)
 function sidesRow(A) {
@@ -724,6 +734,7 @@ function armyClick(e) {
   else if (b.dataset.bt) setArmy({ battle: !A.battle, enemies: !A.battle && A.enemies < 6 ? 8 : A.enemies, allies: !A.battle && A.allies < 4 ? 6 : A.allies });
   else if (b.dataset.uni) setArmy({ uniform: b.dataset.uni });
   else if (b.dataset.gr) setArmy({ ground: b.dataset.gr });
+  else if (b.dataset.foe != null) setArmy({ foe: b.dataset.foe });
   else if (b.dataset.vs) setArmy({ vs: b.dataset.vs });
   else if (b.dataset.purse) setArmy({ purse: +b.dataset.purse });
   else if (b.dataset.ppurse) { if (must && must.kind === "mp" && (must.side === 1 || must.theirs)) return; const was = prefPurse(army()); setArmy({ ppurse: +b.dataset.ppurse, ...scaleMuster(army(), was, +b.dataset.ppurse) }); if (must && must.kind === "mp" && must.net) must.net.send({ t: "bpurse", v: +b.dataset.ppurse }); }
@@ -843,10 +854,12 @@ export function army() {
   let a = {}; try { a = JSON.parse(localStorage.getItem(ARMY_KEY) || "{}") || {}; } catch (e) {}
   const keys = TEAM_KEYS, mine = keys.filter(ownsTeam), uniform = mine.includes(a.uniform) ? a.uniform : mine[0];
   const others = keys.filter(k => k !== uniform);
+  // (the enemy, against bots: yours to name — or left to chance; never your own colours)
+  const foe = keys.includes(a.foe) && a.foe !== uniform ? a.foe : "";
   const ground = ["open", "ours", "theirs"].includes(a.ground) ? a.ground : "open";
   const purse = PURSES[a.purse] ? +a.purse : 900;
   const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? livePurse(a) : purse, riding(), a.uniform);
-  return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: others[Math.floor(Math.random() * others.length)], ground, vs: a.vs === "player" ? "player" : "bots",
+  return { allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: foe || others[Math.floor(Math.random() * others.length)], foe, ground, vs: a.vs === "player" ? "player" : "bots",
     purse: a.vs === "player" ? livePurse(a) : purse, ppurse: prefPurse(a), muster: F.muster, guns: F.guns, sides: fitSides(a.sides), ride: riding() };
 }
 export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900), riding(), a.uniform); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
