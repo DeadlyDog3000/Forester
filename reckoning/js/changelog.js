@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.267", date: "8 November 2026", title: "Each army its own, and seven more crowns",
+    items: [
+      "Bowmen in a battle loose high into the sky — forty-five degrees and more — and the arrows come down steeply into the other line, as massed archers shot. Up there for seconds, they're best into men who stand; a line on the move walks out from under many of them.",
+      "Each army has its own soldiers where history gives it them: winged hussars for the Poles, horse archers for the Crimean Tatars, Janissaries for the Ottomans, streltsy with the berdysh for Muscovy, the King's Musketeers for France, cuirassiers for the Emperor, Bavaria, Saxony and Brandenburg, the Blue Guards for the Dutch, Caroleans for Sweden, the tercios' veteran pikes for Spain. They're raised only by their own colours, and the computer's officers raise them too. The English, the Danes, Hamburg and the others fight with the common sort, as they did.",
+      "Seven more crowns to march in, each in its own coat, arms and coin: the Zaporozhian Cossacks (with their foot shots), Hungary's kuruc (hajdús and hussars), Venice (the Schiavoni), Scotland (Highlanders), Portugal, Savoy, and the Haudenosaunee — the Five Nations, with musket, bow, war club and hatchet.",
+    ],
+  },
+  {
     v: "1.99.266", date: "8 November 2026", title: "Drums and fifes",
     items: [
       "Bands: placing your company, hire a drummer and a fifer for one arm (Drum & fife on the bar, then the arm). They march a few paces behind it and play while it marches, stopping when it halts. Men within earshot hold their nerve better, get it back quicker, and fire a little steadier in step with the drum. The enemy brings a band of its own with its biggest arm.",

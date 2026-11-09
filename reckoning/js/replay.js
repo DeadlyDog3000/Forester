@@ -70,7 +70,7 @@ export class Recorder {
   rel(v) { const S = this.setup; return [r2(v.x - S.x), r2(v.y), r2(v.z - S.z)]; }
   // ---- what happens: told by the battle as it happens ----
   shot(npc, from, dir, pistol) { const id = this.idOf(npc); if (id != null) this.push("s", id, pistol ? 1 : 0, ...this.rel(from), r3(dir.x), r3(dir.y), r3(dir.z)); }
-  arrow(npc, from, dir, power, bolt) { const id = this.idOf(npc); if (id != null) this.push("a", id, bolt ? 1 : 0, r2(power), ...this.rel(from), r3(dir.x), r3(dir.y), r3(dir.z)); }
+  arrow(npc, from, dir, power, bolt, sp = null) { const id = this.idOf(npc); if (id != null) this.push("a", id, bolt ? 1 : 0, r2(power), ...this.rel(from), r3(dir.x), r3(dir.y), r3(dir.z), ...(sp ? [r2(sp)] : [])); }
   gun(i) { this.push("g", i); }
   nade(from, v, fuse) { this.push("n", ...this.rel(from), r2(v.x), r2(v.y), r2(v.z), r2(fuse)); }
   hurt(b) { const id = this.idOf(b); if (id != null) this.push("h", id); }
@@ -579,7 +579,7 @@ export class Theatre {
       case "a": {
         if (!live || !u) return;
         const f = this.abs(a, 3), dir = new THREE.Vector3(a[6], a[7], a[8]).normalize();
-        this.hunt.loose(f, dir, a[2] || 1, !!a[1], u.a, () => {});
+        this.hunt.loose(f, dir, a[2] || 1, !!a[1], u.a, () => {}, a[9] || null);
         AUDIO.twang && AUDIO.twang(a[1] ? 1.2 : 0.8);
         return;
       }

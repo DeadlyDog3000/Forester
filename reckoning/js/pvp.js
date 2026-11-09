@@ -864,15 +864,31 @@ export const TROOPS = {
   axe: { name: "Axemen", one: "Axeman", cost: 26, lo: { long: "none", side: "none", blade: "battleaxe" }, note: "Battle axe · slow, heavy" },
   bow: { name: "Bowmen", one: "Bowman", cost: 22, lo: { long: "bow", side: "none", blade: "dagger" }, note: "Bow and knife · cheap" },
   cavalry: { name: "Cavalry", one: "Trooper", cost: 150, horse: true, lo: { long: "none", side: "pistol", blade: "sword" }, note: "Horse, pistol, sabre · fears pikes" },
+  // (each colours' own, where history gives them one — raised only by those colours. Not every army had a name of its own
+  //  to field: the English, the Danes, Hamburg, Portugal, Savoy and the Five Nations fight with the common sort)
+  hussar: { name: "Winged hussars", one: "Winged hussar", cost: 230, horse: true, teams: ["polish"], lo: { long: "none", side: "pistol", blade: "spear" }, note: "The lance and the wings · the charge that broke the Turks at Vienna" },
+  horsearcher: { name: "Horse archers", one: "Horse archer", cost: 120, horse: true, teams: ["tatar"], lo: { long: "bow", side: "none", blade: "sword" }, note: "The steppe's way of war · arrows from the saddle" },
+  janissary: { name: "Janissaries", one: "Janissary", cost: 90, teams: ["ottoman"], lo: { long: "musket", side: "none", blade: "sword" }, note: "The Sultan's own foot · the long tüfek and the yatagan" },
+  strelets: { name: "Streltsy", one: "Strelets", cost: 75, teams: ["muscovite"], lo: { long: "musket", side: "none", blade: "battleaxe" }, note: "The Tsar's musketeers · the berdysh, rest and blade in one" },
+  mousquetaire: { name: "King's Musketeers", one: "Musketeer of the Guard", cost: 125, teams: ["french"], lo: { long: "musket", side: "pistol", blade: "sword" }, note: "The Mousquetaires du roi · musket, pistol and sword" },
+  cuirassier: { name: "Cuirassiers", one: "Cuirassier", cost: 210, horse: true, teams: ["imperial", "bavarian", "saxon", "brandenburg"], lo: { long: "none", side: "pistol", blade: "sword" }, note: "Heavy horse in breastplate and helmet · pistols, the straight sword" },
+  blueguard: { name: "Blue Guards", one: "Blue Guard", cost: 95, teams: ["dutch"], lo: { long: "musket", side: "none", blade: "dagger" }, note: "The Prince of Orange's foot guards · the steadiest in the line" },
+  carolean: { name: "Caroleans", one: "Carolean", cost: 95, teams: ["swedish"], lo: { long: "musket", side: "none", blade: "sword" }, note: "Charles XI's drilled foot · one volley close, then the sword" },
+  tercio: { name: "Tercio veterans", one: "Tercio veteran", cost: 55, teams: ["spanish"], lo: { long: "none", side: "none", blade: "spear" }, note: "The old tercios' pikes · a century of Spanish steadiness" },
+  highlander: { name: "Highlanders", one: "Highlander", cost: 60, teams: ["scottish"], lo: { long: "musket", side: "none", blade: "sword" }, note: "One volley, then the broadsword and targe at a run" },
+  zaporozhian: { name: "Zaporozhian shots", one: "Zaporozhian", cost: 55, teams: ["cossack"], lo: { long: "musket", side: "none", blade: "sword" }, note: "The Host's foot · fine shots from behind the wagons, then the sabre" },
+  hajdu: { name: "Hajdús", one: "Hajdú", cost: 45, teams: ["hungarian"], lo: { long: "musket", side: "none", blade: "sword" }, note: "The Hungarian foot · musket and sabre, quick and hardy" },
+  lighthussar: { name: "Hussars", one: "Hussar", cost: 110, horse: true, teams: ["hungarian"], lo: { long: "none", side: "pistol", blade: "sword" }, note: "The Hungarian light horse · sabre and pistol, raiding" },
+  schiavoni: { name: "Schiavoni", one: "Schiavone", cost: 70, teams: ["venetian"], lo: { long: "musket", side: "none", blade: "sword" }, note: "Venice's Dalmatian soldiers · musket and the schiavona" },
 };
 // ---- a part of the company to command by itself: a letter for each arm (pressed again, the whole company) ----
 export const GROUPS = [
-  { key: "KeyL", id: "line", name: "Musketeers", kinds: ["musketeer", "militia"] },
+  { key: "KeyL", id: "line", name: "Musketeers", kinds: ["musketeer", "militia", "janissary", "strelets", "mousquetaire", "blueguard", "carolean", "highlander", "zaporozhian", "hajdu", "schiavoni"] },
   { key: "KeyO", id: "gren", name: "Grenadiers", kinds: ["grenadier"] },
-  { key: "KeyP", id: "pike", name: "Pikemen", kinds: ["pike"] },
+  { key: "KeyP", id: "pike", name: "Pikemen", kinds: ["pike", "tercio"] },
   { key: "KeyI", id: "shot", name: "Bowmen and crossbowmen", kinds: ["bow", "crossbow"] },
   { key: "KeyU", id: "blade", name: "Swordsmen and axemen", kinds: ["sword", "axe"] },
-  { key: "KeyK", id: "horse", name: "Cavalry", kinds: ["cavalry"] },
+  { key: "KeyK", id: "horse", name: "Cavalry", kinds: ["cavalry", "hussar", "horsearcher", "cuirassier", "lighthussar"] },
 ];
 // (a man's arm: his muster says it — or, a company raised without one, what he carries)
 const armOf = u => {
@@ -884,7 +900,8 @@ export const groupOf = u => { const k = armOf(u), g = GROUPS.find(g => g.kinds.i
 // ---- nerve: how much a man can stand before he breaks and runs ----
 // (the drilled and the well-paid steadiest — pikes in their block, grenadiers, troopers; the cheap levies the first to
 //  go: a mob of bowmen and axemen thrown at a line that fires steadily into them comes apart before it gets there)
-const STEADY = { musketeer: 1, militia: 0.6, grenadier: 1.25, pike: 1.2, cavalry: 1.15, sword: 0.95, crossbow: 0.8, axe: 0.75, bow: 0.7 };
+const STEADY = { musketeer: 1, militia: 0.6, grenadier: 1.25, pike: 1.2, cavalry: 1.15, sword: 0.95, crossbow: 0.8, axe: 0.75, bow: 0.7,
+  hussar: 1.6, horsearcher: 0.9, janissary: 1.35, strelets: 1.05, mousquetaire: 1.45, cuirassier: 1.4, blueguard: 1.4, carolean: 1.4, tercio: 1.5, highlander: 1.2, zaporozhian: 1.1, hajdu: 1, lighthussar: 1, schiavoni: 1.15 };
 // (a horse's coat: bay, chestnut, black, grey, dun — as a regiment's remounts came)
 const COATS = [0x5a3a22, 0x6a4428, 0x7a3e1e, 0x2a221c, 0x8a8478, 0x9a7a52, 0x4a3220];
 export const GUN_COST = 160;
@@ -902,7 +919,7 @@ function scaleMuster(a, from, to) {
 }
 // the men a side may raise: those armed as its colours were — horse for anyone; foot by the arm they carry (no musketeers
 // among the Tatars, no bowmen or crossbowmen in the armies of the West). Colours with no kit of their own: any.
-export const troopOk = (team, k) => { const T = TROOPS[k]; if (!T) return false; if (T.horse || !TEAMS[team]) return true; return T.lo.long !== "none" ? inKit(team, "long", T.lo.long) : inKit(team, "blade", T.lo.blade); };
+export const troopOk = (team, k) => { const T = TROOPS[k]; if (!T) return false; if (T.teams) return T.teams.includes(team); if (T.horse || !TEAMS[team]) return true; return T.lo.long !== "none" ? inKit(team, "long", T.lo.long) : inKit(team, "blade", T.lo.blade); };
 function fitMuster(m, guns, purse, ride = false, team = null) {
   const out = {}; for (const k in TROOPS) out[k] = troopOk(team, k) ? Math.max(0, Math.min(MAX_MEN, (m && m[k]) | 0)) : 0;
   guns = Math.max(0, Math.min(MAX_GUNS, guns | 0));
@@ -919,7 +936,8 @@ function botMuster(purse, team = null) {
   let left = purse - guns * GUN_COST;
   const pick0 = () => { const r = Math.random(); return r < 0.44 ? "musketeer" : r < 0.52 ? "grenadier" : r < 0.62 ? "pike" : r < 0.72 ? "crossbow" : r < 0.81 ? "bow" : r < 0.89 ? "sword" : r < 0.94 ? "axe" : "cavalry"; };
   // (only the men its colours raise: drawn again till one is, the bowmen of the Tatars, say, in place of musketeers)
-  const pick = () => { for (let i = 0; i < 12; i++) { const k = pick0(); if (troopOk(team, k)) return k; } return Object.keys(TROOPS).find(k => troopOk(team, k)) || "pike"; };
+  const own = Object.keys(TROOPS).filter(k => TROOPS[k].teams && troopOk(team, k));
+  const pick = () => { if (own.length && Math.random() < 0.28) return own[Math.floor(Math.random() * own.length)]; for (let i = 0; i < 12; i++) { const k = pick0(); if (troopOk(team, k)) return k; } return Object.keys(TROOPS).find(k => troopOk(team, k)) || "pike"; };
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
   return { muster: m, guns };
 }
@@ -1499,7 +1517,7 @@ class Arena {
     const rec = this.rec = new Recorder(this, this.stageSetup);
     { const H = this.hunt, fb = H.fireBall.bind(H), lz = H.loose.bind(H);
       H.fireBall = (from, dir, o = {}) => { rec.shot(o.npc, from, dir, o.speed === 260); return fb(from, dir, o); };
-      H.loose = (from, dir, power, bolt, npc, atYou) => { rec.arrow(npc, from, dir, power, bolt); return lz(from, dir, power, bolt, npc, atYou); };
+      H.loose = (from, dir, power, bolt, npc, atYou, speedAt) => { rec.arrow(npc, from, dir, power, bolt, speedAt); return lz(from, dir, power, bolt, npc, atYou, speedAt); };
       if (this.field) { const F = this.field, ff = F.fire.bind(F), fn = F.nade.bind(F); F.fire = g => { ff(g); rec.gun(F.guns.indexOf(g)); }; F.nade = (f, v, sd, fuse) => { fn(f, v, sd, fuse); rec.nade(f, v, fuse); }; } }
     this.hud();
     this.tick = dt => this.update(dt);
@@ -3919,15 +3937,20 @@ class Bot extends Fighter {
       const power = k === "bow" ? 0.95 : 1.75, v = arrowSpeed(power, k === "crossbow");
       const to = new THREE.Vector3(tp.x, tp.y + (low ? 0.95 : 1.25), tp.z), flight = from.distanceTo(to) / v;
       if (tv) to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), flight * (0.4 + s * 0.6));
-      // (the arc laid as an archer lays it: the low angle that drops the arrow onto him at that range — a long shot
-      //  goes up a good way, and comes down into the line)
-      const hx = Math.hypot(to.x - from.x, to.z - from.z), hy = to.y - from.y, g = 9.8, v2 = v * v, disc = v2 * v2 - g * (g * hx * hx + 2 * hy * v2);
-      const ang = disc > 0 ? Math.atan((v2 - Math.sqrt(disc)) / (g * hx)) : Math.PI / 4;
-      const dir = new THREE.Vector3((to.x - from.x) / hx * Math.cos(ang), Math.sin(ang), (to.z - from.z) / hx * Math.cos(ang)), wob = (0.075 - s * 0.06) * (1 + Math.min(2, (this.fog || 0) * 1.2));
+      // (the arc laid as an archer lays it. In a battle, a bow’s arrow is loosed high into the sky — forty-five degrees and
+      //  more — to come down steeply into the other line, as massed archers shot: the bow drawn as full as ever, the arrow
+      //  sent up at the pace that brings it down on them. A crossbow, and a man close by, shot flat and straight)
+      const hx = Math.hypot(to.x - from.x, to.z - from.z), hy = to.y - from.y, g = 9.8, lob = this.arena.battle && k === "bow" && hx > 22;
+      let ang, sp = v;
+      if (lob) { ang = (45 + Math.random() * 13) * Math.PI / 180; const c = Math.cos(ang), t2 = 2 * c * c * (hx * Math.tan(ang) - hy); sp = t2 > 0 ? Math.min(v * 1.4, Math.sqrt(g * hx * hx / t2)) : v; }
+      else { const v2 = v * v, disc = v2 * v2 - g * (g * hx * hx + 2 * hy * v2); ang = disc > 0 ? Math.atan((v2 - Math.sqrt(disc)) / (g * hx)) : Math.PI / 4; }
+      // (a high arrow is up there for seconds: aimed where he'll be, the better archer leading him the better)
+      if (lob && tv) { const fl = hx / (sp * Math.cos(ang)); to.addScaledVector(new THREE.Vector3(tv.x, 0, tv.z), fl * (0.4 + s * 0.6) - flight * (0.4 + s * 0.6)); }
+      const dir = new THREE.Vector3((to.x - from.x) / hx * Math.cos(ang), Math.sin(ang), (to.z - from.z) / hx * Math.cos(ang)), wob = (0.075 - s * 0.06) * (lob ? 0.55 : 1) * (1 + Math.min(2, (this.fog || 0) * 1.2));
       // (in a battle the line stands to it, and its shots go the steadier for it — wide of the man, more than short or long)
       dir.x += (Math.random() - 0.5) * wob; dir.y += (Math.random() - 0.5) * wob * (this.arena.battle ? 0.22 : 0.6); dir.z += (Math.random() - 0.5) * wob; dir.normalize();
       from.addScaledVector(dir, 0.3);
-      this.arena.hunt.loose(from, dir, power, k === "crossbow", this, atYou);
+      this.arena.hunt.loose(from, dir, power, k === "crossbow", this, atYou, lob ? sp : null);
       if (this.arena.hearable(a.pos)) AUDIO.twang && AUDIO.twang(k === "crossbow" ? 1.2 : 0.8);
       return;
     }

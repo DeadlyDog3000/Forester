@@ -43,6 +43,14 @@ export const TEAMS = {
   swedish: { price: 900, kit: WEST, why: "The Caroleans went in with the musket, the pike and the sword, and were drilled to close with cold steel. No bows." },
   english: { price: 900, kit: WEST, why: WEST_WHY },
   french: { price: 960, kit: WEST, why: "Louis XIV's foot was the first to take the bayonet to every company; musket, pike and sword besides. No bows." },
+  // (more crowns of 1683, each in its own coat and with its own arms)
+  cossack: { price: 300, kit: { long: ["musket", "bow", "none"], side: ["pistol", "none"], blade: ["sword", "spear", "dagger", "none"] }, why: "The Zaporozhian Host: the samopal musket, the sabre and the lance — the foot famous shots from behind their wagon forts, the horse light and quick." },
+  hungarian: { price: 420, kit: { long: ["musket", "none"], side: ["pistol", "none"], blade: ["sword", "battleaxe", "dagger", "none"] }, why: "Thököly's kuruc and the hajdús: the musket and the curved sabre, the fokos war-hammer, and pistols for the hussars." },
+  haudenosaunee: { price: 540, kit: { long: ["musket", "bow", "none"], side: ["none"], blade: ["warclub", "axe", "dagger", "none"] }, why: "The Five Nations: trade muskets and the bow, the ball-headed war club and the hatchet. They fought in the woods, loose and from cover." },
+  portuguese: { price: 600, kit: WEST, why: "King Pedro II's terços: the musket, the pike and the sword, as the armies of the West carried them. No bows." },
+  savoyard: { price: 660, kit: WEST, why: "Duke Victor Amadeus's foot: musket, pike and sword. No bows." },
+  scottish: { price: 690, kit: { long: ["musket", "none"], side: ["pistol", "none"], blade: ["sword", "dagger", "axe", "spear", "none"] }, why: "King James's Scots: musket and pike in the regiments; the Highland clans with musket, broadsword and targe, and the Lochaber axe." },
+  venetian: { price: 720, kit: WEST, why: "The Serenissima's oltremarini and Schiavoni — Dalmatian and Albanian soldiers — with the musket and the basket-hilted schiavona." },
   imperial: { price: 1050, kit: WEST, why: "The Emperor's regiments that held Vienna: musket, pike and sword, and the hatchet for the grenadiers. No bows." },
 };
 export const TEAM_KEYS = Object.keys(TEAMS);
@@ -87,6 +95,8 @@ export const COINS = {
   dutch: ["guilders", 5, "the Dutch guilder"], saxon: ["thalers", 2, "the Saxon thaler"], bavarian: ["gulden", 4, "the Bavarian gulden"],
   brandenburg: ["thalers", 2, "the Brandenburg thaler"], spanish: ["reales", 17, "the Spanish real"], swedish: ["riksdaler", 2, "the Swedish riksdaler"],
   english: ["shillings", 9.5, "the English shilling"], french: ["livres", 7, "the French livre tournois"], imperial: ["gulden", 4, "the Emperor's gulden"],
+  cossack: ["złoty", 12, "the Polish złoty the Host was paid in"], hungarian: ["forints", 4, "the Hungarian forint"], haudenosaunee: ["fathoms of wampum", 3, "wampum: shell beads, strung by the fathom"],
+  portuguese: ["réis", 400, "the Portuguese real"], savoyard: ["lire", 6, "the Savoyard lira"], scottish: ["merks", 3, "the Scots merk"], venetian: ["lire", 8, "the Venetian lira"],
 };
 const coinOf = t => COINS[t] || COINS.tatar;
 // (an amount, in one crown's coin: "450 akçe", "38 thalers")

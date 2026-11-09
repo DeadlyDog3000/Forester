@@ -544,14 +544,14 @@ export class Hunt {
     this._onDown && this._onDown(a);
   }
   // (atYou: an arrow loosed at you — by an archer in the arena — that strikes you if it finds you: atYou(power, head))
-  loose(from, dir, power, bolt = false, npc = null, atYou = null) {
+  loose(from, dir, power, bolt = false, npc = null, atYou = null, speedAt = null) {
     const m = modelCopy("arrow");
     const mesh = m ? m.scene : new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.74).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xb89a6a }));
     // (a crossbow's bolt: half the length of an arrow, and stouter)
     if (bolt) mesh.scale.set(1.5, 1.5, 0.5);
     this.w.root.add(mesh);
     // (how fast it leaves: a hunting bow at full draw about 55 m/s, half drawn much less; a spanned crossbow's bolt about 65)
-    const speed = arrowSpeed(power, bolt);
+    const speed = speedAt || arrowSpeed(power, bolt);
     // (yours goes where you aimed it at twenty paces: an archer allows for the drop, and so does a crossbow's sight — it
     //  rises a little over the line and comes down onto it there; nearer it's a hand high, further it falls short.
     //  Sent straight down the crosshair, everything at a hunting range landed a foot or two low)

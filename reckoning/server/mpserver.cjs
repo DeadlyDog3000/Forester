@@ -1591,7 +1591,7 @@ async function start(opts = {}) {
   const PURSE_OK = [500, 900, 1500, 2000, 2500, 3500, 5000];
   // (the colours there are — the game's own list — and nothing else: a name like "constructor" or "__proto__" written into
   //  the counts would have broken every read of them after, the server with it)
-  const COLOURS = new Set(["tatar", "hamburg", "muscovite", "polish", "ottoman", "danish", "dutch", "saxon", "bavarian", "brandenburg", "spanish", "swedish", "english", "french", "imperial"]);
+  const COLOURS = new Set(["tatar", "hamburg", "muscovite", "polish", "ottoman", "danish", "dutch", "saxon", "bavarian", "brandenburg", "spanish", "swedish", "english", "french", "imperial", "cossack", "hungarian", "haudenosaunee", "portuguese", "savoyard", "scottish", "venetian"]);
   async function balance(u, res, req) {
     if (corsPost(req, res)) return;
     if (req.method === "GET") {
