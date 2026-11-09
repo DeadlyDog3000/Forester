@@ -57,8 +57,8 @@ export const TEAMS = {
 export const TEAM_KEYS = Object.keys(TEAMS);
 // (a weapon no army of 1683 still fielded: yours to buy and carry against bots, never in a ranked fight)
 export const NOT_IN_1683 = {
-  crossbow: "No army of 1683 still fielded crossbows — a hunter's arm by then. Yours against bots; no team carries it in a ranked fight.",
-  warclub: "The ball-headed club of the Eastern Woodlands' nations, who aren't a team here. Yours against bots; not in a ranked fight.",
+  crossbow: "No army of 1683 still fielded crossbows — a hunter's arm by then. Yours against bots; no kingdom carries it in a ranked fight.",
+  warclub: "The ball-headed club of the Eastern Woodlands' nations, who aren't a kingdom here. Yours against bots; not in a ranked fight.",
 };
 
 // ---- how your arms look: the finishes, and which each arm takes ----

@@ -212,7 +212,7 @@ export function initPvp(c) {
     // (not yours to carry here: in a ranked fight, not your team's; otherwise, not bought — a first click says what it
     //  costs, a second buys it)
     const id = b.dataset.id;
-    if (ranked() && !inKit(teamNow(), b.dataset.slot, id)) { drawMe(`${TEAM_NAME(teamNow())} soldiers didn't carry ${nameOf(b.dataset.slot, id)} in 1683 — in a ranked fight you carry your team's arms. Change team for other arms.`); return; }
+    if (ranked() && !inKit(teamNow(), b.dataset.slot, id)) { drawMe(`${TEAM_NAME(teamNow())} soldiers didn't carry ${nameOf(b.dataset.slot, id)} in 1683 — in a ranked fight you carry your kingdom's arms. Change kingdom for other arms.`); return; }
     if (!ranked() && !owns(id) && must.kind !== "cmp") { want = { k: "w", id, slot: b.dataset.slot }; drawMe(); sfx("arm", id); return; }
     want = null;
     const was = { ...lo }; lo[b.dataset.slot] = b.dataset.id; lo = fitLoad(lo, b.dataset.slot); saveLoadout(lo);
@@ -478,7 +478,7 @@ const nameOf = (slot, id) => (({ long: LONG, side: SIDE, blade: BLADE })[slot][i
 function musTabs() {
   const k = must.kind, sea = k === "hist" && battleById(histPick().id).sea;
   if (k === "cmp") return [["arms", "Your arms"]];
-  return [k === "hist" && ["battle", "The battle"], !sea && ["arms", "Arms"], k !== "hist" && ["team", "Team"], (k === "bots" || k === "mp") && ["company", "Company"], k === "bots" && ["field", "The field"], ["armoury", "Armoury"]].filter(Boolean);
+  return [k === "hist" && ["battle", "The battle"], !sea && ["arms", "Arms"], k !== "hist" && ["team", "Kingdoms"], (k === "bots" || k === "mp") && ["company", "Company"], k === "bots" && ["field", "The field"], ["armoury", "Armoury"]].filter(Boolean);
 }
 function drawMuster() {
   if (!must) return;
@@ -492,7 +492,7 @@ function drawMuster() {
   if (musTab === "armoury") drawForge(); else if (table) table.stop();
   { const w = welcome(); if (w) drawMe(w); }
 }
-function drawPurse() { $("musPurse").innerHTML = `${esc(TEAM_NAME(teamNow()))} purse: <b>${money(ducats())}</b>`; $("musPurse").title = `Paid in ${coinName()} — each team has its own purse, in its own coin`; }
+function drawPurse() { $("musPurse").innerHTML = `${esc(TEAM_NAME(teamNow()))} purse: <b>${money(ducats())}</b>`; $("musPurse").title = `Paid in ${coinName()} — each kingdom has its own purse, in its own coin`; }
 // ---- the team: whose colours you march in — each crown's price, and the arms its soldiers carried ----
 // ---- buying: whatever isn't yours is looked at first — shown on the scroll (on the gun, on the table) with its price —
 // and bought with the Buy button under it; never by a stray click ----
@@ -503,7 +503,7 @@ const wantIs = (k, id, x) => !!want && want.k === k && want.id === id && (x == n
 function buyBar() {
   if (!want) return "";
   const p = wantPrice(want), have = ducats(), T = TEAM_NAME(teamNow()), shut = want.k === "t" && !teamOpen(want.id), ok = have >= p && !shut;
-  if (shut) return `<div class="buybar"><div class="bb-n"><b>${esc(wantName(want))}</b><small>Not to be had for money alone: take the ${esc(TEAM_NAME(want.id))} colours in battle first — fight them (The field, The enemy), bring their ensign down, and carry their colours off. Then their men are yours to raise.</small></div>
+  if (shut) return `<div class="buybar"><div class="bb-n"><b>${esc(wantName(want))}</b><small>Not to be had for money alone: take the ${esc(TEAM_NAME(want.id))} colours in battle first — fight them (The field, The enemy), bring their ensign down, and carry their colours off. Then the kingdom is yours to raise men in.</small></div>
     <div class="bb-p">${money(p)}</div><button class="bb-x" data-unwant="1">Cancel</button><button class="bb-buy" data-buy="1" disabled>Buy</button></div>`;
   return `<div class="buybar"><div class="bb-n"><b>${esc(wantName(want))}</b><small>${ok ? `Paid from the ${esc(T)} purse, which holds ${money(have)}` : `${money(p - have)} more than the ${esc(T)} purse holds — fight in these colours to earn it`}</small></div>
     <div class="bb-p">${money(p)}</div><button class="bb-x" data-unwant="1">Cancel</button><button class="bb-buy" data-buy="1"${ok ? "" : " disabled"}>Buy</button></div>`;
@@ -533,7 +533,7 @@ function drawTeam() {
   // (the card: the team looked at, if it's one not yet yours; otherwise the one you march in)
   const shown = want && want.k === "t" ? want.id : A.uniform, cur = TEAMS[shown];
   el.classList.toggle("locked", !!must.mine);
-  el.innerHTML = `<div class="pv-h big">Your team</div>
+  el.innerHTML = `<div class="pv-h big">Your kingdom</div>
     <div class="mus-rule">Each crown's colours are bought once and kept, each with its own purse in its own coin. Start with the Tatars; earn your way up to the Emperor's own regiments. In a ranked fight a team carries the arms its soldiers really carried in 1683.</div>
     <div class="tm-list">${TEAM_KEYS.map(k => { const u = UNIFORMS[k], have = ownsTeam(k); return `<button class="tm${A.uniform === k ? " on" : ""}${have ? "" : " off"}${wantIs("t", k) ? " ask" : ""}" data-team="${k}" title="${esc(u.note)}"><span class="pv-sw">${sw(u)}</span><b>${esc(u.name)}</b><small>${have ? `${A.uniform === k ? "Marching" : "Yours"} · ${money(ducats(k), k)}` : teamOpen(k) ? money(TEAMS[k].price) : "Take their colours first"}</small></button>`; }).join("")}</div>
     ${want && want.k === "t" ? buyBar() : ""}
@@ -549,7 +549,7 @@ function coloursRow(t) {
   const opts = (k, list) => list.map(([id, n]) => `<button class="pv-gr${D[k] === id ? " on" : ""}" data-cd="${k}:${id}"><b>${esc(n)}</b></button>`).join("");
   const took = takenAll(), tk = Object.entries(took).filter(([k, n]) => n > 0 && UNIFORMS[k]);
   return `<div class="pv-h big">Your colours</div>
-    <div class="pv-sn">Your regiment's own, carried by your ensign in the middle of your foot. Men near them stand steadier; if he falls, take them up again before the enemy does. Bring theirs down and carry them off, and their men are yours to raise.</div>
+    <div class="pv-sn">Your regiment's own, carried by your ensign in the middle of your foot. Men near them stand steadier; if he falls, take them up again before the enemy does. Bring theirs down and carry them off, and their kingdom is yours to buy.</div>
     <div class="cl-wrap"><canvas id="colPrev" width="192" height="128"></canvas><div class="cl-opts">
       <div class="cl-l">Field</div><div class="cl-ts">${tc("field")}</div>
       <div class="cl-l">Laid over it</div><div class="pv-grounds cl-g">${opts("div", DIVISIONS)}</div><div class="cl-ts">${tc("divC")}</div>
@@ -1671,7 +1671,7 @@ class Arena {
         const u = new Bot(this, info); this.units.push(u); this.hunt.animals.push(u); return u;
       };
       this.mk = mk;   // (kept: the deployment raises a man or two more, if the purse runs to it)
-      if (this.remote) this.puppets(setup.roster);
+      if (this.remote) { this.puppets(setup.roster); this.raiseColours(); }
       else {
         if (this.custom) this.musters.forEach((l, co) => { for (let i = 0; i < l.length; i++) mk(co, i); });
         else {
@@ -1716,7 +1716,7 @@ class Arena {
     G.onDowned = from => this.youDown(from);
     if (net) this.wire(net);
     if (this.netBattle) {
-      this.wireBattle(net);
+      this.wireBattle(net); this.wireColours(net);
       if (this.host) { this.field.onFire = g => net.send({ t: "bgun", i: this.field.guns.indexOf(g) }); this.field.onNade = (f, v, side, fuse) => net.send({ t: "bnade", f: [f.x, f.y, f.z].map(n => +n.toFixed(2)), v: [v.x, v.y, v.z].map(n => +n.toFixed(2)), fuse: +fuse.toFixed(2) }); }
       else net.on.bnade = m => this.field && this.field.nade(new THREE.Vector3(...m.f.map(Number)), new THREE.Vector3(...m.v.map(Number)), 0, +m.fuse || 2);
     }
@@ -1840,14 +1840,16 @@ class Arena {
   // ---- the colours: each side's carried by its ensign in the middle of its foot. Men near them stand the steadier; if
   //  he falls they lie where he fell till a comrade takes them up — or an enemy, with none of theirs near, carries them
   //  off: a blow to every man of that side, and a trophy to the side that took them (see colours.js) ----
-  carriesColours(t) { return !!(this.battle && !this.net && !this.custom && this.uni && this.uni[t] && !/^warrior/.test(this.uni[t].body || "") && this.fortSide !== t && !(this.siege && this.siege.side === t)); }
+  carriesColours(t) { return !!(this.battle && !this.custom && this.uni && this.uni[t] && !/^warrior/.test(this.uni[t].body || "") && this.fortSide !== t && !(this.siege && this.siege.side === t)); }
   raiseColours() {
     this.cols = [];
     for (const t of [0, 1]) {
       if (!this.carriesColours(t)) continue;
-      const key = Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[t]), design = t === 0 && !this.hist ? designOf(key) : null;
+      // (yours as you made them; the other player's as theirs sent them — see wireColours)
+      const key = Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[t]), design = t === 0 && !this.hist ? designOf(key) : t === 1 && this.theirColours ? this.theirColours : null;
       const C = { side: t, key, design, ...this.field.carried(key, design), ens: null, down: null, taken: false, pick: 0 };
-      this.cols[t] = C; this.giveColours(C, this.ensignFor(t));
+      // (on the other player's game, who carries them and where they lie is the host's to say)
+      this.cols[t] = C; if (!this.remote) this.giveColours(C, this.ensignFor(t));
     }
     if (!this.cols.length) return;
     // (yours to take up where they lie: theirs, to carry off — or your own, to raise again)
@@ -1855,7 +1857,46 @@ class Arena {
       get x() { return this.C ? this.C.down.x : 0; }, get z() { return this.C ? this.C.down.z : 0; }, get y() { return this.C ? A.w.heightAt(this.C.down.x, this.C.down.z) + 0.6 : 0; },
       can: () => { it.C = A.cols.find(C => C && C.down && !C.taken && Math.hypot(C.down.x - G.player.pos.x, C.down.z - G.player.pos.z) < 3) || null; return !!it.C && A.live && !G.downed; },
       label: () => it.C && it.C.side === 0 ? "Raise your colours again" : "Take their colours",
-      use: () => { const C = it.C; if (!C) return; if (C.side === 0) { const f = A.ensignFor(0, C.down); if (f) A.giveColours(C, f); } else A.colsTaken(C, 0); } });
+      use: () => { const C = it.C; if (!C) return; if (A.remote) { A.net.send({ t: "bcolact", s: 1 - C.side }); return; } if (C.side === 0) { const f = A.ensignFor(0, C.down); if (f) A.giveColours(C, f); } else A.colsTaken(C, 0); } });
+  }
+  // ---- the colours in a battle online: the host's game keeps them (who carries them, where they lie, who took them)
+  //  and tells the other; the other's game sends its own colours and drill at the start, and asks the host when its
+  //  player would take up colours ----
+  wireColours(net) {
+    const clean = d => { if (!d || typeof d !== "object") return null; const ok = (v, L) => L.some(x => x[0] === v) ? v : undefined; const o = { field: ok(d.field, TINCTURES), div: ok(d.div, DIVISIONS), divC: ok(d.divC, TINCTURES), badge: ok(d.badge, BADGES), badgeC: ok(d.badgeC, TINCTURES), cipher: String(d.cipher || "").replace(/[^A-Za-z]/g, "").slice(0, 2) }; return o.field ? { ...DEFAULT_COLOURS, ...Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) } : null; };
+    const paint = (C, d) => { if (!C || !d || JSON.stringify(C.design) === JSON.stringify(d)) return; C.design = d; const map = C.sim && C.sim.mesh && C.sim.mesh.material && C.sim.mesh.material.map; if (map && map.image && map.image.getContext) { drawDesign(map.image.getContext("2d"), d); map.needsUpdate = true; } };
+    if (this.host) {
+      net.on.bcolset = m => {
+        const d = clean(m.d); this.theirColours = d; if (this.cols) paint(this.cols[1], d);
+        // (their drill, for their men — whom this game moves)
+        const nd = DRILLS[m.drill]; if (nd) for (const u of this.alliesOf(1)) { const od = u.info.drill || DRILLS.ranks, pk = groupOf(u) === "pike"; if (u.brave) u.brave = u.brave / (od.brave * (pk ? od.pike : 1)) * (nd.brave * (pk ? nd.pike : 1)); u.info.drill = nd; }
+        this.colSync(true);
+      };
+      net.on.bcolact = m => {
+        const C = this.cols && this.cols[m.s ? 1 : 0], nf = this.netFoe; if (!C || !C.down || C.taken || !nf || !nf.alive || Math.hypot(nf.pos.x - C.down.x, nf.pos.z - C.down.z) > 3.5) return;
+        if (C.side === 1) { const f = this.ensignFor(1, C.down); if (f) this.giveColours(C, f); } else this.colsTaken(C, 1);
+      };
+    } else {
+      net.send({ t: "bcolset", d: designOf(this.army && this.army.uniform), drill: drillOf(army(), this.army && this.army.uniform) });
+      net.on.bcol = m => {
+        if (!this.cols || !Array.isArray(m.c)) return;
+        m.c.forEach((s0, hs) => {
+          const C = this.cols[1 - hs]; if (!C || !s0) return;
+          if (m.dz && hs === 0) paint(C, clean(m.dz));
+          if (s0.t) { if (!C.taken) { C.taken = true; C.down = null; if (C.g.parent) C.g.parent.remove(C.g); if (C.side === 1) { const n = addTaken(C.key); this.banner("Their colours are taken!", `The ${UNIFORMS[C.key] ? UNIFORMS[C.key].name : "enemy"} colours${n === 1 ? " — the first of theirs you've taken: the kingdom is yours to buy now, under Kingdoms" : ""}`); this.tookColours = (this.tookColours || 0) + 1; } else { this.lostColours = true; this.banner("Your colours are lost!", "The enemy has carried them off"); } setTimeout(() => G.arena === this && !this.ended && this.banner(null), 2800); } return; }
+          const e = s0.e >= 0 ? this.unitById(s0.e) : null;
+          if (e && e.a && e.a.root) { if (C.ens !== e) { if (C.g.parent) C.g.parent.remove(C.g); C.g.position.set(-0.24, 0.55, 0.12); C.g.rotation.set(0.08, 0, -0.12); e.a.root.add(C.g); C.ens = e; } C.down = null; }
+          else if (Array.isArray(s0.d)) { if (!C.down || C.down.x !== s0.d[0]) { if (C.g.parent) C.g.parent.remove(C.g); const x = +s0.d[0], z = +s0.d[1]; C.g.position.set(x, this.w.heightAt(x, z) + 0.15, z); C.g.rotation.set(0, 1.3, 1.45); this.w.root.add(C.g); C.down = { x, z, t: G.time }; C.ens = null; if (C.side === 0) UI.hint("Your colours are down! Raise them again (F), or they'll be lost.", 3); } }
+        });
+      };
+    }
+  }
+  // (the host: where the colours are, told the other game — at once when it changes, and now and then besides)
+  colSync(force = false) {
+    if (!this.host || !this.net || !this.cols) return;
+    const c = [0, 1].map(t => { const C = this.cols[t]; return C ? { e: C.ens ? C.ens.uid ?? -1 : -1, d: C.down ? [+C.down.x.toFixed(2), +C.down.z.toFixed(2)] : null, t: C.taken ? 1 : 0 } : null; }), k = JSON.stringify(c);
+    if (!force && k === this.colLast && G.time - (this.colSent || 0) < 4) return;
+    this.colLast = k; this.colSent = G.time; this.net.send({ t: "bcol", c, dz: this.cols[0] && this.cols[0].design });
   }
   // (the man to carry them: one of the pikes in the middle, where the ensign stood — or of the muskets, or any foot)
   ensignFor(t, near = null) {
@@ -1878,7 +1919,7 @@ class Arena {
     // (every man of that side shaken by it; the other heartened)
     for (const m of this.units) if (m.alive && m.nerve != null) { if (this.alOf(m.team) === C.side) m.shaken && m.shaken(0.28); else m.nerve = Math.min(1, m.nerve + 0.15); }
     const nm = UNIFORMS[C.key] ? UNIFORMS[C.key].name : "Their";
-    if (C.side !== 0) { this.tookColours = (this.tookColours || 0) + 1; const n = addTaken(C.key); this.banner("Their colours are taken!", `The ${nm} colours${n === 1 ? " — the first of theirs you've taken: their men are yours to raise now, in the armoury" : ""}`); }
+    if (C.side !== 0) { this.tookColours = (this.tookColours || 0) + 1; const n = addTaken(C.key); this.banner("Their colours are taken!", `The ${nm} colours${n === 1 ? " — the first of theirs you've taken: the kingdom is yours to buy now, under Kingdoms" : ""}`); }
     else { this.lostColours = true; this.banner("Your colours are lost!", "The enemy has carried them off"); }
     setTimeout(() => G.arena === this && !this.ended && this.banner(null), 2800);
   }
@@ -1908,6 +1949,7 @@ class Arena {
       // (lying there a while with none of the enemy at them, a comrade near enough runs to take them up)
       if (C.down && !C.taken && !foes.length && G.time - C.down.t > 3) { const f = near(C.side, 12)[0]; if (f) this.giveColours(C, f); }
     }
+    this.colSync();
   }
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
@@ -2181,10 +2223,20 @@ class Arena {
     const ghost = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x7ad07a, transparent: true, opacity: 0.4, depthWrite: false, fog: false })); ghost.visible = false; ghost.renderOrder = 4; root.add(ghost);
     // (not on top of your own men, nor where you stand: they'd be inside it)
     const onMen = (p, rad) => Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) < rad || this.alliesOf(0).some(u => Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < rad);
-    const wkAt = g => { const W = WK[work.k], p = clampZone(g.x, g.z), ok = supLeft() >= loadsOf(W) && inZone(g.x, g.z) && !!this.field && this.field.free(p.x, p.z, W.rad * 0.6, 0.2) && !onMen(p, W.rad * 0.6 + 0.5); return { p, ok }; };
+    // (works go further afield than the men: out to a few paces short of the middle of the field, well back behind you,
+    //  and across its whole width; side by side or end to end, joined into a line; on a slope; among the trees and
+    //  stones, as long as the work's own middle is clear — and your men stand aside for them)
+    void onMen;
+    const fwdW = Math.max(fwd, dist / 2 - 6), backW = 34, halfW = this.bound - 8;
+    const inWorks = (x, z) => { const a = (x - home.x) * r.x + (z - home.z) * r.z, b = (x - home.x) * f.x + (z - home.z) * f.z; return Math.abs(a) <= halfW && b <= fwdW && b >= -backW && Math.hypot(x - C.x, z - C.z) < this.bound - 3; };
+    const roomFor = (p, W) => !!this.field && !this.field.used.some(u => Math.hypot(u.x - p.x, u.z - p.z) < (u.rad + W.rad) * 0.55) && !this.w.col.solidAt(p.x, groundY(p.x, p.z) + 0.8, p.z, 0.5);
+    const wkAt = g => { const W = WK[work.k], p = { x: g.x, z: g.z }, ok = supLeft() >= loadsOf(W) && inWorks(g.x, g.z) && roomFor(p, W); return { p, ok }; };
     const placeWork = g => {
-      const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(supLeft() < loadsOf(W) ? `Not enough supplies: ${W.name.toLowerCase()} take ${loadsOf(W)} loads${A0.supplies ? "" : " — buy supplies in the muster, under Your company"}.` : "Not there: your men are on it, the ground's taken or too rough, or it's outside your ground.", 2); return; }
+      const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(supLeft() < loadsOf(W) ? `Not enough supplies: ${W.name.toLowerCase()} take ${loadsOf(W)} loads${A0.supplies ? "" : " — buy supplies in the muster, under Your company"}.` : "Not there: another work's already on that spot, something solid's in the way, or it's past where you can build — short of the middle of the field.", 2); return; }
       const rec = this.field.build(work.k, p.x, p.z, work.ry, 0, { x: p.x - f.x * 20, z: p.z - f.z * 20 });
+      // (any of yours standing where it went up: stepped out of its way)
+      { const rad = W.rad + 0.6; for (const u of this.alliesOf(0)) if (u.alive && u.a && Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < rad) { const d = Math.hypot(u.pos.x - p.x, u.pos.z - p.z) || 1, q = this.clearSpot(p.x + (u.pos.x - p.x) / d * (rad + 0.4), p.z + (u.pos.z - p.z) / d * (rad + 0.4)); u.reset(q, { x: q.x + f.x * 30, z: q.z + f.z * 30 }); u.a.sync && u.a.sync(); }
+        if (Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) < rad) { const q = this.clearSpot(p.x - f.x * (rad + 1), p.z - f.z * (rad + 1)); pl.place(q.x, q.z, pl.yaw); } }
       built.push({ k: work.k, rec, cost: loadsOf(W), x: p.x, z: p.z, ry: work.ry, side: 0, in: [+(p.x - f.x * 20).toFixed(1), +(p.z - f.z * 20).toFixed(1)] }); worksSpent += loadsOf(W); sfx("buy", 3); drawBar();
     };
     // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
