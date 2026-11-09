@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.269", date: "9 November 2026", title: "The band hired in the muster",
+    items: [
+      "The drum and fife are hired in the muster now, with the rest of your company, not on the field before the battle: under Your company, pick the arms you want a band to march with, 40 thalers each from the purse. Each band takes its place behind its arm, and moves with it when you set the arm down somewhere else.",
+    ],
+  },
+  {
     v: "1.99.268", date: "9 November 2026", title: "Choose your enemy, and know him by his hat",
     items: [
       "Every army now looks its own, not only by the colour of its coat. Each wears its own hat: the Swede, the Brandenburger and the Frenchman the cocked hat, the Dutchman and the Saxon the low round one, the Spaniard the broad hat with a red ostrich plume swept back over the brim, the Cossack the tall lambskin cap with its red bag hung down the side, the Hamburg burgher the tall hat of a Hanseatic town, the Scot the blue bonnet. Each wears its field sign or favour: the Emperor's men a green sprig, the Poles a wisp of straw as at Vienna, the Dutch an orange ribbon, the Bavarians blue and white, the Danes red and white, the Hungarians a crane's feather in the kalpak.",
