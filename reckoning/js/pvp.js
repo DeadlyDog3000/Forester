@@ -2373,6 +2373,8 @@ class Arena {
     if (this.field) this.field.active = this.live && !this.over && !this.ended;
     // (on the other player's game the guns and their shot are only shown: what they hit, the host's game says)
     if (this.field) this.field.update(dt, this.remote ? [] : [...this.units, this.you], (u, from, v, dmg = 400) => {
+      // (a side's men falling to the guns: counted, so its officer knows he's being shot to pieces — see command)
+      { const sd = u === this.you ? 0 : this.alOf(u.team ?? 0), S = (this.shelled ||= {})[sd] ||= { n: 0, t: -99 }; if (G.time - S.t > 20) S.n = 0; S.n++; S.t = G.time; }
       if (u === this.you) this.hurtMe(dmg, { pos: from });
       else { u.blast = dmg >= 60; u.damage(dmg, false, false, from); u.blast = false; }
     });
@@ -2448,6 +2450,17 @@ class Arena {
     const loadedOf = l => { const m = l.filter(u => u.loaded); return m.length ? m.filter(u => u.loaded.long).length / m.length : 1; };
     const oursEmpty = 1 - loadedOf(ours), theirsLoaded = loadedOf(theirs), inRange = d < RANGE.musket * this.sight;
     const outnumbered = gen > 0.35 && ratio < 0.85;
+    // (his men going down to guns he can't answer from where he stands: no officer worth the name waits there to be shot
+    //  to pieces — he goes in to musket range whatever the odds, and sends his horse at the guns)
+    const sh = this.shelled && this.shelled[this.alOf(co)], underGuns = !!sh && G.time - sh.t < 15 && sh.n >= 3 && !inRange;
+    if (underGuns && this.field && !(K.horseAtGuns > G.time - 25)) {
+      const horse = theirs.filter(u => u.mounted), guns = this.field.guns.filter(g => g.side === this.alOf(fc) && !g.dead);
+      if (horse.length && guns.length) {
+        const g = guns.slice().sort((p, q) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(q.x - a.x, q.z - a.z))[0], crew = (g.crew || []).find(u => u && u.alive);
+        ((this.sub ||= {})[co] ||= {}).horse = Object.assign(new Orders(co), { mode: "advance", at: { x: g.x, z: g.z }, form: "loose", charge: true, fire: true, target: crew || null });
+        K.horseAtGuns = G.time; call("charge");
+      }
+    }
     // (the line he means to come at: yours — or, with men to spare, the end of it that's thinnest, so his line overlaps
     //  yours there and folds round it)
     const px = -(b.z - a.z) / d, pz = (b.x - a.x) / d;
@@ -2464,7 +2477,7 @@ class Arena {
     }
     // (the fewer, and a head on him: he stays where he is, in cover, and lets you come on into his fire)
     if (O.mode === "hold") O.cover = outnumbered && !O.charge;
-    if (O.mode === "hold" && !(outnumbered && d > 22) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22)) { if (co && this.sub && this.sub[co]) this.sub[co] = {}; O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; call("advance"); }
+    if (O.mode === "hold" && !(outnumbered && d > 22 && !underGuns) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22 || underGuns)) { if (co && this.sub && this.sub[co]) this.sub[co] = K.horseAtGuns > G.time - 25 && this.sub[co].horse ? { horse: this.sub[co].horse } : {}; O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; call("advance"); }
     const needRatioK = L(0.9, 1.35);
     // the advance, as the drill had it: a march of some paces, the line kept together — then, once in range, a halt and
     // a volley — and on again, until they're close enough for the steel
@@ -2478,13 +2491,14 @@ class Arena {
         if (!adv.march) { O.volleyAt = G.time + 0.9; shout(0.9); if (telling && !K.firedAt) K.firedAt = G.time; }
       }
       if (adv.march) {
-        // (on only as fast as the line keeps up: the men in their places, near enough)
+        // (on only as fast as the line keeps up: the men in their places, near enough — but under guns it can't answer,
+        //  on at the double, gaps or not: every minute out there costs more men than the ranks being straight is worth)
         // (the middle man's distance from his place, not the mean: one man off after his own business doesn't hold a line)
         const men = theirs.filter(u => !u.crewOf && !u.isNet), gaps = men.map(u => { const p = this.slotFor(u); return Math.hypot(p.x - u.pos.x, p.z - u.pos.z); }).sort((x, y) => x - y), lag = gaps.length ? gaps[gaps.length >> 1] : 0;
         // (where he means to stand: at a good musket-shot — forty-five to sixty paces — to trade volleys; closer only as
         //  the firefight goes his way, or as it drags on and someone has to end it)
         const winning = ratio >= needRatioK && K.firedAt && G.time - K.firedAt > L(15, 30), drag = Math.max(0, t - K.holdFor * (1 + gen) - L(40, 70));
-        const keep = winning ? L(22, 30) : Math.max(L(24, 34), L(46, 60) - drag * 0.35), from = O.at || a, dd = Math.hypot(tgt.x - from.x, tgt.z - from.z) || 1, step = lag < 5 ? Math.max(0, Math.min(dd - keep, 7)) : 0;
+        const keep = winning ? L(22, 30) : Math.max(L(24, 34), L(46, 60) - drag * 0.35), from = O.at || a, dd = Math.hypot(tgt.x - from.x, tgt.z - from.z) || 1, step = lag < (underGuns ? 14 : 5) ? Math.max(0, Math.min(dd - keep, underGuns ? 11 : 7)) : 0;
         O.at = { x: from.x + (tgt.x - from.x) / dd * step, z: from.z + (tgt.z - from.z) / dd * step };
       }
     }

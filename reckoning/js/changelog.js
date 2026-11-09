@@ -7,9 +7,10 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.273", date: "9 November 2026", title: "Your guns answer to F again",
+    v: "1.99.273", date: "9 November 2026", title: "Your guns answer to F again, and theirs don't stand to be shot",
     items: [
       "Fixed: a gun you'd moved in the deployment couldn't be taken with F — the place to take it stayed where the gun had first stood.",
+      "The enemy's officer no longer stands and lets your guns shoot his company to pieces from out of musket range: once their shot is taking his men, he goes in at the double to where his muskets can answer, and sends his horse at your battery.",
     ],
   },
   {
