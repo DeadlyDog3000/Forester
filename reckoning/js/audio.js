@@ -235,6 +235,59 @@ const VOWELS = { a: [[800, 1], [1200, 0.5], [2600, 0.2]], ae: [[660, 1], [1700, 
 
 export const AUDIO = {
   init: ctx,
+  // ---- a regiment's band (see band.js): its instruments, a note at a time, scheduled ahead on the sound's own clock ----
+  now() { const a = ctx(); return a ? a.currentTime : 0; },
+  // the fife: a narrow wooden flute, shrill and carrying — the tone hollow (odd harmonics), a little breath in it, the
+  //  pitch wavering as the player marches; tongued, so each note starts clean
+  fife(midi, dur, { at = null, when = 0, vol = 1 } = {}) {
+    const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 160); if (k * vol < 0.02 || !room(0.6)) return;
+    const t = Math.max(a.currentTime, when), f = 440 * 2 ** ((midi - 69) / 12), L = Math.max(0.06, dur * 0.9), g = a.createGain(), v = 0.13 * vol * k;
+    const o = a.createOscillator(); o.type = "triangle"; o.frequency.value = f;
+    const o3 = a.createOscillator(); o3.type = "sine"; o3.frequency.value = f * 3; const g3 = a.createGain(); g3.gain.value = 0.12; o3.connect(g3); g3.connect(g);
+    const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 5 + Math.random(); vg.gain.value = f * 0.005; vib.connect(vg); vg.connect(o.frequency);
+    const n = noiseSrc(a, false), bp = a.createBiquadFilter(), ng = a.createGain(); bp.type = "bandpass"; bp.frequency.value = Math.min(9000, f * 2); bp.Q.value = 1.5; ng.gain.value = 0.35;
+    n.connect(bp); bp.connect(ng); ng.connect(g); o.connect(g); g.connect(node);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.018); g.gain.setValueAtTime(v * 0.85, t + Math.max(0.03, L - 0.03)); g.gain.linearRampToValueAtTime(0, t + L);
+    for (const x of [o, o3, vib, n]) { x.start(t); x.stop(t + L + 0.02); }
+    lease(g, L + 0.5);
+  },
+  // the side drum: a calfskin head and gut snares under it — a stroke, or a flam (the grace note just before), louder
+  //  on the beat that starts the bar
+  sideDrum({ at = null, when = 0, vol = 1, accent = false, flam = false } = {}) {
+    const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 160); if (k * vol < 0.02 || !room(0.55)) return;
+    const hit = (t, amp) => {
+      const n = noiseSrc(a, false), hp = a.createBiquadFilter(), g = a.createGain(); hp.type = "highpass"; hp.frequency.value = 1800;
+      n.connect(hp); hp.connect(g); g.connect(node); g.gain.setValueAtTime(amp * 0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16); n.start(t); n.stop(t + 0.18);
+      const o = a.createOscillator(), og = a.createGain(); o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.08); o.connect(og); og.connect(node);
+      og.gain.setValueAtTime(amp * 0.5, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.12); o.start(t); o.stop(t + 0.13);
+      lease(g, 0.4); lease(og, 0.4);
+    };
+    const t = Math.max(a.currentTime, when), amp = (accent ? 1 : 0.62) * vol * k * 0.55;
+    if (flam) hit(t - 0.028, amp * 0.45); hit(t, amp);
+  },
+  // the zurna: the Ottoman shawm, a double reed — loud, nasal and bright, made to carry over a battlefield
+  zurna(midi, dur, { at = null, when = 0, vol = 1 } = {}) {
+    const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 200); if (k * vol < 0.02 || !room(0.6)) return;
+    const t = Math.max(a.currentTime, when), f = 440 * 2 ** ((midi - 69) / 12), L = Math.max(0.06, dur * 0.94), v = 0.075 * vol * k;
+    const o = a.createOscillator(); o.type = "sawtooth"; o.frequency.value = f;
+    const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 6; vg.gain.value = f * 0.008; vib.connect(vg); vg.connect(o.frequency);
+    const f1 = a.createBiquadFilter(); f1.type = "peaking"; f1.frequency.value = 1300; f1.Q.value = 2; f1.gain.value = 9;
+    const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 4200; const g = a.createGain();
+    o.connect(f1); f1.connect(lp); lp.connect(g); g.connect(node);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.03); g.gain.setValueAtTime(v, t + Math.max(0.04, L - 0.03)); g.gain.linearRampToValueAtTime(0, t + L);
+    for (const x of [o, vib]) { x.start(t); x.stop(t + L + 0.02); }
+    lease(g, L + 0.5);
+  },
+  // the great drum: the Ottomans' davul, the Tatars' and the Poles' kettledrums — a deep boom, the beater's slap on it
+  bigDrum({ at = null, when = 0, vol = 1, accent = false } = {}) {
+    const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 200); if (k * vol < 0.02 || !room(0.55)) return;
+    const t = Math.max(a.currentTime, when), amp = (accent ? 1 : 0.6) * vol * k * 0.8;
+    const o = a.createOscillator(), og = a.createGain(); o.frequency.setValueAtTime(accent ? 72 : 95, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.35); o.connect(og); og.connect(node);
+    og.gain.setValueAtTime(amp, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.6); o.start(t); o.stop(t + 0.62);
+    const n = noiseSrc(a, false), lp = a.createBiquadFilter(), ng = a.createGain(); lp.type = "lowpass"; lp.frequency.value = 900; n.connect(lp); lp.connect(ng); ng.connect(node);
+    ng.gain.setValueAtTime(amp * 0.35, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.08); n.start(t); n.stop(t + 0.1);
+    lease(og, 1); lease(ng, 0.5);
+  },
   // an order shouted: key one of the orders (see loadOrders); at: where the man shouting it stands (null: you); delay:
   //  seconds from now. A different voice of the recordings each time, a woman's higher; heard a long way off, as they
   //  were meant to be

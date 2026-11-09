@@ -13,6 +13,7 @@ const CHAR = new THREE.Color(0x17110c);
 import { G, Actor, setWorld, setAtmo, input } from "./engine.js";
 import { UI } from "./ui.js";
 import { smokeAlong } from "./powder.js";
+import { Band, tuneFor } from "./band.js";
 import { AUDIO } from "./audio.js";
 import { FOLEY } from "./foley.js";
 import { pool, sever, heal, clearGore } from "./gore.js";
@@ -919,6 +920,28 @@ function botMuster(purse, team = null) {
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
   return { muster: m, guns };
 }
+// ---- what a band carries: the side drum (a wooden shell painted, rope tensioned, the hoops), the Ottomans' davul, the
+//  fife and the zurna ----
+const KIT_M = {};
+const kitMat = (k, c, o = {}) => KIT_M[k] ||= new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, ...o });
+function bandKit(kind) {
+  const g = new THREE.Group();
+  if (kind === "drum" || kind === "davul") {
+    const R = kind === "davul" ? 0.26 : 0.19, H = kind === "davul" ? 0.3 : 0.26;
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 18, 1, true), kitMat(kind + "s", kind === "davul" ? 0x6a3a1e : 0x2a4a8a, { side: THREE.DoubleSide })); g.add(shell);
+    for (const y of [-H / 2, H / 2]) { const head = new THREE.Mesh(new THREE.CircleGeometry(R * 0.98, 18), kitMat("head", 0xe6dcc4)); head.rotation.x = y > 0 ? -Math.PI / 2 : Math.PI / 2; head.position.y = y; g.add(head);
+      const hoop = new THREE.Mesh(new THREE.TorusGeometry(R * 1.02, 0.012, 5, 20), kitMat("hoop", 0x8a2a1e)); hoop.rotation.x = Math.PI / 2; hoop.position.y = y; g.add(hoop); }
+    // (the cords zigzagging between the hoops)
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, c = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, H * 1.08, 3), kitMat("cord", 0xd8cfb4)); c.position.set(Math.cos(a) * R * 1.03, 0, Math.sin(a) * R * 1.03); c.rotation.z = (i % 2 ? 0.35 : -0.35); c.rotation.y = -a; g.add(c); }
+    g.rotation.z = Math.PI / 2 - 0.25; g.position.set(0.05, -0.15, 0.05);
+  } else {
+    const L = kind === "zurna" ? 0.5 : 0.4, pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.011, kind === "zurna" ? 0.035 : 0.012, L, 8), kitMat(kind, kind === "zurna" ? 0x6a4428 : 0x8a6a40));
+    g.add(pipe); g.rotation.x = Math.PI / 2;
+  }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+
 // ---------------------------------------------------------------------------
 //  the challenge: the same field, the same two companies and the same officer against you for everyone, two days at a
 //  time — the best result each commander has in those two days on a board for all to see
@@ -1530,7 +1553,7 @@ class Arena {
   // a man's place in his company: in the formation his officer has set, round where it's to be, facing the other side
   slotFor(u) {
     if (u.crewOf) return this.field.station(u.crewOf, u.crewIdx);
-    const O = this.orderOf(u), mates = this.alliesOf(u.team).filter(m => !m.crewOf && this.orderOf(m) === O).sort((a, b) => a.idx - b.idx), n = mates.length;
+    const O = this.orderOf(u), mates = this.alliesOf(u.team).filter(m => !m.crewOf && !m.musician && this.orderOf(m) === O).sort((a, b) => a.idx - b.idx), n = mates.length;
     // (in a line, every man to his arm's place in it: the pikes a block in the middle, the muskets out either side of
     //  them, the horse on the wings — the order of battle, not the order they were mustered in)
     let i = Math.max(0, mates.indexOf(u));
@@ -1680,6 +1703,12 @@ class Arena {
       for (const u of this.alliesOf(team).filter(u => u.crewOf)) u.reset(this.field.station(u.crewOf, u.crewIdx), look);
     }
     // (their plan: each of their arms where its commander set it, holding there till their officer sends them on)
+    // (their company comes with its band, at the head of its biggest arm)
+    if (this.battle && !this.net && !this.custom && !this.hist && this.mk) {
+      const by = {}; for (const u of this.alliesOf(1)) { const gid = groupOf(u); if (gid && !u.crewOf) by[gid] = (by[gid] || 0) + 1; }
+      const gid = Object.keys(by).sort((a, b) => by[b] - by[a])[0];
+      if (gid && by[gid] >= 6) { const B = this.addBand(1, gid); if (B) for (const u of B.men) u.reset(this.clearSpot(theirs.x - Math.sin(face1) * 5 + (u.bandRole ? 1 : -1), theirs.z - Math.cos(face1) * 5), { x: theirs.x + Math.sin(face1) * 30, z: theirs.z + Math.cos(face1) * 30 }); }
+    }
     this.coach = this.battle && !this.net && !this.hist && !this.custom && lastMode !== "story" && lastMode !== "campaign" && !(this.army && this.army.challenge) && ((this.army && this.army.coach) || !coachDone()) ? { i: 0, drawn: -1 } : null;
     this.ghostSub = null;
     if (this.army && this.army.ghost && this.army.ghost.layout && !this.custom) {
@@ -1836,6 +1865,18 @@ class Arena {
     // (not on top of your own men, nor where you stand: they'd be inside it)
     const onMen = (p, rad) => Math.hypot(pl.pos.x - p.x, pl.pos.z - p.z) < rad || this.alliesOf(0).some(u => Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < rad);
     const wkAt = g => { const W = WK[work.k], p = clampZone(g.x, g.z), ok = purseLeft >= W.cost && inZone(g.x, g.z) && !!this.field && this.field.free(p.x, p.z, W.rad * 0.6, 0.2) && !onMen(p, W.rad * 0.6 + 0.5); return { p, ok }; };
+    // (a band: a drummer and a fifer hired for one arm — pick the button, then the arm)
+    const BAND_COST = 40; let bandMode = false;
+    const hireBand = T => {
+      if (!T || !T.men || !T.men.length) return;
+      if (this.bandFor(0, T.id)) { UI.hint(`The ${T.name.toLowerCase()} have their band already.`, 2); return; }
+      if (leftNow() < BAND_COST) { UI.hint(`Not enough left in the purse: a band costs ${BAND_COST} thalers.`, 2); return; }
+      const B = this.addBand(0, T.id); if (!B) return;
+      for (const u of B.men) { const p = T.at, q = this.clearSpot(p.x - Math.sin(T.face) * 4 + (u.bandRole ? 1 : -1) * Math.cos(T.face), p.z - Math.cos(T.face) * 4 - (u.bandRole ? 1 : -1) * Math.sin(T.face)); u.reset(q, { x: p.x + Math.sin(T.face) * 30, z: p.z + Math.cos(T.face) * 30 }); u.a.sync && u.a.sync(); }
+      built.push({ k: "band", B, cost: BAND_COST }); worksSpent += BAND_COST; purseLeft = leftNow(); bandMode = false;
+      const tune = tuneFor(A0 && A0.uniform);
+      UI.hint(`A ${tune.inst === "zurna" ? "zurna and davul" : tune.inst ? "drummer and fifer" : "drummer"} with the ${T.name.toLowerCase()}${tune.abc ? `, to play ${tune.name}` : ""}.`, 3); sfx("muster"); drawBar();
+    };
     const placeWork = g => {
       const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(purseLeft < W.cost ? `Not enough left in the purse: ${W.name.toLowerCase()} cost ${W.cost} thalers.` : "Not there: your men are on it, the ground's taken or too rough, or it's outside your ground.", 2); return; }
       const rec = this.field.build(work.k, p.x, p.z, work.ry, 0, { x: p.x - f.x * 20, z: p.z - f.z * 20 });
@@ -1895,8 +1936,8 @@ class Arena {
     const bar = document.createElement("div"); bar.id = "deployBar";
     const drawBar = () => {
       bar.innerHTML = `<div class="dp-t"><b>Place your company</b><span>Click an arm or a gun to pick it up, click again to set it down · the arrow on its ring is its front: the wheel, right-click or R turns it · works are bought from what's left in the purse: pick one, click to set it down, turn it the same way · WASD or the arrows move the view, Q and E turn it · their lines are hidden until the battle begins</span></div>
-        <div class="dp-g">${tokens.map(T => `<div class="dp-tk${T === held ? " on" : ""}"><button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : T.gun ? "gun" : "men"}</small></button>${T.id !== "you" && !T.gun ? `<input class="dp-n" data-dpn="${T.id}" value="${T.men.length}" inputmode="numeric" maxlength="2" title="Type how many men">` : ""}</div>`).join("")}</div>
-        ${this.field && A0 && A0.battle ? `<div class="dp-w"><span class="dp-wl">Works <b>${purseLeft} thalers</b> left in the purse</span>${Object.entries(WK).map(([k, W]) => `<button data-dp="wk:${k}" class="${work && work.k === k ? "on" : ""}"${purseLeft < W.cost ? " disabled" : ""}>${esc(W.name)}<small>${W.cost} · ${esc(W.sub)}</small></button>`).join("")}${built.length ? `<button data-dp="undo" class="ghost">Undo</button>` : ""}</div>` : ""}
+        <div class="dp-g">${tokens.map(T => `<div class="dp-tk${T === held ? " on" : ""}"><button data-dp="${T.id}" class="${T === held ? "on" : ""}">${esc(T.name)}<small>${T.id === "you" ? "your place" : T.gun ? "gun" : this.bandFor(0, T.id) ? "men · band" : "men"}</small></button>${T.id !== "you" && !T.gun ? `<input class="dp-n" data-dpn="${T.id}" value="${T.men.length}" inputmode="numeric" maxlength="2" title="Type how many men">` : ""}</div>`).join("")}</div>
+        ${this.field && A0 && A0.battle ? `<div class="dp-w"><span class="dp-wl">Works <b>${purseLeft} thalers</b> left in the purse</span>${Object.entries(WK).map(([k, W]) => `<button data-dp="wk:${k}" class="${work && work.k === k ? "on" : ""}"${purseLeft < W.cost ? " disabled" : ""}>${esc(W.name)}<small>${W.cost} · ${esc(W.sub)}</small></button>`).join("")}<button data-dp="band" class="${bandMode ? "on" : ""}"${purseLeft < BAND_COST ? " disabled" : ""}>Drum &amp; fife<small>${BAND_COST} · march music for one arm</small></button>${built.length ? `<button data-dp="undo" class="ghost">Undo</button>` : ""}</div>` : ""}
         <div class="dp-a">${held ? `<button data-dp="tl" class="ghost">Turn left</button><button data-dp="tr" class="ghost">Turn right</button>` : ""}<button data-dp="auto" class="ghost">Officer's choice</button><button data-dp="go" class="go">Begin the battle</button></div>`;
     };
     drawBar(); document.getElementById("hud").parentElement.appendChild(bar);
@@ -1923,8 +1964,9 @@ class Arena {
     this.dp = { tokens, ground, pickAt, view, get held() { return held; } };
     const onBar = e => { const b = e.target.closest && e.target.closest("[data-dp]"); if (!b) return false; const id = b.dataset.dp;
       if (id.startsWith("wk:")) { const k = id.slice(3); held = null; work = work && work.k === k ? null : { k, ry: Math.atan2(-r.z, r.x) }; drawBar(); sfx(work ? "smith" : "halt"); }
-      else if (id === "undo") { const b = built.pop(); if (b) { this.field.unbuild(b.rec); worksSpent -= b.cost; purseLeft = leftNow(); sfx("purse", 2); drawBar(); } }
-      else if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { const d = id === "tl" ? 1 : -1; turn(held, d * Math.PI / 8); spin = { d, t0: performance.now() }; } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); held = held === T ? null : T; work = null; drawBar(); sfx(held ? "muster" : "halt"); }
+      else if (id === "band") { work = null; held = null; bandMode = !bandMode; drawBar(); sfx(bandMode ? "colours" : "halt"); if (bandMode) UI.hint("Now pick the arm they'll march with: on the bar or on the field.", 2.5); }
+      else if (id === "undo") { const b = built.pop(); if (b) { if (b.k === "band") this.dropBand(b.B); else this.field.unbuild(b.rec); worksSpent -= b.cost; purseLeft = leftNow(); sfx("purse", 2); drawBar(); } }
+      else if (id === "go") { sfx("roll"); finish(); } else if (id === "tl" || id === "tr") { if (held) { const d = id === "tl" ? 1 : -1; turn(held, d * Math.PI / 8); spin = { d, t0: performance.now() }; } } else if (id === "auto") { held = null; officer(); drawBar(); sfx("halt"); } else { const T = tokens.find(t => t.id === id); if (bandMode && T && T.men && T.men.length) { hireBand(T); return true; } held = held === T ? null : T; work = null; drawBar(); sfx(held ? "muster" : "halt"); }
       return true; };
     // (a press, pointer's or mouse's — whichever the browser sends, once)
     let lastPress = 0;
@@ -1934,6 +1976,7 @@ class Arena {
       e.stopImmediatePropagation(); e.preventDefault(); mouse = { x: e.clientX, y: e.clientY };
       if (e.button === 2) { if (held) turn(held, -Math.PI / 8); else if (work) { work.ry += Math.PI / 8; sfx("wheel"); } return; }
       if (work && !held) { const g = ground(e.clientX, e.clientY); if (g) placeWork(g); return; }
+      if (bandMode && !held) { const T = pickAt(e.clientX, e.clientY); if (T && T.men && T.men.length) hireBand(T); return; }
       if (held) { const g = ground(e.clientX, e.clientY); if (g) { held.at = g; stand(held); } held = null; sfx("halt"); drawBar(); return; }
       const T = pickAt(e.clientX, e.clientY); if (T) { held = T; drawBar(); sfx("muster"); }
     };
@@ -2501,6 +2544,25 @@ class Arena {
   // the orders being given now: the company's, or (a letter pressed) one arm's own
   selOrders() { return this.sel ? ((this.sub ||= [{}, {}])[0][this.sel] ||= Object.assign(new Orders(0), this.orders[0], { target: null })) : this.orders[0]; }
   // the arms there are in your company (each with its letter)
+  // ---- a band with an arm: a drummer and a fifer (the Ottomans' zurna and davul), raised and set to march behind it ----
+  bandFor(team, gid) { return (this.bands || []).find(b => b.team === team && b.gid === gid) || null; }
+  addBand(team, gid) {
+    if (!this.mk || this.bandFor(team, gid)) return null;
+    const U = this.uni && this.uni[this.alOf(team)], key = U ? Object.keys(UNIFORMS).find(k => UNIFORMS[k] === U) : null, T = tuneFor(key), B = { team, gid, men: [], band: new Band(key) };
+    for (let r = 0; r < 2; r++) {
+      (this.musters[team] ||= []).push("band");
+      const u = this.mk(team, this.musters[team].length - 1);
+      u.uid = Math.max(...this.units.map(x => x.uid ?? -1)) + 1; u.musician = true; u.bandRole = r; u.band = B; u.info.kind = "band";
+      u.lo = { long: "none", side: "none", blade: "none" }; u.info.lo = u.lo; u.hold(null);
+      const role = r === 0 ? (T.drum === "big" ? "drummer" : "drummer") : T.inst === "zurna" ? "zurna player" : T.inst ? "fifer" : "drummer";
+      u.info.name = `${role[0].toUpperCase() + role.slice(1)} — ${u.info.name.split(" — ").pop()}`;
+      u.a.hold && u.a.hold(bandKit(r === 0 || !T.inst ? (T.drum === "big" ? "davul" : "drum") : T.inst));
+      B.men.push(u);
+    }
+    (this.bands ||= []).push(B);
+    return B;
+  }
+  dropBand(B) { for (const u of B.men) { u.quiet = true; u.hp = 0; u.a.root.visible = false; u.a.remove && u.a.remove(); const j = this.units.indexOf(u); if (j >= 0) this.units.splice(j, 1); } this.bands = (this.bands || []).filter(b => b !== B); }
   groupsHere() { const have = new Set(this.alliesOf(0).filter(u => !u.crewOf).map(groupOf)); return GROUPS.filter(g => have.has(g.id)); }
   // a letter: that arm picked out, to take the orders by itself — the same letter again, the whole company
   pickGroup(g) {
@@ -3416,8 +3478,27 @@ class Bot extends Fighter {
   // shaken — by a comrade falling by him, a ball in him, a volley into his line: steadier men less
   shaken(k) {
     if (!this.alive || this.nerve == null || !this.arena.battle) return;
-    this.nerve = Math.max(0, this.nerve - k / (this.brave || 1)); this.quietT = 0;
+    this.nerve = Math.max(0, this.nerve - k / ((this.brave || 1) * (G.time - (this.bandT ?? -9) < 1.5 ? 1.25 : 1))); this.quietT = 0;
     if (!this.routing && this.nerve < 0.22) this.rout();
+  }
+  // a musician: behind his arm, a few paces back, keeping its step; the band playing while the arm marches, and its men
+  //  steadier and quicker to recover for it — the drum giving the pace, the tune their own
+  bandTick(dt) {
+    const B = this.band, A = this.arena, a = this.a;
+    const men = A.alliesOf(this.team).filter(u => !u.musician && !u.crewOf && groupOf(u) === B.gid && !u.routing);
+    if (!men.length) { a.path = []; if (this.bandRole === 0) B.band.tick(this.pos, false); return; }
+    const cx = men.reduce((t, u) => t + u.pos.x, 0) / men.length, cz = men.reduce((t, u) => t + u.pos.z, 0) / men.length;
+    const sp = men.reduce((t, u) => t + (u.a.speed || 0), 0) / men.length, yaw = men[0].a.yaw;
+    const back = 3 + Math.min(4, Math.sqrt(men.length) * 0.6), side = this.bandRole ? 0.8 : -0.8, fx = Math.sin(yaw), fz = Math.cos(yaw);
+    const tx = cx - fx * back + fz * side, tz = cz - fz * back - fx * side;
+    if (Math.hypot(tx - a.pos.x, tz - a.pos.z) > 1.2) { if (!a.path.length || (this.stepT = (this.stepT || 0) - dt) <= 0) { this.stepT = 0.5; a.walkTo(tx, tz, Math.max(1.6, sp * 1.05 + 0.3)); } }
+    else { a.path = []; a.faceTo(cx + fx * 30, cz + fz * 30); }
+    const marching = sp > 0.6;
+    // (the first of the two alive leads the tune; the men within earshot of it, steadier)
+    if (B.men.find(u => u.alive) === this) {
+      B.band.tick(this.pos, marching);
+      if (B.band.playing) for (const u of men) if (Math.hypot(u.pos.x - this.pos.x, u.pos.z - this.pos.z) < 22) u.bandT = G.time;
+    }
   }
   // badly hurt: out of the fight, limping back to the rear, and not coming back
   woundOut() {
@@ -3609,6 +3690,7 @@ class Bot extends Fighter {
   }
   tick(dt) {
     if (!this.alive || !this.awake || !this.arena.live || G.mode !== "play") return;
+    if (this.musician) return this.bandTick(dt);
     const a = this.a, s = this.s, pl = G.player;
     // (winded by running — the charge across the field — and breath coming back when he walks or stands)
     this.blown = clamp((this.blown || 0) + (a.speed > 3.6 && a.path.length ? dt * (this.mounted ? 0.025 : 0.055) : -dt * 0.09), 0, 1);
@@ -3619,7 +3701,8 @@ class Bot extends Fighter {
       const near = this.arena.enemiesOf(this.team).some(f => Math.hypot(f.pos.x - a.pos.x, f.pos.z - a.pos.z) < 12);
       const byYou = this.al === 0 && this.arena.you.alive && Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z) < 14;
       const mates = this.arena.alliesOf(this.team).length, was = (this.arena.musters && this.arena.musters[this.team] ? this.arena.musters[this.team].length : mates) || 1;
-      this.nerve = clamp(this.nerve + dt * ((this.quietT > 4 && !near ? 0.035 : 0) + (byYou ? 0.02 : 0) - (mates / was < 0.45 ? 0.012 : 0)), 0, 1);
+      const band = G.time - (this.bandT ?? -9) < 1.5;
+      this.nerve = clamp(this.nerve + dt * ((this.quietT > 4 && !near ? 0.035 : 0) + (byYou ? 0.02 : 0) + (band ? 0.025 : 0) - (mates / was < 0.45 ? 0.012 : 0)), 0, 1);
       if (!this.routing && this.nerve < 0.22) this.rout();
       if (this.routing) {
         // (rallied, once he's got his breath and his nerve back — and nobody on his heels)
@@ -3843,7 +3926,7 @@ class Bot extends Fighter {
     to.y += 4.9 * flight * flight;
     // (in a pitched battle: two balls in five finding their man at fifty paces, from a soldier of middling skill — a
     //  steadier hand than in the duel, the line's men standing to their work)
-    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 0.6 : 1) * (1 + Math.min(2.5, (this.fog || 0) * 1.6));
+    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 0.6 : 1) * (1 + Math.min(2.5, (this.fog || 0) * 1.6)) * (G.time - (this.bandT ?? -9) < 1.5 ? 0.9 : 1);
     const dir = to.sub(from).normalize(), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(), up = new THREE.Vector3().crossVectors(side, dir);
     dir.addScaledVector(side, randn() * sigma).addScaledVector(up, randn() * sigma).normalize();
     AUDIO.gunshot && AUDIO.gunshot(pis ? 0.75 : 0.95, a.pos);
