@@ -996,10 +996,14 @@ function fitMuster(m, guns, purse, ride = false, team = null) {
 }
 // the other side's officer raising his company: a gun or two if the purse runs to it, then men — mostly muskets, the
 // rest as it falls
-function botMuster(purse, team = null) {
-  const guns = purse >= 2000 ? 2 + (Math.random() < 0.5 ? 1 : 0) : purse >= 900 ? 1 + (Math.random() < 0.5 ? 1 : 0) : Math.random() < 0.4 ? 1 : 0, m = {};
+// (gen: the officer's generalship, if he's to raise it as a seasoned one would — see generalship. A seasoned officer of
+//  the 1680s raised what won battles: muskets above all, pikes enough to keep horse off them, grenadiers, a good body of
+//  horse, and as many guns as the purse would bear; not bows, crossbows and axes, which the age had left behind)
+function botMuster(purse, team = null, gen = 0) {
+  const sharp = gen > 0.6;
+  const guns = sharp ? Math.min(MAX_GUNS, purse >= 3000 ? 4 : purse >= 2000 ? 3 : purse >= 900 ? 2 : 1) : purse >= 2000 ? 2 + (Math.random() < 0.5 ? 1 : 0) : purse >= 900 ? 1 + (Math.random() < 0.5 ? 1 : 0) : Math.random() < 0.4 ? 1 : 0, m = {};
   let left = purse - guns * GUN_COST;
-  const pick0 = () => { const r = Math.random(); return r < 0.44 ? "musketeer" : r < 0.52 ? "grenadier" : r < 0.62 ? "pike" : r < 0.72 ? "crossbow" : r < 0.81 ? "bow" : r < 0.89 ? "sword" : r < 0.94 ? "axe" : "cavalry"; };
+  const pick0 = () => { const r = Math.random(); return sharp ? (r < 0.5 ? "musketeer" : r < 0.62 ? "grenadier" : r < 0.78 ? "pike" : r < 0.84 ? "sword" : "cavalry") : r < 0.44 ? "musketeer" : r < 0.52 ? "grenadier" : r < 0.62 ? "pike" : r < 0.72 ? "crossbow" : r < 0.81 ? "bow" : r < 0.89 ? "sword" : r < 0.94 ? "axe" : "cavalry"; };
   // (only the men its colours raise: drawn again till one is, the bowmen of the Tatars, say, in place of musketeers)
   const own = Object.keys(TROOPS).filter(k => TROOPS[k].teams && troopOk(team, k));
   const pick = () => { if (own.length && Math.random() < 0.28) return own[Math.floor(Math.random() * own.length)]; for (let i = 0; i < 12; i++) { const k = pick0(); if (troopOk(team, k)) return k; } return Object.keys(TROOPS).find(k => troopOk(team, k)) || "pike"; };
@@ -1503,7 +1507,7 @@ class Arena {
         this.musters = []; this.gunsBought = [];
         if (HB) this.cos.forEach((c, i) => { const H = this.hist.cos[i]; this.musters.push(Object.entries(H.muster).flatMap(([k, n]) => Array(n | 0).fill(k))); c.guns = Math.min(2, H.guns | 0); c.hold = H.hold; this.gunsBought.push(c.guns); });
         else this.cos.forEach((c, i) => {
-          const M = i ? botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), this.uni && Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[c.al ?? i])) : A;
+          const M = i ? botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), this.uni && Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[c.al ?? i]), generalship()) : A;
           let l = list(M); if (i) { l.sort(() => Math.random() - 0.5); l = l.slice(0, per); }
           this.musters.push(l); c.guns = i ? Math.min(M.guns | 0, many ? 1 : 2) : Math.min(A.guns | 0, N === 2 ? 4 : 2); this.gunsBought.push(c.guns);
         });
@@ -1516,7 +1520,7 @@ class Arena {
       // (a battle: each side's company as its purse raised it — yours as you mustered it; theirs as their officer, or
       //  the other player, did)
       if (this.battle && !this.remote && !this.custom) {
-        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride), foe.army && foe.army.uniform) : A.ghost ? { muster: { ...A.ghost.muster }, guns: A.ghost.guns | 0 } : A.challenge ? withSeed(A.challenge.seed + 7, () => botMuster(A.purse, A.enemyUniform)) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), A.enemyUniform);   // (an easy officer's company a little the smaller)
+        const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride), foe.army && foe.army.uniform) : A.ghost ? { muster: { ...A.ghost.muster }, guns: A.ghost.guns | 0 } : A.challenge ? withSeed(A.challenge.seed + 7, () => botMuster(A.purse, A.enemyUniform)) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), A.enemyUniform, generalship());   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
         A.allies = this.musters[0].length; A.enemies = this.musters[1].length;
@@ -2452,12 +2456,21 @@ class Arena {
     const outnumbered = gen > 0.35 && ratio < 0.85;
     // (his men going down to guns he can't answer from where he stands: no officer worth the name waits there to be shot
     //  to pieces — he goes in to musket range whatever the odds, and sends his horse at the guns)
+    // (your horse coming on at his line: a seasoned officer sends his own at it, to meet it before it's in among his foot)
+    if (gen > 0.45 && !(K.horseAtHorse > G.time - 12)) {
+      const mine = theirs.filter(u => u.mounted && u.alive), riders = ours.filter(u => (u.isPlayer ? !!G.player.horse : u.mounted) && Math.hypot(u.pos.x - a.x, u.pos.z - a.z) < 45);
+      if (mine.length && riders.length) {
+        const r0 = riders.slice().sort((p, q) => Math.hypot(p.pos.x - a.x, p.pos.z - a.z) - Math.hypot(q.pos.x - a.x, q.pos.z - a.z))[0];
+        ((this.sub ||= this.orders.map(() => ({})))[co] ||= {}).horse = Object.assign(new Orders(co), { mode: "advance", at: { x: r0.pos.x, z: r0.pos.z }, form: "loose", charge: true, fire: true, target: r0.isPlayer ? null : r0 });
+        K.horseAtHorse = G.time; K.horseAtGuns = G.time; call("charge");
+      }
+    }
     const sh = this.shelled && this.shelled[this.alOf(co)], underGuns = !!sh && G.time - sh.t < 15 && sh.n >= 3 && !inRange;
     if (underGuns && this.field && !(K.horseAtGuns > G.time - 25)) {
       const horse = theirs.filter(u => u.mounted), guns = this.field.guns.filter(g => g.side === this.alOf(fc) && !g.dead);
       if (horse.length && guns.length) {
         const g = guns.slice().sort((p, q) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(q.x - a.x, q.z - a.z))[0], crew = (g.crew || []).find(u => u && u.alive);
-        ((this.sub ||= {})[co] ||= {}).horse = Object.assign(new Orders(co), { mode: "advance", at: { x: g.x, z: g.z }, form: "loose", charge: true, fire: true, target: crew || null });
+        ((this.sub ||= this.orders.map(() => ({})))[co] ||= {}).horse = Object.assign(new Orders(co), { mode: "advance", at: { x: g.x, z: g.z }, form: "loose", charge: true, fire: true, target: crew || null });
         K.horseAtGuns = G.time; call("charge");
       }
     }
@@ -2477,7 +2490,8 @@ class Arena {
     }
     // (the fewer, and a head on him: he stays where he is, in cover, and lets you come on into his fire)
     if (O.mode === "hold") O.cover = outnumbered && !O.charge;
-    if (O.mode === "hold" && !(outnumbered && d > 22 && !underGuns) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22 || underGuns)) { if (co && this.sub && this.sub[co]) this.sub[co] = K.horseAtGuns > G.time - 25 && this.sub[co].horse ? { horse: this.sub[co].horse } : {}; O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; call("advance"); }
+    // (and fewer or not, a seasoned officer doesn't wait all day: if you won't come on, after a while he goes to you)
+    if (O.mode === "hold" && !(outnumbered && d > 22 && !underGuns && t < L(90, 45)) && (t > K.holdFor * (1 + gen) || ratio > 1.6 || d < 22 || underGuns)) { if (co && this.sub && this.sub[co]) this.sub[co] = K.horseAtGuns > G.time - 25 && this.sub[co].horse ? { horse: this.sub[co].horse } : {}; O.mode = "advance"; O.cover = false; O.at = O.at || { x: a.x, z: a.z }; K.adv = { march: true, until: G.time + 8 }; call("advance"); }
     const needRatioK = L(0.9, 1.35);
     // the advance, as the drill had it: a march of some paces, the line kept together — then, once in range, a halt and
     // a volley — and on again, until they're close enough for the steel
@@ -2715,7 +2729,7 @@ class Arena {
     if (this.book) this.book.update(this.bookState());
   }
   // the orders being given now: the company's, or (a letter pressed) one arm's own
-  selOrders() { return this.sel ? ((this.sub ||= [{}, {}])[0][this.sel] ||= Object.assign(new Orders(0), this.orders[0], { target: null })) : this.orders[0]; }
+  selOrders() { return this.sel ? (((this.sub ||= [{}, {}])[0] ||= {})[this.sel] ||= Object.assign(new Orders(0), this.orders[0], { target: null })) : this.orders[0]; }
   // the arms there are in your company (each with its letter)
   // the bowmen's volley of an arm: when they draw, when they loose, and when the next can begin (all bows nocked again)
   bowVolley(u) {

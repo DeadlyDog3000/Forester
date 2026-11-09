@@ -7,10 +7,11 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.273", date: "9 November 2026", title: "Your guns answer to F again, and theirs don't stand to be shot",
+    v: "1.99.273", date: "9 November 2026", title: "Your guns answer to F again, and a harder enemy",
     items: [
       "Fixed: a gun you'd moved in the deployment couldn't be taken with F — the place to take it stayed where the gun had first stood.",
       "The enemy's officer no longer stands and lets your guns shoot his company to pieces from out of musket range: once their shot is taking his men, he goes in at the double to where his muskets can answer, and sends his horse at your battery.",
+      "The sharpest officers are sharper still. They raise their company as a seasoned officer of the 1680s did — muskets above all, pikes to keep horse off, grenadiers, a good body of horse, and up to four guns — instead of whatever came to hand; they send their own horse to meet yours before it's in among their foot; and they no longer wait all day for you to come to them.",
     ],
   },
   {
