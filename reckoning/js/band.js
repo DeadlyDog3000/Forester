@@ -66,7 +66,59 @@ export function parseABC(abc) {
 
 // ---- the tunes, by the colours that marched to them (filled from the period's own; see the changelog for sources) ----
 // inst: the melody's instrument ("fife", "zurna", or null for drums alone); drum: "side" or "big"
-export const TUNES = {};
+// (the melodies from the printed sources of the day — Playford's Dancing Master, the Atkinson manuscript of 1694/95,
+//  Valerius's Wilhelmus — as kept by the Traditional Tune Archive and Wikipedia; the tempos slowed to the ordinary
+//  marching step of the 1680s. Only Lilliburlero and the Wilhelmus are certainly their nation's own; the French, the
+//  Imperial and the German marches are tunes of the period noted down in England under those names. Where no march of the
+//  time is known from the notes — the Swedes, the Spanish, the Danes, the Poles, Muscovy — the drums beat the march
+//  alone, as is certain they did; the Ottomans and the Crimean Tatars march to the mehter's great drum in the düyek
+//  cycle, the zurna holding its note over it)
+const LILLIBURLERO = `M:6/4
+L:1/8
+Q:3/4=72
+K:G
+G3AG2 B4B2|A3BA2 c6|B2d2G2 c4B2|A2G2F2 G6:|
+|:g4f2 g4d2|=f4f2 e4d2|e2f2g2 g4d2|e2d2B2 A6|
+e2d2c2 B2c2d2|e2e2c2 B2c2d2|e2e2B2 c4B2|A2 G2 F2 G6:|]`;
+const WILHELMUS = `M:4/4
+L:1/8
+Q:1/4=84
+K:G
+D2 | G2G2 ABcA | B2AB c2B2 | [M:2/4] AG A2 | [M:4/4] G6 D2 |
+G2G2 ABcA | B2AB c2B2 | [M:2/4] AG A2 | [M:4/4] G6 Bc |
+[M:3/4] d4 e2 | d4 c2 | B2AB c2 | B2A2G2 | [M:4/4] A6 D2 |
+[M:3/4] GFGA B2 | A4 G2 | F2D2 EF | G2G2F2 | G6 |]`;
+const FRENCH_MARCH = `M:C|
+L:1/8
+Q:1/2=72
+K:C
+c4 B3A|G4 G2G2|ABcA BcdB|c4 G4|c4 B3A|G4 G2G2|ABcA BcdB|c8||
+(ef)g2 (ef) g2|f3e d2G2|c4 d2e2|e4 d4|(ef) g2 (eg)g2|f3e d2G2|A4 B4|c8|]`;
+const LORRAIN = `M:2/2
+L:1/4
+Q:1/2=74
+K:D
+|: dd/d/ dd | d2 d2 | ef gf/e/ | f4 | aa/a/ aa | a2 f2 | ef gf/e/ | f4 :|
+|: ff/f/ ff | f2 a2 | fe/f/ g/f/e/d/ | ef/g/ ag | f3/e/4f/4 gf | ed a/g/f/e/ | dd/d/ dd | d4 :|`;
+const EUGENE = `M:C|
+L:1/8
+Q:1/2=74
+K:D
+F4A4|d4-d2 fg|a2f2d2f2|edef e2A2|F4A4|d4-d2e2|f^g a2 a3g|a8:|
+|:e2 ee e2e2|e4 z4|f2 ff f2f2|f4 z4|a2ag f2 fe|d2d2A2A2|a2 ag f2 fe|d2d2A2A2|
+D2DD D2F2|D2 DD D2fg|a2 de f2 fg|a2 de f2 fg|a2 gf e3d|d8:|]`;
+// (düyek: düm, tek tek, düm, tek — in eighths, 1 2 1 2 2)
+const DUYEK = [[1, 1], [2, 0], [1, 0], [2, 1], [2, 0]];
+const fife = (name, abc) => ({ name, abc, inst: "fife", drum: "side" }), drums = name => ({ name, inst: null, drum: "side" });
+export const TUNES = {
+  english: fife("Lilliburlero", LILLIBURLERO), dutch: fife("the Wilhelmus", WILHELMUS), french: fife("a French march of the 1690s", FRENCH_MARCH),
+  imperial: fife("the Duke of Lorrain's March", LORRAIN), saxon: fife("Prince Eugene's March", EUGENE), bavarian: fife("Prince Eugene's March", EUGENE),
+  brandenburg: fife("Prince Eugene's March", EUGENE), hamburg: drums("the city's drum march"),
+  swedish: drums("the Swedish march, beaten on the drum"), spanish: drums("the Spanish march, beaten on the drum"), danish: drums("the Danish march, beaten on the drum"),
+  polish: drums("the march, beaten on the drum"), muscovite: drums("the streltsy's drum"),
+  ottoman: { name: "the mehter's düyek", inst: "zurna", drone: 62, drum: "big", rhythm: DUYEK, bpm8: 150 },
+  tatar: { name: "the kettledrums, in the düyek", inst: null, drum: "big", rhythm: DUYEK, bpm8: 140 },
+};
 const DEFAULT = { name: "the march", inst: null, drum: "side" };
 export const tuneFor = team => TUNES[team] || DEFAULT;
 
@@ -84,10 +136,22 @@ export class Band {
     if (!this.playing) { this.playing = true; this.next = now + 0.15; this.i = 0; this.beatAt = this.next; this.beatN = 0; }
     const W = this.whole(), S = this.song, beat = (S ? S.beat : 1 / 4) * W, perBar = Math.round((S ? S.bar : 1) / (S ? S.beat : 1 / 4)) || 4;
     // the melody, a little way ahead of the clock
-    if (S && this.T.inst) while (this.next < now + 0.5) {
+    if (S && this.T.inst && !this.T.rhythm) while (this.next < now + 0.5) {
       const n = S.notes[this.i % S.notes.length]; this.i++;
       const dur = n.len * W; if (n.midi != null) AUDIO[this.T.inst](n.midi + (this.T.inst === "fife" ? 12 : 0), dur, { at, when: this.next });
       this.next += dur;
+    }
+    // (a drum cycle of its own — the mehter's düyek: the great drum's heavy stroke and its light one; the zurna holding
+    //  its note across each cycle, renewing it)
+    if (this.T.rhythm) {
+      const e8 = 60 / (this.T.bpm8 || 150), R = this.T.rhythm, cyc = R.reduce((t, [d]) => t + d, 0) * e8;
+      while (this.beatAt < now + 0.5) {
+        const [d, heavy] = R[this.beatN % R.length];
+        if (this.beatN % R.length === 0 && this.T.inst === "zurna") AUDIO.zurna(this.T.drone + (Math.floor(this.beatN / R.length) % 4 === 3 ? 2 : 0), cyc * 0.97, { at, when: this.beatAt });
+        AUDIO.bigDrum({ at, when: this.beatAt, accent: !!heavy, vol: heavy ? 1 : 0.65 });
+        this.beatAt += d * e8; this.beatN++;
+      }
+      return;
     }
     // the drum, beating the step: the first of the bar the loudest, with a flam
     while (this.beatAt < now + 0.5) {

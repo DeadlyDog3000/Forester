@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.266", date: "8 November 2026", title: "Drums and fifes",
+    items: [
+      "Bands: placing your company, hire a drummer and a fifer for one arm (Drum & fife on the bar, then the arm). They march a few paces behind it and play while it marches, stopping when it halts. Men within earshot hold their nerve better, get it back quicker, and fire a little steadier in step with the drum. The enemy brings a band of its own with its biggest arm.",
+      "The tunes are their nations' own from the printed sources of the day: Lilliburlero for the English (1686), the Wilhelmus for the Dutch, a French march noted in 1694, the Duke of Lorrain's March for the Emperor's men (1657), and Prince Eugene's March for the Saxons, Bavarians and Brandenburgers. Where no march of the time is known note for note — the Swedes, the Spanish, the Danes, the Poles, Muscovy, Hamburg — the drums beat the march alone. The Ottomans march to the mehter: the great davul in the düyek beat, the zurna holding its note over it; the Crimean Tatars to their kettledrums.",
+      "Publishing now first sets two copies of the game against each other — a battle and a campaign of two — and nothing goes out if either fails.",
+    ],
+  },
+  {
     v: "1.99.265", date: "8 November 2026", title: "Smoke, the wounded, and the demo's battles",
     items: [
       "Powder smoke hides what's behind it. A man looking through a fresh volley's bank can't see to aim, and waits for it to clear or for them to come out of it; through the haze after it his shots and arrows go wide. A long firefight ends up shooting half blind, as they did.",
