@@ -134,6 +134,8 @@ export class Band {
     const now = AUDIO.now(); if (!now) return;
     if (!marching) { if (this.playing) { this.playing = false; AUDIO[this.T.drum === "big" ? "bigDrum" : "sideDrum"]({ at, when: now + 0.05, accent: true, flam: true }); } return; }
     if (!this.playing) { this.playing = true; this.next = now + 0.15; this.i = 0; this.beatAt = this.next; this.beatN = 0; }
+    // (back from a pause, or a window out of sight: picked up where the clock is now, not every missed note at once)
+    if (this.beatAt < now - 0.2) this.beatAt = now + 0.05; if (this.next < now - 0.2) this.next = now + 0.05;
     const W = this.whole(), S = this.song, beat = (S ? S.beat : 1 / 4) * W, perBar = Math.round((S ? S.bar : 1) / (S ? S.beat : 1 / 4)) || 4;
     // the melody, a little way ahead of the clock
     if (S && this.T.inst && !this.T.rhythm) while (this.next < now + 0.5) {

@@ -397,7 +397,7 @@ function matched(n, m) {
   else startDuel({ net: n, side: m.side, foe: m.foe });
 }
 function quickPlay() {
-  lastMode = "quick";
+  lastMode = "quick"; pendingGhost = null;
   setArmy({ battle: true, vs: "player" });
   findMatch();
 }
@@ -448,7 +448,7 @@ function openMuster(kind, link = null) {
   drawMuster();
 }
 function leaveMuster() {
-  if (table) table.stop();
+  if (table) table.stop(); pendingGhost = null;
   const M = must; must = null;
   if (M && M.kind === "mp" && M.net) { clearInterval(M.clock); M.net.send({ t: "dleave" }); M.net.close(); }
   openCamp();
@@ -617,7 +617,10 @@ function musterReady() {
   if (table) table.stop();
   const k = must.kind;
   if (k === "cmp") { const go = must.go; must = null; $("musBack").classList.remove("hidden"); go({ ...lo }); return; }
-  if (k === "bots") { const H = pendingGhost; lastMode = H ? "ghost" : "bots"; must = null; startDuel({ bot: true, army: H ? { ...army(), enemyUniform: H.uniform, ghost: H } : undefined }); return; }
+  if (k === "bots") { const H = pendingGhost; lastMode = H ? "ghost" : "bots"; must = null;
+    // (their colours — or, if they're yours too, another's, so the two sides can be told apart)
+    const mineU = army().uniform, eu = H && (H.uniform !== mineU ? H.uniform : Object.keys(UNIFORMS).find(k => k !== mineU && !UNIFORMS[k].hist && !UNIFORMS[k].nat));
+    startDuel({ bot: true, army: H ? { ...army(), enemyUniform: eu, ghost: H } : undefined }); return; }
   if (k === "hist") { const P = histPick(), b = battleById(P.id); lastMode = "hist"; must = null; if (b.sea) { seaHist(b, P.side); return; } startDuel({ bot: true, army: histArmy(b, P.side) }); return; }
   // (a duel in the demo: against a bot, at once — another player is the full game's)
   if (k === "duel") { lastMode = "duel"; must = null; if (full()) findMatch(); else startDuel({ bot: true }); return; }
@@ -817,7 +820,7 @@ async function findMatch() {
 }
 // a bot now, whatever the search has found
 function botNow() {
-  const s = search; if (!s) return;
+  const s = search; if (!s) return; pendingGhost = null;
   const battle = army().battle;
   cancelSearch(true);
   if (battle) openMuster("bots"); else startDuel({ bot: true });
@@ -1013,7 +1016,7 @@ function firstBattle() {
 // ---------------------------------------------------------------------------
 const rosterArm = r => armOf({ info: { kind: r.kind || null, horse: r.horse, lo: r.lo || {} } });
 export function ghostOf(rec) {
-  const R = rec && rec.roster || [], S = rec && rec.setup || {}, side = R.filter(r => r.team === 0 && !r.you), men = side.filter(r => !(r.gun >= 0));
+  const R = rec && rec.roster || [], S = rec && rec.setup || {}, side = R.filter(r => r.team === 0 && !r.you && r.kind !== "band"), men = side.filter(r => !(r.gun >= 0));
   if (men.length < 4) return null;
   const muster = {}; for (const r of men) { const k = TROOPS[rosterArm(r)] ? rosterArm(r) : "musketeer"; muster[k] = (muster[k] || 0) + 1; }
   const guns = new Set(side.filter(r => r.gun >= 0).map(r => r.gun)).size;
@@ -1125,7 +1128,7 @@ function startDuel(o) {
   // (the challenge: the field, the weather, their officer and his company all as chance gives them for those two days —
   //  the same for everyone — and you armed as your colours were, as in a ranked battle)
   if (o.easy) foe.skill = Math.min(foe.skill, 0.3);
-  if (o.challenge) { foe.skill = 0.62; withSeed(o.challenge.seed, () => new Arena({ me, lo: armedLo(true), foe, net: null, side: 0, army: A })); return; }
+  if (o.challenge) { foe.skill = 0.62; const f = fitTo(lo, true, o.challenge.mine, fitLoad), L = { ...f, skin: skinOf(f), up: upsOf(f, true, o.challenge.mine) }; withSeed(o.challenge.seed, () => new Arena({ me, lo: L, foe, net: null, side: 0, army: A })); return; }
   // (a campaign's battle: the arms chosen for it, whatever they are)
   const L = o.freeLo ? (f => ({ ...f, skin: skinOf(f), up: {} }))(fitLoad({ ...o.freeLo })) : armedLo(!!o.net);
   new Arena({ me, lo: L, foe, net: o.net || null, side: o.side || 0, army: multi ? A : null });
@@ -1242,6 +1245,9 @@ export function buildStage(S) {
     if (S.night) field.nightFires();
     if (K && K.flags) K.flags.forEach((f, a) => field.colours(a, f.key, { x: f.x + C.x, z: f.z + C.z }));
     else if (battle && S.uni) for (const t of [0, 1]) if (S.uni[t]) field.colours(S.remote ? 1 - t : t, S.uni[t]);
+    // (the guns where the deployment set them, and its works)
+    if (S.gunsAt) S.gunsAt.forEach(([x, z, ry], i) => { const g = field.guns[i]; if (g && (Math.abs(g.x - x) > 0.05 || Math.abs(g.z - z) > 0.05 || Math.abs(g.ry - ry) > 0.01)) field.moveGun(g, x, z, ry); });
+    if (S.works) for (const [k, x, z, ry, side, inw] of S.works) if (Field.WORKS[k]) field.build(k, x, z, ry, side, { x: inw[0], z: inw[1] });
     if (S.remote) { for (const g of field.guns) g.side = 1 - g.side; field.spots.reverse(); }
     field.remote = true;   // (its guns laid and loaded as the recording says)
   }
@@ -1532,13 +1538,14 @@ class Arena {
   // (a unit's team is its company; its side, the companies it fights with — in any battle but a custom one, the same)
   alOf(team) { return this.cos ? (this.cos[team] ? this.cos[team].al : 1) : team; }
   enemiesOf(team) {
-    const al = this.alOf(team), out = this.units.filter(u => u.alive && this.alOf(u.team) !== al);
+    const al = this.alOf(team), out = this.units.filter(u => u.alive && !u.musician && this.alOf(u.team) !== al);
     if (al !== 0 && this.you.alive) out.push(this.you);
     return out;
   }
   // (every man on a side, every company of it)
   sideOf(al) { return this.units.filter(u => u.alive && this.alOf(u.team) === al); }
-  alliesOf(team) { return this.units.filter(u => u.alive && u.team === team); }
+  // (a band's drummer and fifer are with the side but not of the fight: not counted among its men, nor aimed at)
+  alliesOf(team) { return this.units.filter(u => u.alive && u.team === team && !u.musician); }
   // (worth showing you: the hints about a head-shot only if it's near enough to be your doing)
   youCanSee(u) { return Math.hypot(u.pos.x - G.player.pos.x, u.pos.z - G.player.pos.z) < 60; }
   hearable(p) { return Math.hypot(p.x - G.player.pos.x, p.z - G.player.pos.z) < 70; }
@@ -1689,7 +1696,7 @@ class Arena {
     // (holding your fort: your company on its front wall from the start)
     if (this.fortSide === 0 || (this.siege && this.siege.side === 0)) { O0.mode = "hold"; O0.at = { x: mine.x, z: mine.z }; }
     // (in the saddle, if you're riding into it)
-    if (this.battle && riding()) { if (!pl.horse) pl.mount(); } else if (pl.horse) pl.dismount();
+    if (this.battle && riding() && !(this.army && this.army.challenge)) { if (!pl.horse) pl.mount(); } else if (pl.horse) pl.dismount();
     // (a pace before the line where there are works ahead, so the battery's gabions are a few paces off and not in your face)
     // (on a town's wall walk, though: where the company stands, back from the parapet — not in it with your face to the stone)
     const lead0 = this.siege && this.siege.side === 0 ? 0 : this.battle && this.fortSide == null && !this.siege ? 0 : 3;
@@ -1880,7 +1887,7 @@ class Arena {
     const placeWork = g => {
       const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(purseLeft < W.cost ? `Not enough left in the purse: ${W.name.toLowerCase()} cost ${W.cost} thalers.` : "Not there: your men are on it, the ground's taken or too rough, or it's outside your ground.", 2); return; }
       const rec = this.field.build(work.k, p.x, p.z, work.ry, 0, { x: p.x - f.x * 20, z: p.z - f.z * 20 });
-      built.push({ k: work.k, rec, cost: W.cost }); worksSpent += W.cost; purseLeft = leftNow(); sfx("buy", 3); drawBar();
+      built.push({ k: work.k, rec, cost: W.cost, x: p.x, z: p.z, ry: work.ry, side: 0, in: [+(p.x - f.x * 20).toFixed(1), +(p.z - f.z * 20).toFixed(1)] }); worksSpent += W.cost; purseLeft = leftNow(); sfx("buy", 3); drawBar();
     };
     // the eye: high over your own ground, looking out toward them; moved with the keys or by dragging the edges, nearer
     //  or further with the wheel (when nothing's in hand), turned with Q and E
@@ -1954,6 +1961,8 @@ class Arena {
       bar.remove(); for (const [t, fn] of L) removeEventListener(t, fn, true);
       // (each arm holds where it was set, its front as you turned it; the company's own orders at your side)
       this.sub = [{}, this.ghostSub || {}];
+      // (the field as you left it, for the recording: the guns where you set them, and the works you threw up)
+      if (this.stageSetup && this.field) { this.stageSetup.gunsAt = this.field.guns.map(g => [+g.x.toFixed(2), +g.z.toFixed(2), +g.ry.toFixed(3)]); this.stageSetup.works = built.filter(b => b.k !== "band").map(b => [b.k, +b.x.toFixed(2), +b.z.toFixed(2), +b.ry.toFixed(3), b.side, b.in]); }
       for (const T of tokens) if (T.id !== "you" && T.men.length) { const O = Object.assign(new Orders(0), O0, { target: null }); O.mode = "hold"; O.at = { ...T.at }; O.form = "line"; this.sub[0][T.id] = O; }
       O0.mode = "hold"; O0.at = { x: pl.pos.x, z: pl.pos.z };
       this.spawns[0] = { x: pl.pos.x, z: pl.pos.z };
@@ -2983,7 +2992,11 @@ class Arena {
     }
     // (how the colours fare: each side's colours and who won, counted — not a story's, a campaign's, history's, the
     //  challenge's or a plan fought again, whose sides weren't chosen)
-    if (this.battle && !this.custom && !this.hist && !cmpB && lastMode !== "story" && !CH && !(this.army && this.army.ghost) && !left) tally(this.army, rated, won, this.uni ? Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[1]) : null);
+    if (this.battle && !this.custom && !this.hist && !cmpB && lastMode !== "story" && !CH && !(this.army && this.army.ghost) && !left && !this.remote) {
+      const foeU = this.uni ? Object.keys(UNIFORMS).find(k => UNIFORMS[k] === this.uni[1]) : null;
+      tally(this.army, rated, won, foeU);
+      if (rated && foeU) tally({ ...this.army, uniform: foeU }, true, !won, this.army.uniform);
+    }
     this.toCampaign(won, left);
     if (this.hist && !this.hist.b.campaign && !left) {
       const HB = this.hist.b, sd = this.hist.side; histResult(HB.id, sd, won);
@@ -3485,7 +3498,7 @@ class Bot extends Fighter {
   //  steadier and quicker to recover for it — the drum giving the pace, the tune their own
   bandTick(dt) {
     const B = this.band, A = this.arena, a = this.a;
-    const men = A.alliesOf(this.team).filter(u => !u.musician && !u.crewOf && groupOf(u) === B.gid && !u.routing);
+    const men = A.alliesOf(this.team).filter(u => !u.crewOf && groupOf(u) === B.gid && !u.routing);
     if (!men.length) { a.path = []; if (this.bandRole === 0) B.band.tick(this.pos, false); return; }
     const cx = men.reduce((t, u) => t + u.pos.x, 0) / men.length, cz = men.reduce((t, u) => t + u.pos.z, 0) / men.length;
     const sp = men.reduce((t, u) => t + (u.a.speed || 0), 0) / men.length, yaw = men[0].a.yaw;
@@ -3520,7 +3533,7 @@ class Bot extends Fighter {
     if (!this.alive || !this.arena.live) return;
     // (a ball or an arrow that would have killed him, as often as not only maims: he's down to the rear, out of it,
     //  not dead — not one in the head, though, and not a man already hurt)
-    if (this.hp - d <= 0 && !melee && !head && this.arena.battle && !this.wounded && !this.crewOf && !this.isNet && Math.random() < 0.4) d = this.hp - 12;
+    if (this.hp - d <= 0 && this.hp > 14 && !melee && !head && this.arena.battle && !this.wounded && !this.crewOf && !this.isNet && Math.random() < 0.4) d = this.hp - 12;
     this.hp = Math.max(0, this.hp - d);
     if (this.hp <= 0) { const f = from || (this.T && this.T.pos) || G.player.pos; this.fromX = f.x; this.fromZ = f.z; this.headShot = head; this.fallDown(f, head); this.arena.unitDown(this); return; }
     if (this.arena.host) this.arena.net.send({ t: "bhurt", id: this.uid });
