@@ -1616,7 +1616,8 @@ class Arena {
         this.units.forEach((u, i) => { u.uid = i; });
       }
       // and yours to work yourself: F at one, and it's laid on where you're looking and fired
-      this.gunIts = this.field.guns.filter(g => g.side === 0).map(g => this.w.addInteract({ x: g.x, y: this.w.heightAt(g.x, g.z) + 1.0, z: g.z, reach: 2.4,
+      //  (where the gun is now: the deployment may have run it somewhere else since)
+      this.gunIts = this.field.guns.filter(g => g.side === 0).map(g => this.w.addInteract({ get x() { return g.x; }, get y() { return this.w.heightAt(g.x, g.z) + 1.0; }, get z() { return g.z; }, w: this.w, reach: 2.4,
         can: () => G.arena === this && this.live && !G.downed && this.gunMan !== g,
         label: () => g.dead ? "The gun's wrecked" : this.remote ? (g.loaded ? "Lay the gun on where you're looking, and fire it" : "The gun's loading") : `Take the gun${g.loaded ? " — loaded" : g.crewN ? ` — loading, ${g.crewN} of its crew at it` : " — not loaded"}`,
         use: () => { if (g.dead) return; if (this.remote) { if (g.loaded) this.net.send({ t: "bgunlay", i: this.field.guns.indexOf(g), at: this.lookPoint() }); return; } if (this.gunMan === g || performance.now() - (this.gunLeftT || 0) < 700) return; this.manGun(g); } }));

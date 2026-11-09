@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.273", date: "9 November 2026", title: "Your guns answer to F again",
+    items: [
+      "Fixed: a gun you'd moved in the deployment couldn't be taken with F — the place to take it stayed where the gun had first stood.",
+    ],
+  },
+  {
     v: "1.99.272", date: "9 November 2026", title: "Four guns, the charge, and the field as chance has it",
     items: [
       "Buy four guns and all four come to the field: on the open field, behind the battery, in your fort and on a town's walls. Only three had come.",
