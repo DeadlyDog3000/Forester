@@ -7,9 +7,20 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.269", date: "9 November 2026", title: "The band hired in the muster",
+    v: "1.99.269", date: "9 November 2026", title: "Drums and fifes as they were, and the bows loosed as one",
     items: [
-      "The drum and fife are hired in the muster now, with the rest of your company, not on the field before the battle: under Your company, pick the arms you want a band to march with, 40 thalers each from the purse. Each band takes its place behind its arm, and moves with it when you set the arm down somewhere else.",
+      "The band is hired in the muster now, with the rest of your company: under Your company, pick the arms a band marches with, 40 thalers each. Each band takes its place behind its arm, and moves with it when you set the arm down.",
+      "The bands as they were: the drummer's side drum slung at his left thigh, painted in the regiment's coat with its hoops in the facings, beaten with two sticks; the fifer's fife held across at his lips. The horse march to their trumpeters, not to a drum and fife. The instruments worn with campaigning, not new from the shop, and every drummer and fifer a man or a boy, as they were.",
+      "Bowmen in a battle shoot as one: at the word every bow comes up together, raised high for the long arc, and the whole flight goes up into the sky at once. The rear rank shoots over the heads of the front.",
+      "Your men obey at once. A fresh order to follow, hold or advance pulls them out of a fight unless a man is right on them; they run when they're far out of place; and they keep step with you as you walk instead of halting and starting at every pace.",
+      "Your own musket's smoke rolls out in front of you when you fire. With sights on your musket, no aiming dot is laid over them.",
+      "Win the challenge and you're paid for everyone who fought it: +10 to your rating and 30 into your team's purse for each contender, once a challenge.",
+      "Each team's arms keep their own finishes, as their gunsmiths' work already did: a musket bought for the Swedes has its own look, not the Poles' musket's. What you bought before stays with every team you have.",
+      "Unshare a battle: from its result, or from Shared by you in the highlights. It comes off the server, and off the challenge's board.",
+      "Hamburg, 1686, is fought at the city's own walls: the brick-faced bastions, the defenders on the walk behind the breastwork, and the Danes coming on with ladders.",
+      "In a campaign, nobody marches on your towns in the first year, and no crown crosses the sea without a fleet to carry its army. England's fleet begins in the Channel, and France's fleet begins small.",
+      "Battles at sea pause on Escape, and the Dutch-built ships sail bow first; they had been sailing stern first.",
+      "Fixed: a battle could end on the title screen instead of its result, the campaign's battles among them.",
     ],
   },
   {

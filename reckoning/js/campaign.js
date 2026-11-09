@@ -273,7 +273,10 @@ function begin(me, into = slot, opt = {}) {
   // (the difficulty chosen: the other crowns' armies at the start made larger or smaller by it)
   if (opt.diff != null) diffFoes(opt.diff, [me]);
   // (England, the sea power: its fleet already in being in 1683, six ships lying off its capital)
-  if (me === "england") { const g = grid(), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ct && harbourOf(ct); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
+  //  (lying in the Channel, between the Downs and Boulogne, where England kept it: between France and its own coast)
+  if (me === "england") { const g = grid(), ch = seaNear(g, cellXY(["the Channel", 1.05, 50.75, 0]), 4, true), ct = citiesOfNow(g, me).sort((a, b) => b[3] - a[3]).find(c => harbourOf(c)), hb = ch || (ct && harbourOf(ct)); if (hb) C.fleets = [{ id: 0, pos: { x: hb.x, y: hb.y }, ships: navyMix(me, 6), moved: false, go: null }]; }
+  // (the first year of a campaign: the crowns at war with you are mustering, not yet on the march)
+  C.y0 = C.year;
   // (the colonies over the Atlantic: companies of their own in each town, as they had — the army at home can't come to
   //  them: a regiment of foot in each, two in a colony's chief towns, and the settlers' militia)
   { ensureUnits(); const g = grid(), home = homeOf(g, me);
@@ -1286,7 +1289,8 @@ function foeNavies(g, ids) {
     // (the fleet it builds up to: larger or smaller with the campaign's difficulty)
     const n = NAVY[id] ? Math.max(1, Math.round(NAVY[id] * dif().navy)) : 0; if (!n) continue; let F = C.foeFleets[id];
     const home = citiesOfNow(g, id).sort((a, b) => b[3] - a[3]).map(ct => harbourOf(ct, true)).find(Boolean); if (!home) { delete C.foeFleets[id]; continue; }
-    if (!F) { if (R() < 0.25 || C.year <= 1684) C.foeFleets[id] = { pos: home, ships: navyMix(id, Math.max(1, Math.ceil(n * 0.7))) }; continue; }
+    // (France's to begin with: a few frigates and sloops — its great ships still building, and built up year by year)
+    if (!F) { if (R() < 0.25 || C.year <= 1684) C.foeFleets[id] = { pos: home, ships: id === "france" ? [{ k: "frigate", hp: 0.8 }, { k: "sloop", hp: 0.8 }] : navyMix(id, Math.max(1, Math.ceil(n * 0.7))) }; continue; }
     for (const s of F.ships) s.hp = Math.min(1, s.hp + 0.2);
     if (F.ships.length < n && R() < 0.3) F.ships.push(navyMix(id, 3)[F.ships.length % 3]);
     // (two players at war with it: it goes after the one whose fleet lies nearest)
@@ -1391,6 +1395,8 @@ const narrowSea = (a, b) => seaSide(a) === seaSide(b) && mdist(a, b) <= MARCH * 
 const offLine = (p, a, b) => { const dx = b.x - a.x, dy = b.y - a.y, L = dx * dx + dy * dy || 1, t = clamp(((p.x - a.x) * dx + (p.y - a.y) * dy) / L, 0, 1); return Math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t); };
 function invade(id, fp, ct) {
   const tc = cellXY(ct); if (!narrowSea(fp, tc)) return false;
+  // (an army carried over the sea needs ships to carry it: a crown without a fleet stays on its own shore)
+  if (!(C.foeFleets && C.foeFleets[id] && C.foeFleets[id].ships.length)) return false;
   if (C.invade && C.invade.foe === id) { if (C.events.some(e => !e.done && e.kind === "seabattle" && e.foe === id)) return true; C.invade = null; }
   // (your fleet in the way: the nearest of yours to the crossing, if any lies close to it)
   const guard = (C.fleets || []).filter(f => f.ships.length && offLine(f.pos, fp, tc) <= GUARD_SEA).sort((a, b) => offLine(a.pos, fp, tc) - offLine(b.pos, fp, tc))[0];
@@ -2176,6 +2182,7 @@ function endSeason(part = {}) {
     // (an army already on the road keeps marching; a new march is begun now and then)
     C.foeGo ||= {};
     if (!atWar(id) || C.foes[id] < 8 || (!C.foeGo[id] && R() > 0.5)) continue;
+    if (C.y0 != null && C.year <= C.y0 && !C.foeGo[id]) continue;
     // (an army of theirs with one of yours right on it — cornered, its way out across your front — doesn't march
     //  off as if you weren't there: it stays where it is, to fight its way out or be brought to battle)
     { const fp = foeArmyPos(id), by = fp && eachArmy(() => { const p = armyPos(); return C.army >= 3 && !overSea(p, fp) && (mdist(p, fp) <= MARCH * 0.3 || (C.chase === id && mdist(p, fp) <= MARCH * 1.05)) ? C.army : 0; }).some(Boolean);
