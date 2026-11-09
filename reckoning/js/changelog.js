@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.278", date: "9 November 2026", title: "Platoon fire reined in",
+    items: [
+      "Platoon fire was too strong. It still rolls down the line so the line is never all empty at once, but each platoon fires on its turn, ready or not: its shots are hurried and far wilder, it no longer loads quicker, and the round of the whole line takes a little longer to come back.",
+    ],
+  },
+  {
     v: "1.99.277", date: "9 November 2026", title: "Horses that live and die, and the field yours to build on",
     items: [
       "Horses whinny as the charge is sounded. Struck, a horse screams and goes up on its hind legs; and as often as not a ball or a blade meant for its rider finds the horse instead — enough of them and it goes down on its side, its rider thrown to fight on afoot. The dead horse lies where it fell: cover for a man behind it.",

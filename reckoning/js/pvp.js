@@ -1003,14 +1003,15 @@ export const BAND_COST = 40;
 //  enemy crown's own way for theirs:
 //   fire by ranks: the common drill of the age — the whole line's muskets at the word, together;
 //   platoon fire: the Dutch way (and the English after 1688) — the line in platoons, firing one after another down it,
-//     so it's never all empty at once: its men drilled to load the quicker, and steadier for the fire never stopping;
+//     so it's never all empty at once, and steadier for the fire never stopping — but each platoon fires on its turn,
+//     ready or not: its shots hurried and wild, and the round of the whole line slower to come back;
 //   gå-på: the Swedes' — "go on": no firing at long range; one volley close, then straight in with the sword — slower
 //     to load, harder with the steel, and the bolder for it;
 //   pike and shot: the Emperor's and the Spaniard's — the muskets close by the pikes' hedge, the pikemen steadiest of all
 //     and the musketeers by them steadier too
 export const DRILLS = {
   ranks: { name: "Fire by ranks", sub: "The common drill: the whole line at the word", reload: 1, steel: 1, brave: 1, pike: 1 },
-  platoon: { name: "Platoon fire", sub: "The Dutch way: fire rolling down the line, never all empty at once · loads quicker", reload: 1.12, steel: 1, brave: 1.06, pike: 1, roll: true },
+  platoon: { name: "Platoon fire", sub: "The Dutch way: fire rolling down the line, never all empty at once · but each platoon's shots hurried, wilder, and slower to come round again", reload: 0.96, steel: 1, brave: 1.06, pike: 1, roll: true, aim: 1.8 },
   gapa: { name: "Gå-på", sub: "The Swedes' way: one volley close, then the sword · harder with the steel, slower to load", reload: 0.88, steel: 1.25, brave: 1.15, pike: 1 },
   pikeshot: { name: "Pike and shot", sub: "The Emperor's way: the muskets by the pikes' hedge · pikemen steadiest of all", reload: 1, steel: 1, brave: 1.06, pike: 1.3 },
 };
@@ -4314,7 +4315,7 @@ class Bot extends Fighter {
       const roll = this.info.drill && this.info.drill.roll;
       if (O.volleyAt && G.time < O.volleyAt + (roll ? 1.5 : 0.4) && useK && useK !== "bow" && this.los) {
         a.path = []; a.faceTo(fp.x, fp.z); this.aimUp(true);
-        if (G.time >= O.volleyAt + (roll ? (this.idx % 3) * 0.5 : this.idx * 0.02) && this.volleyed !== O.volleyAt) { this.volleyed = O.volleyAt; this.fire(useK, T); }
+        if (G.time >= O.volleyAt + (roll ? (this.idx % 3) * 0.55 : this.idx * 0.02) && this.volleyed !== O.volleyAt) { this.volleyed = O.volleyAt; this.fire(useK, T); }
         return;
       }
       // (a grenadier, a man close enough and in sight: a grenade lobbed at him — now and then, while he has any — on the
@@ -4440,7 +4441,7 @@ class Bot extends Fighter {
     to.y += 4.9 * flight * flight;
     // (in a pitched battle: two balls in five finding their man at fifty paces, from a soldier of middling skill — a
     //  steadier hand than in the duel, the line's men standing to their work)
-    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 0.6 : 1) * (1 + Math.min(2.5, (this.fog || 0) * 1.6)) * (G.time - (this.bandT ?? -9) < 1.5 ? 0.9 : 1);
+    const sigma = ((pis ? 0.016 : 0.0075) + (1 - s) * (pis ? 0.03 : 0.014)) * (!pis && this.fixed ? 1.4 : 1) * (this.arena.battle && !pis ? 0.6 : 1) * (1 + Math.min(2.5, (this.fog || 0) * 1.6)) * (G.time - (this.bandT ?? -9) < 1.5 ? 0.9 : 1) * (this.info.drill && this.info.drill.aim || 1);
     const dir = to.sub(from).normalize(), side = new THREE.Vector3(-dir.z, 0, dir.x).normalize(), up = new THREE.Vector3().crossVectors(side, dir);
     dir.addScaledVector(side, randn() * sigma).addScaledVector(up, randn() * sigma).normalize();
     AUDIO.gunshot && AUDIO.gunshot(pis ? 0.75 : 0.95, a.pos);
