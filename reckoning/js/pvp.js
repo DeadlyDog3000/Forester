@@ -1959,6 +1959,28 @@ class Arena {
     }
     this.colSync();
   }
+  // ---- a horse brought down: on its side where it fell, its rider thrown clear — up again on foot, sword in hand — and
+  //  the dead horse left lying, a bank of flesh a man can take cover behind (on the other game, online, only seen) ----
+  horseDown(u, from = null, seen = false) {
+    const h = u.a && u.a.horse; if (!h) return;
+    u.a.horse = null; u.a.yOff = 0; u.a.person.sitting = 0; u.info.horse = false; u.a.radius = 0.35;
+    const x = h.root.position.x, z = h.root.position.z, side = Math.random() < 0.5 ? 1 : -1;
+    (this.deadHorses ||= []).push({ h, t: 0, x, z, yaw: h.root.rotation.y, side, cover: false });
+    FOLEY.horseFall && FOLEY.horseFall({ x, z }, 0.85);
+    if (seen) return;
+    u.stun = 1.6; u.hp = Math.max(1, u.hp - 12); u.a.path = []; u.a.person.flinch && u.a.person.flinch();
+    u.shaken && u.shaken(0.15);
+    if (this.host && this.net) this.net.send({ t: "bhorse", id: u.uid });
+  }
+  deadHorseTick(dt) {
+    for (const D of this.deadHorses || []) {
+      if (D.t >= 1) continue;
+      D.t = Math.min(1, D.t + dt / 0.9); const k = D.t * D.t, r = D.h.root, y = this.w.heightAt(D.x, D.z);
+      r.position.set(D.x, y - k * 0.3, D.z); r.rotation.order = "YXZ"; r.rotation.set(0, D.yaw, D.side * 1.42 * k);
+      D.h.gait && D.h.gait(dt, 0);
+      if (D.t >= 1 && !D.cover) { D.cover = true; try { this.w.col.addCircle(D.x, D.z, 0.85, y + 0.75); } catch (e) {} }
+    }
+  }
   unitDown(u) {
     if (!this.multi) { this.endRound(0); return; }
     // (the men round him see him fall: the nearer, the more it shakes them)
@@ -2235,12 +2257,14 @@ class Arena {
     //  and across its whole width; side by side or end to end, joined into a line; on a slope; among the trees and
     //  stones, as long as the work's own middle is clear — and your men stand aside for them)
     void onMen;
-    const fwdW = Math.max(fwd, dist / 2 - 6), backW = 34, halfW = this.bound - 8;
-    const inWorks = (x, z) => { const a = (x - home.x) * r.x + (z - home.z) * r.z, b = (x - home.x) * f.x + (z - home.z) * f.z; return Math.abs(a) <= halfW && b <= fwdW && b >= -backW && Math.hypot(x - C.x, z - C.z) < this.bound - 3; };
-    const roomFor = (p, W) => !!this.field && !this.field.used.some(u => Math.hypot(u.x - p.x, u.z - p.z) < (u.rad + W.rad) * 0.55) && !this.w.col.solidAt(p.x, groundY(p.x, p.z) + 0.8, p.z, 0.5);
+    const fwdW = Math.max(fwd, dist / 2), backW = this.bound, halfW = this.bound - 4;
+    const inWorks = (x, z) => { const a = (x - home.x) * r.x + (z - home.z) * r.z, b = (x - home.x) * f.x + (z - home.z) * f.z; return Math.abs(a) <= halfW && b <= fwdW && b >= -backW && Math.hypot(x - C.x, z - C.z) < this.bound - 2; };
+    // (only another work of yours right on the same spot, or a gun, stops it: works can overlap end to end, stand in
+    //  front of the line, beside the guns and across their fire if you will)
+    const roomFor = (p, W) => !!this.field && !built.some(b => Math.hypot(b.x - p.x, b.z - p.z) < (WK[b.k].rad + W.rad) * 0.35) && !this.field.guns.some(g => !g.dead && Math.hypot(g.x - p.x, g.z - p.z) < 1.3 + W.rad * 0.4);
     const wkAt = g => { const W = WK[work.k], p = { x: g.x, z: g.z }, ok = supLeft() >= loadsOf(W) && inWorks(g.x, g.z) && roomFor(p, W); return { p, ok }; };
     const placeWork = g => {
-      const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(supLeft() < loadsOf(W) ? `Not enough supplies: ${W.name.toLowerCase()} take ${loadsOf(W)} loads${A0.supplies ? "" : " — buy supplies in the muster, under Your company"}.` : "Not there: another work's already on that spot, something solid's in the way, or it's past where you can build — short of the middle of the field.", 2); return; }
+      const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(supLeft() < loadsOf(W) ? `Not enough supplies: ${W.name.toLowerCase()} take ${loadsOf(W)} loads${A0.supplies ? "" : " — buy supplies in the muster, under Your company"}.` : "Not there: another work or a gun is right on that spot, or it's past the middle of the field.", 2); return; }
       const rec = this.field.build(work.k, p.x, p.z, work.ry, 0, { x: p.x - f.x * 20, z: p.z - f.z * 20 });
       // (any of yours standing where it went up: stepped out of its way)
       { const rad = W.rad + 0.6; for (const u of this.alliesOf(0)) if (u.alive && u.a && Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < rad) { const d = Math.hypot(u.pos.x - p.x, u.pos.z - p.z) || 1, q = this.clearSpot(p.x + (u.pos.x - p.x) / d * (rad + 0.4), p.z + (u.pos.z - p.z) / d * (rad + 0.4)); u.reset(q, { x: q.x + f.x * 30, z: q.z + f.z * 30 }); u.a.sync && u.a.sync(); }
@@ -2575,6 +2599,7 @@ class Arena {
     if (this.netBattle) { this.sendState(dt); if (this.host) this.sendSnap(dt); }
     stanceTick();
     if (this.live) this.colsTick(dt);
+    if (this.deadHorses) this.deadHorseTick(dt);
     if (this.live) { this.clock += dt; this.commander(dt); if ((this.recrewT = (this.recrewT || 0) - dt) <= 0) { this.recrewT = 1; this.recrew(); } }
     // (the guns fall silent when it's over, and between rounds)
     if (this.field) this.field.active = this.live && !this.over && !this.ended;
@@ -2582,6 +2607,8 @@ class Arena {
     if (this.field) this.field.update(dt, this.remote ? [] : [...this.units, this.you], (u, from, v, dmg = 400) => {
       // (a side's men falling to the guns: counted, so its officer knows he's being shot to pieces — see command)
       { const sd = u === this.you ? 0 : this.alOf(u.team ?? 0), S = (this.shelled ||= {})[sd] ||= { n: 0, t: -99 }; if (G.time - S.t > 20) S.n = 0; S.n++; S.t = G.time; }
+      // (the horses near where the shot struck shy at it: up on their hind legs, snorting)
+      if (from && G.time - (this.shyT || -9) > 0.6) { this.shyT = G.time; for (const m of this.units) if (m.alive && m.a && m.a.horse && Math.hypot(m.pos.x - from.x, m.pos.z - from.z) < 8 && Math.random() < 0.7) { m.a.horse.rear && m.a.horse.rear(); if (Math.random() < 0.4) FOLEY.snort && FOLEY.snort(m.pos, 0.6); } }
       if (u === this.you) this.hurtMe(dmg, { pos: from });
       else { u.blast = dmg >= 60; u.damage(dmg, false, false, from); u.blast = false; }
     });
@@ -3469,6 +3496,7 @@ class Arena {
   }
   stop() {
     if (G.arena !== this) return;
+    for (const D of this.deadHorses || []) G.scene.remove(D.h.root); this.deadHorses = null;
     AUDIO.melee && AUDIO.melee(0, 0); clearGore();
     if (G.freecam && G.endFreecam) G.endFreecam();
     { const co = document.getElementById("coach"); if (co) co.remove(); }
@@ -3694,6 +3722,7 @@ class Arena {
       net.on.bgun = m => { const g = this.field.guns[m.i | 0]; if (g) this.field.fire(g); };
       net.on.bdown = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; u.hp = 0; u.blast = !!m.b; u.fallDown({ x: +m.x, z: +m.z }, !!m.h); u.blast = false; this.unitDown(u); };
       net.on.bhurt = m => { const u = this.unitById(m.id); if (!u || !u.alive) return; if (this.rec) this.rec.hurt(u); blowLands(u.a, "hit", u.youHitPos && G.time - (u.youHitAt ?? -9) < 0.6 ? G.player : { pos: u.pos }); u.a.person.flinch && u.a.person.flinch(); AUDIO.voice && AUDIO.voice(Math.random() < 0.7 ? "pain" : "grunt", { at: u.pos, high: isF(u.info.look) }); };
+      net.on.bhorse = m => { const u = this.unitById(m.id); if (u) this.horseDown(u, null, true); };
       net.on.bgone = m => { const u = this.unitById(m.id); if (!u) return; u.hp = 0; if (m.hide) u.a.root.visible = false; else { u.quiet = true; u.a.place(+m.x, +m.z, u.a.yaw); u.fallDown(this.spawns[0]); } const i = this.units.indexOf(u); if (i >= 0) this.units.splice(i, 1); this.showHud(); };
       // (one of theirs at you with the steel: judged here, against your guard)
       net.on.bswing = m => {
@@ -3953,6 +3982,12 @@ class Bot extends Fighter {
   hit(power, head) { this.damage(dmgOf(power, head), false, head); if (head && this.alive && this.arena.youCanSee(this)) UI.hint("In the head.", 1.2); }
   damage(d, melee, head = false, from = null) {
     if (!this.alive || !this.arena.live) return;
+    // (a horseman hit: as often as not it's the horse that takes it — the bigger mark under him. It screams and goes up
+    //  on its hind legs; enough of it brings it down, and its rider is thrown, to fight on afoot)
+    if (this.mounted && this.arena.battle && !this.isNet && !head) {
+      const h = this.a.horse; h.rear && h.rear(); if (G.time - (this.screamT ?? -9) > 1.4) { this.screamT = G.time; FOLEY.horseScream && FOLEY.horseScream(this.pos, 0.65); }
+      if (Math.random() < (melee ? 0.3 : 0.45)) { this.horseHp = (this.horseHp ?? 110) - d * 1.1; if (this.horseHp <= 0) this.arena.horseDown(this, from); this.stun = Math.max(this.stun || 0, 0.5); return; }
+    }
     // (a ball or an arrow that would have killed him, as often as not only maims: he's down to the rear, out of it,
     //  not dead — not one in the head, though, and not a man already hurt)
     if (this.hp - d <= 0 && this.hp > 14 && !melee && !head && this.arena.battle && !this.wounded && !this.crewOf && !this.isNet && Math.random() < 0.4) d = this.hp - 12;
@@ -4127,6 +4162,8 @@ class Bot extends Fighter {
     if (!this.alive || !this.awake || !this.arena.live || G.mode !== "play") return;
     if (this.musician) return this.bandTick(dt);
     const a = this.a, s = this.s, pl = G.player;
+    // (the charge sounded: the horses whinnying as they're put to it, here one, there another)
+    if (this.mounted && this.arena.battle) { const Oc = this.arena.orderOf && this.arena.orderOf(this), on = !!(Oc && Oc.charge); if (on && !this.neighed) { this.neighed = true; if (Math.random() < 0.45) setTimeout(() => this.alive && this.mounted && FOLEY.neigh && FOLEY.neigh(this.pos, 0.6), Math.random() * 900); } else if (!on) this.neighed = false; }
     // (winded by running — the charge across the field — and breath coming back when he walks or stands)
     this.blown = clamp((this.blown || 0) + (a.speed > 3.6 && a.path.length ? dt * (this.mounted ? 0.025 : 0.055) : -dt * 0.09), 0, 1);
     if (this.nerve != null && this.arena.battle) {

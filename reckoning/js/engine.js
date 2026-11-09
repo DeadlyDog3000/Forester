@@ -2456,6 +2456,8 @@ export class Actor {
     const h = this.horse; if (!h) return; this.horse = null; this.yOff = 0;
     const p = this.pos, a = from ? Math.atan2(p.x - from.x, p.z - from.z) : this.yaw + (Math.random() - 0.5) * 2;
     this.bolt = { h, a: a + (Math.random() - 0.5) * 1.2, t: 0 };
+    // (and it cries out as it goes)
+    if (Math.random() < 0.6 && FOLEY.neigh) FOLEY.neigh({ x: p.x, z: p.z }, 0.55);
   }
   // walk a list of [x,z] points; resolves on arrival
   walk(points, speed = 1.4) {

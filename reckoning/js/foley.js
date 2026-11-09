@@ -112,6 +112,44 @@ const RECIPES = {
     }
     return finish(d, 0.7);
   },
+  // a horse's whinny, as a charge goes in: a voice pitched high and rising, then falling away in the shaken
+  //  "ha-ha-ha" of its throat — the sound of a horse, not a note: its harmonics shaped by the long head (formants near
+  //  700, 1400 and 2600 Hz), breath through it, and the shudder of the larynx growing as it falls
+  neigh(sr) {
+    const L = rand(1.1, 1.6), d = new Float32Array(Math.floor(sr * L)), f = [new Biquad("bp", rand(650, 780), 3, sr), new Biquad("bp", rand(1300, 1550), 4, sr), new Biquad("bp", rand(2400, 2900), 5, sr)], br = new Biquad("bp", 1800, 0.7, sr);
+    const top = rand(820, 1000), low = rand(380, 460), trem = rand(10, 14); let ph = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr, u = t / L;
+      // (the pitch: up to its top in the first fifth, then down, faster toward the end)
+      const f0 = u < 0.18 ? low + (top - low) * Math.sin(u / 0.18 * Math.PI / 2) : top - (top - low) * Math.pow((u - 0.18) / 0.82, 1.4);
+      const shake = 1 - Math.min(0.85, u * 1.2) * (0.5 + 0.5 * Math.sin(TAU * trem * t));
+      ph += TAU * f0 * (1 + 0.012 * Math.sin(TAU * 6 * t)) / sr;
+      let v = 0; for (let h = 1; h <= 9; h++) v += Math.sin(ph * h) / Math.pow(h, 0.9);
+      const env = Math.min(1, t / 0.04) * Math.pow(1 - u, 0.7) * shake, n = Math.random() * 2 - 1;
+      d[i] = (f[0].run(v) * 1.2 + f[1].run(v) * 0.9 + f[2].run(v) * 0.45 + br.run(n) * 0.25) * env;
+    }
+    return finish(d, 0.75);
+  },
+  // a horse hit: a short scream — higher and rougher than the whinny, the voice breaking
+  horseScream(sr) {
+    const L = rand(0.5, 0.8), d = new Float32Array(Math.floor(sr * L)), f = [new Biquad("bp", rand(900, 1100), 2.5, sr), new Biquad("bp", rand(1900, 2300), 3, sr)], br = new Biquad("bp", 2400, 0.8, sr);
+    const f0a = rand(1000, 1250); let ph = 0;
+    for (let i = 0; i < d.length; i++) {
+      const t = i / sr, u = t / L, f0 = f0a * (1 - 0.35 * u) * (1 + 0.04 * (Math.random() - 0.5));
+      ph += TAU * f0 / sr; let v = 0; for (let h = 1; h <= 7; h++) v += Math.sin(ph * h + (h > 3 ? Math.random() * 0.4 : 0)) / h;
+      const env = Math.min(1, t / 0.015) * Math.pow(1 - u, 1.2), n = Math.random() * 2 - 1;
+      d[i] = (f[0].run(v) + f[1].run(v) * 0.8 + br.run(n) * 0.45) * env;
+    }
+    return finish(d, 0.75);
+  },
+  // a horse going down: the great weight of it on the ground — a deep thud, the ground shaking, the tack jangling
+  horseFall(sr) {
+    const d = new Float32Array(Math.floor(sr * 1.1)), lp = new Biquad("lp", 160, 0.8, sr);
+    for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = lp.run(Math.random() * 2 - 1) * 5 * Math.exp(-t / 0.18) + Math.sin(TAU * 48 * t) * 0.5 * Math.exp(-t / 0.12); }
+    hiss(d, sr, 0.02, 0.35, 0.25, new Biquad("bp", 900, 0.8, sr), x => Math.exp(-x / 0.1));
+    for (let k = 0; k < 4; k++) metal(d, sr, rand(0.03, 0.2), rand(1700, 2600), rand(0.15, 0.35), 0.03, 10, 1.2);
+    return finish(d, 0.85);
+  },
   // the tack as the horse goes: the bit's rings, the curb chain, a stirrup iron knocking — small iron, shaken
   tack(sr) {
     const d = new Float32Array(Math.floor(sr * 0.35));
@@ -714,7 +752,7 @@ const RECIPES = {
 const VARIANTS = { saw: 3, chop: 6, fellStart: 2, crash: 3, pickup: 5, build: 2, hammer: 5, coin: 4, dig: 4, fire: 1, plop: 4, splash: 3, oarDip: 4, oarDrip: 3, wash: 1, scrape: 2, sizzle: 3, ladder: 2, swish: 2, packIn: 4, packOut: 4, gulp: 3,
   whiz: 3, thunk: 3, halfcock: 3, cock: 3, prime: 3, frizzen: 3, powder: 2, ball: 3, rodOut: 2, rodIn: 2, ram: 4,
   quiver: 3, nock: 3, drawBow: 3, crank: 4, latch: 3, boltLay: 3, fixBayonet: 3, unfixBayonet: 2,
-  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, march: 3, trot: 2, sail: 2, purse: 3, spades: 2, room: 1, wind: 1, surf: 1, hoof: 8, snort: 3, tack: 4 };
+  parchment: 4, quill: 3, seal: 2, drum: 2, bell: 2, guns: 2, march: 3, trot: 2, sail: 2, purse: 3, spades: 2, room: 1, wind: 1, surf: 1, hoof: 8, snort: 3, tack: 4, neigh: 4, horseScream: 3, horseFall: 2 };
 // (every recipe needs its count above, or it's made no times and never heard: anything left out gets two)
 for (const k in RECIPES) VARIANTS[k] ??= 2;
 
@@ -765,6 +803,9 @@ export const FOLEY = {
   //  field, so a charge of thirty is a drumming and not a jam (the nearest are heard; the rest are already a roar)
   hoof(at, vol = 0.6) { const t = performance.now(); HOOVES = HOOVES.filter(q => t - q < 1000); if (HOOVES.length > 26) return; HOOVES.push(t); play("hoof", { vol, at, reach: 70, rate: [0.88, 1.12] }); },
   snort: (at, vol = 0.5) => play("snort", { vol, at, reach: 35, rate: [0.9, 1.12] }),
+  neigh: (at, vol = 0.6) => play("neigh", { vol, at, reach: 80, rate: [0.92, 1.08] }),
+  horseScream: (at, vol = 0.7) => play("horseScream", { vol, at, reach: 60, rate: [0.92, 1.1] }),
+  horseFall: (at, vol = 0.8) => play("horseFall", { vol, at, reach: 50, rate: [0.9, 1.05] }),
   tack: (at, vol = 0.3) => play("tack", { vol, at, reach: 18, rate: [0.92, 1.1] }),
   chop: (at, vol = 0.8) => play("chop", { vol, at, rate: [0.9, 1.1] }),
   // the sound of other people at work, from where they are, timed to the blow in what they're doing

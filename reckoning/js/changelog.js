@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.277", date: "9 November 2026", title: "Horses that live and die, and the field yours to build on",
+    items: [
+      "Horses whinny as the charge is sounded. Struck, a horse screams and goes up on its hind legs; and as often as not a ball or a blade meant for its rider finds the horse instead — enough of them and it goes down on its side, its rider thrown to fight on afoot. The dead horse lies where it fell: cover for a man behind it.",
+      "A riderless horse cries out as it bolts; horses near where a cannon ball strikes shy at it, rearing and snorting.",
+      "Building in the deployment, near enough anywhere on your half of the field: in front of your line, beside your guns and across their fire, overlapping end to end, out to the middle of the field. Only another work or a gun right on the spot stops one.",
+    ],
+  },
+  {
     v: "1.99.276", date: "9 November 2026", title: "Paint your own colours",
     items: [
       "Paint your colours by hand: under Kingdoms, Paint your own. A brush; a straight line, held level, upright or diagonal with Shift; a block; a fill for a whole field; and stamps of the badges — the lion, the eagle, the crown, the star, the lily, the sword, the tower, your cipher — at any size. Undo, start from your pattern, then keep them: your ensign carries them, online too.",
