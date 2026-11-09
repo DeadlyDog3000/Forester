@@ -35,7 +35,7 @@ import { SHIPS, navalBattle, enemyOfName } from "./naval.js";
 import { shapeField, buildThings, fieldMap, groundMap } from "./histmap.js";
 import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
-import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
+import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, unshare, ago, mmss } from "./replay.js";
@@ -1459,7 +1459,10 @@ class Arena {
     // (and every company of a historical battle its own: the Poles, the Emperor's men and the Saxons on one side)
     if (HB) { this.coUni = this.hist.cos.map(c => UNIFORMS[c.uni]); this.uni = [UNIFORMS[A.uniform], UNIFORMS[A.enemyUniform]]; }
     else if (this.custom) { const left = Object.keys(UNIFORMS).filter(k => !UNIFORMS[k].hist && !UNIFORMS[k].nat && UNIFORMS[k] !== this.uni[0] && k !== A.enemyUniform).sort(() => Math.random() - 0.5); for (let a = 2; a < this.custom.length; a++) this.uni.push(UNIFORMS[left.pop()]); }
-    const myLook = this.myLook = this.uni ? inUniform(me.look, this.uni[0]) : me.look;
+    // (dressed for your rank, as the rating has earned it — a commander of a historical battle, a campaign's or the
+    //  story's, at the head of his company, a captain)
+    const myRank = this.myRank = HB || lastMode === "campaign" || lastMode === "story" || (A && A.cmpEnd) ? "captain" : rankOf(record().rating);
+    const myLook = this.myLook = this.uni ? rankDress(inUniform(me.look, this.uni[0]), myRank, this.uni[0]) : me.look;
     this.foeName = foe.name;
     G.player.setModel(lookOpts(myLook, me.name)); G.player.model.scaleBase = me.look.height || 1;
     G.showHealth = true; G.hasMap = false;
@@ -1570,11 +1573,19 @@ class Arena {
         const U = this.coUni && this.coUni[team] || (this.uni && this.uni[this.alOf(team)]);
         const tk = this.musters && this.musters[team] && this.musters[team][i], T = tk && TROOPS[tk], call = this.hist && this.hist.cos[team] && this.hist.cos[team].call;
         // (militia in their own grey homespun, not the crown's dyed coats: only the facings in its colour, to tell the sides)
-        const look = U ? soldierLook(tk === "militia" && !/^warrior/.test(U.body || "") ? { ...U, body: undefined, coat: 0x76726a, vest: U.coat, legs: 0x5e5a52, hat: 0x4a3a2a, stock: [[0x6a6862, 60], [0x8a8478, 40]] } : U, seed) : b.look;
+        let look = U ? soldierLook(tk === "militia" && !/^warrior/.test(U.body || "") ? { ...U, body: undefined, coat: 0x76726a, vest: U.coat, legs: 0x5e5a52, hat: 0x4a3a2a, stock: [[0x6a6862, 60], [0x8a8478, 40]] } : U, seed) : b.look;
+        // (each arm of foot its sergeant — the first man of it — and a corporal to every ten or so after him)
+        // (and each arm in its own dress: see battle.js armDress)
+        if (U && tk) look = armDress(look, tk, U);
+        let rank = null;
+        if (U && T && this.battle && !T.horse && tk !== "band" && tk !== "militia") { const gk = GROUPS.find(g => g.kinds.includes(tk)), n = gk ? this.musters[team].slice(0, i).filter(k => gk.kinds.includes(k)).length : -1; rank = n === 0 ? "sergeant" : n > 0 && n % 10 === 5 ? "corporal" : null; if (rank) look = rankDress(look, rank, U); }
         // (a name to go with the face: a man's for a man; a band's drummers and fifers men and boys, as they were)
         if (U) { const f = isF(look) && tk !== "band"; const F = FIRST.filter((_, i) => f ? i >= 8 : i < 8); b.name = `${F[Math.floor(Math.random() * F.length)]} ${LAST[Math.floor(Math.random() * LAST.length)]}`; }
         const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i, kind: tk || null };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; if (T.raw) info.skill *= 0.45; }
+        // (the higher the rank, the better the soldier — he was made sergeant for it: a surer aim, quicker hands, and the
+        //  nerve to stand when the men about him waver)
+        if (rank) { info.name = info.name.replace(/^(\S+(?: \S+)?) [^—]+ —/, (m0, nat) => `${U.name} ${rank} —`); const R = rank === "sergeant" ? [1.22, 0.06, 1.4] : [1.1, 0.03, 1.18]; info.skill = Math.min(0.98, info.skill * R[0] + R[1]); info.rankBrave = R[2]; info.rank = rank; }
         // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
         if (U && /^warrior/.test(U.body || "")) { if (info.lo.blade === "battleaxe") info.lo.blade = "warclub"; info.name = `${U.name} warrior — ${b.name}`; }
         // (a man with no muster of his own — a skirmish's — mostly a musket, if his colours carried one; a man raised as
@@ -1608,7 +1619,7 @@ class Arena {
       // (the other player, on their own side: a body your game moves as theirs tells it)
       if (this.netBattle) {
         // (on horseback, if they ride: as their muster said, or the host's word of itself)
-        const nf = this.netFoe = new NetFoe(this, { ...foe, look: inUniform(foe.look || randomLook(), this.uni[1]), horse: this.host ? !!(foe.army && foe.army.ride) : !!(setup && setup.ride) });
+        const nf = this.netFoe = new NetFoe(this, { ...foe, look: rankDress(inUniform(foe.look || randomLook(), this.uni[1]), foe.rating ? rankOf(foe.rating) : "", this.uni[1]), horse: this.host ? !!(foe.army && foe.army.ride) : !!(setup && setup.ride) });
         nf.team = 1; nf.idx = -1; nf.uid = -1; nf.isNet = true; this.units.push(nf); this.hunt.animals.push(nf);
       }
       this.foe = this.netFoe || this.units.find(u => this.alOf(u.team) !== 0);
@@ -3598,7 +3609,7 @@ class Bot extends Fighter {
     this.ammo = AMMO[this.lo.long] || 0;
     this.wind = 0; this.cool = 1; this.stun = 0; this.aimT = 0; this.stepT = 0; this.losT = 0; this.los = true; this.awake = false;
     this.mode = "range"; this.guardT = 0; this.T = null; this.pickT = 0; this.cover = null; this.dodgeT = 0;
-    this.nerve = 1; this.brave = (STEADY[this.info.kind] || 1) * (0.85 + this.s * 0.3) * ((this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].brave) || 1); this.routing = false; this.blown = 0; this.quietT = 0;
+    this.nerve = 1; this.brave = (STEADY[this.info.kind] || 1) * (this.info.rankBrave || 1) * (0.85 + this.s * 0.3) * ((this.arena.hist && this.arena.hist.cos && this.arena.hist.cos[this.team] && this.arena.hist.cos[this.team].brave) || 1); this.routing = false; this.blown = 0; this.quietT = 0;
     this.fixed = this.arena.battle && this.steel() === "bayonet"; this.heldK = undefined; this.nades = this.info.nades || 0; this.nadeT = undefined;
     this.hold(this.lo.long); this.a.squareTo = null;
   }

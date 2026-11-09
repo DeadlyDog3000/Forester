@@ -382,6 +382,55 @@ export function inUniform(look, u) {
     coat: w.coat, vest: w.vest, cuff: w.cuff, legs: f ? look.legs : w.legs, hatColor: w.hatColor, linen: f ? look.linen : w.linen };
 }
 
+// RANK, AS THE FOOT OF THE 1680s WORE IT. A private and a corporal dressed alike — a corporal at most with a worsted
+// tape round his hat's brim. A sergeant: a worsted sash about his waist, in his regiment's facing colour, and his hat
+// laced in silver. An officer: the finer cloth of a coat made for him, not out of the issue's dye-vat; his hat laced
+// and plumed; the gorget at his throat, the last of a knight's armour — silvered for a lieutenant, gilt for a
+// captain; and about his waist the sash in his prince's colours: white for France, crimson for England, orange for the
+// States, blue and gold for Sweden, gold and black for the Emperor. Worn on the coats of the West's foot only: the
+// Janissary, the haiduk, the strelets and the warrior had their own marks of rank, not these.
+//   rank: "corporal" | "sergeant" | "lieutenant" | "captain" (anything else: a private's dress)
+const OFFICER_SASH = { imperial: 0xc8a43a, reich: 0xc8a43a, saxon: 0xe6e2d8, bavarian: 0x8aaed6, swedish: 0x2c4a9a, brandenburg: 0xb8bcc0, french: 0xece8dc, english: 0xa01c2c, scottish: 0xa01c2c, irish: 0xa01c2c, hamburg: 0xa82a26, dutch: 0xe0782a, spanish: 0xb4201e, aragonese: 0xb4201e, milanese: 0xb4201e, neapolitan: 0xb4201e, sicilian: 0xb4201e, danish: 0xb4201e, portuguese: 0xa01c2c, savoyard: 0x2a4aa0, venetian: 0xa01c2c, tuscan: 0xa01c2c, papal: 0xd8c050 };
+export const RANK_KEYS = ["corporal", "sergeant", "lieutenant", "captain"];
+export function rankDress(look, rank, u) {
+  rank = String(rank || "").toLowerCase(); if (!RANK_KEYS.includes(rank) || !look || !u) return look;
+  if (/^(janissary|haiduk|strelets|warrior)/.test(look.body || "")) return look;
+  const key = Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u) || "", officer = rank === "lieutenant" || rank === "captain";
+  const gold = 0xc9a24a, silver = 0xc4c8cc;
+  const lace = rank === "corporal" ? 0xd6ccb0 : rank === "captain" ? gold : silver;
+  const trim = [...(look.trim || []).filter(t => t.k !== "plume" || officer), { k: "lace", c: [lace] }, ...(officer && !(look.trim || []).some(t => t.k === "plume") ? [{ k: "plume", c: [key === "french" ? 0xf2eee4 : 0xece6da] }] : [])];
+  const out = { ...look, trim, rank };
+  if (rank === "sergeant") out.waistSash = u.vest;
+  if (officer) {
+    // (the coat made for him: the colours as they came from the tailor, not faded and dusty as the men's)
+    out.coat = u.coat; out.vest = u.vest; out.cuff = u.vest; out.hatColor = u.hat;
+    out.waistSash = OFFICER_SASH[key] ?? u.sash ?? u.vest; out.gorget = rank === "captain" ? gold : silver;
+  }
+  return out;
+}
+
+// EACH ARM IN ITS OWN DRESS, as the 1680s and 90s turned them out (the West's foot and horse — the Janissary, the haiduk,
+// the strelets and the warrior in their own):
+//   grenadiers: no broad hat to foul the arm as the grenade is thrown — the fur cap, its cloth bag hanging behind in
+//     the facing colour, tasselled (the English took it up in 1678, the French had theirs from 1670);
+//   pikemen: still the corselet, breast and back, in bright steel, as the pike's last generations kept it;
+//   cuirassiers: the buff leather coat under a blackened cuirass, the sash in their prince's colours, jackboots;
+//   troopers of horse: a buff leather waistcoat under the coat, and jackboots;
+//   the drummers and fifers: their regiment's colours reversed — the coat in the facing colour, the cuffs in the coat's —
+//     with a worsted lace on the hat, so they were found in the smoke;
+//   the King's Musketeers: the blue casaque over the red coat, laced in silver, the plume white.
+export function armDress(look, kind, u) {
+  if (!look || !u || !kind || /^(janissary|haiduk|strelets|warrior)/.test(look.body || "")) return look;
+  const key = Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u) || "", out = { ...look }, buff = 0xb89c6c, boots = 0x231810;
+  if (kind === "grenadier") { out.hat = "raider"; out.hatColor = 0x3a2a1c; out.trim = [{ k: "bag", c: [u.vest, 0xd8c8a0] }]; }
+  else if (kind === "pike" || kind === "tercio") out.cuirass = 0x8a8d92;
+  else if (kind === "cuirassier") { out.coat = buff; out.cuff = buff; out.cuirass = 0x2a2a2e; out.waistSash = OFFICER_SASH[key] ?? u.sash ?? u.vest; out.stockings = boots; }
+  else if (kind === "cavalry") { out.vest = buff; out.stockings = boots; }
+  else if (kind === "band") { out.coat = look.vest ?? u.vest; out.vest = look.coat ?? u.coat; out.cuff = look.coat ?? u.coat; out.trim = [...(look.trim || []), { k: "lace", c: [0xd6ccb0] }]; }
+  else if (kind === "mousquetaire") { out.coat = 0x1e3a8a; out.vest = 0xa8261e; out.cuff = 0xa8261e; out.trim = [{ k: "lace", c: [0xc4c8cc] }, { k: "plume", c: [0xf2eee4] }]; }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 //  the field: the works, the cover they give, and the guns
 // ---------------------------------------------------------------------------

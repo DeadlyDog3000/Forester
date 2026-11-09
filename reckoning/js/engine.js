@@ -2415,7 +2415,7 @@ function eyesFor(a, c) {
   const sc = a.person && a.person.modelScene; if (!a.root) return;
   if (a._eyeOf !== sc) { a._eyeOf = sc; a._eyeParts = []; a.root.traverse(o => { if (o.isMesh && EYE_PART.test(o.name || "")) a._eyeParts.push(o); }); a._eyes = null; }
   const p = a.root.position, eyes = (p.x - c.x) ** 2 + (p.z - c.z) ** 2 < 625;
-  if (eyes !== a._eyes) { a._eyes = eyes; for (const o of a._eyeParts) o.layers.set(eyes ? 0 : 30); }
+  if (eyes !== a._eyes) { a._eyes = eyes; for (const o of a._eyeParts || []) o.layers.set(eyes ? 0 : 30); }
 }
 export class Actor {
   constructor(opts, x, z, yaw = 0) {

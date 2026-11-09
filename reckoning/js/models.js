@@ -129,6 +129,15 @@ function trimParts(k, bb, u) {
     const bag = new THREE.CatmullRomCurve3([[0, 0.0, -0.05], [0.45, 0.03, -0.15], [0.9, 0.0, -0.25], [1.16, -0.08, -0.3], [1.22, -0.2, -0.3]].map(([x, y, z]) => new THREE.Vector3(cx + x * r, top + y * u, cz + z * r)));
     put(new THREE.TubeGeometry(bag, 14, 0.034, 8, false), 1, 0, 0, 0);
     const tb = bag.getPointAt(1), tassel = new THREE.ConeGeometry(0.018, 0.05, 8); put(tassel, 2, tb.x, tb.y - 0.03 * u, tb.z);
+  } else if (k === "lace") {
+    // (a tape or a lace round the edge of the brim: worsted for a corporal, silver or gold for a sergeant or an officer)
+    const r = Math.max(hw, hd) * 0.97, g = new THREE.TorusGeometry(r, 0.0065, 4, 40); g.rotateX(Math.PI / 2); g.scale(hw / Math.max(hw, hd), 1, hd / Math.max(hw, hd));
+    put(g, 0, cx, y0 + h * 0.08, cz);
+  } else if (k === "bag") {
+    // (a grenadier's cap: its cloth bag from the crown hung down behind, a tassel at its end)
+    const top = y0 + h * 0.92, bag = new THREE.CatmullRomCurve3([[0, 0, 0.1], [0, 0.02, -0.25], [0, -0.12, -0.75], [0.1, -0.35, -1.0], [0.12, -0.55, -1.02]].map(([x, yy, z]) => new THREE.Vector3(cx + x * hw, top + yy * h, cz + z * hd)));
+    put(new THREE.TubeGeometry(bag, 14, 0.032, 8, false), 0, 0, 0, 0);
+    const tb = bag.getPointAt(1), tassel = new THREE.ConeGeometry(0.018, 0.05, 8); put(tassel, 1, tb.x, tb.y - 0.03 * u, tb.z);
   } else if (k === "aigrette") {
     // (a crane's or heron's feather standing up from a jewel at the front)
     const j = new THREE.SphereGeometry(0.018, 8, 6); put(j, 1, cx, y0 + h * 0.62, cz + hd * 0.92);
@@ -157,11 +166,69 @@ function trimHat(P, scene, trims) {
     }
     parts.forEach((g, i) => {
       if (!g) return;
-      const m = mat(t.c[Math.min(i, t.c.length - 1)], { roughness: t.k === "aigrette" && i ? 0.4 : 0.92, surface: "cloth" }); m.userData.part = "trim";
+      const m = t.k === "lace" && t.c[0] !== 0xd6ccb0 ? mat(t.c[0], { metalness: 0.7, roughness: 0.45 }) : mat(t.c[Math.min(i, t.c.length - 1)], { roughness: t.k === "aigrette" && i ? 0.4 : 0.92, surface: "cloth" }); m.userData.part = "trim";
       const sk = new THREE.SkinnedMesh(g, m); sk.name = `trim_${t.k}${i}`; sk.userData.farGeo = g;
       hat.parent.add(sk); sk.position.copy(hat.position); sk.quaternion.copy(hat.quaternion); sk.scale.copy(hat.scale);
       sk.bind(hat.skeleton, hat.bindMatrix.clone()); sk.castShadow = true; sk.frustumCulled = false;
     });
+  }
+}
+// the marks of rank on the body (see battle.js rankDress): a sash about the waist, knotted on the left hip with its ends
+// hanging, and a gorget at the throat — made to the coat as it's cut on this model, and skinned to the hips and the
+// chest, so they move with him
+const RANK_GEO = new Map();
+function dressRank(P, scene, o) {
+  let coat = null, belt = null;
+  scene.traverse(m => { if (!m.isSkinnedMesh) return; if (/_coat$/i.test(m.name)) coat = m; if (/_belt$/i.test(m.name)) belt = m; });
+  if (!coat) return;
+  const bones = coat.skeleton.bones, bi = n => bones.findIndex(b => b.name === n), hips = bi("hips"), chest = bi("chest");
+  if (hips < 0 || chest < 0) return;
+  const CG = coat.geometry; if (!CG.boundingBox) CG.computeBoundingBox(); const C = CG.boundingBox;
+  const B = belt ? (belt.geometry.boundingBox || (belt.geometry.computeBoundingBox(), belt.geometry.boundingBox)) : null;
+  const skin = (g, bone) => { const n = g.attributes.position.count, si = new Uint16Array(n * 4), sw = new Float32Array(n * 4); for (let i = 0; i < n; i++) { si[i * 4] = bone; sw[i * 4] = 1; } g.setAttribute("skinIndex", new THREE.BufferAttribute(si, 4)); g.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4)); return g; };
+  const flat = g => { const n = g.index ? g.toNonIndexed() : g; if (n.attributes.uv) n.deleteAttribute("uv"); return n; };
+  const pieces = [];
+  if (o.waistSash != null) {
+    const key = `${CG.uuid}|sash`; let g = RANK_GEO.get(key);
+    if (!g) {
+      // (round the waist over the coat, just above the sword belt)
+      const wy = B ? B.max.y + 0.035 : C.max.y - 0.44, rx = (B ? B.max.x : C.max.x * 0.66) * 1.06, rz = (B ? B.max.z : C.max.z * 0.5) * 1.12, H = 0.075, N = 40, pos = [], idx = [];
+      for (let i = 0; i <= N; i++) { const a = i / N * Math.PI * 2, x = Math.sin(a) * rx, z = Math.cos(a) * rz, bul = 1 + 0.05; for (const [yy, k] of [[-H / 2, 1], [0, bul], [H / 2, 1]]) pos.push(x * k, wy + yy, z * k); }
+      for (let i = 0; i < N; i++) for (let j = 0; j < 2; j++) { const a = i * 3 + j, b = a + 3; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+      const ring = new THREE.BufferGeometry(); ring.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); ring.setIndex(idx); ring.computeVertexNormals();
+      // (the knot on the left hip, and its two ends hanging to the thigh, fringed)
+      const knot = new THREE.SphereGeometry(0.038, 10, 8); knot.scale(0.7, 1, 0.8); knot.translate(rx * 1.02, wy - 0.01, 0.02);
+      const ends = [-0.07, 0.07].map((sp, j) => { const e = new THREE.BoxGeometry(0.055, 0.3 - j * 0.05, 0.012); e.translate(0, -0.15 + j * 0.025, 0); e.rotateZ(sp); e.translate(rx * 1.04, wy - 0.03, 0.03 + j * 0.012); return e; });
+      const fringe = [-0.07, 0.07].map((sp, j) => { const f = new THREE.BoxGeometry(0.06, 0.045, 0.014); f.translate(0, -0.32 + j * 0.05, 0); f.rotateZ(sp); f.translate(rx * 1.04, wy - 0.03, 0.03 + j * 0.012); return f; });
+      g = skin(mergeGeometries([ring, knot, ...ends, ...fringe].map(flat)), hips); RANK_GEO.set(key, g);
+    }
+    const m = mat(o.waistSash, { roughness: 0.75, surface: "cloth", side: THREE.DoubleSide }); pieces.push([g, m, "sash"]);
+  }
+  if (o.cuirass != null) {
+    const key = `${CG.uuid}|cuirass`; let g = RANK_GEO.get(key);
+    if (!g) {
+      // (breast and back: a steel shell round the body from the waist to under the arms, over the coat)
+      const wy = B ? B.max.y : C.max.y - 0.47, rx = (B ? B.max.x : C.max.x * 0.66) * 1.14, rz = (B ? B.max.z : C.max.z * 0.5) * 1.3;
+      const c = new THREE.SphereGeometry(1, 22, 10, 0, Math.PI * 2, Math.PI * 0.2, Math.PI * 0.42); c.scale(rx, 0.3, rz); c.translate(0, wy + 0.17, 0.008);
+      g = skin(flat(c), chest); g.computeVertexNormals(); RANK_GEO.set(key, g);
+    }
+    const m = mat(o.cuirass, { metalness: 0.8, roughness: 0.38, side: THREE.DoubleSide }); pieces.push([g, m, "cuirass"]);
+  }
+  if (o.gorget != null) {
+    const key = `${CG.uuid}|gorget`; let g = RANK_GEO.get(key);
+    if (!g) {
+      // (a crescent of plate hung at the throat, over the cravat's ends, tipped forward a little)
+      const r = 0.072, gy = C.max.y - 0.1, gz = C.max.z * 0.5 - r + 0.07;
+      const c = new THREE.CylinderGeometry(r, r * 1.08, 0.048, 18, 1, true, -1.05, 2.1); c.rotateX(-0.32); c.translate(0, gy, gz);
+      g = skin(flat(c), chest); g.computeVertexNormals(); RANK_GEO.set(key, g);
+    }
+    const m = mat(o.gorget, { metalness: 0.85, roughness: 0.3, side: THREE.DoubleSide }); pieces.push([g, m, "gorget"]);
+  }
+  for (const [g, m, n] of pieces) {
+    m.userData.part = "trim";
+    const sk = new THREE.SkinnedMesh(g, m); sk.name = `rank_${n}`; sk.userData.farGeo = g;
+    coat.parent.add(sk); sk.position.copy(coat.position); sk.quaternion.copy(coat.quaternion); sk.scale.copy(coat.scale);
+    sk.bind(coat.skeleton, coat.bindMatrix.clone()); sk.castShadow = true; sk.frustumCulled = false;
   }
 }
 // the stroke on a rigged body, over whatever its clip has the bones doing: each bone turned about the body's own axes
@@ -703,6 +770,7 @@ export function makePerson(o = {}) {
   // a hat of another outfit's than this one's own
   if (o.hatStyle && o.hatStyle !== o.model && P.modelScene) borrowHat(P, P.modelScene, o.hatStyle, o.hatColor);
   if (o.trim && o.trim.length && P.modelScene) trimHat(P, P.modelScene, o.trim);
+  if ((o.waistSash != null || o.gorget != null || o.cuirass != null) && P.modelScene) dressRank(P, P.modelScene, o);
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;

@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.271", date: "9 November 2026", title: "Dressed for their rank and their arm",
+    items: [
+      "Your rank shows on your uniform, as the foot of the 1680s wore it: a corporal's worsted tape round his hat; a sergeant's sash in his regiment's facing colour and his hat laced in silver; a lieutenant's and a captain's coat made for them, a laced and plumed hat, the gorget at the throat — silvered for a lieutenant, gilt for a captain — and the sash in their prince's colours. In a historical battle, a campaign's or the story's, you lead your company as its captain.",
+      "Every arm of foot has its sergeant, and a corporal to every ten men after him, dressed for it. The higher the rank, the better the soldier: a surer aim, quicker hands, and the nerve to stand when the men about him waver.",
+      "Each arm in its own dress: grenadiers in the fur cap with its cloth bag hanging behind, pikemen in steel breast and back, cuirassiers in buff coats under blackened cuirasses with their prince's sash, troopers in buff waistcoats and jackboots, the drummers and fifers in their regiment's colours reversed, and the King's Musketeers in their blue, laced in silver.",
+    ],
+  },
+  {
     v: "1.99.270", date: "9 November 2026", title: "Grounds worth paying for, and word when something goes wrong",
     items: [
       "New grounds to fight on against bots, bought from the purse under The field: a winter field, a river with a ford and a bridge of boats, a village to fight through, the heights, an old castle on its rise, and a walled town — to storm with ladders and guns, or to hold from its walls.",

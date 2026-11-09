@@ -81,5 +81,7 @@ export function lookOpts(l, name) {
   return { model: body, name, seed: l.seed, coat: l.coat, legs: f ? undefined : l.legs, skirt: f, skirtColor: f ? l.legs : undefined,
     vest: l.vest ?? undefined, cuff: l.cuff ?? undefined, apron: f ? l.apron || undefined : undefined, hatColor: style === "none" ? undefined : l.hatColor, hatStyle: style === "hat" || style === "none" ? undefined : style, sash: l.sash ?? undefined,
     skinColor: l.skin, hairColor: l.hair, eyeColor: l.eyes ?? undefined, linenColor: l.linen ?? undefined, stockingsColor: l.stockings ?? undefined, trim: style === "none" ? undefined : l.trim,
-    scale: l.height || 1, build: l.build || 1, headScale: l.head && l.head !== 1 ? l.head : undefined, hide: hide.length ? hide : undefined };
+    scale: l.height || 1, build: l.build || 1, headScale: l.head && l.head !== 1 ? l.head : undefined, hide: hide.length ? hide : undefined,
+    // (the marks of rank — a sash, a gorget — on the coat of a man of rank: see battle.js rankDress)
+    waistSash: l.waistSash ?? undefined, gorget: l.gorget ?? undefined, cuirass: l.cuirass ?? undefined };
 }
