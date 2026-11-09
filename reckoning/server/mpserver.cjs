@@ -1505,8 +1505,19 @@ async function start(opts = {}) {
   };
   const repPublic = r => ({ id: r.id, at: r.at, pid: r.pid, name: r.name, title: r.title || "", foe: r.foe, kind: r.kind, vs: r.vs, place: r.place, hour: r.hour, won: r.won, k: r.k, l: r.l, secs: r.secs, score: r.score, uni: r.uni, men: r.men, hl: r.hl });
   function replays(u, res, req) {
-    if (req.method === "OPTIONS") { res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Token"); res.statusCode = 204; return res.end(); }
+    if (req.method === "OPTIONS") { res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS"); res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Token"); res.statusCode = 204; return res.end(); }
     const id = u.pathname.slice("/replays/".length);
+    // (unshared: taken down by the one who shared it — the file gone, and gone from the boards that pointed to it)
+    if (req.method === "DELETE") {
+      const token = String(req.headers["x-token"] || ""), r = /^[a-f0-9]{12}$/.test(id) && repIndex.find(x => x.id === id);
+      if (!r) { res.statusCode = 404; return res.end(JSON.stringify({ error: "no such battle" })); }
+      if (token.length < 16 || !r.pid || r.pid !== pidOf(token)) { res.statusCode = 403; return res.end(JSON.stringify({ error: "not yours" })); }
+      repIndex = repIndex.filter(x => x.id !== id); repMem.delete(id); repSave();
+      if (repDir) fs.unlink(repFile(id), () => {});
+      for (const W of Object.values(chData)) for (const c of Object.values(W)) if (c && c.rep === id) c.rep = "";
+      chSave(); log(`replay ${id} unshared`);
+      return res.end(JSON.stringify({ ok: true }));
+    }
     if (req.method === "GET" && id) {
       if (!/^[a-f0-9]{12}$/.test(id) || !repIndex.some(r => r.id === id)) { res.statusCode = 404; return res.end("{}"); }
       const send = buf => { res.setHeader("Content-Encoding", "gzip"); res.setHeader("Cache-Control", "public, max-age=86400"); res.end(buf); };

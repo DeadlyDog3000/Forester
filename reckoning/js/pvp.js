@@ -38,7 +38,7 @@ import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
-import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
+import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, unshare, ago, mmss } from "./replay.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
 const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
 
@@ -320,13 +320,13 @@ function drawBoard() {
   el.innerHTML = b.length ? `<table><tr><th></th><th>Commander</th><th>Rank</th><th>Rating</th><th>Won–lost</th><th>Battles</th></tr>${b.map((p, i) => `<tr><td>${i + 1}</td><td>${esc(p.name)}</td><td>${esc(p.rank || "")}</td><td>${p.rating}</td><td>${p.w}–${p.l}</td><td class="cb-hl">${p.pid && p.reps ? `<button data-pid="${esc(p.pid)}" data-sort="best" title="${esc(p.name)}'s best battle">Best</button><button data-pid="${esc(p.pid)}" data-sort="recent" title="${esc(p.name)}'s latest battle">Latest</button>` : ""}</td></tr>`).join("")}</table>` : `<div class="cw-empty">No one has fought yet. Be the first.</div>` + coloursTable();
 }
 // the highlights tab: the battles lately fought (from the server), and your own (kept here)
-let hlList = [], hlMine = [], hlFind = "", hlFound = null, hlT = 0;
+let hlList = [], hlMine = [], hlShared = [], hlFind = "", hlFound = null, hlT = 0;
 async function drawHl() {
   const el = $("campHl"); if (!el) return;
-  const row = (r, src) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b">${src === "srv" && (m.kind || "battle") === "battle" ? `<button data-ghost="${esc(r.id)}" title="Their company, set out as they set it, against yours">Fight it</button>` : ""}<button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Watch</button></span></div>`; };
+  const row = (r, src, mine = false) => { const t = titleOf(r), m = r.meta || r; return `<div class="hl-row"><span class="hl-n"><b>${esc(t.t)}</b><small>${esc(t.s)} · ${m.won ? "won" : "lost"}${m.k != null ? ` · ${m.k}–${m.l}` : ""} · ${mmss(m.secs || 0)} · ${ago(r.at || m.at)}</small></span><span class="hl-b">${src === "srv" && (m.kind || "battle") === "battle" ? `<button data-ghost="${esc(r.id)}" title="Their company, set out as they set it, against yours">Fight it</button>` : ""}<button data-src="${src}" data-id="${esc(r.id || r.key)}" data-mode="full">Watch</button>${mine ? `<button data-unshare="${esc(r.id)}" title="Take it off the server: nobody else can watch it or fight it after">Unshare</button>` : ""}</span></div>`; };
   // (looked for by name: what a battle was called when it was shared, or who fought it — or, empty, every named one)
   const found = () => `<div class="pv-h">${hlFind ? `Named “${esc(hlFind)}”` : "Named battles"}</div>${hlFound && hlFound.length ? hlFound.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${!hlFound ? "Looking…" : hlFind ? "No battle on the server goes by that name." : "Nobody has named a battle yet."}</div>`}`;
-  const list = () => { const l = el.querySelector(".hl-list"); if (l) l.innerHTML = found() + `<div class="pv-h">Lately, on the server</div>${hlList.length ? hlList.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${hlList.loading ? "Looking…" : "No battles on the server yet — or it can't be reached."}</div>`}<div class="pv-h">Your own</div>${hlMine.length ? hlMine.map(r => row(r, "mine")).join("") : `<div class="cw-empty">Your battles are kept here once you've fought one.</div>`}`; };
+  const list = () => { const l = el.querySelector(".hl-list"); if (l) l.innerHTML = found() + `<div class="pv-h">Lately, on the server</div>${hlList.length ? hlList.map(r => row(r, "srv")).join("") : `<div class="cw-empty">${hlList.loading ? "Looking…" : "No battles on the server yet — or it can't be reached."}</div>`}${hlShared.length ? `<div class="pv-h">Shared by you</div>${hlShared.map(r => row(r, "srv", true)).join("")}` : ""}<div class="pv-h">Your own</div>${hlMine.length ? hlMine.map(r => row(r, "mine")).join("") : `<div class="cw-empty">Your battles are kept here once you've fought one.</div>`}`; };
   const look = async () => { const q = hlFind, t = ++hlT; hlFound = null; list(); const l = await listReplays({ q, named: !q, n: 30, sort: "recent" }); if (t === hlT) { hlFound = l; list(); } };
   if (!el.querySelector(".hl-find")) {
     el.innerHTML = `<div class="hl-find"><input id="campHlFind" maxlength="60" placeholder="Find a battle by name" value="${esc(hlFind)}"></div><div class="hl-list"></div>`;
@@ -334,10 +334,19 @@ async function drawHl() {
     el.querySelector("#campHlFind").addEventListener("keydown", e => e.stopPropagation());
   }
   hlList.loading = true; list(); look();
-  const [a, b] = await Promise.all([listReplays({ sort: "recent", n: 15 }), mineList()]);
-  hlList = a; hlMine = b; list();
+  const [a, b, c] = await Promise.all([listReplays({ sort: "recent", n: 15 }), mineList(), myPid() ? listReplays({ pid: myPid(), sort: "recent", n: 40 }) : []]);
+  hlList = a; hlMine = b; hlShared = c; list();
 }
 async function pickReplay(e) {
+  // (unshare: a second press to be sure, then it's taken off the server)
+  const ub = e.target.closest("button[data-unshare]");
+  if (ub) {
+    if (!ub.dataset.sure) { ub.dataset.sure = "1"; ub.textContent = "Sure? Unshare"; return; }
+    ub.disabled = true; ub.textContent = "Taking it down…"; const id = ub.dataset.unshare;
+    if (await unshare(id)) { hlShared = hlShared.filter(r => r.id !== id); hlList = hlList.filter(r => r.id !== id); if (hlFound) hlFound = hlFound.filter(r => r.id !== id); for (const r of hlMine) if (r.id === id) { r.id = null; keepMine(r); } drawHl(); }
+    else { ub.disabled = false; ub.textContent = "Couldn't reach the server — try again"; delete ub.dataset.sure; }
+    return;
+  }
   const gb = e.target.closest("button[data-ghost]");
   if (gb) { if (!gate("online")) return; window.__uisfx && window.__uisfx.click && window.__uisfx.click(); const rec = await fetchReplay(gb.dataset.ghost); if (!rec) { campNote("That battle couldn't be fetched just now."); return; } fightGhost(rec); return; }
   const b = e.target.closest("button[data-id],button[data-pid]"); if (!b) return;
@@ -1240,15 +1249,20 @@ function endReplay(rec) {
   const el = $("pvpEndReplay"); if (!el) return;
   el.innerHTML = rec ? `<button class="btn" data-rp="full">Watch the battle again</button>
     <div class="pv-name"><input id="pvpShareName" maxlength="60" placeholder="Name it — the plan or formation it shows (optional)" value="${esc((rec.meta && rec.meta.title) || "")}"${rec.id ? " disabled" : ""}></div>
-    <label class="check pv-share"><input type="checkbox" id="pvpShareIt"${rec.id ? " checked disabled" : ""}> <span>${rec.id ? "Shared, for everyone to watch" : "Share this battle on the server, for everyone to watch"}</span></label>` : "";
+    <label class="check pv-share"><input type="checkbox" id="pvpShareIt"${rec.id ? " checked disabled" : ""}> <span>${rec.id ? "Shared, for everyone to watch" : "Share this battle on the server, for everyone to watch"}</span></label><button class="ghost pv-unshare${rec.id ? "" : " hidden"}" id="pvpUnshare">Unshare</button>` : "";
   el.onclick = e => { const b = e.target.closest("[data-rp]"); if (b && lastRec) watch(lastRec, b.dataset.rp, "end"); };
-  // (only when you say so: ticked, it's sent — and once it's there, it stays)
-  const box = $("pvpShareIt");
+  // (only when you say so: ticked, it's sent — and there it stays, till you unshare it)
+  const box = $("pvpShareIt"), un = $("pvpUnshare");
+  if (un) un.onclick = () => {
+    if (!rec.id) return; un.disabled = true; un.textContent = "Taking it down…";
+    unshare(rec.id).then(ok => { un.disabled = false; if (!ok) { un.textContent = "Couldn't reach the server — try again"; return; }
+      rec.id = null; keepMine(rec); un.textContent = "Unshare"; un.classList.add("hidden"); box.checked = false; box.disabled = false; box.nextElementSibling.textContent = "Taken down. Share this battle on the server, for everyone to watch"; const nm = $("pvpShareName"); if (nm) nm.disabled = false; });
+  };
   if (box) box.onchange = () => {
     if (!box.checked || rec.id) return;
     box.disabled = true; const t = box.nextElementSibling, nm = $("pvpShareName"); t.textContent = "Sending it to the server…";
     const title = nm ? nm.value.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 60) : ""; rec.meta = { ...rec.meta, title }; if (nm) nm.disabled = true; if (title) keepMine(rec);
-    upload(rec).then(id => { if (id) { rec.id = id; if (rec.chal) postJSON("/challenge", { ...rec.chal, rep: id }); t.textContent = title ? `Shared as “${title}”, for everyone to watch` : "Shared, for everyone to watch"; } else { box.checked = false; box.disabled = false; if (nm) nm.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
+    upload(rec).then(id => { if (id) { rec.id = id; if (rec.chal) postJSON("/challenge", { ...rec.chal, rep: id }); t.textContent = title ? `Shared as “${title}”, for everyone to watch` : "Shared, for everyone to watch"; keepMine(rec); if (un) un.classList.remove("hidden"); } else { box.checked = false; box.disabled = false; if (nm) nm.disabled = false; t.textContent = "Couldn't reach the server — tick it to try again"; } });
   };
 }
 

@@ -286,6 +286,11 @@ export async function upload(rec) {
     const j = await r.json(); return j && j.ok ? j.id : null;
   } catch (e) { return null; }
 }
+// a battle you shared, taken down from the server again (only the one who shared it can)
+export async function unshare(id) {
+  const h = httpOf(); if (!h || !id) return false;
+  try { const r = await fetch(`${h}/replays/${encodeURIComponent(id)}`, { method: "DELETE", headers: { "X-Token": myToken() } }); const j = await r.json(); return !!(j && j.ok); } catch (e) { return false; }
+}
 export async function listReplays({ sort = "recent", pid = "", n = 20, q = "", named = false } = {}) {
   const h = httpOf(); if (!h) return [];
   const ac = new AbortController(), to = setTimeout(() => ac.abort(), 4000);
