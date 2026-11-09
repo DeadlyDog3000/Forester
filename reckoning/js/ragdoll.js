@@ -105,15 +105,20 @@ class Ragdoll {
     //  to rest on its brim, or upside down)
     this.hats = [];
     // (a battle's man made one mesh, see mergeRig: his hat's own piece is kept hidden — copied from that, and the hat
-    //  taken out of the one mesh by folding its corners to a point, put back if he's set on his feet again)
+    //  taken out of the one mesh by folding its corners to a point, put back if he's set on his feet again. The shape of
+    //  that mesh is shared by every man of his company made of the same pieces: folded there, one man's fall took the hat
+    //  off them all — so he's given his own copy of it first, and kept to his near shape while he lies, which it's in.
+    //  What was stuck in the hat goes with it)
     const merged = P.root.userData.merged, hidden = new Set(merged ? merged.hidden || [] : []);
     this.mergedHat = [];
     if (B.head && (at === "head" || Math.random() < 0.7)) P.root.traverse(o => {
       if (!o.isSkinnedMesh || !(o.visible || hidden.has(o)) || !(o.name === "worn_hat" || /_hat$/.test(o.name) || (o.material && o.material.userData && o.material.userData.part === "hat"))) return;
-      if (hidden.has(o)) for (const mm of merged) for (const pt of mm.userData.parts || []) if (pt.part === "hat") {
-        const pa = mm.geometry.attributes.position, keep = pa.array.slice(pt.start * 3, (pt.start + pt.count) * 3);
-        for (let i = 0; i < pt.count; i++) pa.setXYZ(pt.start + i, keep[0], keep[1], keep[2]);
-        pa.needsUpdate = true; this.mergedHat.push([pa, pt.start, keep]);
+      if (hidden.has(o)) for (const mm of merged) {
+        const pts = (mm.userData.parts || []).filter(pt => pt.part === "hat" || pt.part === "trim"); if (!pts.length || this.mergedHat.some(x => x[0] === mm)) continue;
+        const L = mm.userData.lod, near = L ? L.near : mm.geometry, shared = near.attributes.position, pa = shared.clone();
+        near.setAttribute("position", pa); if (mm.geometry !== near) mm.geometry = near;
+        this.mergedHat.push([mm, near, shared, !!mm.userData.noFar]); mm.userData.noFar = true;
+        for (const pt of pts) { const k = pt.start * 3; for (let i = 0; i < pt.count; i++) pa.setXYZ(pt.start + i, pa.array[k], pa.array[k + 1], pa.array[k + 2]); }
       }
       const sk = o.skeleton, hi = sk.bones.indexOf(B.head); if (hi < 0) return;
       const g = o.geometry.clone(); g.deleteAttribute("skinIndex"); g.deleteAttribute("skinWeight"); if (g.attributes.aCloth) g.deleteAttribute("aCloth");
@@ -197,7 +202,7 @@ class Ragdoll {
     this.skirts = [];
     for (const [o, h] of this.hats || []) { if (h.parent) h.parent.remove(h); h.geometry.dispose(); if (!(this.P.root.userData.merged || {}).hidden?.includes(o)) o.visible = true; }
     this.hats = [];
-    for (const [pa, start, keep] of this.mergedHat || []) { pa.array.set(keep, start * 3); pa.needsUpdate = true; }
+    for (const [mm, near, shared, noFar] of this.mergedHat || []) { near.setAttribute("position", shared); mm.userData.noFar = noFar; }
     this.mergedHat = [];
     if (this.P.rag === this) this.P.rag = null;
   }

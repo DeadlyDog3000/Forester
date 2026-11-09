@@ -27,22 +27,123 @@ function shade(hex, l) { const c = new THREE.Color(hex); c.offsetHSL(0, 0, l); r
 //  a hat from another outfit: every townsperson is the one rig, so the hat made for one head fits any — taken from
 //  that model, bound to this one's bones, in this one's hat colour (and this one's own hat taken off)
 // ---------------------------------------------------------------------------
+// (the hat's shape made over into this body's own frame and bones — as it sat on its own model's head, so on this one's
+//  — so it's one more piece of this body's, and a crowd's men merge it with the rest: left on its own model's bones, a
+//  merged man wore it at his hip. Made once for each hat and body)
+const REFIT = new Map();
+function refitHat(sm, body, key) {
+  const had = REFIT.get(key); if (had) return had;
+  const sb = sm.skeleton.bones, db = body.skeleton.bones, map = sb.map(b => db.findIndex(x => x.name === b.name));
+  if (map.some(i => i < 0)) return null;
+  const T = sb.map((b, i) => new THREE.Matrix4().copy(body.bindMatrixInverse).multiply(body.skeleton.boneInverses[map[i]].clone().invert()).multiply(sm.skeleton.boneInverses[i]).multiply(sm.bindMatrix));
+  const G = sm.geometry, P = G.attributes.position, N = G.attributes.normal, UV = G.attributes.uv, SI = G.attributes.skinIndex, SW = G.attributes.skinWeight, n = P.count;
+  // (and both faces of it: a brim is one sheet, drawn from its own model's two-sided cloth, and a crowd's men are merged
+  //  into a cloth drawn from the front only — without its back, the hat was gone from behind. The back a copy of each
+  //  vertex, n on, its normal turned about)
+  const pos = new Float32Array(n * 6), nor = new Float32Array(n * 6), si = new Uint16Array(n * 8), sw = new Float32Array(n * 8), v = new THREE.Vector3(), nm = new THREE.Matrix3();
+  if (!N) return null;
+  for (let k = 0; k < n; k++) {
+    // (a hat sits on the head alone: each vertex the bone that held it most)
+    let b = 0, w = -1; for (let q = 0; q < 4; q++) { const x = SW.getComponent(k, q); if (x > w) { w = x; b = SI.getComponent(k, q); } }
+    v.fromBufferAttribute(P, k).applyMatrix4(T[b]); for (const j of [k, k + n]) { pos[j * 3] = v.x; pos[j * 3 + 1] = v.y; pos[j * 3 + 2] = v.z; }
+    nm.getNormalMatrix(T[b]); v.fromBufferAttribute(N, k).applyMatrix3(nm).normalize();
+    nor[k * 3] = v.x; nor[k * 3 + 1] = v.y; nor[k * 3 + 2] = v.z; nor[(k + n) * 3] = -v.x; nor[(k + n) * 3 + 1] = -v.y; nor[(k + n) * 3 + 2] = -v.z;
+    for (const j of [k, k + n]) { si[j * 4] = map[b]; sw[j * 4] = 1; }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+  g.setAttribute("skinIndex", new THREE.BufferAttribute(si, 4)); g.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4));
+  if (UV) { const uv = new Float32Array(n * 4); for (let k = 0; k < n; k++) for (const j of [k, k + n]) { uv[j * 2] = UV.getX(k); uv[j * 2 + 1] = UV.getY(k); } g.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); }
+  const I = G.index ? Array.from(G.index.array) : Array.from({ length: n }, (_, i) => i), J = I.slice();
+  for (let i = 0; i < I.length; i += 3) J.push(I[i] + n, I[i + 2] + n, I[i + 1] + n);
+  g.setIndex(J);
+  g.computeBoundingBox(); g.computeBoundingSphere();
+  REFIT.set(key, g);
+  return g;
+}
 function borrowHat(P, scene, from, colour) {
   const src = MODELS[from]; if (!src) return false;
   let sm = null; src.scene.traverse(o => { if (!sm && o.isSkinnedMesh && /_hat$/i.test(o.name)) sm = o; });
   if (!sm) return false;
-  const byName = {}; scene.traverse(o => { if (o.isBone) byName[o.name] = o; });
-  const bones = sm.skeleton.bones.map(b => byName[b.name]); if (bones.some(b => !b)) return false;
+  let body = null; scene.traverse(o => { if (!body && o.isSkinnedMesh && /_body(_\d+)?$/i.test(o.name)) body = o; });
+  if (!body) return false;
+  const g = refitHat(sm, body, `${from}>${P.root.userData.modelKey || body.name}`); if (!g) return false;
   const m = sm.material.clone(); if (colour != null) m.color.set(colour);
   addDetail(m, { scale: 2, amount: 0.22, grain: 0.6, surface: "cloth" });
-  const h = new THREE.SkinnedMesh(sm.geometry, m); h.name = "worn_hat";
-  const parent = (sm.parent && scene.getObjectByName(sm.parent.name)) || scene;
-  parent.add(h); h.position.copy(sm.position); h.quaternion.copy(sm.quaternion); h.scale.copy(sm.scale);
-  h.bind(new THREE.Skeleton(bones, sm.skeleton.boneInverses.map(x => x.clone())), sm.bindMatrix.clone());
+  const h = new THREE.SkinnedMesh(g, m); h.name = "worn_hat";
+  body.parent.add(h); h.position.copy(body.position); h.quaternion.copy(body.quaternion); h.scale.copy(body.scale);
+  h.bind(body.skeleton, body.bindMatrix.clone());
   h.castShadow = true; h.frustumCulled = false;
+  // (seen from far off, as it is: a hat is few facets)
+  h.userData.farGeo = g;
   scene.traverse(o => { if (o.isMesh && o !== h && /_hat$/i.test(o.name)) o.visible = false; });
   P.hat = h;
   return true;
+}
+// a hat's trimmings — the cockade or ribbon, the plume, the green sprig or wisp of straw an army wore in it for a field
+// sign, the Hungarian's crane feather — built about the hat as it sits on this model's head, and skinned to the head's
+// bone, so a crowd's men merge them with their other pieces (see mergeRig). trims: [{ k, c: [colour, colour…] }]
+const TRIM_GEO = new Map();
+const trimLeaf = (w, l) => { const g = new THREE.SphereGeometry(1, 6, 4); g.scale(w, l, w * 0.25); g.translate(0, l, 0); return g; };
+function trimParts(k, bb, u) {
+  // (the hat's own measure: its middle, its half-width and depth, its crown's height — and u, a metre in its space)
+  const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2, hw = (bb.max.x - bb.min.x) / 2, hd = (bb.max.z - bb.min.z) / 2, h = bb.max.y - bb.min.y, y0 = bb.min.y;
+  const out = [], put = (g, c, x, y, z, rx = 0, ry = 0, rz = 0, s = 1) => { g.scale(s * u, s * u, s * u); g.rotateZ(rz); g.rotateX(rx); g.rotateY(ry); g.translate(x, y, z); out.push([g, c]); };
+  // (worn on the left of the crown, as cockades and favours were: the man's left is +x, his front +z)
+  const lx = cx + hw * 0.5, lz = cz + hd * 0.3, ly = y0 + h * 0.5, out45 = Math.PI / 4;
+  if (k === "cockade") {
+    const a = new THREE.CylinderGeometry(0.046, 0.046, 0.01, 14); a.rotateX(Math.PI / 2);
+    const b = new THREE.CylinderGeometry(0.021, 0.021, 0.014, 10); b.rotateX(Math.PI / 2);
+    put(a, 0, lx, ly, lz, 0, out45); put(b, 1, lx + 0.004 * u, ly, lz + 0.004 * u, 0, out45);
+  } else if (k === "plume") {
+    // (an ostrich feather: from the left of the crown, laid back along the brim and curling down over it behind — each
+    //  piece of it drawn out along the curve, the fronds broad and soft)
+    const pts = []; for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push(new THREE.Vector3(lx - t * hw * 0.25, y0 + h * (0.62 + Math.sin(t * Math.PI) * 0.32 - t * 0.35), lz - t * hd * 1.15)); }
+    const q = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), mid = new THREE.Vector3(), dir = new THREE.Vector3(), M = new THREE.Matrix4();
+    for (let i = 0; i < 8; i++) {
+      const t = i / 7, g = new THREE.SphereGeometry(1, 8, 5); dir.subVectors(pts[i + 1], pts[i]); const len = dir.length(); dir.normalize();
+      g.scale((0.02 + Math.sin(t * Math.PI) * 0.013) * u, 0.016 * u, len * 0.8);
+      q.setFromUnitVectors(Z, dir); M.compose(mid.addVectors(pts[i], pts[i + 1]).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)); g.applyMatrix4(M); out.push([g, 0]);
+    }
+  } else if (k === "sprig") {
+    // (a sprig of green — oak or fir — tucked in at the left, its leaves fanned up)
+    for (let i = 0; i < 5; i++) put(trimLeaf(0.014, 0.045), 0, lx, ly, lz, 0, out45, (i - 2) * 0.32 - 0.25);
+  } else if (k === "straw") {
+    for (let i = 0; i < 7; i++) { const g = new THREE.CylinderGeometry(0.003, 0.003, 0.11, 4); g.translate(0, 0.05, 0); put(g, 0, lx, ly, lz, (i % 3 - 1) * 0.12, out45, (i - 3) * 0.12 - 0.3); }
+  } else if (k === "aigrette") {
+    // (a crane's or heron's feather standing up from a jewel at the front)
+    const j = new THREE.SphereGeometry(0.018, 8, 6); put(j, 1, cx, y0 + h * 0.62, cz + hd * 0.92);
+    put(trimLeaf(0.012, 0.09), 0, cx, y0 + h * 0.66, cz + hd * 0.85, -0.25);
+  }
+  return out;
+}
+function trimHat(P, scene, trims) {
+  let hat = P.hat || null;
+  if (!hat) scene.traverse(o => { if (!hat && o.isSkinnedMesh && /_hat$/i.test(o.name) && o.visible) hat = o; });
+  if (!hat) return;
+  const head = hat.skeleton.bones.findIndex(b => /^head$/i.test(b.name)); if (head < 0) return;
+  const G = hat.geometry; if (!G.boundingBox) G.computeBoundingBox();
+  // (the models are made in metres)
+  const u = 1;
+  for (const t of trims) {
+    const gk = `${G.uuid}|${t.k}`;
+    let parts = TRIM_GEO.get(gk);
+    if (!parts) {
+      parts = trimParts(t.k, G.boundingBox, u).reduce((m, [g, c]) => { const ng = g.index ? g.toNonIndexed() : g; ng.deleteAttribute("uv"); (m[c] = m[c] || []).push(ng); return m; }, []).map(list => {
+        const g = mergeGeometries(list); g.computeVertexNormals(); const n = g.attributes.position.count;
+        const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4); for (let i = 0; i < n; i++) { si[i * 4] = head; sw[i * 4] = 1; }
+        g.setAttribute("skinIndex", new THREE.BufferAttribute(si, 4)); g.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4)); return g;
+      });
+      TRIM_GEO.set(gk, parts);
+    }
+    parts.forEach((g, i) => {
+      if (!g) return;
+      const m = mat(t.c[Math.min(i, t.c.length - 1)], { roughness: t.k === "aigrette" && i ? 0.4 : 0.92, surface: "cloth" }); m.userData.part = "trim";
+      const sk = new THREE.SkinnedMesh(g, m); sk.name = `trim_${t.k}${i}`; sk.userData.farGeo = g;
+      hat.parent.add(sk); sk.position.copy(hat.position); sk.quaternion.copy(hat.quaternion); sk.scale.copy(hat.scale);
+      sk.bind(hat.skeleton, hat.bindMatrix.clone()); sk.castShadow = true; sk.frustumCulled = false;
+    });
+  }
 }
 // the stroke on a rigged body, over whatever its clip has the bones doing: each bone turned about the body's own axes
 // (taken into the bone's frame), so the rig's own bone rolls don't matter
@@ -580,6 +681,7 @@ export function makePerson(o = {}) {
   if (o.model && MODELS[o.model]) useModel(P, o.model, { coat, legs, vest: o.vest, cuff: o.cuff ?? o.vest, skirt: skirt ? (o.skirtColor ?? coat) : undefined, apron: o.apron, hat: o.hatColor, sash: o.sash, hide: o.hide, skin: o.skinColor, hair: o.hairColor, iris: o.eyeColor, stockings: o.stockingsColor, linen: o.linenColor });
   // a hat of another outfit's than this one's own
   if (o.hatStyle && o.hatStyle !== o.model && P.modelScene) borrowHat(P, P.modelScene, o.hatStyle, o.hatColor);
+  if (o.trim && o.trim.length && P.modelScene) trimHat(P, P.modelScene, o.trim);
   if (o.headScale && o.headScale !== 1) P.setHeadScale(o.headScale);
   noSnow(P.root);
   return P;
@@ -3718,7 +3820,10 @@ export function mergeRig(root) {
     const { geo, parts, sim, SH, col } = bakeShape(list, o => o.geometry, gkey, shiny, !metal);
     // (and the same man as seen from far off: a third of the facets — models/*_far.glb, tools/farmodels.mjs — on the
     //  same bones, in the same colours; drawn past fifteen yards, see rigFar)
-    const farOf = () => { const FM = root.userData.modelKey && MODELS[root.userData.modelKey + "_far"], by = FM && farPieces(FM); return by && list.every(o => by.has(o.name)) ? bakeShape(list, o => by.get(o.name), gkey + "|far", shiny, !metal).geo : null; };
+    // (a hat of another outfit's, and a hat's trimmings, as they are near: few facets either way)
+    const farOf = () => { const FM = root.userData.modelKey && MODELS[root.userData.modelKey + "_far"], by = FM && farPieces(FM); if (!by) return null;
+      const geoOf = o => o.userData.farGeo || by.get(o.name);
+      return list.every(o => geoOf(o)) ? bakeShape(list, geoOf, gkey + "|far", shiny, !metal).geo : null; };
     const farGeo = farOf();
     // (the material: the first piece's own — its finish and its grain — white, so the baked colours show as they were)
     const M0 = list.find(o => !/skin|eyes|iris/.test(o.name)) || list[0], mat = (clothSrcOf(M0.material) || M0.material).clone(); mat.color = new THREE.Color(0xffffff); mat.vertexColors = true; mat.map = null;

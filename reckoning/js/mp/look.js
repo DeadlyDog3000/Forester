@@ -80,6 +80,6 @@ export function lookOpts(l, name) {
   if (l.face === "clean") hide.push("beard", "tash"); else if (l.face === "tash") hide.push("beard");
   return { model: body, name, seed: l.seed, coat: l.coat, legs: f ? undefined : l.legs, skirt: f, skirtColor: f ? l.legs : undefined,
     vest: l.vest ?? undefined, cuff: l.cuff ?? undefined, apron: f ? l.apron || undefined : undefined, hatColor: style === "none" ? undefined : l.hatColor, hatStyle: style === "hat" || style === "none" ? undefined : style, sash: l.sash ?? undefined,
-    skinColor: l.skin, hairColor: l.hair, eyeColor: l.eyes ?? undefined, linenColor: l.linen ?? undefined, stockingsColor: l.stockings ?? undefined,
+    skinColor: l.skin, hairColor: l.hair, eyeColor: l.eyes ?? undefined, linenColor: l.linen ?? undefined, stockingsColor: l.stockings ?? undefined, trim: style === "none" ? undefined : l.trim,
     scale: l.height || 1, build: l.build || 1, headScale: l.head && l.head !== 1 ? l.head : undefined, hide: hide.length ? hide : undefined };
 }

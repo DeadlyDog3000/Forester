@@ -267,6 +267,61 @@ export const UNIFORMS = {
   osage: { name: "Osage", nat: true, body: "warrior", note: "The warriors of the Osage: deerskin, the roach, the head shaved to it, red paint", coat: 0x8a6a48, vest: 0x8a6a48, legs: 0x8a6a48, sash: 0xa8261e, hat: 0x9a2a1a },
   caddo: { name: "Caddo", nat: true, body: "warrior", note: "The warriors of the Caddo: painted deerskin, blue and red, a feathered roach", coat: 0x8a6a48, vest: 0x8a6a48, legs: 0x2e3a5a, sash: 0xa8261e, hat: 0x9a2a1a },
 };
+// ---- how each army's men wore it: the hat and what was stuck in it, the face, the hair ----
+// body: the coat, where it wasn't the musketeer's (the Spaniard's with the red sash across it, the Tatar's sheepskins);
+// hat: the cut of it (an outfit's own, see mp/look.js HAT_STYLES); trim: the hat's trimmings — the field sign or the
+// favour a side wore to know its own in the smoke, a ribbon in its colours, a plume; face: how many went shaven, with a
+// moustache, or bearded [clean, tash, full]; hair: the run of colours among its men
+const CK = (a, b) => ({ k: "cockade", c: [a, b] }), SPRIG = { k: "sprig", c: [0x3e5a26] }, STRAW = { k: "straw", c: [0xc8b060] };
+const DRESS = {
+  // (the Emperor's men, the green sprig of oak or fir in the hat, their old field sign; a moustache still the fashion)
+  imperial: { hat: "musketeer", trim: [SPRIG], face: [50, 45, 5] },
+  saxon: { hat: "townsman", trim: [CK(0xd8b84a, 0x1e1c1a)], face: [55, 40, 5], hair: "north" },
+  bavarian: { hat: "musketeer", trim: [CK(0x4a6a9e, 0xe2dcca)], face: [60, 35, 5] },
+  // (the Caroleans: the cocked hat, shaven faces, their own fair hair unpowdered — the King would have it so)
+  swedish: { hat: "watchman_tricorn", face: [95, 5, 0], hair: "fair" },
+  brandenburg: { hat: "watchman_tricorn", trim: [CK(0x1e1c1a, 0xe2dccc)], face: [80, 20, 0], hair: "north" },
+  // (the French: the hat cocked first of all, a white bow for the King's colour)
+  french: { hat: "watchman_tricorn", trim: [CK(0xeae6da, 0xeae6da)], face: [70, 30, 0] },
+  english: { hat: "musketeer", trim: [CK(0xa02a22, 0xe2dccc)], face: [85, 15, 0], hair: "north" },
+  // (the States' men: the low round hat and an orange favour, for the Prince)
+  dutch: { hat: "townsman", trim: [CK(0xd8782a, 0xd8782a)], face: [70, 25, 5], hair: "north" },
+  // (the tercios: the broad hat with a red plume, the Burgundian red the Spanish field sign; the moustache and the beard)
+  spanish: { body: "watchman", hat: "musketeer", trim: [{ k: "plume", c: [0xa8261e] }], face: [20, 50, 30], hair: "south" },
+  portuguese: { body: "watchman", hat: "magistrate", trim: [{ k: "plume", c: [0x2a3a7a] }], face: [25, 50, 25], hair: "south" },
+  danish: { hat: "musketeer", trim: [CK(0xb02a24, 0xeae6da)], face: [70, 25, 5], hair: "fair" },
+  // (the city's militia: burghers in the tall hats of a Hanseatic town, beards and all)
+  hamburg: { body: "watchman", hat: "magistrate", face: [45, 25, 30], hair: "north" },
+  // (the blue bonnet of the Scots, and a sprig of the clan's plant in it)
+  scottish: { hat: "jakob", trim: [SPRIG], face: [65, 20, 15], hair: "scots" },
+  savoyard: { hat: "musketeer", trim: [CK(0x2c4c8a, 0xa8261e)], face: [40, 50, 10], hair: "south" },
+  venetian: { hat: "musketeer", trim: [CK(0x8e1e2a, 0xd8b04a)], face: [30, 55, 15], hair: "south" },
+  // (the East: the long moustache of the Pole, the Hungarian and the Cossack — the Hungarian's crane feather in his
+  //  kalpak; the Janissary forbidden the beard, the strelets never without one)
+  polish: { face: [5, 85, 10], hair: "east", trim: [STRAW] },
+  hungarian: { trim: [{ k: "aigrette", c: [0x1e1c1a, 0xd8b04a] }], face: [3, 92, 5], hair: "east" },
+  ottoman: { face: [5, 85, 10], hair: "east" },
+  muscovite: { face: [3, 12, 85], hair: "east" },
+  // (the Tatar horseman in sheepskins and fur)
+  cossack: { face: [2, 95, 3], hair: "east" },
+  tatar: { body: "raider", face: [10, 40, 50], hair: "east" },
+  // (the Empire's other foot, Italy's, the Balkans' and the Barbary coast's, after their neighbours)
+  reich: { hat: "musketeer", face: [55, 40, 5] }, irish: { hat: "musketeer", face: [70, 20, 10], hair: "scots" }, rebels: { hat: "townsman", face: [45, 25, 30] },
+  aragonese: { hat: "musketeer", trim: [{ k: "plume", c: [0xd8b04a] }], face: [20, 50, 30], hair: "south" }, milanese: { hat: "musketeer", trim: [{ k: "plume", c: [0xa8261e] }], face: [30, 50, 20], hair: "south" },
+  tuscan: { hat: "musketeer", trim: [CK(0xa22822, 0xd8b04a)], face: [35, 50, 15], hair: "south" }, papal: { hat: "musketeer", trim: [CK(0xd2b048, 0xeae6da)], face: [40, 45, 15], hair: "south" },
+  neapolitan: { hat: "musketeer", trim: [{ k: "plume", c: [0xeae6da] }], face: [25, 50, 25], hair: "south" }, sicilian: { hat: "musketeer", trim: [{ k: "plume", c: [0xa8261e] }], face: [20, 50, 30], hair: "south" },
+  transylvanian: { trim: [{ k: "aigrette", c: [0x1e1c1a, 0xd8b04a] }], face: [3, 92, 5], hair: "east" }, moldavian: { face: [5, 80, 15], hair: "east" }, wallachian: { face: [5, 80, 15], hair: "east" },
+  algerine: { face: [5, 60, 35], hair: "east" }, tunisian: { face: [5, 60, 35], hair: "east" }, tripolitan: { face: [5, 60, 35], hair: "east" }, moroccan: { face: [5, 40, 55], hair: "east" },
+};
+for (const k in DRESS) if (UNIFORMS[k]) UNIFORMS[k].dress = DRESS[k];
+// (each run of hair colours, weighed: the north's fairer, the south's and the East's dark)
+const HAIRS = {
+  fair: [[0xc8a060, 30], [0x9a6a38, 26], [0xd8c8a0, 12], [0x6e4a2a, 20], [0x4a3020, 10], [0x8a8a88, 2]],
+  north: [[0x9a6a38, 22], [0x6e4a2a, 24], [0xc8a060, 16], [0x4a3020, 22], [0x2a1c12, 10], [0x7a2e1a, 3], [0x8a8a88, 3]],
+  scots: [[0x7a2e1a, 18], [0x9a4a24, 12], [0x6e4a2a, 24], [0x4a3020, 24], [0xc8a060, 8], [0x2a1c12, 10], [0x8a8a88, 4]],
+  south: [[0x120c08, 30], [0x1e1610, 30], [0x2a1c12, 26], [0x4a3020, 10], [0x8a8a88, 4]],
+  east: [[0x1e1610, 26], [0x2a1c12, 30], [0x4a3020, 26], [0x6e4a2a, 12], [0x8a8a88, 6]],
+};
 // (the colours of a crown's own: what its uniform and flag are, in its armies — every one of its own, none borrowed)
 export const UNI_OF_NATION = {
   scotland: "scottish", england: "english", ireland: "irish", france: "french", castile: "spanish", aragon: "aragonese", portugal: "portuguese", hre: "reich",
@@ -291,9 +346,11 @@ export function soldierLook(u, seed, base = {}) {
     : weighed([[0xf3d8c4, 30], [0xf1d3bc, 26], [0xeac6aa, 18], [0xe2b896, 11], [0xd4a882, 6], [0xc99a74, 4], [0xa87652, 2.5], [0x7e5236, 1.5], [0x5a3a26, 1]]);
   // (the hair: dark for the most part, brown and fair a good many, the odd red or grey; and the face shaven, as most
   //  soldiers' were, or here and there a beard)
-  const hair = /^warrior/.test(u.body || "") ? weighed([[0x0e0a08, 70], [0x1a1410, 30]]) : u.body === "janissary" ? weighed([[0x120c08, 60], [0x1e1610, 30], [0x2a1c12, 10]]) : weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
+  const D = u.dress || {};
+  const hair = /^warrior/.test(u.body || "") ? weighed([[0x0e0a08, 70], [0x1a1410, 30]]) : HAIRS[D.hair] ? weighed(HAIRS[D.hair]) : u.body === "janissary" ? weighed([[0x120c08, 60], [0x1e1610, 30], [0x2a1c12, 10]]) : weighed([[0x2a1c12, 20], [0x4a3020, 24], [0x6e4a2a, 20], [0x9a6a38, 12], [0xc8a060, 9], [0x7a2e1a, 4], [0x8a8a88, 5]]);
   // (shaven: the beard's shell read as a dark mask over the jaw, and the lone moustache as a smudge under the nose)
-  const face = "clean";
+  // (or as his army went: the moustache of the East, the Spaniard's beard, the Swede shaven)
+  const face = D.face ? weighed([["clean", D.face[0]], ["tash", D.face[1]], ["full", D.face[2]]].filter(f => f[1] > 0)) : "clean";
   // (and the cloth: no two coats of a regiment came out of the same dye-vat, and none stayed as it came — faded by the
   //  sun, greyed with dust and powder, darkened by rain and grease; the breeches and stockings a man's own as often as
   //  the issue; the linen long past white)
@@ -307,18 +364,20 @@ export function soldierLook(u, seed, base = {}) {
   const legs = /^warrior/.test(u.body || "") ? weighed([[u.legs, 55], [0x2e3a5a, 15], [0x8a6a48, 18], [0x5a2420, 12]]) : u.body ? u.legs : weighed([[u.legs, 60], [0x5e5a50, 14], [0x564434, 14], [0x8e8470, 8], [0x3a3a3c, 4]]);
   // (the East's men in their boots; the West's in the stockings their company wore, and now and then their own)
   const stockings = u.boots ? wear(u.boots, 1.2) : wear(weighed([...(u.stock || [[0xc8c0ae, 35], [0x6a6862, 30]]), [0x5a4a3a, 8], [0x4e5262, 6]]), 1.5);
-  return { body: u.body || "musketeer", skin, hair, face,
+  return { body: D.body || u.body || "musketeer", skin, hair, face,
     eyes: u.body === "janissary" || /^warrior/.test(u.body || "") ? pick([0x2a1a10, 0x3a2414]) : pick([0x3a2a1a, 0x5a3a20, 0x3a5a7a, 0x4a6a4a]), linen: wear(0xe2d8c2, 1.5), stockings,
     height: 0.96 + r() * 0.08, build: 0.95 + r() * 0.1, head: 0.97 + r() * 0.06, seed, ...base,
-    coat: wear(u.coat), vest: wear(u.vest, 0.8), cuff: wear(u.vest, 0.6), legs: wear(legs, 1.3), hat: "hat", hatColor: wear(u.hat, 0.6), ...(u.body ? { sash: wear(u.sash, 0.6) } : {}) };
+    coat: wear(u.coat), vest: wear(u.vest, 0.8), cuff: wear(u.vest, 0.6), legs: wear(legs, 1.3), hat: hatOf(u), hatColor: wear(u.hat, 0.6), ...(D.trim ? { trim: D.trim } : {}), ...(u.body || D.body ? { sash: wear(u.sash, 0.6) } : {}) };
 }
+// (the hat an army's men wore: its body's own, unless it wore another's)
+const hatOf = u => { const D = u.dress || {}, h = D.hat; return h && h !== (D.body || u.body || "musketeer") ? h : "hat"; };
 // your own body in your company's colours (your outfit and face as they are)
 // (a man takes the musketeer's coat, bandolier and hat over his own face; a woman keeps her own dress in the colours)
 // (the uniform as worn, faded and dusty as the rest of the company's: fresh from the dye-vat, yours stood out from
 //  every man round you)
 export function inUniform(look, u) {
   const f = look && /^(townswoman|sister|albers|watchwoman)$/.test(look.body), w = soldierLook(u, (look && look.seed) || 7);
-  return { ...look, ...(f ? { sash: w.sash || u.sash } : { body: u.body || "musketeer", hat: "hat", stockings: w.stockings, ...(u.body ? { sash: w.sash } : {}) }),
+  return { ...look, ...(f ? { sash: w.sash || u.sash } : { body: w.body, hat: w.hat, trim: w.trim, stockings: w.stockings, ...(w.sash != null ? { sash: w.sash } : {}) }),
     coat: w.coat, vest: w.vest, cuff: w.cuff, legs: f ? look.legs : w.legs, hatColor: w.hatColor, linen: f ? look.linen : w.linen };
 }
 
