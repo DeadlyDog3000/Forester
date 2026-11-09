@@ -2700,9 +2700,9 @@ class Arena {
   applyOrder(team, O, id, at, pos, tgt) {
     if (id.startsWith("form:")) { if (FORMATIONS[id.slice(5)]) O.form = id.slice(5); return; }
     switch (id) {
-      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; break;
-      case "hold": O.mode = "hold"; O.at = pos; O.cover = false; O.charge = false; break;
-      case "advance": O.mode = "advance"; O.at = at; O.cover = false; O.charge = false; break;
+      case "follow": O.mode = "follow"; O.at = null; O.cover = false; O.charge = false; O.givenAt = G.time; break;
+      case "hold": O.mode = "hold"; O.at = pos; O.cover = false; O.charge = false; O.givenAt = G.time; break;
+      case "advance": O.mode = "advance"; O.at = at; O.cover = false; O.charge = false; O.givenAt = G.time; break;
       case "cover": O.cover = true; O.charge = false; if (O.mode === "follow") { O.mode = "hold"; O.at = pos; } break;
       case "fire": O.fire = !O.fire; break;
       case "volley": O.volleyAt = G.time + 1.1; O.fire = true; break;
@@ -2719,7 +2719,8 @@ class Arena {
     if (this.coach) { const c = this.coach; if (id === "hold" || id === "follow") c.order = true; if (id === "advance") c.adv = true; if (id === "volley") c.volley = true; if (id === "charge") c.charge = true; }
     // (the order given aloud, in words, at the top of your voice — key: which of the shouted orders; see audio.js order)
     const O = this.selOrders(), pl = G.player, shout = (key, delay = 0) => AUDIO.order && AUDIO.order(key, { high: G.who === "sister", delay }), say = (t, key) => { UI.hint(this.sel ? `${GROUPS.find(g => g.id === this.sel).name}: ${t}` : t, 2.2); if (key) shout(key); };
-    const all = this.ordersFor(0, this.sel), pos = { x: pl.pos.x, z: pl.pos.z }, go = (at, tgt) => { for (const o of all) this.applyOrder(0, o, id, at, pos, tgt); };
+    // (and every man it reaches takes it at once: off on his new way this moment, not when he next looks up)
+    const all = this.ordersFor(0, this.sel), pos = { x: pl.pos.x, z: pl.pos.z }, go = (at, tgt) => { for (const o of all) this.applyOrder(0, o, id, at, pos, tgt); for (const u of this.alliesOf(0)) if (u.a && all.includes(this.orderOf(u))) { u.stepT = 0; u.a.path = []; } };
     if (id.startsWith("form:")) { go(); say(`${FORM_WORD[O.form] || "Form up"}!`, O.form); return; }
     switch (id) {
       case "follow": { go(); const n = this.rally(0, pl.pos); say(n ? `Rally! On me! — ${n} back in the ranks` : "On me — fall in!", "follow"); break; }
@@ -3900,7 +3901,11 @@ class Bot extends Fighter {
     const charge = (O && O.charge && !this.crewOf) || (youReloading && s > 0.3 && !haveLong);
     // close: the blade. (Farther, if nothing's loaded and he's coming on, or ordered in.)
     // (a gun's crew stay by their gun: only a man right on it brings them away from it)
-    const melee = d < 4.2 || charge || (!haveLong && !(haveSide && d < RANGE.pistol) && d < (this.crewOf ? 5 : 10));
+    // (a fresh order to move — follow, hold there, advance — is obeyed: he breaks off unless a man is right on him, and
+    //  doesn't go after one ten paces off while his place is somewhere else)
+    const told = O && !O.charge && this.arena.battle && G.time - (O.givenAt ?? -99) < 8;
+    const away = () => { if (!O || O.charge || !this.arena.battle || this.crewOf) return false; const w = this.arena.slotFor(this); return Math.hypot(w.x - a.pos.x, w.z - a.pos.z) > 6; };
+    const melee = charge || (told ? d < 1.8 : d < 4.2 || (!haveLong && !(haveSide && d < RANGE.pistol) && d < (this.crewOf ? 5 : 10) && !away()));
     if (melee) {
       a.person.crouching = false;
       if (this.mode !== "melee") {
@@ -3985,7 +3990,7 @@ class Bot extends Fighter {
       const engage = O.form === "loose" && useK && useK !== "bow" && O.fire && this.los && O.mode === "advance" && d < BATTLE_RANGE[useK] * this.arena.sight * 0.8;
       if (gd > 1.4 && !engage) {
         this.aimT = 0; this.aimUp(false); a.person.setPose("idle");
-        if (!a.path.length || this.stepT <= 0) { this.stepT = 0.5; a.walkTo(goal.x, goal.z, gd > 6 || O.mode === "advance" ? 3.4 + s * 0.8 : 1.8); }
+        if (!a.path.length || this.stepT <= 0) { this.stepT = 0.5; a.walkTo(goal.x, goal.z, gd > 10 && O.mode !== "advance" ? 4.8 + s * 0.8 : gd > 6 || O.mode === "advance" ? 3.4 + s * 0.8 : 1.8); }
         return;
       }
       a.path = [];
