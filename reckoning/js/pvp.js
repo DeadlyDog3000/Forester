@@ -37,7 +37,7 @@ import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
-import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, owns, fitTo, skinOf, skinArm, earn, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
+import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, ago, mmss } from "./replay.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
 const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
@@ -696,10 +696,9 @@ function drawHist(el) {
 // (the bands: a drummer and a fifer — the Ottomans' zurna and davul — to march with an arm of your choosing, its men the
 //  steadier for the music)
 function bandRow(A, left) {
-  const T = tuneFor(A.uniform), who = T.inst === "zurna" ? "Zurna & davul" : T.inst ? "Drum & fife" : "Drummer", arms = armsIn(A.muster);
-  if (!arms.length) return "";
-  return `<div class="pv-h">${who}</div><div class="pv-sn">${BAND_COST} thalers a band, to march with one arm${T.abc ? ` and play ${esc(T.name)}` : ""}; its men stand the steadier for it.</div>
-    <div class="pv-grounds pv-bands">${arms.map(g => { const on = A.bands.includes(g), G0 = GROUPS.find(x => x.id === g); return `<button class="pv-gr${on ? " on" : ""}" data-band="${g}"${!on && left < BAND_COST ? " disabled" : ""}><b>${esc(G0.name)}</b><small>${on ? "A band with them" : `${BAND_COST} thalers`}</small></button>`; }).join("")}</div>`;
+  const arms = armsIn(A.muster); if (!arms.length) return "";
+  return `<div class="pv-h">The band</div><div class="pv-sn">${BAND_COST} thalers a band, to march with one arm and play its music: the foot to the drum, the horse to the trumpet. Its men stand the steadier for it.</div>
+    <div class="pv-grounds pv-bands">${arms.map(g => { const on = A.bands.includes(g), G0 = GROUPS.find(x => x.id === g), T = tuneFor(A.uniform, g); return `<button class="pv-gr${on ? " on" : ""}" data-band="${g}"${!on && left < BAND_COST ? " disabled" : ""} title="${esc(T.name)}"><b>${esc(G0.name)}</b><small>${on ? T.who : `${T.who} · ${BAND_COST} thalers`}</small></button>`; }).join("")}</div>`;
 }
 // (the enemy, against bots: any crown but your own, or whoever chance sends)
 function foeRow(A) {
@@ -970,28 +969,66 @@ function botMuster(purse, team = null) {
   for (let tries = 0; tries < 200 && left >= 22; tries++) { const k = pick(); if (TROOPS[k].cost <= left && Object.values(m).reduce((a, b) => a + b, 0) < MAX_MEN) { m[k] = (m[k] || 0) + 1; left -= TROOPS[k].cost; } }
   return { muster: m, guns };
 }
-// ---- what a band carries: the side drum (a wooden shell painted, rope tensioned, the hoops), the Ottomans' davul, the
-//  fife and the zurna ----
+// ---- what a band carries, and how: the side drum slung on its belt at the left thigh, slanted, beaten with two sticks
+//  (its shell painted in the regiment's coat, its hoops in the facings, as a colonel's drums were); the fife held
+//  across at the lips, out to the right; the cavalry's natural trumpet, folded once, raised to the mouth; the
+//  Ottomans' zurna, and the davul slung before the chest, struck on one head with the club, on the other with the
+//  switch ----
 const KIT_M = {};
-const kitMat = (k, c, o = {}) => KIT_M[k] ||= new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, ...o });
-function bandKit(kind) {
-  const g = new THREE.Group();
+const kitMat = (k, c, o = {}) => KIT_M[k + c] ||= new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, ...o });
+const KIT_FWD = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0)));
+const KIT_RIGHT = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, -1, 0)));
+const KIT_SLANT = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, 0, -0.32));
+// (a colour as a campaign leaves it: darkened, the paint worn)
+const dull = (c, k) => new THREE.Color(c).multiplyScalar(k).getHex();
+const stick = (len, r, c) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r, len, 5), kitMat("stick", c)); return m; };
+const KIT_ROLE = { drum: "drummer", davul: "drummer", fife: "fifer", trumpet: "trumpeter", zurna: "zurna player" };
+function bandKit(kind, U) {
+  const g = new THREE.Group(), coat = U ? U.coat : 0x2a4a8a, face = U ? U.vest : 0x8a2a1e, grips = [];
   if (kind === "drum" || kind === "davul") {
-    const R = kind === "davul" ? 0.26 : 0.19, H = kind === "davul" ? 0.3 : 0.26;
-    const shell = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 18, 1, true), kitMat(kind + "s", kind === "davul" ? 0x6a3a1e : 0x2a4a8a, { side: THREE.DoubleSide })); g.add(shell);
-    for (const y of [-H / 2, H / 2]) { const head = new THREE.Mesh(new THREE.CircleGeometry(R * 0.98, 18), kitMat("head", 0xe6dcc4)); head.rotation.x = y > 0 ? -Math.PI / 2 : Math.PI / 2; head.position.y = y; g.add(head);
-      const hoop = new THREE.Mesh(new THREE.TorusGeometry(R * 1.02, 0.012, 5, 20), kitMat("hoop", 0x8a2a1e)); hoop.rotation.x = Math.PI / 2; hoop.position.y = y; g.add(hoop); }
-    // (the cords zigzagging between the hoops)
-    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, c = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, H * 1.08, 3), kitMat("cord", 0xd8cfb4)); c.position.set(Math.cos(a) * R * 1.03, 0, Math.sin(a) * R * 1.03); c.rotation.z = (i % 2 ? 0.35 : -0.35); c.rotation.y = -a; g.add(c); }
-    g.rotation.z = Math.PI / 2 - 0.25; g.position.set(0.05, -0.15, 0.05);
-  } else {
-    const L = kind === "zurna" ? 0.5 : 0.4, pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.011, kind === "zurna" ? 0.035 : 0.012, L, 8), kitMat(kind, kind === "zurna" ? 0x6a4428 : 0x8a6a40));
-    g.add(pipe); g.rotation.x = Math.PI / 2;
+    const big = kind === "davul", R = big ? 0.27 : 0.2, H = big ? 0.3 : 0.32;
+    const shell = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 20, 1, true), kitMat("shell", big ? 0x4a2a16 : dull(coat, 0.6), { side: THREE.DoubleSide, roughness: 0.85 })); g.add(shell);
+    for (const y of [-H / 2, H / 2]) { const head = new THREE.Mesh(new THREE.CircleGeometry(R * 0.98, 20), kitMat("head", 0x9a8c70, { roughness: 0.9 })); head.rotation.x = y > 0 ? -Math.PI / 2 : Math.PI / 2; head.position.y = y; g.add(head);
+      const hoop = new THREE.Mesh(new THREE.TorusGeometry(R * 1.02, big ? 0.012 : 0.02, 5, 22), kitMat("hoop", big ? 0x2a1a0e : dull(face, 0.55), { roughness: 0.85 })); hoop.rotation.x = Math.PI / 2; hoop.position.y = y * 0.94; g.add(hoop); }
+    // (the cords zigzagging between the hoops, and the leather tugs on them that tighten the heads)
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, c = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, H * 1.02, 3), kitMat("cord", 0x8a8068)); c.position.set(Math.cos(a) * R * 1.03, 0, Math.sin(a) * R * 1.03); c.rotation.z = (i % 2 ? 0.3 : -0.3); c.rotation.y = -a; g.add(c); }
+    if (big) {
+      // (the davul: slung across the chest, one head to each side — the heavy club in the right hand, the thin switch in the left)
+      const club = stick(0.36, 0.014, 0x6a4a2a); club.position.set(0, H / 2 + 0.1, 0.06); club.rotation.x = 1.1; g.add(club);
+      const sw = stick(0.4, 0.005, 0x8a6a40); sw.position.set(0, -H / 2 - 0.08, 0.06); sw.rotation.x = 1.2; g.add(sw);
+      grips.push(new THREE.Vector3(0, H / 2 + 0.06, -0.06), new THREE.Vector3(0, -H / 2 - 0.05, -0.04));
+      return { g, how: { base: KIT_RIGHT, grips, ready: [0.24, -0.42, 0.34], aim: [0.24, -0.42, 0.34], lift: 0, across: 0 }, beat: [H / 2 + 0.06, -H / 2 - 0.05], axis: 1 };
+    }
+    // (two sticks, their tips on the batter head, the hands a little above)
+    //  (each stick turning about the hand that holds it, to beat)
+    const sticks = [];
+    for (const x of [-1, 1]) {
+      const hand = new THREE.Vector3(x * 0.11, H / 2 + 0.2, -0.1), tip = new THREE.Vector3(x * 0.05, H / 2 + 0.01, 0.05), d = tip.clone().sub(hand);
+      const pv = new THREE.Group(); pv.position.copy(hand); g.add(pv); sticks.push(pv);
+      const st = stick(d.length() + 0.06, 0.007, 0x5a3a20); st.position.copy(d).multiplyScalar(0.5 - 0.03 / d.length()); st.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), d.normalize()); pv.add(st);
+      grips.push(hand);
+    }
+    return { g, how: { base: KIT_SLANT, grips, ready: [0.33, -0.66, 0.24], aim: [0.33, -0.66, 0.24], lift: 0, across: 0 }, sticks };
   }
-  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-  return g;
+  if (kind === "fife") {
+    const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.01, 0.4, 8), kitMat("fife", 0x4a3420, { roughness: 0.75 })); pipe.position.y = 0.2 - 0.03; g.add(pipe);
+    for (const y of [0.0, 0.37]) { const f = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.025, 8), kitMat("ferrule", 0x6a5a34, { metalness: 0.4, roughness: 0.6 })); f.position.y = y; g.add(f); }
+    return { g, how: { base: KIT_RIGHT, grips: [new THREE.Vector3(0, 0.28, -0.02), new THREE.Vector3(0, 0.13, -0.02)], ready: [0.19, 0.14, 0.14], aim: [0.19, 0.14, 0.14], lift: 0, across: 0 } };
+  }
+  if (kind === "trumpet") {
+    // (the natural trumpet: brass, folded once — the mouthpiece, the long tube out, the bow, back, and out again to the bell; a banner on it in the colours)
+    const brass = kitMat("brass", 0x6e5626, { metalness: 0.5, roughness: 0.55 });
+    const t1 = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.5, 8), brass); t1.position.set(0, 0.25, 0); g.add(t1);
+    const t2 = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.36, 8), brass); t2.position.set(0, 0.32, -0.05); g.add(t2);
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.025, 0.007, 6, 10, Math.PI), brass); bow.position.set(0, 0.5, -0.025); bow.rotation.y = Math.PI / 2; g.add(bow);
+    const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.055, 0.16, 14, 1, true), kitMat("bell", 0x6e5626, { metalness: 0.5, roughness: 0.55, side: THREE.DoubleSide })); bell.position.set(0, 0.58, 0); g.add(bell);
+    const ban = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.16), kitMat("banner", dull(coat, 0.65), { side: THREE.DoubleSide, roughness: 0.9 })); ban.position.set(0, 0.32, -0.13); ban.rotation.y = Math.PI / 2; g.add(ban);
+    return { g, how: { base: KIT_FWD, grips: [new THREE.Vector3(0, 0.12, -0.01), new THREE.Vector3(0, 0.36, -0.03)], ready: [0.19, 0.16, 0.08], aim: [0.19, 0.16, 0.08], lift: -0.18, across: 0 } };
+  }
+  // (the zurna: a conical wooden shawm, its brass mouthpiece at the lips)
+  const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.036, 0.46, 10), kitMat("zurna", 0x3e2816, { roughness: 0.75 })); pipe.position.y = 0.23; g.add(pipe);
+  return { g, how: { base: KIT_FWD, grips: [new THREE.Vector3(0, 0.14, -0.015), new THREE.Vector3(0, 0.28, -0.02)], ready: [0.19, 0.12, 0.08], aim: [0.19, 0.12, 0.08], lift: 0.35, across: 0 } };
 }
-
 // ---------------------------------------------------------------------------
 //  the challenge: the same field, the same two companies and the same officer against you for everyone, two days at a
 //  time — the best result each commander has in those two days on a board for all to see
@@ -1009,6 +1046,13 @@ export function challengeOf(round = roundNo()) {
   return { round, seed: hashStr("field-" + round), mine, theirs, purse, muster: M.muster, guns: M.guns };
 }
 // (the score: a win counts most, then the men they lost against the men you did, then how quickly it was done)
+// (which challenges' prizes you've had: a win's paid once a challenge, not for every win of it)
+const CHAL_PAID = "reckoning.challenge.paid";
+function chalPaid(round, set = false) {
+  let L = []; try { L = JSON.parse(localStorage.getItem(CHAL_PAID)) || []; } catch (e) {}
+  if (!set) return L.includes(round);
+  try { localStorage.setItem(CHAL_PAID, JSON.stringify([...L.filter(x => x !== round), round].slice(-12))); } catch (e) {}
+}
 const challengeScore = (won, k, l, secs) => Math.max(0, (won ? 600 : 0) + k * 12 - l * 6 + (won ? Math.max(0, 420 - secs) : 0));
 const srvHttp = () => { const g = globalServer(), a = g && addressOf(g); return a ? a.http : null; };
 const myPid = () => { try { return localStorage.getItem("reckoning.mp.pid") || ""; } catch (e) { return ""; } };
@@ -1482,6 +1526,8 @@ class Arena {
         const tk = this.musters && this.musters[team] && this.musters[team][i], T = tk && TROOPS[tk], call = this.hist && this.hist.cos[team] && this.hist.cos[team].call;
         // (militia in their own grey homespun, not the crown's dyed coats: only the facings in its colour, to tell the sides)
         const look = U ? soldierLook(tk === "militia" && !/^warrior/.test(U.body || "") ? { ...U, body: undefined, coat: 0x76726a, vest: U.coat, legs: 0x5e5a52, hat: 0x4a3a2a, stock: [[0x6a6862, 60], [0x8a8478, 40]] } : U, seed) : b.look;
+        // (a name to go with the face: a man's for a man; a band's drummers and fifers men and boys, as they were)
+        if (U) { const f = isF(look) && tk !== "band"; const F = FIRST.filter((_, i) => f ? i >= 8 : i < 8); b.name = `${F[Math.floor(Math.random() * F.length)]} ${LAST[Math.floor(Math.random() * LAST.length)]}`; }
         const info = { ...b, look, name: U ? `${U.name}${T ? " " + ((call && call[tk]) || T.one).toLowerCase() : ""} — ${b.name}` : b.name, bot: true, skill: sk * (this.alOf(team) === 0 ? 0.95 : 1), team, al: this.alOf(team), idx: i, kind: tk || null };
         if (T) { info.lo = { ...T.lo }; info.nades = T.nades || 0; info.horse = !!T.horse; if (T.raw) info.skill *= 0.45; }
         // (the woods' nations' warriors: the war club, not a battle axe — and warriors, by name, whatever they carry)
@@ -2594,19 +2640,28 @@ class Arena {
   // the orders being given now: the company's, or (a letter pressed) one arm's own
   selOrders() { return this.sel ? ((this.sub ||= [{}, {}])[0][this.sel] ||= Object.assign(new Orders(0), this.orders[0], { target: null })) : this.orders[0]; }
   // the arms there are in your company (each with its letter)
+  // the bowmen's volley of an arm: when they draw, when they loose, and when the next can begin (all bows nocked again)
+  bowVolley(u) {
+    const key = u.team + ":" + groupOf(u), M = this.bowVols ||= {}; let V = M[key];
+    if (!V || (G.time > V.loose + 0.6 && G.time >= V.next)) {
+      V = M[key] = { draw: G.time + 0.4, loose: G.time + 0.4 + 2.1, next: G.time + 2.5 + RELOAD.bow + 2.2 + Math.random() * 1.5 };
+      if (this.hearable(u.pos)) setTimeout(() => G.arena === this && AUDIO.bowCreak && AUDIO.bowCreak(0.8), 500);
+    }
+    return V;
+  }
   // ---- a band with an arm: a drummer and a fifer (the Ottomans' zurna and davul), raised and set to march behind it ----
   bandFor(team, gid) { return (this.bands || []).find(b => b.team === team && b.gid === gid) || null; }
   addBand(team, gid) {
     if (!this.mk || this.bandFor(team, gid)) return null;
-    const U = this.uni && this.uni[this.alOf(team)], key = U ? Object.keys(UNIFORMS).find(k => UNIFORMS[k] === U) : null, T = tuneFor(key), B = { team, gid, men: [], band: new Band(key) };
+    const U = this.uni && this.uni[this.alOf(team)], key = U ? Object.keys(UNIFORMS).find(k => UNIFORMS[k] === U) : null, T = tuneFor(key, gid), B = { team, gid, men: [], band: new Band(key, gid) };
     for (let r = 0; r < 2; r++) {
       (this.musters[team] ||= []).push("band");
       const u = this.mk(team, this.musters[team].length - 1);
       u.uid = Math.max(...this.units.map(x => x.uid ?? -1)) + 1; u.musician = true; u.bandRole = r; u.band = B; u.info.kind = "band";
       u.lo = { long: "none", side: "none", blade: "none" }; u.info.lo = u.lo; u.hold(null);
-      const role = r === 0 ? (T.drum === "big" ? "drummer" : "drummer") : T.inst === "zurna" ? "zurna player" : T.inst ? "fifer" : "drummer";
+      const kit = T.kit[r], role = KIT_ROLE[kit];
       u.info.name = `${role[0].toUpperCase() + role.slice(1)} — ${u.info.name.split(" — ").pop()}`;
-      u.a.hold && u.a.hold(bandKit(r === 0 || !T.inst ? (T.drum === "big" ? "davul" : "drum") : T.inst));
+      u.kit = kit; u.kitU = U; u.heldK = undefined; u.hold(null);
       B.men.push(u);
     }
     (this.bands ||= []).push(B);
@@ -3029,7 +3084,16 @@ class Arena {
       const k = this.killed | 0, l = this.lost | 0, secs = this.rec ? Math.round(this.rec.t) : 0, sc = challengeScore(won, k, l, secs), body = { round: CH.round, score: sc, won: !!won, k, l, secs, name: this.me.name };
       if (rec) rec.chal = body;
       $("pvpEndS").innerHTML += `<div class="pv-pay" id="pvpWkLine">The challenge: <b>${sc}</b> · sending it to the board…</div>`;
-      postJSON("/challenge", body).then(j => { const el = $("pvpWkLine"); if (el) el.innerHTML = j && j.ok ? `The challenge: <b>${sc}</b> · ${j.best ? "your best yet" : `your best is ${j.score}`} · ${ordinal(j.place)} of ${j.n}` : `The challenge: <b>${sc}</b> · the board couldn't be reached just now`; });
+      postJSON("/challenge", body).then(j => {
+        const el = $("pvpWkLine"); if (el) el.innerHTML = j && j.ok ? `The challenge: <b>${sc}</b> · ${j.best ? "your best yet" : `your best is ${j.score}`} · ${ordinal(j.place)} of ${j.n}` : `The challenge: <b>${sc}</b> · the board couldn't be reached just now`;
+        // (a win: for every contender on its board, +10 to your rating and 30 into your team's purse — once a challenge)
+        const n = j && j.ok ? Math.max(1, j.n | 0) : 0;
+        if (won && n && !chalPaid(CH.round)) {
+          chalPaid(CH.round, true); const r = record(); r.rating += 10 * n; saveRecord(r); const P = grant(30 * n);
+          setTimeout(() => sfx("purse", Math.min(12, n)), 600);
+          $("pvpEndS").innerHTML += `<div class="pv-pay">The challenge won, against ${n} contender${n > 1 ? "s" : ""}: <b>+${10 * n}</b> rating, now ${r.rating} · <b>+${money(P.gain, P.team)}</b>, ${money(P.total, P.team)} in the ${esc(TEAM_NAME(P.team))} purse</div>`;
+        }
+      });
     }
     // (how the colours fare: each side's colours and who won, counted — not a story's, a campaign's, history's, the
     //  challenge's or a plan fought again, whose sides weren't chosen)
@@ -3415,6 +3479,8 @@ class Fighter {
     if (this.heldK === k) return; this.heldK = k;
     const P = this.a.person; P.held.clear(); P.heldL.clear(); P.aimHold && P.aimHold(null);
     P.blade = !!k && !["bow", "crossbow", "musket", "pistol"].includes(k);
+    // (a musician: his instrument, held as it's played — see bandKit)
+    if (this.kit) { const K = bandKit(this.kit, this.kitU); K.g.traverse(o => { if (o.isMesh) o.castShadow = true; }); this.kitK = K; if (P.aimHold) { P.aimHold(K.g, K.how); P.aimWant = false; } else this.a.hold(K.g); return; }
     if (!k) return;
     // (another player's arms: in their finishes)
     const SK = !this.info.bot && this.info.lo && this.info.lo.skin, sk = (o, kk) => SK && SK[kk === "bayonet" ? "musket" : kk] && skinArm(o, kk, SK[kk === "bayonet" ? "musket" : kk]);
@@ -3549,6 +3615,8 @@ class Bot extends Fighter {
     else { a.path = []; a.faceTo(cx + fx * 30, cz + fz * 30); }
     const marching = sp > 0.6;
     // (the first of the two alive leads the tune; the men within earshot of it, steadier)
+    // (the drummer's sticks, beating the step while the band plays: right, left)
+    const K = this.kitK; if (K && K.sticks) { const on = B.band.playing, ph = G.time * Math.PI * 2 * 1.6; K.sticks.forEach((pv, i) => pv.rotation.x = on ? -Math.max(0, Math.sin(ph + i * Math.PI)) * 0.55 : 0); }
     if (B.men.find(u => u.alive) === this) {
       B.band.tick(this.pos, marching);
       if (B.band.playing) for (const u of men) if (Math.hypot(u.pos.x - this.pos.x, u.pos.z - this.pos.z) < 22) u.bandT = G.time;
@@ -3907,7 +3975,22 @@ class Bot extends Fighter {
         return;
       }
       a.path = [];
-      if (!useK || !O.fire || !this.los || d > BATTLE_RANGE[useK] * this.arena.sight) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
+      // (a high arrow goes over the heads of the men in front: the rear ranks of the bowmen shoot too)
+      const sees = this.los || (useK === "bow" && this.arena.battle && d > 22);
+      if (!useK || !O.fire || !sees || d > BATTLE_RANGE[useK] * this.arena.sight) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
+      // (the bowmen of a battle shoot as one: at the word every bow comes up and is drawn together, raised high for the
+      //  long arc, held — and loosed at once, a whole flight of arrows going up into the sky together; a man who came
+      //  late to the draw waits for the next)
+      if (useK === "bow" && this.arena.battle) {
+        if (this.heldK !== useK) this.hold(useK);
+        a.faceTo(fp.x, fp.z); a.person.setPose("idle");
+        const V = this.arena.bowVolley(this), P = a.person;
+        if (this.vJoin !== V.loose) { this.vJoin = V.loose; this.vLate = G.time > V.loose - 1.1; }
+        const up = G.time >= V.draw && G.time < V.loose + 0.2 && !this.vLate;
+        this.aimUp(up); P.bowUp = d > 22 ? 0.78 : 0.08;
+        if (up && G.time >= V.loose + (this.idx % 9) * 0.015 && this.loosed !== V.loose) { this.loosed = V.loose; this.fire(useK, T); }
+        return;
+      }
       if (this.heldK !== useK) { this.hold(useK); this.aimT = -0.5; }
       a.faceTo(fp.x, fp.z); a.person.setPose("idle"); this.aimUp(true);
       this.aimT += dt;

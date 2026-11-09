@@ -2,7 +2,7 @@
 //  FORESTER: RECKONING — Copyright (c) 2026 Roan Fraese / DeadlyDog Productions
 // ===========================================================================
 
-// A REGIMENT'S BAND — a drummer and a fifer (or, for the Ottomans, a zurna and the great davul) who go with one arm of
+// A REGIMENT'S BAND — a drummer and a fifer (the horse's trumpeters; for the Ottomans, a zurna and the great davul) who go with one arm of
 // your company: they play its nation's march while it marches and stop when it halts. The tunes are the period's own,
 // written down in ABC notation (see TUNES) and played here note by note on the instruments in audio.js — made in
 // code, as the rest of the game's sound is.
@@ -120,19 +120,34 @@ export const TUNES = {
   tatar: { name: "the kettledrums, in the düyek", inst: null, drum: "big", rhythm: DUYEK, bpm8: 140 },
 };
 const DEFAULT = { name: "the march", inst: null, drum: "side" };
-export const tuneFor = team => TUNES[team] || DEFAULT;
+// (the horse marched to no drum and fife: each troop had its trumpeter, the natural trumpet of the day — no valves,
+//  only the notes of its harmonics — sounding the marches and the calls. A march in that manner, made for the game)
+const TRUMPET_MARCH = `M:C
+L:1/8
+Q:1/4=92
+K:C
+|: G2 c2 c3 e | g2 e2 c4 | e2 g2 g3 e | c2 e2 G4 | c2 e2 g2 c'2 | e'2 d'2 c'4 | g2 e2 c2 e2 | d2 G2 c4 :|
+|: g3 g c'2 g2 | e3 e g2 e2 | c2 e2 g2 e2 | d4 G4 | c'3 c' g2 e2 | c'2 e'2 d'4 | c'2 g2 e2 d2 | c4 c4 :|`;
+const TRUMPETS = { name: "a trumpet march for the horse", abc: TRUMPET_MARCH, inst: "trumpet", drum: null };
+// the band an arm marches with: the instruments of its two men (kit) and what to call them (who)
+export const tuneFor = (team, gid = null) => {
+  const T = TUNES[team] || DEFAULT;
+  if (gid === "horse" && team !== "ottoman" && team !== "tatar") return { ...TRUMPETS, kit: ["trumpet", "trumpet"], who: "Two trumpeters" };
+  return { ...T, kit: T.inst === "fife" ? ["drum", "fife"] : T.inst === "zurna" ? ["davul", "zurna"] : T.drum === "big" ? ["davul", "davul"] : ["drum", "drum"],
+    who: T.inst === "fife" ? "Drummer and fifer" : T.inst === "zurna" ? "Zurna and davul" : T.drum === "big" ? "Two kettledrummers" : "Two drummers" };
+};
 
 // ---- a band at work: told each frame where it is and whether its arm is marching ----
 export class Band {
-  constructor(team) {
-    this.T = tuneFor(team); this.song = this.T.abc ? parseABC(this.T.abc) : null;
+  constructor(team, gid = null) {
+    this.T = tuneFor(team, gid); this.song = this.T.abc ? parseABC(this.T.abc) : null;
     this.playing = false; this.next = 0; this.i = 0; this.beatAt = 0; this.beatN = 0;
   }
   // (the length of a whole note in seconds at the tune's tempo)
   whole() { const S = this.song; return S ? 60 / S.bpm / S.qlen : 2.2; }
   tick(at, marching) {
     const now = AUDIO.now(); if (!now) return;
-    if (!marching) { if (this.playing) { this.playing = false; AUDIO[this.T.drum === "big" ? "bigDrum" : "sideDrum"]({ at, when: now + 0.05, accent: true, flam: true }); } return; }
+    if (!marching) { if (this.playing) { this.playing = false; if (this.T.drum) AUDIO[this.T.drum === "big" ? "bigDrum" : "sideDrum"]({ at, when: now + 0.05, accent: true, flam: true }); } return; }
     if (!this.playing) { this.playing = true; this.next = now + 0.15; this.i = 0; this.beatAt = this.next; this.beatN = 0; }
     // (back from a pause, or a window out of sight: picked up where the clock is now, not every missed note at once)
     if (this.beatAt < now - 0.2) this.beatAt = now + 0.05; if (this.next < now - 0.2) this.next = now + 0.05;
@@ -140,7 +155,7 @@ export class Band {
     // the melody, a little way ahead of the clock
     if (S && this.T.inst && !this.T.rhythm) while (this.next < now + 0.5) {
       const n = S.notes[this.i % S.notes.length]; this.i++;
-      const dur = n.len * W; if (n.midi != null) AUDIO[this.T.inst](n.midi + (this.T.inst === "fife" ? 12 : 0), dur, { at, when: this.next });
+      const dur = n.len * W; if (n.midi != null) AUDIO[this.T.inst](n.midi + (this.T.inst === "fife" ? 12 : 0), dur, { at, when: this.next, accent: this.i % 4 === 1 });
       this.next += dur;
     }
     // (a drum cycle of its own — the mehter's düyek: the great drum's heavy stroke and its light one; the zurna holding
@@ -156,6 +171,7 @@ export class Band {
       return;
     }
     // the drum, beating the step: the first of the bar the loudest, with a flam
+    if (!this.T.drum) { this.beatAt = Math.max(this.beatAt, now); return; }
     while (this.beatAt < now + 0.5) {
       const first = this.beatN % perBar === 0;
       AUDIO[this.T.drum === "big" ? "bigDrum" : "sideDrum"]({ at, when: this.beatAt, accent: first, flam: first, vol: this.T.drum === "big" && !first ? 0.7 : 1 });

@@ -278,6 +278,19 @@ export const AUDIO = {
     for (const x of [o, vib]) { x.start(t); x.stop(t + L + 0.02); }
     lease(g, L + 0.5);
   },
+  // the natural trumpet: brass, buzzed by the lips — bright and brassy, the tone opening as the breath comes in, a
+  //  little swell and a lip's waver on the long notes
+  trumpet(midi, dur, { at = null, when = 0, vol = 1, accent = false } = {}) {
+    const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 220); if (k * vol < 0.02 || !room(0.6)) return;
+    const t = Math.max(a.currentTime, when), f = 440 * 2 ** ((midi - 69) / 12), L = Math.max(0.07, dur * 0.88), v = 0.09 * vol * k * (accent ? 1.15 : 1);
+    const o = a.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.04);
+    const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 5.2; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(f * 0.004, t + Math.min(0.4, L)); vib.connect(vg); vg.connect(o.frequency);
+    const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 1.2; lp.frequency.setValueAtTime(f * 1.5, t); lp.frequency.linearRampToValueAtTime(f * 6, t + 0.06); lp.frequency.setValueAtTime(f * 5, t + Math.max(0.07, L - 0.05)); lp.frequency.linearRampToValueAtTime(f * 1.5, t + L);
+    const g = a.createGain(); o.connect(lp); lp.connect(g); g.connect(node);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.035); g.gain.setValueAtTime(v * 0.85, t + Math.max(0.05, L - 0.04)); g.gain.linearRampToValueAtTime(0, t + L);
+    for (const x of [o, vib]) { x.start(t); x.stop(t + L + 0.02); }
+    lease(g, L + 0.5);
+  },
   // the great drum: the Ottomans' davul, the Tatars' and the Poles' kettledrums — a deep boom, the beater's slap on it
   bigDrum({ at = null, when = 0, vol = 1, accent = false } = {}) {
     const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 200); if (k * vol < 0.02 || !room(0.55)) return;

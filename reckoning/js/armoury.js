@@ -196,6 +196,8 @@ export function earn({ vsPlayer, won, kills = 0, left = false, under = 1 }, t = 
   gain += daily; s.purse[t] = (s.purse[t] | 0) + gain; save();
   return { gain, daily, total: s.purse[t], team: t };
 }
+// (a prize paid straight into a team's purse: the challenge's, for a win)
+export function grant(n, t = team()) { const s = state(); s.purse[t] = (s.purse[t] | 0) + Math.max(0, n | 0); save(); return { gain: n | 0, total: s.purse[t], team: t }; }
 // the next thing within reach for this team: for the result's line
 export function nextGoal(t = team()) {
   const d = ducats(t), w = Object.entries(WEAPON_PRICE).filter(([k, p]) => p > 0 && !owns(k, t)).sort((a, b) => a[1] - b[1])[0];

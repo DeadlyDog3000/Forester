@@ -308,7 +308,9 @@ function bowPlace(P, H, obj, k, sR, sL, inw, root) {
   const B = P.bones || {};
   const L = (a, b) => a + (b - a) * k;
   // the grip: down at the side, or out at arm's length; the nock: on the string at rest, or at the cheek
-  const G = new THREE.Vector3(L(sL.x + inw * 0.1, sL.x - inw * 0.04), L(sL.y - 0.6, sL.y + 0.03), L(sL.z + 0.08, sL.z + 0.6));
+  // (P.bowUp: the bow arm raised for a high shot — in a battle's volley, forty-odd degrees into the sky)
+  const e = P.bowUpS = (P.bowUpS ?? 0) + ((P.bowUp || 0) * (k > 0.3 ? 1 : 0) - (P.bowUpS ?? 0)) * 0.08;
+  const G = new THREE.Vector3(L(sL.x + inw * 0.1, sL.x - inw * 0.04), L(sL.y - 0.6, sL.y + 0.03 + 0.6 * Math.sin(e)), L(sL.z + 0.08, sL.z + 0.6 * Math.cos(e)));
   const cheek = new THREE.Vector3(sR.x + inw * 0.13, sR.y + 0.12, sR.z + 0.07);
   // (the bow's own frame: up along the limbs, +z from the grip toward the string and the archer)
   const zD = cheek.clone().sub(G); const draw = zD.length(); zD.normalize();
