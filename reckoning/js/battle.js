@@ -31,8 +31,8 @@ const DRILL = [["back", 0, 0.05], ["sponge", 0.05, 0.3], ["load", 0.3, 0.42], ["
 // (a crown's colours on a canvas of their own, made once: for the campaign's armies on the land)
 const COLOURS_CV = {};
 export function coloursCanvas(key) { if (COLOURS_CV[key]) return COLOURS_CV[key]; const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawColours(cv.getContext("2d"), key); return COLOURS_CV[key] = cv; }
-function drawColours(x, key, design = null) {
-  if (design) { drawDesign(x, design); return; }
+function drawColours(x, key, design = null, then = null) {
+  if (design) { drawDesign(x, design, then); return; }
   const W = 192, H = 128, fill = (c, ...r) => { x.fillStyle = c; x.fillRect(...r); };
   const eagle = (c, cx, cy, s, two = true) => {
     x.fillStyle = c; x.beginPath();
@@ -1078,8 +1078,9 @@ export class Field {
     const g = new THREE.Group(), cw = h > 5 ? 1.9 : 1.5, ch = h > 5 ? 1.3 : 1.05;
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, h, 7), this.M.wood); pole.position.y = h / 2; g.add(pole);
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.28, 6), mat(0xb8963e, { metalness: 0.6, roughness: 0.4 })); tip.position.y = h + 0.14; g.add(tip);
-    const cv = document.createElement("canvas"); cv.width = 192; cv.height = 128; drawColours(cv.getContext("2d"), key, design);
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+    // (a painted flag: drawn when its picture has loaded, and the cloth's texture told so)
+    let tex = null; const cv = document.createElement("canvas"); cv.width = design && design.img ? 288 : 192; cv.height = design && design.img ? 192 : 128; drawColours(cv.getContext("2d"), key, design, () => { if (tex) tex.needsUpdate = true; });
+    tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
     const sim = new FlagCloth({ w: cw, h: ch, metres: cw, material: new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.82 }), seed: this.r() * 100 });
     const cloth = sim.mesh; cloth.position.set(0.04, h - 0.75, 0); cloth.castShadow = true; g.add(cloth);
     sim.settle(3, flagWind(G.windV)); (this.flags ||= []).push(sim);

@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.276", date: "9 November 2026", title: "Paint your own colours",
+    items: [
+      "Paint your colours by hand: under Kingdoms, Paint your own. A brush; a straight line, held level, upright or diagonal with Shift; a block; a fill for a whole field; and stamps of the badges — the lion, the eagle, the crown, the star, the lily, the sword, the tower, your cipher — at any size. Undo, start from your pattern, then keep them: your ensign carries them, online too.",
+    ],
+  },
+  {
     v: "1.99.275", date: "9 November 2026", title: "Colours online, and room to build",
     items: [
       "Colours in battles against other players: each side's ensign carries its own — the colours each player made — and either can be brought down, raised again, or carried off, as against bots. Your drill comes with you online too.",

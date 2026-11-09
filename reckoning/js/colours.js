@@ -35,7 +35,7 @@ const tint = n => (TINCTURES.find(t => t[0] === n) || TINCTURES[0])[1];
 // a design: { field, div, divC, badge, badgeC, cipher }
 export const DEFAULT = { field: "white", div: "cross", divC: "red", badge: "crown", badgeC: "yellow", cipher: "R" };
 export const designOf = team => { const all = read(KEY, {}); return all[team] ? { ...DEFAULT, ...all[team] } : null; };
-export function setDesign(team, d) { const all = read(KEY, {}); all[team] = { ...DEFAULT, ...(all[team] || {}), ...d }; all[team].cipher = String(all[team].cipher || "").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "R"; write(KEY, all); return all[team]; }
+export function setDesign(team, d) { const all = read(KEY, {}); all[team] = { ...DEFAULT, ...(all[team] || {}), ...d }; if (!imgOk(all[team].img)) delete all[team].img; all[team].cipher = String(all[team].cipher || "").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "R"; write(KEY, all); return all[team]; }
 
 // whose colours you've taken, and how many times
 export const takenAll = () => read(TAKEN, {});
@@ -43,7 +43,19 @@ export const taken = team => takenAll()[team] | 0;
 export function addTaken(team) { const all = takenAll(); all[team] = (all[team] | 0) + 1; write(TAKEN, all); return all[team]; }
 
 // the colours painted on a 192×128 canvas
-export function drawDesign(x, D) {
+// (colours painted by hand: kept as a picture; drawn once it's loaded — then(), if given, told when it is)
+const IMGS = new Map();
+export const PAINT_W = 288, PAINT_H = 192;
+export const imgOk = u => typeof u === "string" && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(u) && u.length < 45000;
+export function drawDesign(x, D, then = null) {
+  if (D && imgOk(D.img)) {
+    let im = IMGS.get(D.img); if (!im) { im = new Image(); im.src = D.img; IMGS.set(D.img, im); }
+    const W = x.canvas.width, H = x.canvas.height;
+    if (im.complete && im.naturalWidth) { x.drawImage(im, 0, 0, W, H); return; }
+    drawDesign(x, { ...D, img: null });
+    im.addEventListener("load", () => { x.drawImage(im, 0, 0, W, H); then && then(); }, { once: true });
+    return;
+  }
   D = { ...DEFAULT, ...(D || {}) };
   const W = 192, H = 128, fill = (c, ...r) => { x.fillStyle = c; x.fillRect(...r); }, fc = tint(D.field), dc = tint(D.divC), bc = tint(D.badgeC);
   fill(fc, 0, 0, W, H);
@@ -67,6 +79,12 @@ export function drawDesign(x, D) {
   // (the badge on a roundel of the field's own colour where a division runs under it, so it's read)
   const cx = W / 2, cy = H / 2, s = 1;
   if (D.badge !== "none" && D.div !== "plain" && D.div !== "bordure" && D.div !== "pale" && D.div !== "fess") { x.fillStyle = fc; x.beginPath(); x.arc(cx, cy, 30, 0, Math.PI * 2); x.fill(); x.strokeStyle = bc; x.lineWidth = 2.5; x.stroke(); }
+  drawBadge(x, D.badge, cx, cy, 1, bc, fc, D.cipher);
+}
+
+// a badge drawn at (cx, cy), s times its size on the flag: in colour c, its holes (the tower's gate) in the field's colour
+export function drawBadge(x, badge, cx, cy, s, c, hole = "#f2eee2", cipher = "R") {
+  x.save(); x.translate(cx, cy); x.scale(s, s); cx = 0; cy = 0; const fc = hole, bc = c, D = { badge, cipher }; s = 1;
   x.fillStyle = bc; x.strokeStyle = bc;
   const P = pts => { x.beginPath(); pts.forEach(([px, py], i) => (i ? x.lineTo : x.moveTo).call(x, cx + px * s, cy + py * s)); x.closePath(); x.fill(); };
   switch (D.badge) {
@@ -92,4 +110,5 @@ export function drawDesign(x, D) {
       x.fillRect(cx - 12, cy - 12, 24, 34); for (let i = 0; i < 3; i++) x.fillRect(cx - 12 + i * 9, cy - 18, 6, 7);
       x.fillStyle = fc; x.beginPath(); x.arc(cx, cy + 22, 6, Math.PI, 0); x.fill(); x.fillRect(cx - 6, cy + 16, 12, 6); break;
   }
+  x.restore();
 }

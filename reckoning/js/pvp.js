@@ -38,8 +38,9 @@ import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, teamOpen, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
+import { mountPainter } from "./paint.js";
 import { rollFor, regimentOf, muster as callRoll, vetSkill, vetBrave } from "./regiment.js";
-import { designOf, setDesign, addTaken, takenAll, drawDesign, DEFAULT as DEFAULT_COLOURS, TINCTURES, DIVISIONS, BADGES } from "./colours.js";
+import { designOf, setDesign, addTaken, takenAll, drawDesign, imgOk, DEFAULT as DEFAULT_COLOURS, TINCTURES, DIVISIONS, BADGES } from "./colours.js";
 import { Recorder, Theatre, FILM, Smooth, ease, groundY, upload, keepMine, shareOn, setShare, ambientOn, setAmbient, stopTheatre, titleOf, theatre, listReplays, fetchReplay, mineList, unshare, ago, mmss } from "./replay.js";
 // (how a blow looks: a spear is only ever thrust, straight out; anything else swung, or brought down from above)
 const blowPose = (k, dir) => k === "spear" || k === "bayonet" ? "punch" : dir === "up" ? "overhead" : "slash";
@@ -541,27 +542,32 @@ function drawTeam() {
       <div class="tm-kit"><b>Carries, ranked:</b> ${esc(kitWords(shown))} · <b>Paid in</b> ${esc(coinName(shown))}</div>
       <p class="tm-why"><b>In 1683.</b> ${esc(cur.why)}</p></div>
     ${ownsTeam(A.uniform) ? coloursRow(A.uniform) : ""}`;
-  const cv = el.querySelector("#colPrev"); if (cv) { const D = designOf(A.uniform) || DEFAULT_COLOURS; drawDesign(cv.getContext("2d"), D); }
+  const cv = el.querySelector("#colPrev"); if (cv) { const D = designOf(A.uniform) || DEFAULT_COLOURS, x = cv.getContext("2d"); drawDesign(x, D); }
+  const pe = el.querySelector("#colPaint"); if (pe) { const t = A.uniform, D = designOf(t) || DEFAULT_COLOURS;
+    mountPainter(pe, { team: t, design: D, cipher: D.cipher, onSave: u => { setDesign(t, { img: u }); painting = false; drawTeam(); sfx("colours"); }, onPattern: () => { setDesign(t, { img: null }); painting = false; drawTeam(); } }); }
 }
-// (your regiment's own colours, for the team you march in: made here, carried into battle by your ensign)
+// (your regiment's own colours, for the kingdom you march in: made here — from the pattern, or painted by hand — and
+//  carried into battle by your ensign)
+let painting = false;
 function coloursRow(t) {
   const D = designOf(t) || DEFAULT_COLOURS, tc = (k, sel) => TINCTURES.map(([n, c]) => `<button class="cl-t${D[k] === n ? " on" : ""}" data-cd="${k}:${n}" title="${n}" style="background:${c}"></button>`).join("");
   const opts = (k, list) => list.map(([id, n]) => `<button class="pv-gr${D[k] === id ? " on" : ""}" data-cd="${k}:${id}"><b>${esc(n)}</b></button>`).join("");
   const took = takenAll(), tk = Object.entries(took).filter(([k, n]) => n > 0 && UNIFORMS[k]);
   return `<div class="pv-h big">Your colours</div>
     <div class="pv-sn">Your regiment's own, carried by your ensign in the middle of your foot. Men near them stand steadier; if he falls, take them up again before the enemy does. Bring theirs down and carry them off, and their kingdom is yours to buy.</div>
-    <div class="cl-wrap"><canvas id="colPrev" width="192" height="128"></canvas><div class="cl-opts">
+    ${painting ? `<div id="colPaint"></div>` : `<div class="cl-wrap"><div><canvas id="colPrev" width="288" height="192"></canvas><button class="btn" data-paint="1">${D.img ? "Paint them again" : "Paint your own"}</button>${D.img ? `<div class="pv-sn">Painted by hand. Choose anything from the pattern to go back to it.</div>` : ""}</div><div class="cl-opts">
       <div class="cl-l">Field</div><div class="cl-ts">${tc("field")}</div>
       <div class="cl-l">Laid over it</div><div class="pv-grounds cl-g">${opts("div", DIVISIONS)}</div><div class="cl-ts">${tc("divC")}</div>
       <div class="cl-l">The badge</div><div class="pv-grounds cl-g">${opts("badge", BADGES)}</div><div class="cl-ts">${tc("badgeC")}</div>
       ${D.badge === "cipher" ? `<div class="cl-l">The cipher</div><input id="colCipher" maxlength="2" value="${esc(D.cipher)}">` : ""}
-    </div></div>
+    </div></div>`}
     <div class="cl-took"><b>Colours taken:</b> ${tk.length ? tk.map(([k, n]) => `${esc(UNIFORMS[k].name)}${n > 1 ? ` ×${n}` : ""}`).join(", ") : "none yet"}</div>`;
 }
 function teamClick(e) {
   if (must && must.mine) return;
   if (buyClick(e)) return;
-  const cd = e.target.closest("[data-cd]"); if (cd) { const [k, v] = cd.dataset.cd.split(":"); setDesign(army().uniform, { [k]: v }); drawTeam(); sfx("click"); return; }
+  const cd = e.target.closest("[data-cd]"); if (cd) { const [k, v] = cd.dataset.cd.split(":"); setDesign(army().uniform, { [k]: v, img: null }); drawTeam(); sfx("click"); return; }
+  if (e.target.closest("[data-paint]")) { painting = true; drawTeam(); sfx("page"); return; }
   const b = e.target.closest("[data-team]"); if (!b) return;
   const k = b.dataset.team;
   if (!ownsTeam(k)) { want = { k: "t", id: k }; drawTeam(); sfx("page"); return; }
@@ -1863,8 +1869,8 @@ class Arena {
   //  and tells the other; the other's game sends its own colours and drill at the start, and asks the host when its
   //  player would take up colours ----
   wireColours(net) {
-    const clean = d => { if (!d || typeof d !== "object") return null; const ok = (v, L) => L.some(x => x[0] === v) ? v : undefined; const o = { field: ok(d.field, TINCTURES), div: ok(d.div, DIVISIONS), divC: ok(d.divC, TINCTURES), badge: ok(d.badge, BADGES), badgeC: ok(d.badgeC, TINCTURES), cipher: String(d.cipher || "").replace(/[^A-Za-z]/g, "").slice(0, 2) }; return o.field ? { ...DEFAULT_COLOURS, ...Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) } : null; };
-    const paint = (C, d) => { if (!C || !d || JSON.stringify(C.design) === JSON.stringify(d)) return; C.design = d; const map = C.sim && C.sim.mesh && C.sim.mesh.material && C.sim.mesh.material.map; if (map && map.image && map.image.getContext) { drawDesign(map.image.getContext("2d"), d); map.needsUpdate = true; } };
+    const clean = d => { if (!d || typeof d !== "object") return null; const ok = (v, L) => L.some(x => x[0] === v) ? v : undefined; const o = { field: ok(d.field, TINCTURES), div: ok(d.div, DIVISIONS), divC: ok(d.divC, TINCTURES), badge: ok(d.badge, BADGES), badgeC: ok(d.badgeC, TINCTURES), cipher: String(d.cipher || "").replace(/[^A-Za-z]/g, "").slice(0, 2), img: imgOk(d.img) ? d.img : undefined }; return o.field ? { ...DEFAULT_COLOURS, ...Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) } : null; };
+    const paint = (C, d) => { if (!C || !d || JSON.stringify(C.design) === JSON.stringify(d)) return; C.design = d; const map = C.sim && C.sim.mesh && C.sim.mesh.material && C.sim.mesh.material.map; if (map && map.image && map.image.getContext) { drawDesign(map.image.getContext("2d"), d, () => { map.needsUpdate = true; }); map.needsUpdate = true; } };
     if (this.host) {
       net.on.bcolset = m => {
         const d = clean(m.d); this.theirColours = d; if (this.cols) paint(this.cols[1], d);
@@ -1896,7 +1902,9 @@ class Arena {
     if (!this.host || !this.net || !this.cols) return;
     const c = [0, 1].map(t => { const C = this.cols[t]; return C ? { e: C.ens ? C.ens.uid ?? -1 : -1, d: C.down ? [+C.down.x.toFixed(2), +C.down.z.toFixed(2)] : null, t: C.taken ? 1 : 0 } : null; }), k = JSON.stringify(c);
     if (!force && k === this.colLast && G.time - (this.colSent || 0) < 4) return;
-    this.colLast = k; this.colSent = G.time; this.net.send({ t: "bcol", c, dz: this.cols[0] && this.cols[0].design });
+    // (the host's own colours with it, only now and then: a painted flag is a picture, not to be sent every time)
+    const dz = force || !this.dzSent ? this.cols[0] && this.cols[0].design : undefined; if (dz) this.dzSent = true;
+    this.colLast = k; this.colSent = G.time; this.net.send({ t: "bcol", c, dz });
   }
   // (the man to carry them: one of the pikes in the middle, where the ensign stood — or of the muskets, or any foot)
   ensignFor(t, near = null) {

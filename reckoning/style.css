@@ -2521,3 +2521,11 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .rg-m b { font: 600 12px var(--sans); }
 .rg-m small { font: italic 11px var(--serif); color: var(--ink-dim); }
 .rg-hon { font-size: 13px; margin-top: 4px; }
+/* painting your own colours (paint.js) */
+.pn { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.pn-tools, .pn-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pn-tools .pv-gr { padding: 5px 12px; }
+.pn-size input { width: 200px; }
+.pn-cv { width: min(576px, 100%); aspect-ratio: 3 / 2; border: 2px solid #6a5434; border-radius: 3px; cursor: crosshair; touch-action: none; image-rendering: auto; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.pn-hint { font: italic 12px var(--serif); color: var(--ink-dim); }
+.cl-wrap > div:first-child { display: flex; flex-direction: column; gap: 6px; width: 240px; }
