@@ -44,9 +44,9 @@ export function mountPainter(el, { team, design, cipher = "R", onSave, onPattern
     <div class="pn-tools">${TOOLS.map(([k, n]) => `<button class="pv-gr${P.tool === k ? " on" : ""}" data-pn="tool:${k}"><b>${n}</b></button>`).join("")}</div>
     <div class="pn-row"><span class="cl-l">Silk</span>${TINCTURES.map(([n, c]) => `<button class="cl-t${P.colour === c ? " on" : ""}" data-pn="col:${c}" title="${n}" style="background:${c}"></button>`).join("")}</div>
     <div class="pn-row pn-size"><span class="cl-l">${P.tool === "stamp" ? "Stamp size" : "Width"}</span><input type="range" min="${P.tool === "stamp" ? 3 : 1}" max="${P.tool === "stamp" ? 30 : 40}" value="${P.tool === "stamp" ? Math.round(P.stampSize * 10) : P.size}" data-pn="size"></div>
-    ${P.tool === "stamp" ? `<div class="pn-row pv-grounds cl-g">${BADGES.filter(b => b[0] !== "none").map(([k, n]) => `<button class="pv-gr${P.stamp === k ? " on" : ""}" data-pn="stamp:${k}"><b>${n}</b></button>`).join("")}</div>` : ""}
+    <div class="pn-row pn-syms"><span class="cl-l">Symbols — drag one onto the flag</span>${BADGES.filter(b => b[0] !== "none").map(([k, n]) => `<button class="pv-gr pn-sym${P.stamp === k ? " on" : ""}" data-pn="stamp:${k}" title="Drag onto the flag"><canvas width="44" height="44" data-sym="${k}"></canvas><b>${n}</b></button>`).join("")}</div>
     <canvas class="pn-cv" width="${W * SHOW}" height="${H * SHOW}"></canvas>
-    <div class="pn-hint">${P.tool === "line" ? "Drag from one end to the other. Hold Shift to keep it level, upright, or at the diagonal." : P.tool === "rect" ? "Drag from one corner to the other." : P.tool === "fill" ? "Click a field to fill it with the silk." : P.tool === "stamp" ? "Click to set the badge down." : "Paint with the mouse."}</div>
+    <div class="pn-hint">${P.tool === "line" ? "Drag from one end to the other. Hold Shift to keep it level, upright, or at the diagonal." : P.tool === "rect" ? "Drag from one corner to the other." : P.tool === "fill" ? "Click a field to fill it with the silk." : P.tool === "stamp" ? "Press on the flag and drag the symbol where you want it; let go to set it down. The wheel makes it larger or smaller." : "Paint with the mouse."}</div>
     <div class="pn-row"><button class="btn ghost" data-pn="undo">Undo</button><button class="btn ghost" data-pn="clear">Fill all with the silk</button><button class="btn ghost" data-pn="pattern">Start from the pattern</button><button class="btn ghost" data-pn="back">Back to the pattern</button><button class="btn" data-pn="save">Keep these colours</button></div>
   </div>`;
   const view = el.querySelector(".pn-cv"), vx = view.getContext("2d");
@@ -63,19 +63,20 @@ export function mountPainter(el, { team, design, cipher = "R", onSave, onPattern
     e.preventDefault(); e.stopPropagation(); view.setPointerCapture(e.pointerId); shift = e.shiftKey;
     const p = at(e); snap();
     if (P.tool === "fill") { flood(x, p.x, p.y, P.colour); redraw(); return; }
-    if (P.tool === "stamp") { stamp(x, p); redraw(); return; }
+    if (P.tool === "stamp") { drag = p; redraw(g => { g.globalAlpha = 0.6; stamp(g, p); }); return; }
     drag = p; last = p; if (P.tool === "brush") { stroke(x, p, p); redraw(); }
   });
   view.addEventListener("pointermove", e => {
     if (!drag) { if (P.tool === "stamp") { const p = at(e); redraw(g => { g.globalAlpha = 0.5; stamp(g, p); }); } return; }
     shift = e.shiftKey; const p = at(e);
-    if (P.tool === "brush") { stroke(x, last, p); last = p; redraw(); }
+    if (P.tool === "stamp") { drag = p; redraw(g => { g.globalAlpha = 0.6; stamp(g, p); }); }
+    else if (P.tool === "brush") { stroke(x, last, p); last = p; redraw(); }
     else if (P.tool === "line") redraw(g => stroke(g, drag, end(drag, p)));
     else if (P.tool === "rect") redraw(g => block(g, drag, p));
   });
   const up = e => {
     if (!drag) return; shift = e.shiftKey; const p = at(e);
-    if (P.tool === "line") stroke(x, drag, end(drag, p)); else if (P.tool === "rect") block(x, drag, p);
+    if (P.tool === "line") stroke(x, drag, end(drag, p)); else if (P.tool === "rect") block(x, drag, p); else if (P.tool === "stamp") stamp(x, p);
     drag = null; redraw();
   };
   view.addEventListener("pointerup", up); view.addEventListener("pointercancel", () => { drag = null; redraw(); });
@@ -84,7 +85,7 @@ export function mountPainter(el, { team, design, cipher = "R", onSave, onPattern
     const b = e.target.closest("[data-pn]"); if (!b) return; e.stopPropagation();
     const [k, v] = b.dataset.pn.split(/:(.*)/s);
     if (k === "tool") { P.tool = v; mountPainter(el, { team, design, cipher, onSave, onPattern }); }
-    else if (k === "col") { P.colour = v; el.querySelectorAll("[data-pn^='col:']").forEach(q => q.classList.toggle("on", q === b)); }
+    else if (k === "col") { P.colour = v; el.querySelectorAll("[data-pn^='col:']").forEach(q => q.classList.toggle("on", q === b)); el.querySelectorAll("[data-sym]").forEach(c => { const g = c.getContext("2d"); g.fillStyle = "#f2eee2"; g.fillRect(0, 0, 44, 44); drawBadge(g, c.dataset.sym, 22, 23, 0.62, P.colour, "#f2eee2", cipher); }); }
     else if (k === "stamp") { P.stamp = v; el.querySelectorAll("[data-pn^='stamp:']").forEach(q => q.classList.toggle("on", q === b)); }
     else if (k === "undo") { const u = P.undo.pop(); if (u) { x.putImageData(u, 0, 0); redraw(); } }
     else if (k === "clear") { snap(); x.fillStyle = P.colour; x.fillRect(0, 0, W, H); redraw(); }
@@ -94,6 +95,19 @@ export function mountPainter(el, { team, design, cipher = "R", onSave, onPattern
   });
   el.querySelector("[data-pn='size']").addEventListener("input", e => { const v = +e.target.value; if (P.tool === "stamp") P.stampSize = v / 10; else P.size = v; });
   el.addEventListener("keydown", e => e.stopPropagation());
+  // (the symbols, each drawn on its button, picked up and dragged onto the flag: shown where it would go as it comes
+  //  over the cloth, set down where it's let go, and nothing done if it's let go anywhere else)
+  el.querySelectorAll("[data-sym]").forEach(c => { const g = c.getContext("2d"); g.fillStyle = "#f2eee2"; g.fillRect(0, 0, 44, 44); drawBadge(g, c.dataset.sym, 22, 23, 0.62, P.colour, "#f2eee2", cipher); });
+  const over = e => { const r = view.getBoundingClientRect(); return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom; };
+  el.querySelectorAll(".pn-sym").forEach(btn => btn.addEventListener("pointerdown", e => {
+    e.preventDefault(); e.stopPropagation(); P.stamp = btn.dataset.pn.slice(6); el.querySelectorAll(".pn-sym").forEach(q => q.classList.toggle("on", q === btn));
+    const ghost = btn.querySelector("canvas").cloneNode(); ghost.getContext("2d").drawImage(btn.querySelector("canvas"), 0, 0); ghost.className = "pn-ghost"; document.body.appendChild(ghost);
+    const move = ev => { ghost.style.left = ev.clientX - 22 + "px"; ghost.style.top = ev.clientY - 22 + "px"; if (over(ev)) { ghost.style.opacity = 0; const p = at(ev); redraw(g => { g.globalAlpha = 0.6; stamp(g, p); }); } else { ghost.style.opacity = 0.85; redraw(); } };
+    const done = ev => { removeEventListener("pointermove", move, true); removeEventListener("pointerup", done, true); ghost.remove(); if (over(ev)) { snap(); stamp(x, at(ev)); } redraw(); };
+    move(e); addEventListener("pointermove", move, true); addEventListener("pointerup", done, true);
+  }));
+  // (the wheel over the flag: the symbol larger or smaller)
+  view.addEventListener("wheel", e => { if (P.tool !== "stamp" && !drag) return; e.preventDefault(); e.stopPropagation(); P.stampSize = Math.max(0.3, Math.min(3, P.stampSize * (e.deltaY < 0 ? 1.1 : 0.9))); const sl = el.querySelector("[data-pn='size']"); if (sl && P.tool === "stamp") sl.value = Math.round(P.stampSize * 10); const p = at(e); redraw(g => { g.globalAlpha = 0.6; stamp(g, p); }); }, { passive: false });
   redraw();
 }
 // (a new kingdom's colours: the painter starts afresh from its pattern)

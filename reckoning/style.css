@@ -2529,3 +2529,6 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .pn-cv { width: min(576px, 100%); aspect-ratio: 3 / 2; border: 2px solid #6a5434; border-radius: 3px; cursor: crosshair; touch-action: none; image-rendering: auto; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
 .pn-hint { font: italic 12px var(--serif); color: var(--ink-dim); }
 .cl-wrap > div:first-child { display: flex; flex-direction: column; gap: 6px; width: 240px; }
+.pn-syms .pn-sym { flex-direction: row; align-items: center; gap: 6px; padding: 3px 8px 3px 3px; cursor: grab; touch-action: none; }
+.pn-sym canvas { width: 30px; height: 30px; border-radius: 2px; pointer-events: none; }
+.pn-ghost { position: fixed; width: 44px; height: 44px; pointer-events: none; z-index: 9999; border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }

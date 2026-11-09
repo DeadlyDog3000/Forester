@@ -12,6 +12,7 @@ export const CHANGELOG = [
       "Horses whinny as the charge is sounded. Struck, a horse screams and goes up on its hind legs; and as often as not a ball or a blade meant for its rider finds the horse instead — enough of them and it goes down on its side, its rider thrown to fight on afoot. The dead horse lies where it fell: cover for a man behind it.",
       "A riderless horse cries out as it bolts; horses near where a cannon ball strikes shy at it, rearing and snorting.",
       "Building in the deployment, near enough anywhere on your half of the field: in front of your line, beside your guns and across their fire, overlapping end to end, out to the middle of the field. Only another work or a gun right on the spot stops one.",
+      "Painting your colours: drag a symbol from the row of them straight onto the flag, and let go where you want it; with the Stamp tool, press on the flag and drag it into place. The wheel makes it larger or smaller.",
     ],
   },
   {
