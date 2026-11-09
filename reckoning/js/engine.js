@@ -647,7 +647,7 @@ export class Player {
       AUDIO.gunshot && AUDIO.gunshot(pis ? 0.8 : 1);
       if (G.onGunshot) G.onGunshot(from, dir, this.gunIs);
       if (G.hunt) { G.hunt.fireBall(from.clone().addScaledVector(dir, 0.6), dir, { speed: pis ? 260 : 420, power: pis ? 1.9 : 2.6, range: pis ? 60 : 160 }); G.practise && G.practise("archery", 0.3); }
-      gunSmoke(muzzle, dir, pis ? 0.6 : 1);
+      gunSmoke(muzzle, dir, pis ? 0.6 : 1, true);
       this.gunLoaded = false; this.gunReload = 0; this.gunKickT = 1; G.bowKick = pis ? 1.0 : 1.4;
       if (this.gunModel.userData.lock) this.gunModel.userData.lock.t = 0;
       if (!this.gunTip) { this.gunTip = true; setTimeout(() => UI.hint("R to load — powder, ball, and the ramrod. It takes a while: find cover.", 4), 600); }
@@ -1816,11 +1816,14 @@ G.wear = (k, n = 1) => {
 // a shot's smoke: the flash at the muzzle, the jet of powder smoke rolling out and hanging, and the puff from the pan
 // (powder.js); no new light for the flash, which would stall the game a moment as it was made
 // (k: a pistol's is about half a musket's)
-function gunSmoke(at, dir, k = 1) {
+function gunSmoke(at, dir, k = 1, own = false) {
   if (!G.world) return;
   muzzleFlash(G.world.root, at, dir, k);
-  // (a thick white cloud, as black powder makes: rolling out of the muzzle, and a bank of it hanging after)
-  powderSmoke(G.world.root, at, dir, { scale: k, life: 16 * Math.sqrt(k), n: Math.round(36 * k), speed: 9 * k, haze: true, hazeN: Math.round(8 * k), hazeA: 0.3 });
+  // (a thick white cloud, as black powder makes: rolling out of the muzzle, and a bank of it hanging after. Your own
+  //  shot's seen from behind the lock, along the jet: the cloud thrown out slower and fuller, so it hangs before you
+  //  and you look for your man through it, as a musketeer did)
+  if (own) powderSmoke(G.world.root, at.clone().addScaledVector(dir, 0.5), dir, { scale: k * 0.85, life: 14 * Math.sqrt(k), n: Math.round(70 * k), speed: 7.5 * k, haze: true, hazeN: Math.round(10 * k), hazeA: 0.35 });
+  else powderSmoke(G.world.root, at, dir, { scale: k, life: 16 * Math.sqrt(k), n: Math.round(36 * k), speed: 9 * k, haze: true, hazeN: Math.round(8 * k), hazeA: 0.3 });
   const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
   panPuff(G.world.root, at.clone().addScaledVector(dir, k < 1 ? -0.3 : -0.95).addScaledVector(side, 0.06));
 }
@@ -2768,6 +2771,8 @@ function updateInteract(dt) {
     //  cross on the screen)
     const pl = G.player;
     ch.classList.toggle("dot", !!(pl && (pl.bow || pl.gun || pl.xbow)));
+    // (a musket with sights on it: the sights are the aim — no dot laid over them)
+    ch.classList.toggle("sighted", !!(pl && pl.gun && pl.gunIs !== "pistol" && G.armSights !== false));
     ch.style.setProperty("--gap", "4px");
     // and turns red over something you can hunt (never a person)
     const game = G.hunt && huntTarget();
