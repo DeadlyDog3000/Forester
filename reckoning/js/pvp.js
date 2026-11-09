@@ -3988,6 +3988,21 @@ class Bot extends Fighter {
       //  goes on again)
       // (only in loose order, though: a line on the march keeps its place and fires when it's halted and given the word)
       const engage = O.form === "loose" && useK && useK !== "bow" && O.fire && this.los && O.mode === "advance" && d < BATTLE_RANGE[useK] * this.arena.sight * 0.8;
+      // (his place on the move — the company following you, or marching: he keeps step with it, a little ahead of where
+      //  it is now, his pace its pace and a little more to close up; not walking to it, stopping, and setting off again)
+      const sw = this.slotWas, now = G.time;
+      if (!sw || now - sw.t > 0.15) {
+        if (sw && now - sw.t < 1) { const vx = (want.x - sw.x) / (now - sw.t), vz = (want.z - sw.z) / (now - sw.t), V = this.slotV ||= { x: vx, z: vz }; V.x += (vx - V.x) * 0.45; V.z += (vz - V.z) * 0.45; } else this.slotV = null;
+        this.slotWas = { x: want.x, z: want.z, t: now };
+      }
+      // (once in step, he stays in it till his place has all but stopped: no halting for a moment at every pace)
+      const SV = this.slotV, sv = SV ? Math.hypot(SV.x, SV.z) : 0;
+      this.inStep = sv < 7 && !this.cover && !engage && gd < 14 && (this.inStep ? sv > 0.15 : sv > 0.35 && gd > 0.25);
+      if (this.inStep) {
+        this.aimT = 0; this.aimUp(false); a.person.setPose("idle");
+        if (!a.path.length || this.stepT <= 0) { this.stepT = 0.2; a.walkTo(want.x + SV.x * 0.6, want.z + SV.z * 0.6, Math.max(1.4, Math.min(4.8 + s * 0.8, sv * 1.05 + gd * 0.9))); }
+        return;
+      }
       if (gd > 1.4 && !engage) {
         this.aimT = 0; this.aimUp(false); a.person.setPose("idle");
         if (!a.path.length || this.stepT <= 0) { this.stepT = 0.5; a.walkTo(goal.x, goal.z, gd > 10 && O.mode !== "advance" ? 4.8 + s * 0.8 : gd > 6 || O.mode === "advance" ? 3.4 + s * 0.8 : 1.8); }
