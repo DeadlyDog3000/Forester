@@ -7,9 +7,9 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.268", date: "8 November 2026", title: "Choose your enemy, and know him by his hat",
+    v: "1.99.268", date: "9 November 2026", title: "Choose your enemy, and know him by his hat",
     items: [
-      "Every army now looks its own, not only by the colour of its coat. Each wears its own hat: the Swede, the Brandenburger and the Frenchman the cocked hat, the Dutchman and the Saxon the low round one, the Spaniard the broad hat with a red plume, the Hamburg burgher the tall hat of a Hanseatic town, the Scot the blue bonnet. Each wears its field sign or favour: the Emperor's men a green sprig, the Poles a wisp of straw as at Vienna, the Dutch an orange ribbon, the Bavarians blue and white, the Danes red and white, the Hungarians a crane's feather in the kalpak.",
+      "Every army now looks its own, not only by the colour of its coat. Each wears its own hat: the Swede, the Brandenburger and the Frenchman the cocked hat, the Dutchman and the Saxon the low round one, the Spaniard the broad hat with a red ostrich plume swept back over the brim, the Cossack the tall lambskin cap with its red bag hung down the side, the Hamburg burgher the tall hat of a Hanseatic town, the Scot the blue bonnet. Each wears its field sign or favour: the Emperor's men a green sprig, the Poles a wisp of straw as at Vienna, the Dutch an orange ribbon, the Bavarians blue and white, the Danes red and white, the Hungarians a crane's feather in the kalpak.",
       "The faces and the hair go by the army too: the long moustache of the Pole, the Hungarian, the Cossack and the Janissary, the streltsy's beards, the Spaniard's beard and moustache, the Caroleans shaven, as their King would have them. The north is fairer-haired, the south and the East darker, and the Scots run to red.",
       "The Spaniards, the Portuguese and Hamburg's militia wear a coat with a sash across it. The Tatars ride in sheepskins and fur.",
       "Fixed: a man who fell in the ranks and lost his hat took it off every man of his company who was dressed like him.",

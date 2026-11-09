@@ -302,8 +302,9 @@ const DRESS = {
   hungarian: { trim: [{ k: "aigrette", c: [0x1e1c1a, 0xd8b04a] }], face: [3, 92, 5], hair: "east" },
   ottoman: { face: [5, 85, 10], hair: "east" },
   muscovite: { face: [3, 12, 85], hair: "east" },
+  // (the Cossack's tall lambskin cap and its red bag)
+  cossack: { trim: [{ k: "kuchma", c: [0x221c18, 0xa8261e, 0xd8b04a] }], face: [2, 95, 3], hair: "east" },
   // (the Tatar horseman in sheepskins and fur)
-  cossack: { face: [2, 95, 3], hair: "east" },
   tatar: { body: "raider", face: [10, 40, 50], hair: "east" },
   // (the Empire's other foot, Italy's, the Balkans' and the Barbary coast's, after their neighbours)
   reich: { hat: "musketeer", face: [55, 40, 5] }, irish: { hat: "musketeer", face: [70, 20, 10], hair: "scots" }, rebels: { hat: "townsman", face: [45, 25, 30] },

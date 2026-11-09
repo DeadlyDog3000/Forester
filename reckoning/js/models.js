@@ -96,20 +96,39 @@ function trimParts(k, bb, u) {
     const b = new THREE.CylinderGeometry(0.021, 0.021, 0.014, 10); b.rotateX(Math.PI / 2);
     put(a, 0, lx, ly, lz, 0, out45); put(b, 1, lx + 0.004 * u, ly, lz + 0.004 * u, 0, out45);
   } else if (k === "plume") {
-    // (an ostrich feather: from the left of the crown, laid back along the brim and curling down over it behind — each
-    //  piece of it drawn out along the curve, the fronds broad and soft)
-    const pts = []; for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push(new THREE.Vector3(lx - t * hw * 0.25, y0 + h * (0.62 + Math.sin(t * Math.PI) * 0.32 - t * 0.35), lz - t * hd * 1.15)); }
-    const q = new THREE.Quaternion(), Z = new THREE.Vector3(0, 0, 1), mid = new THREE.Vector3(), dir = new THREE.Vector3(), M = new THREE.Matrix4();
-    for (let i = 0; i < 8; i++) {
-      const t = i / 7, g = new THREE.SphereGeometry(1, 8, 5); dir.subVectors(pts[i + 1], pts[i]); const len = dir.length(); dir.normalize();
-      g.scale((0.02 + Math.sin(t * Math.PI) * 0.013) * u, 0.016 * u, len * 0.8);
-      q.setFromUnitVectors(Z, dir); M.compose(mid.addVectors(pts[i], pts[i + 1]).multiplyScalar(0.5), q, new THREE.Vector3(1, 1, 1)); g.applyMatrix4(M); out.push([g, 0]);
+    // (an ostrich feather: from the left of the crown, laid back along the brim and curling down over it behind — one
+    //  soft blade swept along the curve, broad in the middle, the fronds rippling along its edges)
+    const curve = new THREE.CatmullRomCurve3([0, 0.2, 0.42, 0.62, 0.8, 1].map(t => new THREE.Vector3(lx - t * hw * 0.3, y0 + h * (0.6 + Math.sin(t * Math.PI * 0.9) * 0.34 - t * t * 0.42), lz - t * hd * 1.2)));
+    const N = 22, R = 8, pos = [], idx = [], T = new THREE.Vector3(), Nn = new THREE.Vector3(), Bn = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
+    for (let i = 0; i <= N; i++) {
+      const t = i / N, P = curve.getPointAt(t); curve.getTangentAt(t, T);
+      Bn.crossVectors(T, UP).normalize(); Nn.crossVectors(Bn, T).normalize();
+      // (wide across, thin through; tapered at the quill and the tip; the edge rippled into fronds)
+      const w = (0.008 + Math.sin(Math.min(1, t * 1.15) * Math.PI) * 0.03) * u, th = (0.006 + Math.sin(t * Math.PI) * 0.016) * u;
+      for (let j = 0; j < R; j++) {
+        const a = j / R * Math.PI * 2, c = Math.cos(a), fr = 1 + 0.18 * Math.sin(t * 40 + j) * Math.abs(c);
+        pos.push(P.x + Bn.x * c * w * fr + Nn.x * Math.sin(a) * th - Nn.x * c * c * w * 0.35, P.y + Bn.y * c * w * fr + Nn.y * Math.sin(a) * th - Nn.y * c * c * w * 0.35, P.z + Bn.z * c * w * fr + Nn.z * Math.sin(a) * th - Nn.z * c * c * w * 0.35);
+      }
     }
+    for (let i = 0; i < N; i++) for (let j = 0; j < R; j++) { const a = i * R + j, b = i * R + (j + 1) % R, c = a + R, d = b + R; idx.push(a, b, c, b, d, c); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); out.push([g, 0]);
   } else if (k === "sprig") {
     // (a sprig of green — oak or fir — tucked in at the left, its leaves fanned up)
     for (let i = 0; i < 5; i++) put(trimLeaf(0.014, 0.045), 0, lx, ly, lz, 0, out45, (i - 2) * 0.32 - 0.25);
   } else if (k === "straw") {
     for (let i = 0; i < 7; i++) { const g = new THREE.CylinderGeometry(0.003, 0.003, 0.11, 4); g.translate(0, 0.05, 0); put(g, 0, lx, ly, lz, (i % 3 - 1) * 0.12, out45, (i - 3) * 0.12 - 0.3); }
+  } else if (k === "kuchma") {
+    // (the Zaporozhian's tall cap of black lambskin, worn over his own, with the red cloth bag — the shlyk — sewn in its
+    //  crown and hung down over the side, a tassel at its end; the fur ruffled, not a drum)
+    const r = Math.max(hw, hd) * 1.18, top = y0 + Math.max(h, 0.1 * u) + 0.035 * u, fur = new THREE.CylinderGeometry(r * 1.12, r, top - y0 + 0.02 * u, 20, 6, true);
+    const p = fur.attributes.position;
+    for (let i = 0; i < p.count; i++) { const n = Math.sin(i * 12.9898) * 43758.5453, f = 1 + ((n - Math.floor(n)) - 0.5) * 0.16; p.setXYZ(i, p.getX(i) * f, p.getY(i), p.getZ(i) * f); }
+    fur.computeVertexNormals(); put(fur, 0, cx, (y0 + top) / 2 - 0.01 * u, cz);
+    const crown = new THREE.SphereGeometry(r * 1.08, 16, 6, 0, Math.PI * 2, 0, Math.PI / 2); crown.scale(1, 0.32, 1); put(crown, 1, cx, top - 0.01 * u, cz);
+    // (the bag: from the crown, over the left side and down)
+    const bag = new THREE.CatmullRomCurve3([[0, 0.0, -0.05], [0.45, 0.03, -0.15], [0.9, 0.0, -0.25], [1.16, -0.08, -0.3], [1.22, -0.2, -0.3]].map(([x, y, z]) => new THREE.Vector3(cx + x * r, top + y * u, cz + z * r)));
+    put(new THREE.TubeGeometry(bag, 14, 0.034, 8, false), 1, 0, 0, 0);
+    const tb = bag.getPointAt(1), tassel = new THREE.ConeGeometry(0.018, 0.05, 8); put(tassel, 2, tb.x, tb.y - 0.03 * u, tb.z);
   } else if (k === "aigrette") {
     // (a crane's or heron's feather standing up from a jewel at the front)
     const j = new THREE.SphereGeometry(0.018, 8, 6); put(j, 1, cx, y0 + h * 0.62, cz + hd * 0.92);
@@ -130,7 +149,7 @@ function trimHat(P, scene, trims) {
     let parts = TRIM_GEO.get(gk);
     if (!parts) {
       parts = trimParts(t.k, G.boundingBox, u).reduce((m, [g, c]) => { const ng = g.index ? g.toNonIndexed() : g; ng.deleteAttribute("uv"); (m[c] = m[c] || []).push(ng); return m; }, []).map(list => {
-        const g = mergeGeometries(list); g.computeVertexNormals(); const n = g.attributes.position.count;
+        const g = mergeGeometries(list); const n = g.attributes.position.count;
         const si = new Uint16Array(n * 4), sw = new Float32Array(n * 4); for (let i = 0; i < n; i++) { si[i * 4] = head; sw[i * 4] = 1; }
         g.setAttribute("skinIndex", new THREE.BufferAttribute(si, 4)); g.setAttribute("skinWeight", new THREE.BufferAttribute(sw, 4)); return g;
       });
