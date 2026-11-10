@@ -883,6 +883,8 @@ export const FOLEY = {
   thunk: (at, vol = 0.7) => play("thunk", { vol, at, reach: 40, rate: [0.85, 1.15] }),
   // a blow landing on a man: the dull weight of it through his coat
   blow: (at, vol = 0.7) => play("blow", { vol, at, reach: 30, rate: [0.88, 1.12] }),
+  // (a fist landing, for audio.js's punch: the recorded blow once it's in — true — or nothing, and the made thump)
+  blowRec: (at, vol) => { if (!heard.blow) { bufs("blow"); return false; } play("blow", { vol, at, reach: 40, rate: [0.95, 1.15] }); return true; },
   packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),
   packOut: (vol = 0.45) => play("packOut", { vol, rate: [0.9, 1.1] }),
   fellStart: (at, vol = 1) => play("fellStart", { vol, at, reach: 60, rate: [0.92, 1.06] }),

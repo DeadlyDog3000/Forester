@@ -1214,6 +1214,7 @@ export const AUDIO = {
   // two men at it with their fists: a dull thump, and the breath knocked out
   punch(at = null) {
     const a = ctx(); if (!a) return;
+    if (window.__foley && window.__foley.blowRec && window.__foley.blowRec(at, 0.18)) return;
     const { node, k } = placed(a, at, 40); if (k < 0.02) return;
     const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
     o.type = "sine"; o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(55, t + 0.12);
