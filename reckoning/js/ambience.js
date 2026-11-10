@@ -6,7 +6,8 @@
 // coming and going in gusts and moving round you; the birds of a German wood, each its own song, from here and there
 // among the trees — blackbird, chaffinch, great tit, wood pigeon, crow, and the cuckoo in spring and summer — thickest
 // at dawn, thinning through the day, gone quiet at night and sparse in winter and the rain; and old trunks creaking
-// when the wind gets up. Muffled indoors, silent in the caves and the city. All made here, on the game's own bus.
+// when the wind gets up. Muffled indoors, silent in the caves and the city. The birds recorded (art/birds), the rest made
+// here, on the game's own bus.
 
 const ac = () => { const a = window.__foresterAC; return a && a.state === "running" ? a : null; };
 const bus = () => window.__foresterBus || null;
@@ -68,11 +69,30 @@ const SONGS = {
     return at - t;
   },
 };
+// ---- the birds recorded (art/birds/<kind>_NN.ogg, credited in art/birds/CREDITS.md): each a few takes, and how loud
+// (the crow's matched to the made one's caw, the songbirds a little under it) ----
+const BIRDS = { blackbird: [3, 0.1245], chaffinch: [3, 0.1245], greattit: [3, 0.1245], pigeon: [2, 0.1245], cuckoo: [2, 0.1245], crow: [3, 0.1479] }, BB = {}, BLAST = {};
+let bLoad = false;
+function loadBirds(a) {
+  if (bLoad) return; bLoad = true;
+  for (const [k, [n]] of Object.entries(BIRDS)) for (let i = 0; i < n; i++)
+    fetch(new URL(`../art/birds/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(b => a.decodeAudioData(b)).then(b => (BB[k] ||= []).push(b)).catch(() => {});
+}
+// one of a kind's takes into out at t, a little higher or lower (not loaded: false, and the made one sings)
+function recSong(a, out, kind, t) {
+  const l = BB[kind]; if (!l || l.length < 2) return false;
+  let i = Math.floor(Math.random() * l.length); if (i === BLAST[kind]) i = (i + 1) % l.length; BLAST[kind] = i;
+  const s = a.createBufferSource(), g = a.createGain(); s.buffer = l[i]; s.playbackRate.value = rnd(0.96, 1.04); g.gain.value = BIRDS[kind][1];
+  s.connect(g); g.connect(out); s.onended = () => { try { g.disconnect(); } catch (e) {} }; s.start(t);
+  return true;
+}
+const sung = (a, out, kind, t) => recSong(a, out, kind, t) || SONGS[kind](a, out, t);
 // the weights of the chorus: who sings, by the time of day and the season
 function pickSong(dawn, winter, spring) {
-  // (the songbirds, sung by pure tones, sounded like a little tune over the woods and not like birds: only the crow,
-  //  whose caw is noise and not a note, is left; the first Forester's own birds still sing)
-  return "crow";
+  // (the songbirds, sung by pure tones, sounded like a little tune over the woods and not like birds: till their
+  //  recordings are in, only the crow, whose caw is noise and not a note)
+  if (!(BB.blackbird && BB.chaffinch && BB.greattit)) return "crow";
   const w = winter ? [["crow", 4], ["greattit", 2], ["blackbird", 0.5]] : [["blackbird", dawn ? 5 : 3], ["chaffinch", 4], ["greattit", 3], ["pigeon", 2.5], ["crow", 1.2], ["cuckoo", spring ? 1.4 : 0]];
   let s = w.reduce((a, b) => a + b[1], 0) * Math.random();
   for (const [k, v] of w) { s -= v; if (s <= 0) return k; }
@@ -98,7 +118,7 @@ function tick() {
   const a = ac(), out = bus(), G = window.__G;
   const on = a && out && G && G.mode === "play" && FSET().ambient !== false && G.world && (G.world.name === "woods" || G.world.name === "mp") && !(G.world.cave && G.world.cave.inside);
   if (!on) { if (bed && a) bed.master.gain.setTargetAtTime(0, a.currentTime, 0.8); return; }
-  if (!bed) bed = startBed(a, out);
+  if (!bed) { bed = startBed(a, out); loadBirds(a); }
   if (!bed) return;
   const t = a.currentTime, w = G.world, pl = G.player;
   const sun = G.sun ? Math.min(1, G.sun.intensity / 2.4) : 1, night = sun < 0.12;
@@ -119,7 +139,7 @@ function tick() {
     const kind = pickSong(dawn, winter, spring), dist = rnd(12, 65), side = rnd(-1, 1);
     const voice = place(a, out, dist, side);
     voice.gain.value *= (indoor ? 0.3 : 1) * 1.7;
-    try { SONGS[kind](a, voice, t + 0.05); } catch (e) {}
+    try { sung(a, voice, kind, t + 0.05); } catch (e) {}
   }
   // an old trunk creaking, when the wind is up
   if (bed.gust > 0.7 && !indoor && t > nextCreak) {
@@ -135,7 +155,8 @@ setInterval(tick, 250);
 // a crow somewhere off among the trees (for the story's woods, in place of the old chip-tune bird calls)
 function crowNear() {
   const a = ac(), out = bus(); if (!a || !out || FSET().ambient === false) return;
-  const v = place(a, out, rnd(18, 60), rnd(-1, 1)); try { SONGS.crow(a, v, a.currentTime + 0.02); } catch (e) {}
+  loadBirds(a);
+  const v = place(a, out, rnd(18, 60), rnd(-1, 1)); try { sung(a, v, "crow", a.currentTime + 0.02); } catch (e) {}
 }
 // crickets on a summer night: a high, buzzing trill from the grass, pulsing in chirps, near and far
 let crick = null;
