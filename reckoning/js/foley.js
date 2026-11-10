@@ -776,7 +776,12 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   rodOut: [2, "foley"], rodIn: [2, "foley"], parchment: [3, "foley", 1.54], quill: [3, "foley"], pickup: [4, "foley", 1.11],
   // (the campaign's map: a column marching, horse at the trot, a ship making sail, guns beyond the hills, the siege
   //  lines dug; and the wind over the heights and the surf, going round)
-  march: [3, "foley"], trot: [2, "foley", 2.46], sail: [2, "foley"], guns: [2, "foley"], spades: [2, "foley"], surf: [2, "foley"], wind: [2, "foley"] }, heard = {}, hearing = {};
+  march: [3, "foley"], trot: [2, "foley", 2.46], sail: [2, "foley"], guns: [2, "foley"], spades: [2, "foley"], surf: [2, "foley"], wind: [2, "foley"],
+  // (the bayonet fixed and pulled, the bow and the crossbow made ready, the oars, a ladder climbed, a hull aground, a
+  //  horse's harness)
+  fixBayonet: [3, "foley", 0.67], unfixBayonet: [2, "foley", 1.56], quiver: [4, "foley", 0.74], drawBow: [4, "foley", 0.86],
+  crank: [3, "foley", 0.89], latch: [3, "foley", 1.15], boltLay: [3, "foley", 1.26], oarDip: [3, "foley", 0.63], oarDrip: [2, "foley", 0.36],
+  ladder: [3, "foley", 1.34], scrape: [3, "foley", 1.42], tack: [3, "foley", 0.77] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
