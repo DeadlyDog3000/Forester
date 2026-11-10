@@ -34,7 +34,7 @@ import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
 import { initLobby, openLobby, openLookEditor, askUser, hasUser, openSoloFrontier, SCREENS as MP_SCREENS, pvpIdentity, knownServers } from "./mp/lobby.js";
-import { initPvp, PVP_SCREENS, storyBattle, firstBattleDone } from "./pvp.js";
+import { initPvp, PVP_SCREENS, storyBattle } from "./pvp.js";
 import { openStoryCampaign } from "./campaign.js";
 import { HOST } from "./mp/net.js";
 import { MPGame } from "./mp/mpgame.js";
@@ -242,8 +242,6 @@ function refreshTitle() {
   $("tmOnlineKick").textContent = f ? "Multiplayer" : "Multiplayer · try a battle in the demo";
   $("btnCampaign").innerHTML = `The campaign<small class="btn-sub">Europe, 1683 · ${f ? "a crown of your own to rule" : "in the full game"}</small>`;
   UI.show("btnUnlock", !f);
-  // (the battle the trailers show, a click from the title: in the demo always, in the full game until it's been fought)
-  UI.show("btnFirstBattle", !f || !firstBattleDone());
 }
 function toTitle() {
   G.endFreecam && G.endFreecam();
