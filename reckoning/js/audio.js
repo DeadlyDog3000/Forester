@@ -85,8 +85,8 @@ function loadOrders(a) {
         .then(b => a.decodeAudioData(b)).then(b => (OBUF[k] ||= []).push(b)).catch(() => {});
   }).catch(() => {});
 }
-// ---- the field's loudest sounds, recorded: the musket and the pistol, the cannon, a grenade bursting, blade on blade,
-// and a man's war cry as he goes in — art/sfx/<kind>_NN.ogg, art/sfx/sfx.json counting them (credits in
+// ---- some of the field's sounds, recorded: a grenade bursting, blade on blade, and a man's war cry as he goes in (the
+// musket, the pistol and the cannon are the made ones below: those were the better) — art/sfx/<kind>_NN.ogg, art/sfx/sfx.json counting them (credits in
 // art/sfx/CREDITS.md). Till they're loaded, or if they never are, the made ones are played as before (the war cry,
 // which has no made one, is silent) ----
 const SBUF = {}, SLAST = {};
@@ -504,8 +504,6 @@ export const AUDIO = {
     if (!room(D < 150 ? 1 : Math.max(0.6, 1 - D / 400))) return;
     const t = a.currentTime + D / 343 + (at ? 0 : 0);
     const out = shotOut(a, D, 1);
-    // (a recorded shot: the near sound through the dry way, the report off the country round about through the wet)
-    if (recorded(a, small ? "pistol" : "musket", [[out.dry, 1.05 * v], [out.wet, (small ? 0.35 : 0.5) * v]], t, small ? [0.96, 1.08] : [0.93, 1.05])) return;
     // the lock: the flint on the steel, and the priming going up in the pan
     if (D < 40) {
       shotBurst(a, out.dry, t, { type: "highpass", f: 3500, attack: 0.001, peak: 0.25 * v, decay: 0.012 });
@@ -529,7 +527,6 @@ export const AUDIO = {
     const D = shotDistance(at), v = vol * Math.max(0.3, 1 - D / 700);
     const t = a.currentTime + D / 343;
     const out = shotOut(a, D, 1.6);
-    if (recorded(a, "cannon", [[out.dry, 1.3 * v], [out.wet, 0.9 * v]], t, [0.94, 1.04])) return;
     if (D < 30) shotBurst(a, out.dry, t, { type: "bandpass", f: 3000, q: 0.7, attack: 0.02, peak: 0.12 * v, decay: 0.16, len: 0.2 });
     const tc = t + 0.18 + Math.random() * 0.05;
     const crack = shaped(a, out.dry, 6);
