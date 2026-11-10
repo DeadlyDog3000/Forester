@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.286", date: "10 November 2026", title: "The country, heard",
+    items: [
+      "Footsteps sound like boots on the ground they're on: grass, dry leaves, a dirt road, cobbles, floorboards, snow, shallow water and mud — eight steps of each, a heavier man's a little lower.",
+      "Rain falls as rain: a light patter that thickens to a downpour, and drums on the roof when you're under one. The brook babbles, the wind blows through the trees, a town's square murmurs, and a melee roars.",
+      "The owl, the woodpecker, the frogs and the ducks are the real creatures now; thunder cracks overhead or grumbles far off; the church bell tolls; doors creak open and bang shut; a knock at the door is a knock.",
+      "The axe bites the tree, the tree groans and comes down, the hammer drives the nail and the spade the earth; coins clink, a purse spills on the table, a stone plops in the water, and the fire crackles.",
+    ],
+  },
+  {
     v: "1.99.285", date: "10 November 2026", title: "Near guns and far guns",
     items: [
       "Muskets, pistols and cannon close by sound as they did before 1.99.284 — their sharp crack is back. Far off, a recorded report rolls over the country instead, the one fading into the other between (muskets from 40 to 90 metres, guns from 80 to 160).",
