@@ -2534,7 +2534,15 @@ export class Actor {
       // plan the way to the next point the first time we head for it, or again when stuck
       // (one search a frame between everyone, so a crowd setting off at once doesn't stutter)
       if (planFrame !== G.time) { planFrame = G.time; plansNow = 0; }
-      if (this.stepsFor !== t && plansNow >= PLANS_PER_FRAME) { this.person.update(dt, 0); this.sync(); return; }
+      // (a place that has only moved on a pace or two — a man keeping step with his company, given a new place five
+      //  times a second — on a straight way there: the same way on, its end moved; no new search, and no standing in
+      //  the queue for one, which stopped a whole marching line dead for a frame or two every few steps)
+      const was = this.stepsFor;
+      if (was && was !== t && this.steps && this.steps.length === 1 && !this.steps[0].near && !this.steps[0].ghost && Math.hypot(t.x - was.x, t.z - was.z) < 2.5) {
+        this.steps[0] = { x: t.x, z: t.z }; this.stepsFor = t; this.lastFor = t; this.bestD = Infinity; this.stuck = 0;
+      }
+      // (waiting for a search: in his stride still, not stopped)
+      if (this.stepsFor !== t && plansNow >= PLANS_PER_FRAME) { this.person.update(dt, this.steps && this.steps.length ? this.speed : 0); this.sync(); return; }
       if (this.stepsFor !== t) {
         plansNow++; this.steps = findPath(G.world, p.x, p.z, t.x, t.z); this.stepsFor = t; this.stuck = 0; this.replans = this.replans && this.lastFor === t ? this.replans : 0; this.lastFor = t; this.bestD = Infinity; }
       const st = this.steps[0];
