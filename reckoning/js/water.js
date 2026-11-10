@@ -50,6 +50,7 @@ const frag = `
   uniform vec3 uDeep, uZenith, uHorizon, uSunDir, uSunCol, uTrees; uniform float uFlow;
   varying vec3 vW; varying vec2 vUv; varying vec3 vWave; varying float vR; varying vec2 vX; varying float vDepth;
   uniform vec3 uBed; uniform float uDepthOn;
+  uniform sampler2D uBlood; uniform vec4 uBloodBox; uniform float uBloodOn;
   ${WAVE_GLSL}
   float wHash(vec2 q) { return fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453); }
   float wNoise(vec2 q) { vec2 i = floor(q), f = fract(q); f = f * f * (3.0 - 2.0 * f); return mix(mix(wHash(i), wHash(i + vec2(1, 0)), f.x), mix(wHash(i + vec2(0, 1)), wHash(i + vec2(1, 1)), f.x), f.y); }
@@ -112,6 +113,12 @@ const frag = `
       float foam = smoothstep(0.5, 0.85, crest + (br - 0.5) * 0.55) * smoothstep(0.35, 0.65, br) * (0.35 + 0.65 * uWind) * clamp(0.5 + (vR - 1.0) * 0.6, 0.3, 1.4);
       col = mix(col, vec3(0.86, 0.9, 0.92) * (0.35 + 0.65 * length(uHorizon) / 1.5), foam * 0.6);
     }
+    // (blood in it: a battle's dead in the river and on its banks — the water dark red where it's run in, drifting on
+    //  down the channel and thinning; the light still on its surface)
+    if (uBloodOn > 0.5) { vec2 bu = (vW.xz - uBloodBox.xy) * uBloodBox.zw; if (bu.x > 0.0 && bu.y > 0.0 && bu.x < 1.0 && bu.y < 1.0) {
+      float bl = clamp(texture2D(uBlood, bu).r * 2.4, 0.0, 1.0) * (0.8 + 0.2 * wNoise(vW.xz * 0.35 + uT * 0.05));
+      // (blood is dark and thick in water, a maroon that takes the sky's light only on its sheen, not a pink haze)
+      col = mix(col, vec3(0.1, 0.008, 0.006) * (0.4 + 0.6 * length(uHorizon)) + col * vec3(0.22, 0.04, 0.035), bl * 0.95); } }
     // (and at the very edge, gone into the wet ground: no hard line where the water stops)
     float a = uDepthOn > 0.5 ? smoothstep(0.0, 0.1, vDepth) * clamp(0.6 + fres * 1.5 + smoothstep(0.1, 0.5, vDepth) * 0.4, 0.0, 1.0) : 1.0;
     gl_FragColor = vec4(col, a);
@@ -120,6 +127,53 @@ const frag = `
     #include <fog_fragment>
   }`;
 
+
+// ---- blood in the water: a grid of how much has run in, over a battle's field (3 m a cell), every water's own — blood
+// put in where it's landed in the water, spreading only through water (so down the channel, not up the bank), and
+// thinning away over a couple of minutes ----
+const BN = 128, BCELL = 3;
+const BLOOD = { a: new Float32Array(BN * BN), b: new Float32Array(BN * BN), wet: null, x0: 0, z0: 0, world: null, t: 0, any: 0, tex: null,
+  uni: { uBlood: { value: null }, uBloodBox: { value: new THREE.Vector4(0, 0, 1, 1) }, uBloodOn: { value: 0 } } };
+{ const px = new Uint8Array(BN * BN); BLOOD.tex = new THREE.DataTexture(px, BN, BN, THREE.RedFormat, THREE.UnsignedByteType); BLOOD.tex.magFilter = BLOOD.tex.minFilter = THREE.LinearFilter; BLOOD.tex.needsUpdate = true; BLOOD.uni.uBlood.value = BLOOD.tex; }
+// (laid over the field round x, z: a new world, or blood too far from where the grid lies, starts it again there)
+function bloodGrid(x, z) {
+  const w = G.world; if (!w || !w.waterDepth) return false;
+  const half = BN * BCELL / 2;
+  if (BLOOD.world !== w || Math.abs(x - BLOOD.x0 - half) > half - 6 || Math.abs(z - BLOOD.z0 - half) > half - 6) {
+    BLOOD.world = w; BLOOD.x0 = x - half; BLOOD.z0 = z - half; BLOOD.a.fill(0); BLOOD.any = 0;
+    BLOOD.wet = new Uint8Array(BN * BN);
+    for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) BLOOD.wet[j * BN + i] = w.waterDepth(BLOOD.x0 + (i + 0.5) * BCELL, BLOOD.z0 + (j + 0.5) * BCELL) > 0.05 ? 1 : 0;
+    BLOOD.uni.uBloodBox.value.set(BLOOD.x0, BLOOD.z0, 1 / (BN * BCELL), 1 / (BN * BCELL));
+  }
+  return true;
+}
+// blood landed at x, z (k: how much — a drop is a little, a man's pool a lot): into the water if it's water there, or
+// at the water's edge, beside it
+export function bloodIn(x, z, k = 1) {
+  const w = G.world; if (!w || !w.waterDepth || !G.arena) return;
+  if (w.waterDepth(x, z) <= 0 && w.waterDepth(x + 2, z) <= 0 && w.waterDepth(x - 2, z) <= 0 && w.waterDepth(x, z + 2) <= 0 && w.waterDepth(x, z - 2) <= 0) return;
+  if (!bloodGrid(x, z)) return;
+  const fi = (x - BLOOD.x0) / BCELL - 0.5, fj = (z - BLOOD.z0) / BCELL - 0.5;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const i = Math.round(fi) + di, j = Math.round(fj) + dj; if (i < 0 || j < 0 || i >= BN || j >= BN || !BLOOD.wet[j * BN + i]) continue; BLOOD.a[j * BN + i] = Math.min(3, BLOOD.a[j * BN + i] + k * (di || dj ? 0.12 : 0.3)); }
+  BLOOD.any = 1; BLOOD.uni.uBloodOn.value = 1;
+}
+// (five times a second: spread through the water, thin, and into the texture)
+function bloodTick(dt) {
+  if (!BLOOD.any) return;
+  if ((BLOOD.t += dt) < 0.2) return; const step = BLOOD.t; BLOOD.t = 0;
+  const A = BLOOD.a, B = BLOOD.b, W2 = BLOOD.wet, keep = Math.pow(0.5, step / 180), mix = Math.min(0.3, step * 0.45);
+  let any = 0;
+  for (let j = 0; j < BN; j++) for (let i = 0; i < BN; i++) {
+    const k = j * BN + i; if (!W2[k]) { B[k] = 0; continue; }
+    let s = 0, n = 0; if (i > 0 && W2[k - 1]) { s += A[k - 1]; n++; } if (i < BN - 1 && W2[k + 1]) { s += A[k + 1]; n++; } if (j > 0 && W2[k - BN]) { s += A[k - BN]; n++; } if (j < BN - 1 && W2[k + BN]) { s += A[k + BN]; n++; }
+    const v = (n ? A[k] + (s / n - A[k]) * mix : A[k]) * keep; B[k] = v < 0.004 ? 0 : v; if (B[k]) any = 1;
+  }
+  BLOOD.a = B; BLOOD.b = A;
+  const px = BLOOD.tex.image.data; for (let k = 0; k < BN * BN; k++) px[k] = Math.min(255, BLOOD.a[k] * 160) | 0;
+  BLOOD.tex.needsUpdate = true;
+  if (!any) { BLOOD.any = 0; BLOOD.uni.uBloodOn.value = 0; }
+}
+let bloodFrame = -1;
 
 export class WaterMat {
   // deep: the water's own colour, looked straight down into; round: what stands round it, reflected low down
@@ -132,6 +186,7 @@ export class WaterMat {
       uSunDir: { value: new THREE.Vector3(0.4, 0.6, 0.3) }, uSunCol: { value: new THREE.Color(1, 1, 1) }, uTrees: { value: new THREE.Color() },
       uRefl: { value: null }, uReflMat: { value: new THREE.Matrix4() }, uReflOn: { value: 0 },
       uDepthOn: { value: 0 }, uBed: { value: new THREE.Color(0.11, 0.09, 0.06) },
+      uBlood: BLOOD.uni.uBlood, uBloodBox: BLOOD.uni.uBloodBox, uBloodOn: BLOOD.uni.uBloodOn,
     };
     this.mat = new THREE.ShaderMaterial({ vertexShader: vtx, fragmentShader: frag, uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {}]), fog: true });
     Object.assign(this.mat.uniforms, this.uni);
@@ -160,6 +215,8 @@ export class WaterMat {
   }
   update(dt, { rain = 0, ice = false } = {}) {
     const u = this.uni;
+    // (the blood in the water spread once a frame, however many waters there are)
+    if (bloodFrame !== G.time) { bloodFrame = G.time; bloodTick(dt); }
     this.t += dt; u.uT.value = this.t;
     const sky = G.sky && G.sky.material.uniforms;
     if (sky) { u.uZenith.value.copy(sky.top.value).lerp(sky.mid.value, 0.35); u.uHorizon.value.copy(G.scene.fog.color); }

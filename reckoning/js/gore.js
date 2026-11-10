@@ -10,6 +10,7 @@ import { THREE } from "./core.js";
 import { G } from "./engine.js";
 import { burst } from "./fight.js";
 import { Billboards } from "./billboards.js";
+import { bloodIn } from "./water.js";
 
 const MAX = 160;                 // (marks on the ground, the oldest going first)
 const marks = [];
@@ -89,6 +90,8 @@ function stamp(mat, x, y, z, ry, sx, sz) {
 function unstamp() { for (const S of STAMPS.values()) { S.m.count = 0; S.i = 0; if (S.m.parent) S.m.parent.remove(S.m); } }
 export function splat(x, z, size, dark = false, own = false) {
   if (!G.scene || (G.settings && G.settings.gore === false)) return null;
+  // (in the water, or at its edge: into it, to run red down the river)
+  bloodIn(x, z, size * (dark ? 0.8 : 0.4));
   if (size <= 0.35 && !own) { const sz = size * rnd(0.75, 1.25); stamp(stainMat(dark), x, groundY(x, z) + 0.015 + Math.random() * 0.006, z, Math.random() * 6.28, size, sz); return null; }
   const m = new THREE.Mesh(PLANE, stainMat(dark));
   m.position.set(x, groundY(x, z) + 0.015 + Math.random() * 0.006, z); m.rotation.y = Math.random() * 6.28; m.scale.set(size, 1, size * rnd(0.75, 1.25));
@@ -100,6 +103,7 @@ export function splat(x, z, size, dark = false, own = false) {
 export function drop(x, z, k = 1) {
   if (!G.scene || (G.settings && G.settings.gore === false)) return;
   const r = rnd(0.05, 0.11) * k;
+  bloodIn(x, z, 0.05 * k);
   stamp(stainMat(false), x, groundY(x, z) + 0.012 + Math.random() * 0.004, z, Math.random() * 6.28, r, r);
 }
 
@@ -224,6 +228,8 @@ export function pool(a, big = 1) {
     const R = rnd(1.7, 2.5) * big, sx = rnd(0.8, 1.2); let t = 0;
     const tick = dt => {
       t += dt; const k = 1 - Math.pow(1 - Math.min(1, t / 9), 2); m.scale.set(0.1 + R * k * sx, 1, 0.1 + R * k);
+      // (a man down in the water or on its edge bleeds into it the whole time the pool spreads)
+      bloodIn(m.position.x, m.position.z, dt * 0.35 * big);
       // (under him wherever he comes to rest: a body thrown by a blast is still going when it starts)
       if (t < 3 && b) { b.getWorldPosition(p); m.position.set(p.x, groundY(p.x, p.z) + 0.016, p.z); }
       drape(m); if (t > 9 || !m.parent) off(tick); };

@@ -4071,8 +4071,12 @@ class Bot extends Fighter {
     if (!L.up || L.fallT > 0) { this.fall(); return; }
     c.t = Math.min(1, c.t + dt / 2.8);
     let x, z, y;
-    if (c.t < 0.82) { const k = c.t / 0.82; x = L.out.x + (L.top.x - L.out.x) * k; z = L.out.z + (L.top.z - L.out.z) * k; y = L.footY + (L.topY + 0.35 - L.footY) * k; }
-    else { const k = (c.t - 0.82) / 0.18, gy = w.heightAt(L.inn.x, L.inn.z); x = L.top.x + (L.inn.x - L.top.x) * k; z = L.top.z + (L.inn.z - L.top.z) * k; y = L.topY + 0.35 + (gy - L.topY - 0.35) * k; }
+    // (on the rungs his body a hand's breadth off the face, not his shoulders in the stone; at the top, over the parapet
+    //  at its own height until he's past the wall's inner face, and only then down onto the walk — dropping as he went
+    //  across, he sank through the parapet and the wall's thickness)
+    const ox = L.out.x - L.top.x, oz = L.out.z - L.top.z, ol = Math.hypot(ox, oz) || 1, tx = L.top.x + ox / ol * 0.3, tz = L.top.z + oz / ol * 0.3;
+    if (c.t < 0.82) { const k = c.t / 0.82; x = L.out.x + (tx - L.out.x) * k; z = L.out.z + (tz - L.out.z) * k; y = L.footY + (L.topY + 0.35 - L.footY) * k; }
+    else { const k = (c.t - 0.82) / 0.18, gy = w.heightAt(L.inn.x, L.inn.z), drop = k < 0.58 ? 0 : (k - 0.58) / 0.42; x = tx + (L.inn.x - tx) * k; z = tz + (L.inn.z - tz) * k; y = L.topY + 0.35 + (gy - L.topY - 0.35) * drop * drop; }
     a.path = []; a.pos.x = x; a.pos.z = z; a.yOff = y - w.heightAt(x, z);
     if (Math.floor(c.t * 9) !== Math.floor((c.t - dt / 2.8) * 9)) FOLEY.ladder && Math.hypot(G.player.pos.x - x, G.player.pos.z - z) < 25 && FOLEY.ladder(0.25);
     if (c.t >= 1) { this.climb = null; a.yOff = 0; a.place(L.inn.x + (Math.random() - 0.5), L.inn.z + (Math.random() - 0.5), a.yaw); a.person.setPose("guard"); }
