@@ -2266,9 +2266,9 @@ class Arena {
     // (only another work of yours right on the same spot, or a gun, stops it: works can overlap end to end, stand in
     //  front of the line, beside the guns and across their fire if you will)
     const roomFor = (p, W) => !!this.field && !built.some(b => Math.hypot(b.x - p.x, b.z - p.z) < (WK[b.k].rad + W.rad) * 0.35) && !this.field.guns.some(g => !g.dead && Math.hypot(g.x - p.x, g.z - p.z) < 1.3 + W.rad * 0.4);
-    const wkAt = g => { const W = WK[work.k], p = { x: g.x, z: g.z }, ok = supLeft() >= loadsOf(W) && inWorks(g.x, g.z) && roomFor(p, W); return { p, ok }; };
+    const wkAt = g => { const W = WK[work.k], p = { x: g.x, z: g.z }, ok = supLeft() >= loadsOf(W) && inWorks(g.x, g.z) && roomFor(p, W) && !this.field.wet(g.x, g.z); return { p, ok }; };
     const placeWork = g => {
-      const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(supLeft() < loadsOf(W) ? `Not enough supplies: ${W.name.toLowerCase()} take ${loadsOf(W)} loads${A0.supplies ? "" : " — buy supplies in the muster, under Your company"}.` : "Not there: another work or a gun is right on that spot, or it's past the middle of the field.", 2); return; }
+      const W = WK[work.k], { p, ok } = wkAt(g); if (!ok) { sfx("click"); UI.hint(supLeft() < loadsOf(W) ? `Not enough supplies: ${W.name.toLowerCase()} take ${loadsOf(W)} loads${A0.supplies ? "" : " — buy supplies in the muster, under Your company"}.` : this.field && this.field.wet(g.x, g.z) ? "Not in the water: works are dug and set down on dry ground." : "Not there: another work or a gun is right on that spot, or it's past the middle of the field.", 2); return; }
       const rec = this.field.build(work.k, p.x, p.z, work.ry, 0, { x: p.x - f.x * 20, z: p.z - f.z * 20 });
       // (any of yours standing where it went up: stepped out of its way)
       { const rad = W.rad + 0.6; for (const u of this.alliesOf(0)) if (u.alive && u.a && Math.hypot(u.pos.x - p.x, u.pos.z - p.z) < rad) { const d = Math.hypot(u.pos.x - p.x, u.pos.z - p.z) || 1, q = this.clearSpot(p.x + (u.pos.x - p.x) / d * (rad + 0.4), p.z + (u.pos.z - p.z) / d * (rad + 0.4)); u.reset(q, { x: q.x + f.x * 30, z: q.z + f.z * 30 }); u.a.sync && u.a.sync(); }

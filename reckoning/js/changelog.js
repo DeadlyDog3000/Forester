@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.287", date: "10 November 2026", title: "Swung, struck and set down",
+    items: [
+      "An axe, a sword or a musket's butt swung is the recorded blade through the air, and a fist landing in a brawl is a real blow.",
+      "Gabions, banks, palisades and chevaux-de-frise are no longer set down in a river: a battery on the bank stops at the water, and placing works in it says why.",
+    ],
+  },
+  {
     v: "1.99.286", date: "10 November 2026", title: "The country, heard",
     items: [
       "Footsteps sound like boots on the ground they're on: grass, dry leaves, a dirt road, cobbles, floorboards, snow, shallow water and mud — eight steps of each, a heavier man's a little lower.",

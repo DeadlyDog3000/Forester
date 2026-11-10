@@ -521,6 +521,7 @@ export class Field {
   // and the ground level enough for it
   free(x, z, rad, gap = 1.6) {
     if (this.used.some(u => Math.hypot(u.x - x, u.z - z) < u.rad + rad + gap)) return false;
+    if (this.wet(x, z)) return false;
     for (let i = 0; i < 9; i++) {
       const a = i / 8 * Math.PI * 2, k = i ? rad : 0, px = x + Math.cos(a) * k, pz = z + Math.sin(a) * k;
       if (this.w.col.solidAt(px, this.y(px, pz) + 0.8, pz, 0.8)) return false;
@@ -738,7 +739,10 @@ export class Field {
     for (let i = 0; i < 5; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 1.4, 6), this.M.post); st.position.set((this.r() - 0.5) * 3, 0.25, (this.r() - 0.5) * 1.4); st.rotation.set(Math.PI / 2 + (this.r() - 0.5), this.r() * 3, 0); g.add(st); }
     this.put(g, x, z, this.r() * 3);
   }
+  // (in a river or a pond: nothing's dug or set down there — a basket of earth stood in the water was a log's end afloat)
+  wet(x, z, d = 0.35) { return !!(this.w.waterDepth && this.w.waterDepth(x, z) > d); }
   gabion(x, z, side = null, inward = null) {
+    if (this.wet(x, z)) return;
     const g = new THREE.Group(), h = 1.15, R = 0.42;
     // (a basket woven of willow round its stakes, not a barrel in hoops: the weave in its texture, the stakes' ends
     //  standing up out of the earth at the top, its sides a little bellied with what is packed in it)
