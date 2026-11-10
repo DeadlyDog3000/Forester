@@ -781,7 +781,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   //  horse's harness)
   fixBayonet: [3, "foley", 0.67], unfixBayonet: [2, "foley", 1.56], quiver: [4, "foley", 0.74], drawBow: [4, "foley", 0.86],
   crank: [3, "foley", 0.89], latch: [3, "foley", 1.15], boltLay: [3, "foley", 1.26], oarDip: [3, "foley", 0.63], oarDrip: [2, "foley", 0.36],
-  ladder: [3, "foley", 1.34], scrape: [3, "foley", 1.42], tack: [3, "foley", 0.77] }, heard = {}, hearing = {};
+  ladder: [3, "foley", 1.34], scrape: [3, "foley", 1.42], tack: [3, "foley", 0.77],
+  // (a drink, meat on the fire, and the water along a hull — that one made to go round)
+  gulp: [2, "foley", 1.12], sizzle: [3, "foley", 0.88], wash: [2, "foley", 3.16] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -870,9 +872,11 @@ export const FOLEY = {
   // the wash along the hull of the boat you're in, as loud as she's going fast (0 to 1)
   wash(k) {
     const a = ac(), out = window.__foresterBus; if (!a || !out) return;
-    if (k > 0.01 && !washSrc) { const s = a.createBufferSource(); s.buffer = bufs("wash")[0]; s.loop = true; const g = a.createGain(); g.gain.value = 0; s.connect(g); g.connect(out); s.start(); washSrc = { s, g }; }
+    if (k > 0.01 && !washSrc) { const s = a.createBufferSource(); const w = bufs("wash"); s.buffer = w[Math.floor(Math.random() * w.length)]; s.loop = true; const g = a.createGain(); g.gain.value = 0; s.connect(g); g.connect(out); s.start(); washSrc = { s, g, lift: lift("wash") }; }
     if (!washSrc) return;
-    washSrc.g.gain.setTargetAtTime(0.32 * Math.min(1, k), a.currentTime, 0.3);
+    // (begun on the made wash before the recordings came in: crossed over to a recorded one now they have)
+    if (washSrc.lift === 1 && heard.wash && k > 0.01) { const o = washSrc; o.g.gain.setTargetAtTime(0, a.currentTime, 0.4); setTimeout(() => { try { o.s.stop(); } catch (e) {} }, 2000); washSrc = null; return this.wash(k); }
+    washSrc.g.gain.setTargetAtTime(0.32 * Math.min(1, k) * washSrc.lift, a.currentTime, 0.3);
     washSrc.s.playbackRate.setTargetAtTime(0.85 + 0.3 * Math.min(1, k), a.currentTime, 0.5);
     if (k <= 0.01) { const w = washSrc; washSrc = null; setTimeout(() => { try { w.s.stop(); } catch (e) {} }, 1500); }
   },
