@@ -770,7 +770,10 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   //  stands for — a recording's peaks are sharper, so it was put down quieter to keep them under full scale)
   chop: [6, "foley", 1.29], hammer: [6, "foley", 1.55], dig: [5, "foley", 2.84], crash: [3, "foley", 1.38], fellStart: [2, "foley", 1.02],
   coin: [4, "foley", 1.68], purse: [2, "foley", 1.01], splash: [3, "foley", 1.72], plop: [3, "foley", 3.29], build: [2, "foley", 1.54],
-  packIn: [2, "foley", 1.79], packOut: [2, "foley", 1.51], fire: [2, "foley", 3.85] }, heard = {}, hearing = {};
+  packIn: [2, "foley", 1.79], packOut: [2, "foley", 1.51], fire: [2, "foley", 3.85],
+  // (a musket loaded: the lock, the pan, the charge, the ball and the rod; and the campaign's paper and quill)
+  cock: [2, "foley", 1.95], frizzen: [2, "foley", 1.69], prime: [3, "foley"], powder: [2, "foley"], ball: [3, "foley", 1.23], ram: [4, "foley", 1.11],
+  rodOut: [2, "foley"], rodIn: [2, "foley"], parchment: [3, "foley", 1.54], quill: [3, "foley"] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
