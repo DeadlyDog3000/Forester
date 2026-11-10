@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.279", date: "10 November 2026", title: "Your first battle, straight from the title",
+    items: [
+      "Your first battle is on the title screen now, under Single Player: a battle against the bots, taught as you fight it. In the demo it's always there; in the full game it stays until you've fought it, and it's still under Battles & duels after that.",
+      "In the demo, Begin the story goes straight to who you are, without first asking how you'll play when only the story is open.",
+    ],
+  },
+  {
     v: "1.99.278", date: "9 November 2026", title: "Platoon fire reined in",
     items: [
       "Platoon fire was too strong. It still rolls down the line so the line is never all empty at once, but each platoon fires on its turn, ready or not: its shots are hurried and far wilder, it no longer loads quicker, and the round of the whole line takes a little longer to come back.",
