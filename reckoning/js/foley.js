@@ -873,6 +873,8 @@ export const FOLEY = {
   },
   gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
   swish: (vol = 0.35) => play("swish", { vol, rate: [0.85, 1.2] }),
+  // (a weapon swung, for audio.js's whoosh: the recorded swish once it's in — true — or nothing, and the made whoosh)
+  swishRec: vol => { if (!heard.swish) { bufs("swish"); return false; } play("swish", { vol, rate: [0.9, 1.12] }); return true; },
   whiz: (vol = 0.55) => play("whiz", { vol, rate: [0.9, 1.12] }),
   // a step of loading (see the recipes): at a place, or in your own hands
   load: (step, at = null, vol = 0.55, small = false) => RECIPES[step] && play(step, { vol, at, reach: 25, rate: small ? [1.12, 1.25] : [0.94, 1.06] }),

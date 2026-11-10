@@ -618,6 +618,8 @@ export const AUDIO = {
   // a blade or a haft through the air: noise that swells and falls away, its pitch rising with the stroke's speed
   whoosh(vol = 0.5, heavy = true) {
     const a = ctx(); if (!a || vol < 0.02 || !room(vol)) return;
+    // (a weapon's — an axe, a sword, a musket's butt — the recorded blade through the air, levelled to the made one)
+    if (heavy && window.__foley && window.__foley.swishRec && window.__foley.swishRec(vol * 0.16)) return;
     const t = a.currentTime, dur = heavy ? rnd(0.3, 0.36) : rnd(0.2, 0.25), peak = t + dur * 0.45;
     const s = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.Q.value = 0.9;
