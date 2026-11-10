@@ -759,8 +759,19 @@ for (const k in RECIPES) VARIANTS[k] ??= 2;
 // ---------------------------------------------------------------------------
 const made = {};
 function ac() { const a = window.__foresterAC; if (a && a.state === "suspended") a.resume(); return a || null; }
+// (a horse's own voice, recorded: its whinny, its scream when it's hit, its snort — art/horse/<name>_NN.ogg; loaded the
+//  first time one's wanted, and the made one played till they're in, or if they never come)
+const RECORDED = { neigh: 5, horseScream: 4, snort: 4 }, heard = {}, hearing = {};
+function recorded(a, name) {
+  if (heard[name]) return heard[name];
+  if (!hearing[name]) { hearing[name] = true; const list = [];
+    for (let i = 0; i < RECORDED[name]; i++) fetch(new URL(`../art/horse/${name}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(b => a.decodeAudioData(b)).then(b => { list.push(b); if (list.length >= 2) heard[name] = list; }).catch(() => {}); }
+  return null;
+}
 function bufs(name) {
   const a = ac(); if (!a) return null;
+  if (RECORDED[name]) { const r = recorded(a, name); if (r) return r; }
   if (made[name]) return made[name];
   const sr = a.sampleRate, list = [];
   for (let i = 0; i < VARIANTS[name]; i++) {

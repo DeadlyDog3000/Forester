@@ -2658,6 +2658,8 @@ export class Actor {
       // (the horse a little behind where the man is, so he sits in its saddle: seated, his hips are a good way back from
       //  where he stands, and he rode on its rump)
       const h = this.horse, sx = Math.sin(this.yaw) * 0.31, sz = Math.cos(this.yaw) * 0.31; h.root.position.set(p.x - sx, p.y - this.yOff, p.z - sz); h.root.rotation.y = this.yaw; h.gait(dt, this.speed);
+      // (reared: the saddle carried back toward the hips, and him in it)
+      if (h.back) { this.root.position.x -= Math.sin(this.yaw) * h.back; this.root.position.z -= Math.cos(this.yaw) * h.back; }
       if (h.falls.length && far2 < 3600) { const at = { x: p.x, z: p.z }; for (const i of h.falls) FOLEY.hoof(at, this.speed > 6 ? 0.7 : 0.5); if (Math.random() < 0.12) FOLEY.tack(at, 0.25); }
       if ((h.snortT = (h.snortT ?? 4 + Math.random() * 20) - dt) <= 0) { h.snortT = 10 + Math.random() * 25; if (far2 < 900) FOLEY.snort({ x: p.x, z: p.z }, 0.45); }
     }

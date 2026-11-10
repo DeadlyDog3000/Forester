@@ -3500,9 +3500,11 @@ function makeBuiltHorse(coat = 0x6a4428, seed = 1, { draught = false } = {}) {
   // lengthens with the pace, and a hoof on the ground sweeps back exactly as fast as the horse goes over it
   const GAITS = { walk: { off: [0.25, 0.75, 0, 0.5], duty: 0.62, stride: 1.8 }, trot: { off: [0, 0.5, 0.5, 0], duty: 0.42, stride: 3.0 }, gallop: { off: [0.55, 0.65, 0, 0.1], duty: 0.3, stride: 5.6 } };
   let ph = 0, strikeT = 0, rearT = 0, ext = 0;
-  const H = { root, legs, neck, lift: 0, falls: [] };
+  const H = { root, legs, neck, lift: 0, back: 0, falls: [] };
   H.strike = () => { strikeT = 0.6; };
-  H.rear = () => { if (rearT <= 0) rearT = 1.4; };
+  // (a rear: up fast, a moment balanced at the top pawing the air, and down heavily — REAR seconds in all)
+  const REAR = 1.9;
+  H.rear = () => { if (rearT <= 0) rearT = REAR; };
   H.gait = (dt, speed) => {
     const g = speed < 2.6 ? GAITS.walk : speed < 6.2 ? GAITS.trot : GAITS.gallop, still = Math.min(1, speed / 0.8);
     const ph0 = ph; ph = (ph + dt * speed / g.stride) % 1;
@@ -3525,16 +3527,32 @@ function makeBuiltHorse(coat = 0x6a4428, seed = 1, { draught = false } = {}) {
     // a blow from the saddle: the horse surges into it, head thrown up and to the side
     strikeT = Math.max(0, strikeT - dt); const sk = Math.sin(Math.min(1, (0.6 - strikeT) / 0.6) * Math.PI) * (strikeT > 0 ? 1 : 0);
     // reared: up on the hinds and down again, the forelegs pawing
-    rearT = Math.max(0, rearT - dt); const rk = rearT > 0 ? Math.sin((1 - rearT / 1.4) * Math.PI) : 0;
-    bod.rotation.x = -(beat * 0.035 * ext * still) - rk * 0.42 - sk * 0.06;
-    bod.position.y = Math.abs(beat) * 0.03 * k * still + rk * 0.12;
-    // (rearing pivots on the hindquarters: the saddle goes up with it)
-    H.lift = rk * (0.12 + 0.56 * Math.sin(0.42)) + sk * 0.02;
-    if (rk > 0) { legs[0].rotation.x = -0.9 * rk + Math.sin(rearT * 14) * 0.3 * rk; legs[1].rotation.x = -0.9 * rk + Math.cos(rearT * 14) * 0.3 * rk; legs[0].userData.low.rotation.x = 1.4 * rk; legs[1].userData.low.rotation.x = 1.4 * rk; legs[2].rotation.x = legs[3].rotation.x = 0.42 * rk; }
+    rearT = Math.max(0, rearT - dt);
+    // (how far up: up fast, eased out; held, swaying for balance; down eased in, with a jolt as the fores land)
+    let rk = 0, jolt = 0; if (rearT > 0) { const u = 1 - rearT / REAR;
+      rk = u < 0.2 ? 1 - (1 - u / 0.2) ** 2 : u < 0.66 ? 1 - 0.07 * (1 - Math.cos((u - 0.2) / 0.46 * Math.PI * 3)) / 2 : 1 - ((u - 0.66) / 0.34) ** 2;
+      if (u > 0.94) jolt = Math.sin((u - 0.94) / 0.06 * Math.PI); }
+    // up on the hinds: the body turned about the hips, not its middle — the hindquarters stay on the ground, sat back
+    //  low on the hocks; (pivoting about the middle, the rump went down into the earth)
+    const th = rk * 0.95, crouch = rk * 0.08, HY = 1.02, HZ = -0.56, c = Math.cos(th), sn = Math.sin(th);
+    bod.rotation.x = -(beat * 0.035 * ext * still) - th - sk * 0.06;
+    bod.position.y = Math.abs(beat) * 0.03 * k * still + (HY - (HY * c + HZ * sn)) - crouch - jolt * 0.06;
+    bod.position.z = rk > 0 ? HZ - (-HY * sn + HZ * c) : 0;
+    // (the saddle where the rearing body has it now — up, and back toward the hips — for the rider to sit in)
+    const SY = 1.62, SZ = 0.02;
+    H.lift = (bod.position.y + SY * c + SZ * sn - SY) + sk * 0.02; H.back = rk > 0 ? -(bod.position.z - SY * sn + SZ * c - SZ) : 0;
+    if (rk > 0) {
+      // (the fores folded up under the chest and striking out at the air by turns; the hinds kept under him, the hooves
+      //  where they stood, bent at the hock)
+      const paw = Math.max(0, Math.min(1, (rk - 0.4) / 0.6));
+      legs[0].rotation.x = -1.15 * rk + Math.sin((REAR - rearT) * 9) * 0.45 * paw; legs[1].rotation.x = -1.15 * rk + Math.sin((REAR - rearT) * 9 + 2.2) * 0.45 * paw;
+      legs[0].userData.low.rotation.x = 1.7 * rk - Math.max(0, Math.sin((REAR - rearT) * 9)) * 0.6 * paw; legs[1].userData.low.rotation.x = 1.7 * rk - Math.max(0, Math.sin((REAR - rearT) * 9 + 2.2)) * 0.6 * paw;
+      legs[2].rotation.x = legs[3].rotation.x = th - 0.12 * rk; legs[2].userData.low.rotation.x = legs[3].userData.low.rotation.x = -0.3 * rk;
+    }
     // the head nods with each stride (twice at the walk), the tail lifts and streams with the pace
-    neck.rotation.x = -0.75 + ext * 0.28 * still + beat * (0.05 + 0.05 * k) * still - sk * 0.45 - rk * 0.3;
+    neck.rotation.x = -0.75 + ext * 0.28 * still + beat * (0.05 + 0.05 * k) * still - sk * 0.45 + rk * 0.35 + jolt * 0.15;
     neck.rotation.y = sk * 0.25;
-    tail.rotation.x = -1.2 + k * 0.8 + Math.sin(ph * Math.PI * 4) * 0.08 * k;
+    tail.rotation.x = -1.2 + k * 0.8 + Math.sin(ph * Math.PI * 4) * 0.08 * k + rk * 0.7;   // (reared: the tail down, clamped)
     tail2.rotation.x = -0.32 * (1 - k) + k * 0.3 + Math.sin(ph * Math.PI * 2 + 1) * 0.12 * k;
     tail2.rotation.y = Math.sin(G_T() * 0.7 + seed) * 0.08 * (1 - k);   // (swishing at the flies, standing)
     return ph;

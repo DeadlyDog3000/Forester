@@ -2609,7 +2609,7 @@ class Arena {
       // (a side's men falling to the guns: counted, so its officer knows he's being shot to pieces — see command)
       { const sd = u === this.you ? 0 : this.alOf(u.team ?? 0), S = (this.shelled ||= {})[sd] ||= { n: 0, t: -99 }; if (G.time - S.t > 20) S.n = 0; S.n++; S.t = G.time; }
       // (the horses near where the shot struck shy at it: up on their hind legs, snorting)
-      if (from && G.time - (this.shyT || -9) > 0.6) { this.shyT = G.time; for (const m of this.units) if (m.alive && m.a && m.a.horse && Math.hypot(m.pos.x - from.x, m.pos.z - from.z) < 8 && Math.random() < 0.7) { m.a.horse.rear && m.a.horse.rear(); if (Math.random() < 0.4) FOLEY.snort && FOLEY.snort(m.pos, 0.6); } }
+      if (from && G.time - (this.shyT || -9) > 0.6) { this.shyT = G.time; for (const m of this.units) if (m.alive && m.a && m.a.horse && Math.hypot(m.pos.x - from.x, m.pos.z - from.z) < 8 && Math.random() < 0.7) { m.a.horse.rear && m.a.horse.rear(); const r = Math.random(); if (r < 0.45) FOLEY.neigh && FOLEY.neigh(m.pos, 0.75); else if (r < 0.75) FOLEY.snort && FOLEY.snort(m.pos, 0.6); } }
       if (u === this.you) this.hurtMe(dmg, { pos: from });
       else { u.blast = dmg >= 60; u.damage(dmg, false, false, from); u.blast = false; }
     });
@@ -3932,7 +3932,7 @@ class Bot extends Fighter {
     const pike = this.mounted && by && by.steel && (by.steel() === "spear" || by.steel() === "bayonet");
     const k = (this.mounted && by && by.steel && by.steel() === "spear" ? 2 : 1) * (fromBehind || this.routing ? 1.5 : 1) * (sq ? 0.5 : 1);
     // (the point in its chest: the horse goes up on its hind legs, screaming through its nose)
-    if (pike && this.a.horse) { this.a.horse.rear(); FOLEY.snort && FOLEY.snort(this.a.pos, 0.7); }
+    if (pike && this.a.horse) { this.a.horse.rear(); /* (up on its hind legs at the points, screaming its fright) */ if (Math.random() < 0.6) FOLEY.neigh && FOLEY.neigh(this.a.pos, 0.8); else FOLEY.snort && FOLEY.snort(this.a.pos, 0.7); }
     this.damage(dmg * k, true, false, src);
   }
   // his blade as he uses it: from the saddle, longer in the reach, and heavier at the gallop; a man winded from a long
