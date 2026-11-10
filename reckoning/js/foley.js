@@ -765,7 +765,14 @@ function ac() { const a = window.__foresterAC; if (a && a.state === "suspended")
 //  wood, a blade through the air, a hoofbeat, a horse going down, and a blow landing on a man — the last with no made
 //  one, so silent till it's loaded)
 const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "horse"],
-  whiz: [3, "foley"], thunk: [4, "foley"], swish: [4, "foley"], hoof: [6, "foley"], horseFall: [2, "foley"], blow: [5, "foley"] }, heard = {}, hearing = {};
+  whiz: [3, "foley"], thunk: [4, "foley"], swish: [4, "foley"], hoof: [6, "foley"], horseFall: [2, "foley"], blow: [5, "foley"],
+  // (the woodman's, the house's and the water's; the third number lifts each to the loudness of the made one it
+  //  stands for — a recording's peaks are sharper, so it was put down quieter to keep them under full scale)
+  chop: [6, "foley", 1.29], hammer: [6, "foley", 1.55], dig: [5, "foley", 2.84], crash: [3, "foley", 1.38], fellStart: [2, "foley", 1.02],
+  coin: [4, "foley", 1.68], purse: [2, "foley", 1.01], splash: [3, "foley", 1.72], plop: [3, "foley", 3.29], build: [2, "foley", 1.54],
+  packIn: [2, "foley", 1.79], packOut: [2, "foley", 1.51], fire: [2, "foley", 3.85] }, heard = {}, hearing = {};
+// (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
+const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
   if (heard[name]) return heard[name];
   if (!hearing[name]) { hearing[name] = true; const list = [], [n, dir] = RECORDED[name];
@@ -791,6 +798,7 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   const list = bufs(name); if (!list) return;
   let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === lastIdx[name]) i = (i + 1) % list.length; lastIdx[name] = i;
   const src = a.createBufferSource(); src.buffer = list[i]; src.playbackRate.value = rand(rate[0], rate[1]);
+  vol *= lift(name);
   const g = a.createGain(); g.gain.value = vol;
   src.connect(g);
   let last = g;
@@ -874,7 +882,8 @@ export const FOLEY = {
   fire(on) {
     const a = ac(), out = window.__foresterBus; if (!a || !out) return;
     if (on && !fireSrc) {
-      const s = a.createBufferSource(); s.buffer = bufs("fire")[0]; s.loop = true;
+      const fb = bufs("fire"), s = a.createBufferSource(); s.buffer = fb[Math.floor(Math.random() * fb.length)]; s.loop = true;
+      const fl = lift("fire");
       const g = a.createGain(); g.gain.value = 0;
       s.connect(g); g.connect(out); s.start(); fireSrc = { s, g };
       // (the fire is where it is: loud beside it, a murmur across the clearing, gone further off)
@@ -882,7 +891,7 @@ export const FOLEY = {
         const G = window.__G, f = fireSrc && fireSrc.g === g; if (!f) return;
         let k = 1;
         if (FIRE_AT && G && G.player && !G.player.seated) { const dd = Math.hypot(G.player.pos.x - FIRE_AT.x, G.player.pos.z - FIRE_AT.z); k = Math.max(0, Math.min(1, 1 - (dd - 3) / 40)) ** 1.4; }
-        g.gain.setTargetAtTime(0.22 * k, a.currentTime, 0.4);
+        g.gain.setTargetAtTime(0.22 * fl * k, a.currentTime, 0.4);
         setTimeout(near, 300);
       };
       if (!FIRE_AT) import("./woods.js").then(m => { FIRE_AT = m.FIRE || null; }).catch(() => {});
