@@ -105,6 +105,8 @@ function loadSfx(a) {
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
 const MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
+// (each ground's footfalls, and how loud against the made ones)
+const STEP_REC = { grass: ["stGrass", 0.045], leaves: ["stLeaves", 0.038], dirt: ["stDirt", 0.029], stone: ["stStone", 0.031], wood: ["stWood", 0.019], snow: ["stSnow", 0.03], water: ["stWater", 0.043], marsh: ["stMarsh", 0.062] };
 const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar"], LBUF = {};
 function loadLoops(a) {
   for (const k of LOOPS) fetch(new URL(`../art/sfx/loop_${k}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
@@ -370,6 +372,9 @@ export const AUDIO = {
   },
   _step(a, surface, vol, fast, heavy) {
     const t = a.currentTime, k = vol * (fast ? 1.25 : 1) * (heavy ? 1.6 : 1), low = heavy ? 0.7 : 1;
+    // (recorded: a man's boots on each ground, eight of each — a heavier man's a little lower, a running one's quicker)
+    const rs = STEP_REC[surface];
+    if (rs && recorded(a, rs[0], [[OUT || bus, rs[1] * k]], t, heavy ? [0.84, 0.93] : fast ? [0.98, 1.1] : [0.93, 1.06])) return;
     // the weight of it, under everything
     burst(a, t, 0.05 * (heavy ? 1.4 : 1), 0.05 * k, 220 * low, 90, 0.8, "lowpass");
     switch (surface) {
