@@ -23,4 +23,4 @@ Men crying out — in pain, dying, groaning, and the grunts of effort — cut fr
 
 ## The shouted orders
 
-- **order_*.ogg** (with **orders.json**) — the words of command ("Make ready!", "Present!", "Fire!", "Form square!" and the rest), voiced for this game with ElevenLabs text-to-speech in three voices made for it (a sergeant, an officer, a corporal); DeadlyDog Productions' own. Trimmed, levelled and encoded to Opus for the game. Not yet voiced, and so given in silence: "Charge!", "Fall back!", the target ("Bring him down!") and the guns.
+- **order_*.ogg** (with **orders.json**) — the words of command ("Make ready!", "Present!", "Fire!", "Form square!" and the rest), voiced for this game with ElevenLabs text-to-speech in three voices made for it (a sergeant, an officer, a corporal); DeadlyDog Productions' own. Trimmed, levelled and encoded to Opus for the game.
