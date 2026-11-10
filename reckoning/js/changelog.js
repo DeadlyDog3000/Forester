@@ -9,7 +9,7 @@ export const CHANGELOG = [
   {
     v: "1.99.287", date: "10 November 2026", title: "Swung, struck and set down",
     items: [
-      "An axe, a sword or a musket's butt swung is the recorded blade through the air, and a fist landing in a brawl is a real blow.",
+      "An axe, a sword or a musket's butt swung is the recorded blade through the air, and a fist landing in a brawl is a real blow. Taking something up is leather and cloth in the hand.",
       "Gabions, banks, palisades and chevaux-de-frise are no longer set down in a river: a battery on the bank stops at the water, and placing works in it says why.",
     ],
   },

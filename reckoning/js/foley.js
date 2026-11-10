@@ -773,7 +773,7 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   packIn: [2, "foley", 1.79], packOut: [2, "foley", 1.51], fire: [2, "foley", 3.85],
   // (a musket loaded: the lock, the pan, the charge, the ball and the rod; and the campaign's paper and quill)
   cock: [2, "foley", 1.95], frizzen: [2, "foley", 1.69], prime: [3, "foley"], powder: [2, "foley"], ball: [3, "foley", 1.23], ram: [4, "foley", 1.11],
-  rodOut: [2, "foley"], rodIn: [2, "foley"], parchment: [3, "foley", 1.54], quill: [3, "foley"],
+  rodOut: [2, "foley"], rodIn: [2, "foley"], parchment: [3, "foley", 1.54], quill: [3, "foley"], pickup: [4, "foley", 1.11],
   // (the campaign's map: a column marching, horse at the trot, a ship making sail, guns beyond the hills, the siege
   //  lines dug; and the wind over the heights and the surf, going round)
   march: [3, "foley"], trot: [2, "foley", 2.46], sail: [2, "foley"], guns: [2, "foley"], spades: [2, "foley"], surf: [2, "foley"], wind: [2, "foley"] }, heard = {}, hearing = {};
