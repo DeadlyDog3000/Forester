@@ -104,10 +104,10 @@ function loadSfx(a) {
 // ---- and the steady ones, recorded to loop: rain light and heavy and on a roof, a brook, wind, a town's crowd, a
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
-const HARBOUR_REC = 4.5, MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
+const KITCHEN_REC = { knife: 0.22, stir: 0.11, toss: 0.036, plate: 0.19, sizzle: 5.3, bubble: 3 }, HARBOUR_REC = 4.5, MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
 // (each ground's footfalls, and how loud against the made ones)
 const STEP_REC = { grass: ["stGrass", 0.045], leaves: ["stLeaves", 0.038], dirt: ["stDirt", 0.029], stone: ["stStone", 0.031], wood: ["stWood", 0.019], snow: ["stSnow", 0.03], water: ["stWater", 0.043], marsh: ["stMarsh", 0.062] };
-const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar", "harbour"], LBUF = {};
+const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar", "harbour", "sizzle", "bubble"], LBUF = {};
 function loadLoops(a) {
   for (const k of LOOPS) fetch(new URL(`../art/sfx/loop_${k}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
     .then(b => a.decodeAudioData(b)).then(b => { LBUF[k] = b; }).catch(() => {});
@@ -1125,12 +1125,14 @@ export const AUDIO = {
   },
 
   // ---- the kitchen ----
+  // (each of the kitchen's sounds recorded too — art/sfx — and played in place of the made one once it's in)
   // fat in a hot pan: a bright hiss, and the crackle and spit of it, louder the hotter (k, 0 to 1)
   sizzle(on, k = 0.5) {
     const a = ctx(); if (!a) return;
     if (on && loops.sizzle) { loops.sizzle.g.gain.setTargetAtTime(0.05 + k * 0.09, a.currentTime, 0.2); loops.sizzle.k = k; return; }
     loop("sizzle", on, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.05 + k * 0.09, a.currentTime, 0.3); g.connect(bus);
+      { const b = bed(a, "sizzle", g, KITCHEN_REC.sizzle); if (b) return { g, stop: [b.s], k }; }
       const s = noiseSrc(a), hp = a.createBiquadFilter(), pk = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
       hp.type = "highpass"; hp.frequency.value = 2600; pk.type = "peaking"; pk.frequency.value = 5200; pk.gain.value = 6;
       lfo.frequency.value = 7; lg.gain.value = 0.25; const am = a.createGain(); am.gain.value = 0.75; lfo.connect(lg); lg.connect(am.gain);
@@ -1148,6 +1150,7 @@ export const AUDIO = {
     if (on && loops.bubble) { loops.bubble.k = k; loops.bubble.g.gain.setTargetAtTime(0.04 + k * 0.05, a.currentTime, 0.3); return; }
     loop("bubble", on, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.04 + k * 0.05, a.currentTime, 0.4); g.connect(bus);
+      { const b = bed(a, "bubble", g, KITCHEN_REC.bubble); if (b) return { g, stop: [b.s], k }; }
       const s = noiseSrc(a), lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 380; s.playbackRate.value = 0.6;
       s.connect(lp); lp.connect(g); s.start();
       const self = { g, stop: [s], k };
@@ -1166,6 +1169,7 @@ export const AUDIO = {
   // a knife through meat onto the board: the cut, and the knock of the board under it
   knife() {
     const a = ctx(); if (!a) return;
+    if (recorded(a, "knife", [[bus, KITCHEN_REC.knife]], a.currentTime)) return;
     const t = a.currentTime;
     burst(a, t, 0.05, 0.08, 2400, 900, 1.5);
     const o = a.createOscillator(), g = a.createGain(); o.type = "triangle"; o.frequency.setValueAtTime(230, t + 0.02); o.frequency.exponentialRampToValueAtTime(120, t + 0.09);
@@ -1175,16 +1179,19 @@ export const AUDIO = {
   // a wooden spoon round an iron pot: a scrape, and a knock against the side
   stir() {
     const a = ctx(); if (!a) return;
+    if (recorded(a, "stir", [[bus, KITCHEN_REC.stir]], a.currentTime)) return;
     const t = a.currentTime;
     burst(a, t, 0.32, 0.05, 700, 1100, 3);
     burst(a, t + 0.35, 0.28, 0.04, 1000, 650, 3);
     const o = a.createOscillator(), g = a.createGain(); o.type = "sine"; o.frequency.value = rnd(520, 640);
-    g.gain.setValueAtTime(0.0001, t + 0.62); g.gain.exponentialRampToValueAtTime(0.05, t + 0.625); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    // (silent from the moment it starts: a gain's own 1 till its first step was a full-scale blip before the knock)
+    g.gain.setValueAtTime(0.0001, t); g.gain.setValueAtTime(0.0001, t + 0.62); g.gain.exponentialRampToValueAtTime(0.05, t + 0.625); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
     o.connect(g); g.connect(bus); lease(g, 8); o.start(t + 0.6); o.stop(t + 0.95);
   },
   // the pan given a shake and what's in it turned: a rattle of iron, a whoosh, and the slap of it landing
   toss() {
     const a = ctx(); if (!a) return;
+    if (recorded(a, "toss", [[bus, KITCHEN_REC.toss]], a.currentTime)) return;
     const t = a.currentTime;
     this.clang(0.18); this.whoosh(0.22, false);
     burst(a, t + 0.32, 0.06, 0.14, 900, 300, 1);
@@ -1193,6 +1200,7 @@ export const AUDIO = {
   // a plate set down: a clean ceramic tick and its ring
   plate() {
     const a = ctx(); if (!a) return;
+    if (recorded(a, "plate", [[bus, KITCHEN_REC.plate]], a.currentTime)) return;
     const t = a.currentTime;
     for (const [f, v, d] of [[2100, 0.06, 0.25], [3350, 0.04, 0.18], [5200, 0.025, 0.12]]) {
       const o = a.createOscillator(), g = a.createGain(); o.type = "sine"; o.frequency.value = f * rnd(0.98, 1.02);
