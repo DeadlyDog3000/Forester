@@ -34,7 +34,7 @@ import { EuropeView3D } from "./europe3d.js";
 import { familyReport, feudsOf, fullName } from "./feud.js";
 import { renderNews } from "./news.js";
 import { initLobby, openLobby, openLookEditor, askUser, hasUser, openSoloFrontier, SCREENS as MP_SCREENS, pvpIdentity, knownServers } from "./mp/lobby.js";
-import { initPvp, PVP_SCREENS, storyBattle } from "./pvp.js";
+import { initPvp, PVP_SCREENS, storyBattle, firstBattleDone } from "./pvp.js";
 import { openStoryCampaign } from "./campaign.js";
 import { HOST } from "./mp/net.js";
 import { MPGame } from "./mp/mpgame.js";
@@ -242,6 +242,8 @@ function refreshTitle() {
   $("tmOnlineKick").textContent = f ? "Multiplayer" : "Multiplayer · try a battle in the demo";
   $("btnCampaign").innerHTML = `The campaign<small class="btn-sub">Europe, 1683 · ${f ? "a crown of your own to rule" : "in the full game"}</small>`;
   UI.show("btnUnlock", !f);
+  // (the battle the trailers show, a click from the title: in the demo always, in the full game until it's been fought)
+  UI.show("btnFirstBattle", !f || !firstBattleDone());
 }
 function toTitle() {
   G.endFreecam && G.endFreecam();
@@ -322,7 +324,10 @@ function play(chapter, opts) {
 
 // a new game: first, which of the six saves it goes in
 // (a first game, every save empty: nothing to choose between — straight on, into the first)
-$("btnNew").onclick = () => { slotMode = "new"; if (Array.from({ length: SLOTS }, (_, i) => readSlot(i + 1)).every(s => !s)) { setSlot(1); back = "title"; modeFrom = "title"; screen("modeSel"); return; } back = "title"; buildSlots(); screen("slots"); };
+$("btnNew").onclick = () => { slotMode = "new"; if (Array.from({ length: SLOTS }, (_, i) => readSlot(i + 1)).every(s => !s)) { setSlot(1); back = "title"; modeFrom = "title";
+    // (the demo has only the story to begin: straight to who you are, not a choice of three with two of them locked)
+    if (!full()) { newMode = "story"; screen("choose"); return; }
+    screen("modeSel"); return; } back = "title"; buildSlots(); screen("slots"); };
 $("btnSlots").onclick = () => { back = "title"; slotMode = "play"; buildSlots(); screen("slots"); };
 // ---- a lost game brought back: the app puts by a copy of all the saves before every new version; any of them can be
 // put back in place of the saves now (which are themselves put by first, so nothing is lost by trying) ----

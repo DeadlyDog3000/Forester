@@ -181,6 +181,7 @@ export function initPvp(c) {
   $("musForge").addEventListener("click", forgeClick);
   // (the demo comes in too: the guided battle and the challenge are its to fight; the rest says it's the full game's)
   $("btnPvp").onclick = () => openCamp();
+  $("btnFirstBattle").onclick = () => firstBattleFromTitle();
   $("pvpBack").onclick = () => { leaveCamp(); ctx.screen("title"); };
   $("pvpQuick").onclick = () => gate("online") && quickPlay();
   $("pvpFirst").onclick = () => { sfx("muster"); firstBattle(); };
@@ -1199,6 +1200,9 @@ const COACH = [
   { t: "One arm alone: press its letter", s: "L for the musketeers, P the pikes, O the horse — the next order goes to them alone. The same letter again: the whole company.", done: A => A.coach.sel, skip: A => A.groupsHere().length < 2 },
   { t: "When they waver, charge: press 8", s: "Steel, and at them. Too soon and they meet you whole; too late and they've shot you to pieces.", done: A => A.coach.charge },
 ];
+// (from the title's Single Player card: the camp behind it, so the battle ends among the rest of what's to fight)
+function firstBattleFromTitle() { openCamp(); sfx("muster"); firstBattle(); }
+export const firstBattleDone = () => coachDone();
 function firstBattle() {
   lastMode = "bots"; must = null; stopAmbient(); pendingGhost = null;
   setArmy({ battle: true, vs: "bots", allies: 0, enemies: 1, purse: 900 });
