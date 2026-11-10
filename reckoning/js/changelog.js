@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.285", date: "10 November 2026", title: "Near guns and far guns",
+    items: [
+      "Muskets, pistols and cannon close by sound as they did before 1.99.284 — their sharp crack is back. Far off, a recorded report rolls over the country instead, the one fading into the other between (muskets from 40 to 90 metres, guns from 80 to 160).",
+    ],
+  },
+  {
     v: "1.99.284", date: "10 November 2026", title: "The sound of the field",
     items: [
       "Muskets, pistols and cannon sound like the real thing: the crack and boom of black powder close by, duller and later far off, and the report rolling round the country after.",
