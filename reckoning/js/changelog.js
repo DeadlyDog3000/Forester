@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.283", date: "10 November 2026", title: "Your colours in the replays",
+    items: [
+      "Replays show the colours as they were: each side's own design — the one you painted, and the other player's online — carried by the ensign who had them, lying where they fell, and gone once taken.",
+      "No kingdom's stock colours on a staff behind a line in a replay when that line carried its own.",
+      "A side defending a fort or a walled town plants its colours on the staff in the design it painted, not the kingdom's.",
+    ],
+  },
+  {
     v: "1.99.282", date: "10 November 2026", title: "Charge!",
     items: [
       "The last of the words of command are shouted aloud too: Charge!, Fall back!, the man to bring down, and the guns — every order now in the voices of a sergeant, an officer and a corporal.",
