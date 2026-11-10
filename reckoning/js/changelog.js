@@ -7,6 +7,16 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.284", date: "10 November 2026", title: "The sound of the field",
+    items: [
+      "Muskets, pistols and cannon sound like the real thing: the crack and boom of black powder close by, duller and later far off, and the report rolling round the country after.",
+      "A grenade bursts with its own sharp blast and the earth falling after, not a small cannon's.",
+      "Blade rings on blade, and a blow that lands is heard landing — the dull weight of it through a man's coat.",
+      "Men roar as they charge: the war cry, silent till now, is heard.",
+      "Balls whizz past your ear and thud into earth and wood; swords and bayonets swish through the air; hooves drum on the turf, and a horse going down hits the ground like the weight it is.",
+    ],
+  },
+  {
     v: "1.99.283", date: "10 November 2026", title: "Your colours in the replays",
     items: [
       "Replays show the colours as they were: each side's own design — the one you painted, and the other player's online — carried by the ensign who had them, lying where they fell, and gone once taken.",
