@@ -89,7 +89,7 @@ export function groundMap(k, seed, dx) {
   }
   if (k === "castle") {
     const sv = r() < 0.5 ? -1 : 1, M = { ...base(), things: [] }; M.ramp = null;
-    M.hills = [{ u: 0, v: sv * 62, r: 34, h: 7 }, ...M.hills.filter(H => Math.sign(H.v) !== sv)];
+    M.hills = [{ u: 0, v: sv * 66, r: 20, h: 7, flat: 33 }, ...M.hills.filter(H => Math.sign(H.v) !== sv)];
     M.things.push(["castle", 0, sv * 66, 1.1], ["house", -dx * 0.3, sv * 34, 0.3, 7, 5], ["house", dx * 0.3, sv * 36, -0.2, 6.5, 5, "tile"]);
     return M;
   }
@@ -114,7 +114,10 @@ export function shapeField(w, C, b, flip) {
     const u = (x - C.x) * sg, v = z - C.z, r = Math.hypot(u, v);
     if (r > R2 + 40) return h;
     let base = Hb + ramp(u) + Math.sin(u * 0.031 + v * 0.017) * 0.35 + Math.sin(v * 0.043 - u * 0.012) * 0.3;
-    for (const H of M.hills || []) { const d = Math.hypot(u - H.u, v - H.v) / H.r; if (d < 1.6) base += H.h * Math.exp(-d * d * 2.2); }
+    for (const H of M.hills || []) {
+      // (a hill with a level top — a castle's: the ground under its walls and towers all of a height, falling away past them)
+      if (H.flat) { const e = Math.max(0, Math.hypot(u - H.u, v - H.v) - H.flat) / H.r; if (e < 1.6) base += H.h * Math.exp(-e * e * 2.2); continue; }
+      const d = Math.hypot(u - H.u, v - H.v) / H.r; if (d < 1.6) base += H.h * Math.exp(-d * d * 2.2); }
     if (M.marsh) { const k = ss((u - M.marsh.u0) / 25) * (1 - ss((u - M.marsh.u1) / 25)); if (k > 0) base = base + (WATER + 0.25 + (hsh(Math.floor(u / 9), Math.floor(v / 9)) - 0.55) * 1.1 - base) * k; }
     const k = r < R1 ? 1 : 1 - ss((r - R1) / (R2 - R1));
     let y = h + (base - h) * k;
@@ -123,8 +126,10 @@ export function shapeField(w, C, b, flip) {
     // (inside a walled town: the ground graded level, as a town's was — no hills under its streets and houses; it
     //  meets the country again past its flank walls and its far end)
     if (TW) { const uu = TW.d * u, P = TW.L, av = Math.abs(v); const kin = ss((uu - P.wallU + 2) / 4) * (1 - ss((uu - 132) / 10)) * (1 - ss((av - P.W - 7) / 8)); if (kin > 0) y += (Hb + ramp(TW.d * (P.wallU + 40)) - y) * kin; }
-    if (TW) { const uu = TW.d * u, P = TW.L, av = Math.abs(v); if (av < P.W + 6 && uu > P.wallU - 1.5 && uu < P.inner + 1) {
-      const rise = uu < P.wallU ? ss((uu - P.wallU + 1.5) / 1.5) : uu < P.wallU + P.top ? 1 : 1 - ss((uu - P.wallU - P.top) / (P.inner - P.wallU - P.top));
+    if (TW) { const uu = TW.d * u, P = TW.L, av = Math.abs(v); if (av < P.W + 6 && uu > P.wallU - 0.3 && uu < P.inner + 1) {
+      // (its foot at the wall's inner face and up to the walk within a metre: begun inside the wall's thickness, the
+      //  ground's coarse triangles carried the slope out through the stone and across the gate, earth on the face)
+      const rise = uu < P.wallU + 1 ? ss((uu - P.wallU + 0.3) / 1.3) : uu < P.wallU + P.top ? 1 : 1 - ss((uu - P.wallU - P.top) / (P.inner - P.wallU - P.top));
       const cut = av < P.gate + 0.6 ? 0 : av < P.gate + 1.6 ? ss(av - P.gate - 0.6) : 1, ends = 1 - ss((av - P.W - 3) / 3);
       y += P.Hr * rise * cut * ends; } }
     // (a river: its bed below the water, its banks drawn down to it — on across the whole of the reshaped country)
@@ -157,11 +162,65 @@ export function buildThings(w, C, b, flip) {
     wall: mat(0xb8ad96, { surface: "plaster" }), whitewash: mat(0xd8d0bc, { surface: "plaster" }), thatch: mat(0x8a7444), tile: mat(0x8a3a28, { surface: "tiles" }), slate: mat(0x4a4c52, { surface: "tiles" }), copper: mat(0x5a8a78), wood: mat(0x5a4632, { surface: "wood" }),
     stone: mat(0x8a8478, { surface: "stone" }), dark: mat(0x3a3430, { surface: "wood" }), plaster: mat(0xcfc0a0, { surface: "plaster" }), ochre: mat(0xc8a46a, { surface: "plaster" }), brick: mat(0x9a5a40, { surface: "brick" }), tile2: mat(0x9c5236, { surface: "tiles" }),
     brick2: mat(0x84462f, { surface: "brick" }), brick3: mat(0xa8684a, { surface: "brick" }), turf: mat(0x5c6a3a), timbered: mat(0xd8cfb8, { surface: "plaster" }), glass: mat(0x2b3238, { roughness: 0.35, metalness: 0.2 }), sill: mat(0xd2c8b4, { surface: "stone" }),
-    ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0, { surface: "cloth" }), red: mat(0xa8322a, { surface: "cloth" }), green: mat(0x4a7a48, { surface: "cloth" }), sailcloth: mat(0xcfc4a8, { surface: "cloth", side: THREE.DoubleSide }), brass: mat(0xb08a3a, { metalness: 0.7, roughness: 0.4 }), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
+    ashlar: mat(0xa49a88, { surface: "stone" }), ashlar2: mat(0x938a7a, { surface: "stone" }), dressed: mat(0xcbbf9f, { surface: "stone" }), door: mat(0x4e3a26, { surface: "wood" }), iron: mat(0x26262a, { metalness: 0.4, roughness: 0.6 }), canvas: mat(0xe2d8c0, { surface: "cloth" }), red: mat(0xa8322a, { surface: "cloth" }), green: mat(0x4a7a48, { surface: "cloth" }), sailcloth: mat(0xcfc4a8, { surface: "cloth", side: THREE.DoubleSide }), brass: mat(0xb08a3a, { metalness: 0.7, roughness: 0.4 }), stake: mat(0x6a5238), vine: mat(0x4e6a2e),
   };
   const box = (m, x, yy, z, sx, sy, sz, ry = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; tgt.add(o); return o; };
   const roof = (m, x, yy, z, sx, h, sz, ry = 0) => { const s = new THREE.Shape(); s.moveTo(-sx / 2 - 0.3, 0); s.lineTo(0, h); s.lineTo(sx / 2 + 0.3, 0); s.lineTo(-sx / 2 - 0.3, 0); const geo = new THREE.ExtrudeGeometry(s, { depth: sz + 0.6, bevelEnabled: false }); geo.translate(0, 0, -(sz + 0.6) / 2); const o = new THREE.Mesh(geo, m); o.position.set(x, yy, z); o.rotation.y = ry; o.castShadow = true; tgt.add(o); return o; };
   const cone = (m, x, yy, z, r, h, n = 8) => { const o = new THREE.Mesh(new THREE.ConeGeometry(r, h, n), m); o.position.set(x, yy + h / 2, z); o.castShadow = true; tgt.add(o); return o; };
+  // a gatehouse, anywhere: a block of dressed stone across a wall, higher than it and crenellated, the way through it
+  // under a low arch with a paler dressed surround and a keystone, arms over it; its doors two leaves of oak planks,
+  // iron-strapped and studded, a wicket in one. In its own frame: x through the wall (out, +1 or -1, toward the
+  // field), z along it; turned by ry about (cx, cz). Returns its doors' group, what's left when they're down, the crown.
+  const gatehouse = ({ cx, cz, ry = 0, out, f0, y0, top, Th, gate, stoneA, stoneB, arms = true, flank = 0 }) => {
+    const cr = Math.cos(ry), sr = Math.sin(ry), P = (lx, lz) => ({ x: cx + cr * lx + sr * lz, z: cz - sr * lx + cr * lz });
+    const trim = M_.dressed;   // (paler than the wall, as a gate's dressed stone was: in the wall's own stone it read as nothing but lines)
+    const spring = f0 + 2.75 + Math.max(0, gate - 3) * 0.4, rise = 1.2, crown = spring + rise, gh = Math.max(top + 1.7, crown + 2.4), half = gate + 0.3, depth = Th + 0.5;
+    const archPath = (P2, w2, lo) => { P2.moveTo(-w2, lo); P2.lineTo(w2, lo); P2.lineTo(w2, spring); P2.absellipse(0, spring, w2, rise * w2 / gate, 0, Math.PI, false); P2.lineTo(-w2, lo); return P2; };
+    // (an outline in the wall's own plane — z across, y up — given its thickness through x)
+    const slab = (shape, th, m, xo = 0) => { const gg = new THREE.ExtrudeGeometry(shape, { depth: th, bevelEnabled: false, curveSegments: 18 }); gg.translate(0, 0, -th / 2); gg.rotateY(Math.PI / 2); const o = new THREE.Mesh(gg, m); const q = P(xo, 0); o.position.set(q.x, 0, q.z); o.rotation.y = ry; o.castShadow = o.receiveShadow = true; tgt.add(o); return o; };
+    // (a block in the gatehouse's frame, tilted in the wall's plane by rx)
+    const pc = (m, xo, yy, zo, sx, sy, sz, rx = 0) => { const o = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), m); const q = P(xo, zo); o.position.set(q.x, yy, q.z); o.rotation.order = "YXZ"; o.rotation.set(rx, ry, 0); o.castShadow = o.receiveShadow = true; tgt.add(o); return o; };
+    const blk = new THREE.Shape(); blk.moveTo(-half, y0); blk.lineTo(half, y0); blk.lineTo(half, gh); blk.lineTo(-half, gh); blk.lineTo(-half, y0);
+    blk.holes.push(archPath(new THREE.Path(), gate, f0 - 0.4));
+    slab(blk, depth, stoneA);
+    for (const s of [-1, 1]) pc(stoneB, out * (depth / 2 + 0.12), y0 + 1.6, s * (half + gate) / 2, 0.3, 2.4, half - gate);
+    pc(trim, 0, gh - 0.6, 0, depth + 0.3, 0.26, half * 2 - 0.04);
+    for (let k = -half + 0.55; k < half - 0.4; k += 1.7) pc(stoneA, out * 0.15, gh + 0.45, k + 0.4, depth - 0.3, 0.9, 1.0);
+    // (towers either side of it, half round, out before the wall — a castle's; a town's gate stands between its own)
+    if (flank) for (const s of [-1, 1]) { const q = P(out * (depth / 2 - 0.4), s * (half + flank * 0.8)); const t = new THREE.Mesh(new THREE.CylinderGeometry(flank, flank * 1.12, gh + 1.2 - y0, 16), stoneA); t.position.set(q.x, (gh + 1.2 + y0) / 2, q.z); t.castShadow = t.receiveShadow = true; tgt.add(t);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(flank + 0.25, flank + 0.25, 0.4, 16), trim); cap.position.set(q.x, gh + 1.1, q.z); cap.castShadow = true; tgt.add(cap); cone(M_.slate, q.x, gh + 1.3, q.z, flank + 0.4, flank * 1.6, 16);
+      for (const yy of [f0 + 3.2, gh - 1.2]) pc(M_.dark, out * (depth / 2 - 0.4 + flank + 0.02), yy, s * (half + flank * 0.8), 0.06, 1.2, 0.22); }
+    // the surround: dressed jambs up to the springing, voussoirs round the arch, a keystone at its crown
+    const fx = out * (depth / 2 + 0.09);
+    for (const s of [-1, 1]) for (let yy = f0, i = 0; yy < spring - 0.1; i++) { const hgt = Math.min(0.55, spring - yy), wdt = i % 2 ? 0.45 : 0.7; pc(trim, fx, yy + hgt / 2, s * (gate + wdt / 2 - 0.02), 0.18, hgt - 0.03, wdt); yy += hgt; }
+    const ra = gate + 0.38, rb = rise + 0.38, N = 13;
+    for (let i = 0; i < N; i++) { const t = (i + 0.5) / N * Math.PI, ca = Math.cos(t), sa = Math.sin(t), key = i === (N - 1) / 2, ang = Math.atan2(sa / rb, ca / ra);
+      pc(trim, fx + (key ? out * 0.06 : 0), spring + sa * rb + (key ? 0.08 : 0), ca * ra, key ? 0.3 : 0.18, key ? 0.95 : 0.75, (Math.PI * (ra + rb) / 2) / N * (key ? 1.25 : 0.94), Math.PI / 2 - ang); }
+    // the arms over the arch: a panel of stone, the shield on it red, a white castle of three towers
+    if (arms) { const ay = crown + 1.35, ax = out * (depth / 2 + 0.06);
+      pc(trim, ax, ay, 0, 0.12, 1.4, 1.6); pc(M_.red, ax + out * 0.07, ay + 0.05, 0, 0.06, 0.95, 0.85);
+      for (const [zz, hgt, wd] of [[0, 0.5, 0.26], [-0.25, 0.34, 0.16], [0.25, 0.34, 0.16]]) pc(M_.whitewash, ax + out * 0.11, ay - 0.2 + hgt / 2, zz, 0.05, hgt, wd);
+      pc(M_.whitewash, ax + out * 0.11, ay - 0.27, 0, 0.05, 0.12, 0.66); }
+    const keep = tgt, grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
+    // the doors: two leaves filling the arch, set in a little from its face, the planks showing in their seams
+    const dx = -out * 0.15, th2 = 0.24, lo = f0 - 0.3, studs = [];
+    for (const s of [-1, 1]) {
+      const leaf = new THREE.Shape(); leaf.moveTo(0, lo); leaf.lineTo(s * gate, lo); leaf.lineTo(s * gate, spring);
+      if (s > 0) leaf.absellipse(0, spring, gate, rise, 0, Math.PI / 2, false); else leaf.absellipse(0, spring, gate, rise, Math.PI, Math.PI / 2, true);
+      leaf.lineTo(0, lo); slab(leaf, th2, M_.door, dx);
+      // (the shape's z runs the other way to the frame's once turned: each leaf's iron laid on its own side)
+      const face = dx + out * (th2 / 2 + 0.012), zs = -s;
+      for (let zz = 0.42; zz < gate - 0.1; zz += 0.42) { const hgt = spring - lo + rise * Math.sqrt(Math.max(0, 1 - (zz / gate) ** 2)) - 0.08; pc(M_.dark, face, lo + hgt / 2, zs * zz, 0.02, hgt, 0.035); }
+      for (const hy of [0.55, 1.6, spring - f0 - 0.2]) { pc(M_.iron, face + out * 0.01, f0 + hy, zs * gate / 2, 0.03, 0.13, gate - 0.12); for (let zz = 0.25; zz < gate - 0.1; zz += 0.36) studs.push([face + out * 0.03, f0 + hy, zs * zz]); }
+      pc(M_.iron, face + out * 0.01, (lo + spring) / 2, zs * (gate - 0.12), 0.03, spring - lo - 0.2, 0.16);
+    }
+    for (const [xo, yy, zz] of studs) pc(M_.iron, xo, yy, zz, 0.05, 0.07, 0.07);
+    { const wz = -gate * 0.55, face = dx + out * (th2 / 2 + 0.03); for (const [yy, hh2, zz, wz2] of [[f0 + 1.85, 0.08, wz, 0.95], [f0 + 0.05, 0.08, wz, 0.95], [f0 + 0.95, 1.85, wz - 0.47, 0.08], [f0 + 0.95, 1.85, wz + 0.47, 0.08]]) pc(M_.iron, face, yy, zz, 0.03, hh2, wz2); }
+    // (battered down: the two leaves lying in the way, askew)
+    tgt = rub; for (const [lx, lz, a2] of [[out * 2.2, -gate * 0.45, 0.2], [out * 1.5, gate * 0.5, -0.25]]) { const q = P(lx, lz); const o = new THREE.Mesh(new THREE.BoxGeometry(spring - f0 + 0.6, th2, gate * 0.95), M_.door); o.position.set(q.x, f0 + 0.2, q.z); o.rotation.order = "YXZ"; o.rotation.set(0, ry + a2, 0.04); o.castShadow = o.receiveShadow = true; tgt.add(o); }
+    tgt = keep; rub.visible = false; keep.add(grp, rub);
+    return { grp, rub, crown, P };
+  };
   const solid = (x, z, hw, hd, ry, top) => { if (Math.hypot(x - C.x, z - C.z) < 200) { const c = w.col.addOBox(x, z, hw, hd, ry, top); cols.push(c); return c; } return null; };
   const B = {
     // a cottage: whitewashed or stone, a thatched or tiled roof
@@ -270,31 +329,62 @@ export function buildThings(w, C, b, flip) {
     // corners under their conical roofs, a gatehouse, and the tall keep inside with its windows and its roof
     castle(u, v, s = 1) {
       const p = at(u, v), y0 = y(p.x, p.z) - 0.6, X = 20 * s, Z = 16 * s, H = 9 * s, T = 2.4 * s;
+      const stone = M_.ashlar, stone2 = M_.ashlar2, trim = M_.dressed;
+      // (a cross-shaped arrow slit in a face, its normal along nx/nz)
+      const slit = (x, yy, z, nx, nz) => { const along = Math.abs(nz) > Math.abs(nx); box(M_.dark, x, yy, z, along ? 0.22 : 0.08, 1.5, along ? 0.08 : 0.22); box(M_.dark, x, yy + 0.25, z, along ? 0.7 : 0.08, 0.18, along ? 0.08 : 0.7); };
+      // the curtain wall: on a battered plinth, a string course under the battlements, merlons close along its outer edge
+      // and a lower parapet along the inside of the walk; slits through it — the front, toward the field, opened for the
+      // gatehouse
+      const fs = C.z > p.z ? 1 : -1, gw = 2.4 * s;
       for (const [cx, cz, lx, lz] of [[0, -Z, 2 * X, T], [0, Z, 2 * X, T], [-X, 0, T, 2 * Z], [X, 0, T, 2 * Z]]) {
-        box(M_.stone, p.x + cx, y0 + H / 2, p.z + cz, lx, H, lz);
-        // (the merlons along its outer edge)
-        const n = Math.round(Math.max(lx, lz) / (2.2 * s)), along = lx > lz;
-        for (let i = 0; i < n; i++) { const t = -0.5 + (i + 0.5) / n, ox = along ? t * lx : (cx > 0 ? 1 : -1) * (T / 2 - 0.3 * s), oz = along ? (cz > 0 ? 1 : -1) * (T / 2 - 0.3 * s) : t * lz; if (i % 2 === 0) box(M_.ashlar, p.x + cx + ox, y0 + H + 0.55 * s, p.z + cz + oz, along ? 1.1 * s : 0.6 * s, 1.1 * s, along ? 0.6 * s : 1.1 * s); }
-        // (and arrow slits)
-        for (let i = 1; i < 4; i++) { const t = -0.5 + i / 4, o = (along ? cz : cx) > 0 ? 1 : -1; box(M_.dark, p.x + cx + (along ? t * lx : o * (T / 2 + 0.02)), y0 + H * 0.6, p.z + cz + (along ? o * (T / 2 + 0.02) : t * lz), along ? 0.25 * s : 0.06, 1.4 * s, along ? 0.06 : 0.25 * s); }
+        const along = lx > lz, o = (along ? cz : cx) > 0 ? 1 : -1, L2 = along ? lx : lz;
+        const run = (a0, a1) => { const m = (a0 + a1) / 2, len = a1 - a0, X0 = p.x + (along ? m : cx), Z0 = p.z + (along ? cz : m);
+          box(stone, X0, y0 + H / 2, Z0, along ? len : T, H, along ? T : len);
+          box(stone2, X0 + (along ? 0 : o * 0.35), y0 + 1.4, Z0 + (along ? o * 0.35 : 0), along ? len : T + 0.7, 2.6, along ? T + 0.7 : len);
+          box(trim, X0 + (along ? 0 : o * 0.12), y0 + H - 0.35, Z0 + (along ? o * 0.12 : 0), along ? len : T + 0.24, 0.24, along ? T + 0.24 : len);
+          for (let k = a0 + 0.5; k < a1 - 0.6; k += 1.65) { const q = k + 0.5; box(stone, p.x + (along ? q : cx + o * (T / 2 - 0.3)), y0 + H + 0.5, p.z + (along ? cz + o * (T / 2 - 0.3) : q), along ? 1.0 : 0.6, 1.0, along ? 0.6 : 1.0); }
+          box(stone2, p.x + (along ? m : cx - o * (T / 2 - 0.2)), y0 + H + 0.3, p.z + (along ? cz - o * (T / 2 - 0.2) : m), along ? len : 0.4, 0.6, along ? 0.4 : len);
+          for (let k = a0 + 3; k < a1 - 2; k += 5.5) slit(p.x + (along ? k : cx + o * (T / 2 + 0.02)), y0 + H * 0.55, p.z + (along ? cz + o * (T / 2 + 0.02) : k), along ? 0 : o, along ? o : 0);
+        };
+        const lo = -L2 / 2 + 4.2 * s, hi = L2 / 2 - 4.2 * s;   // (from tower to tower)
+        if (along && Math.sign(cz) === fs) { const gap = gw + 0.3 + 2.6 * s * 1.6; run(lo, -gap); run(gap, hi); } else run(lo, hi);
       }
+      // the corner towers: round, battered at the foot, a ring of corbels carrying the parapet out, merlons round it, the
+      // conical roof inside it with a finial and a pennant
       for (const [a, c] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-        const t = new THREE.Mesh(new THREE.CylinderGeometry(4 * s, 4.6 * s, 13 * s, 14), M_.stone); t.position.set(p.x + a * X, y0 + 6.5 * s, p.z + c * Z); t.castShadow = t.receiveShadow = true; tgt.add(t);
-        const r2 = new THREE.Mesh(new THREE.CylinderGeometry(4.25 * s, 4.25 * s, 0.6 * s, 14), M_.ashlar); r2.position.set(p.x + a * X, y0 + 12.4 * s, p.z + c * Z); r2.castShadow = true; tgt.add(r2);
-        cone(M_.slate, p.x + a * X, y0 + 12.7 * s, p.z + c * Z, 4.7 * s, 6.5 * s, 14);
-        for (const k of [0, 2]) { const an = Math.atan2(c, a) + (k - 1) * 0.9; box(M_.dark, p.x + a * X + Math.cos(an) * 4.12 * s, y0 + (6 + k) * s, p.z + c * Z + Math.sin(an) * 4.12 * s, 0.25 * s, 1.3 * s, 0.25 * s); }
+        const tx = p.x + a * X, tz = p.z + c * Z, R = 4 * s, Ht = 13 * s;
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 1.06, Ht, 20), stone); t.position.set(tx, y0 + Ht / 2, tz); t.castShadow = t.receiveShadow = true; tgt.add(t);
+        const ft = new THREE.Mesh(new THREE.CylinderGeometry(R * 1.08, R * 1.22, 2.8, 20), stone2); ft.position.set(tx, y0 + 1.4, tz); ft.castShadow = ft.receiveShadow = true; tgt.add(ft);
+        for (let k = 0; k < 18; k++) { const an = k / 18 * Math.PI * 2; box(trim, tx + Math.cos(an) * (R + 0.18), y0 + Ht - 0.55, tz + Math.sin(an) * (R + 0.18), 0.5, 0.7, 0.5, -an); }
+        const pr = new THREE.Mesh(new THREE.CylinderGeometry(R + 0.45, R + 0.45, 1.1, 20, 1, true), stone); pr.position.set(tx, y0 + Ht + 0.35, tz); pr.castShadow = pr.receiveShadow = true; tgt.add(pr);
+        for (let k = 0; k < 12; k++) { const an = (k + 0.5) / 12 * Math.PI * 2; box(stone, tx + Math.cos(an) * (R + 0.3), y0 + Ht + 1.35, tz + Math.sin(an) * (R + 0.3), 0.5, 0.9, 1.1, -an); }
+        cone(M_.slate, tx, y0 + Ht + 0.4, tz, R * 0.95, 7 * s, 20);
+        box(M_.iron, tx, y0 + Ht + 0.4 + 7 * s + 0.6, tz, 0.08, 1.4, 0.08); box(M_.red, tx, y0 + Ht + 0.4 + 7 * s + 1.05, tz + 0.45, 0.04, 0.4, 0.8);
+        for (const k of [0, 1, 2]) { const an = Math.atan2(c, a) + (k - 1) * 0.85; slit(tx + Math.cos(an) * (R + 0.02), y0 + (4.5 + k * 2.2) * s, tz + Math.sin(an) * (R + 0.02), Math.cos(an), Math.sin(an)); }
       }
-      // (the gatehouse on the front wall: two flanking towers, the arch between them shut with its gate)
-      const gx = p.x + (C.x > p.x ? 1 : -1) * X;
-      for (const e of [-1, 1]) box(M_.stone, gx, y0 + H * 0.65, p.z + e * 3.6 * s, 5 * s, H * 1.3, 3.2 * s);
-      box(M_.stone, gx, y0 + H * 0.92, p.z, 5 * s, H * 0.36, 4.2 * s);
-      box(M_.door, gx + (C.x > p.x ? 1 : -1) * 1.27 * s, y0 + H * 0.37, p.z, 0.1, H * 0.74, 3.6 * s);
-      // (the keep)
-      const kx = p.x - 6 * s;
-      box(M_.stone, kx, y0 + 14 * s, p.z, 14 * s, 28 * s, 14 * s);
-      for (const e of [-1, 1]) for (const k of [0.45, 0.68, 0.86]) { box(M_.glass, kx + e * 7.03 * s, y0 + 28 * s * k, p.z, 0.06, 1.6 * s, 0.8 * s); box(M_.glass, kx, y0 + 28 * s * k, p.z + e * 7.03 * s, 0.8 * s, 1.6 * s, 0.06); }
-      box(M_.ashlar, kx, y0 + 28.3 * s, p.z, 14.6 * s, 0.6 * s, 14.6 * s);
-      cone(M_.slate, kx, y0 + 28.6 * s, p.z, 10.4 * s, 7 * s, 4).rotation.y = Math.PI / 4;
+      // (the gatehouse in the front wall, toward the field, between two round towers; see gatehouse)
+      { const gz = p.z + fs * Z, f0 = y(p.x, gz + fs * 3); gatehouse({ cx: p.x, cz: gz, ry: -Math.PI / 2, out: fs, f0: Math.max(f0, y0 + 0.6), y0, top: y0 + H, Th: T, gate: gw, stoneA: stone, stoneB: stone2, flank: 2.6 * s }); }
+      // the keep: tall, square, on its own plinth, string courses at each floor, framed windows, its door toward the gate;
+      // corbels under a crenellated top, a turret at each corner, a steep roof inside the battlements, and the banner
+      const kx = p.x - 6 * s, kz = p.z, KW = 14 * s, KH = 26 * s, top = y0 + KH;
+      box(stone, kx, y0 + KH / 2, kz, KW, KH, KW); box(stone2, kx, y0 + 1.5, kz, KW + 0.8, 3, KW + 0.8);
+      for (const f of [0.36, 0.68]) box(trim, kx, y0 + KH * f, kz, KW + 0.24, 0.24, KW + 0.24);
+      for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const f of [0.5, 0.82]) for (const e of [-1, 1]) {
+        const wx = kx + nx * (KW / 2 + 0.04) + nz * e * 3 * s, wz = kz + nz * (KW / 2 + 0.04) + nx * e * 3 * s, wy = y0 + KH * f, ac = Math.abs(nz) > 0;
+        box(M_.glass, wx, wy, wz, ac ? 0.9 : 0.06, 1.8, ac ? 0.06 : 0.9);
+        box(trim, wx + nx * 0.06, wy + 1.05, wz + nz * 0.06, ac ? 1.4 : 0.14, 0.3, ac ? 0.14 : 1.4);
+        box(trim, wx + nx * 0.06, wy - 1.0, wz + nz * 0.06, ac ? 1.3 : 0.18, 0.18, ac ? 0.18 : 1.3);
+        for (const j of [-1, 1]) box(trim, wx + nx * 0.06 + (ac ? j * 0.58 : 0), wy, wz + nz * 0.06 + (ac ? 0 : j * 0.58), ac ? 0.22 : 0.12, 1.9, ac ? 0.12 : 0.22);
+      }
+      { const dz = kz + fs * (KW / 2 + 0.05); box(M_.door, kx, y0 + 2.3, dz, 2.2, 3.2, 0.12); box(trim, kx, y0 + 4.05, dz + fs * 0.05, 2.9, 0.4, 0.2); for (const j of [-1, 1]) box(trim, kx + j * 1.25, y0 + 2.3, dz + fs * 0.05, 0.35, 3.4, 0.2); }
+      for (let k = -KW / 2 + 0.6; k <= KW / 2 - 0.5; k += 1.15) for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) box(trim, kx + nx * (KW / 2 + 0.2) + nz * k, top - 0.4, kz + nz * (KW / 2 + 0.2) + nx * k, nx ? 0.4 : 0.5, 0.6, nz ? 0.4 : 0.5);
+      box(stone, kx, top + 0.35, kz, KW + 0.8, 0.7, KW + 0.8);
+      for (let k = -KW / 2; k <= KW / 2; k += 1.7) for (const [nx, nz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) box(stone, kx + nx * (KW / 2 + 0.15) + nz * k, top + 1.15, kz + nz * (KW / 2 + 0.15) + nx * k, nx ? 0.5 : 0.9, 0.9, nz ? 0.5 : 0.9);
+      for (const [a, c] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const tx = kx + a * KW / 2, tz = kz + c * KW / 2;
+        const t = new THREE.Mesh(new THREE.CylinderGeometry(1.5 * s, 1.5 * s, 6, 14), stone); t.position.set(tx, top + 1.2, tz); t.castShadow = t.receiveShadow = true; tgt.add(t);
+        cone(M_.slate, tx, top + 4.2, tz, 1.8 * s, 3.6 * s, 14); }
+      cone(M_.slate, kx, top + 0.7, kz, KW * 0.5, 8 * s, 4).rotation.y = Math.PI / 4;
+      box(M_.iron, kx, top + 8.7 * s + 1.8, kz, 0.12, 3.6, 0.12); box(M_.red, kx, top + 8.7 * s + 2.85, kz + 0.9, 0.05, 1.3, 1.8);
       solid(p.x, p.z, X + 2 * s, Z + 2 * s, 0, y0 + 12 * s);
     },
     // a tent: the Turkish camp's pavilion — pale canvas walls, a tall peaked roof (in red or green for an officer's,
@@ -508,19 +598,11 @@ export function buildThings(w, C, b, flip) {
       let v = -(W + 3) - 3.2;
       for (const [a, b] of stops) { if (a > v) { for (let s2 = v; s2 < a - 0.3; s2 += 6.5) length(s2, Math.min(a, s2 + 6.5)); } if (emb.some(e => Math.abs(e - (a + b) / 2) < 0.01)) length(a, b, true, "wall"); v = Math.max(v, b); }
       for (const tv of towersAt) tower(tv);
-      // the gate: an arch of dressed stone over the way, and its doors — oak, banded with iron — shut
-      { const c = T(faceU, 0), y0 = foot(0) - 1.2, top = foot(0) + Hr + 1.25;
-        const archLo = foot(0) + 3.7, archHi = Math.max(top + 0.8, archLo + 1.2);
-        box(hh ? M_.brick2 : M_.ashlar, c.x, (archLo + archHi) / 2, c.z, Th + 0.4, archHi - archLo, gate * 2 + 0.6);
-        const grp = new THREE.Group(), rub = new THREE.Group(); tgt = grp;
-        const dc = T(faceU + 0.2, 0), dh = 3.7;
-        box(M_.door, dc.x, foot(0) + dh / 2, dc.z, 0.35, dh, gate * 2);
-        for (const hy of [0.7, dh / 2, dh - 0.7]) box(M_.iron, dc.x - d * 0.2, foot(0) + hy, dc.z, 0.06, 0.12, gate * 2 + 0.02);
-        box(M_.iron, dc.x - d * 0.2, foot(0) + dh / 2, dc.z, 0.06, dh, 0.1);
-        tgt = rub; { const fp = T(faceU - 2.4, 0); box(M_.door, fp.x - d * 0.6, foot(0) + 0.2, fp.z - 1.4, dh * 0.9, 0.3, gate * 1.05, 0.2); box(M_.door, fp.x + d * 0.3, foot(0) + 0.25, fp.z + 1.6, dh * 0.85, 0.3, gate * 0.95, -0.25); }
-        tgt = g; rub.visible = false; g.add(grp, rub);
-        const col = solid(dc.x, dc.z, 0.4, gate, 0, foot(0) + dh);
-        if (col) breaks.push({ kind: "gate", hp: 220 * hk, max: 220 * hk, col, grp, rub, merl: [], x: dc.x, z: dc.z, hw: 1.2, hd: gate + 0.3, top: foot(0) + dh, gate: true }); }
+      // the gatehouse between the two towers (see gatehouse), its doors breakable
+      { const c = T(faceU, 0), f0 = foot(0), out = Math.sign(T(faceU - 1, 0).x - c.x) || 1;
+        const G2 = gatehouse({ cx: c.x, cz: c.z, out, f0, y0: f0 - 1.2, top: f0 + Hr + 1.25, Th, gate, stoneA: hh ? M_.brick2 : M_.ashlar, stoneB: hh ? M_.brick : M_.ashlar2 });
+        const dc = T(faceU + 0.2, 0), col = solid(dc.x, dc.z, 0.4, gate, 0, G2.crown);
+        if (col) breaks.push({ kind: "gate", hp: 220 * hk, max: 220 * hk, col, grp: G2.grp, rub: G2.rub, merl: [], x: dc.x, z: dc.z, hw: 1.2, hd: gate + 0.3, top: G2.crown, gate: true }); }
       // (its flanks: a plain wall back along either side of the town)
       // (in lengths of eight metres, each standing on its own ground, with a coping along its top)
       for (const sv of [-1, 1]) for (let u0 = wallU; u0 < end + 10; u0 += 8) {
