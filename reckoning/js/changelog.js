@@ -7,6 +7,19 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.281", date: "10 November 2026", title: "The castle, the gate, and the river running red",
+    items: [
+      "The castle on its hill is built again: it stands on a level top, its gate toward the field between two round towers, on battered plinths with battlements, cross-shaped arrow slits, corbelled towers with pennants, and a keep with a turret at each corner and the banner over it.",
+      "A walled town's gate is a real gatehouse: crenellated over the wall, a low arch with a dressed stone surround and keystone, the town's arms above it, and oak doors planked, strapped and studded, with a wicket in one leaf.",
+      "The earth piled behind a town's wall no longer shows through the stone, or across the gate.",
+      "Men storming the walls on ladders go over the parapet and down onto the walk, not down through the wall.",
+      "Rivers run red: blood that falls in the water, or a man who falls in it, darkens it, spreading down the channel and thinning away over a few minutes.",
+      "Horses rear like horses: right up on their hind legs, balanced a moment with the forelegs striking at the air, and down heavily, the rider going up with the saddle. They whinny, scream and snort with real horses' voices, and whinny in fright when they rear.",
+      "The words of command are shouted aloud — Make ready, Present, Fire, Form line, column or square, Halt, Forward, Take cover and the rest — in the voices of a sergeant, an officer and a corporal.",
+      "Your first battle is back under Battles & duels only.",
+    ],
+  },
+  {
     v: "1.99.280", date: "10 November 2026", title: "Marching without the stutter",
     items: [
       "A company on the march no longer stops dead for a moment every few paces: each man keeps his stride and his place in the line as it moves, instead of halting, standing, and setting off again several times a second.",
