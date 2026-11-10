@@ -110,6 +110,17 @@ export class Recorder {
       if (k !== this.gunsLast) { this.gunsLast = k; g = gs; }
     }
     if (out.length || g) this.frames.push(g ? [r2(this.t), out, g] : [r2(this.t), out]);
+    this.colTick();
+  }
+  // the colours: who carries each side's, or where they lie, or that they're taken — an event each time it changes
+  //  ("c": side, the carrier's number or -9, where they lie or nulls, taken)
+  colTick() {
+    const A = this.A, S = this.setup; if (!A.cols) return;
+    for (const t of [0, 1]) {
+      const C = A.cols[t]; if (!C) continue;
+      const e = C.ens ? this.idOf(C.ens) : null, st = [t, e == null ? -9 : e, C.down ? r2(C.down.x - S.x) : null, C.down ? r2(C.down.z - S.z) : null, C.taken ? 1 : 0], k = st.join();
+      if (k !== (this.colLast ||= [])[t]) { this.colLast[t] = k; this.push("c", ...st); }
+    }
   }
   // you: as the other player's game is told you are (see sendState in pvp.js)
   mine() {
@@ -132,6 +143,8 @@ export class Recorder {
     if (this.ended) return this.rec; this.ended = true;
     if (!this.on || this.t < 4 || !this.frames.length) return null;
     const rec = { v: 1, at: Date.now(), meta: { ...meta, secs: Math.round(this.t) }, setup: this.setup, roster: this.roster, frames: this.frames, ev: this.ev };
+    // (each side's colours as they were carried: the kingdom's, or the design painted for them — the other player's too)
+    const A = this.A; if (A.cols && A.cols.some(Boolean)) { rec.cols = [0, 1].map(t => { const C = A.cols[t]; return C ? { key: C.key, design: C.design || null } : null; }); this.setup.carried = [0, 1].map(t => !!A.cols[t]); }
     rec.hl = highlights(rec);
     rec.meta.hl = rec.hl.length; rec.meta.score = Math.round(rec.hl.reduce((s, h) => s + h.score, 0));
     return this.rec = rec;
@@ -526,6 +539,9 @@ export class Theatre {
       if (r.you) this.you = u;
     }
     if (!this.you) this.you = { pos: new THREE.Vector3(), alive: false };
+    // (each side's colours, as they were carried in the battle — its painted design with it — and where they went)
+    this.colsT = (this.tape.cols && this.field && this.field.carried) ? this.tape.cols.map(c => c ? { ...this.field.carried(c.key, c.design), st: null } : null) : null;
+    this.colEv = [[], []]; for (const e of this.d.ev) if (e.k === "c" && (e.a[0] === 0 || e.a[0] === 1)) this.colEv[e.a[0]].push(e);
     // (the player's own body out of it: you're the man in the recording now; the eye is the theatre's)
     const pl = G.player; pl.frozen = true; if (pl.model) pl.model.root.visible = false;
     G.lockMove = true; G.downed = false; G.showHealth = false; G.mode = "theatre";
@@ -565,6 +581,21 @@ export class Theatre {
       if (f.g) this.guns(f.g);
     }
     for (; this.ei < E.length && E[this.ei].t <= t; this.ei++) this.event(E[this.ei], true);
+    this.colours(t);
+  }
+  // the colours as they were at t: on their ensign's shoulder, lying where they fell, or gone (taken)
+  colours(t) {
+    if (!this.colsT) return;
+    for (const side of [0, 1]) {
+      const C = this.colsT[side]; if (!C) continue;
+      const L = this.colEv[side]; let e = null; for (let i = L.length - 1; i >= 0; i--) if (L[i].t <= t) { e = L[i]; break; }
+      const a = e ? e.a : [side, -9, null, null, 0], k = a.join(); if (k === C.st) continue; C.st = k;
+      if (C.g.parent) C.g.parent.remove(C.g);
+      if (a[4]) continue;
+      const u = a[1] !== -9 ? this.bodies.get(a[1]) : null;
+      if (u && u.a && u.a.root) { C.g.position.set(-0.24, 0.55, 0.12); C.g.rotation.set(0.08, 0, -0.12); u.a.root.add(C.g); }
+      else if (a[2] != null) { const x = a[2] + this.S.x, z = a[3] + this.S.z; C.g.position.set(x, groundY(x, z) + 0.15, z); C.g.rotation.set(0, 1.3, 1.45); this.w.root.add(C.g); }
+    }
   }
   guns(g) { if (!this.field) return; g.forEach((v, i) => { const q = this.field.guns[i]; if (q) q.net = [v[0] / 100, v[1] / 100, v[2], v[3] / 10]; }); this.gunState = g; }
   abs(a, i) { return new THREE.Vector3(a[i] + this.S.x, a[i + 1], a[i + 2] + this.S.z); }
@@ -622,7 +653,7 @@ export class Theatre {
     for (const [id, e] of st) { const u = this.bodies.get(id); if (!u) continue; u.a.place(e[1], e[2], e[3]); u.tx = e[1]; u.tz = e[2]; u.tyaw = e[3]; u.snap(e); u.spd = 0; }
     // (the outcomes: who'd fallen, who'd gone, who was up again)
     let ei = 0; for (; ei < this.d.ev.length && this.d.ev[ei].t <= T; ei++) { const e = this.d.ev[ei]; if ("drx".includes(e.k)) this.event(e, false); }
-    this.fi = fi; this.ei = ei; this.t = T;
+    this.fi = fi; this.ei = ei; this.t = T; if (this.colsT) for (const C of this.colsT) if (C) C.st = null; this.colours(T);
     if (!quiet) this.sm.cut();
   }
   // ---- the reel ----

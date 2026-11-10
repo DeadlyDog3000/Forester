@@ -1445,7 +1445,7 @@ export function buildStage(S) {
     field = new Field(w, C, dx, battle, S.fieldSeed, S.hostFort ?? null, battle ? S.guns : null, camps);
     if (S.night) field.nightFires();
     if (K && K.flags) K.flags.forEach((f, a) => field.colours(a, f.key, { x: f.x + C.x, z: f.z + C.z }));
-    else if (battle && S.uni) for (const t of [0, 1]) if (S.uni[t]) field.colours(S.remote ? 1 - t : t, S.uni[t]);
+    else if (battle && S.uni) for (const t of [0, 1]) if (S.uni[t] && !(S.carried && S.carried[t])) field.colours(S.remote ? 1 - t : t, S.uni[t], null, S.pd && S.pd[t]);
     // (the guns where the deployment set them, and its works)
     if (S.gunsAt) S.gunsAt.forEach(([x, z, ry], i) => { const g = field.guns[i]; if (g && (Math.abs(g.x - x) > 0.05 || Math.abs(g.z - z) > 0.05 || Math.abs(g.ry - ry) > 0.01)) field.moveGun(g, x, z, ry); });
     if (S.works) for (const [k, x, z, ry, side, inw] of S.works) if (Field.WORKS[k]) field.build(k, x, z, ry, side, { x: inw[0], z: inw[1] });
@@ -1621,7 +1621,10 @@ class Arena {
       // (no colours on a staff for the woods' nations: they carried none)
       // (a side whose ensign carries them — see raiseColours — has none on a staff: only a fort's or a town's, or a
       //  battle online, plants them)
-      else if (this.battle && this.uni) for (const t of [0, 1]) if (!/^warrior/.test((this.uni[t] && this.uni[t].body) || "") && !this.carriesColours(t)) this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t]));
+      else if (this.battle && this.uni) for (const t of [0, 1]) if (!/^warrior/.test((this.uni[t] && this.uni[t].body) || "") && !this.carriesColours(t)) {
+        // (planted on a staff — a fort's side, a town's — but in the colours that side painted, as an ensign's would be)
+        const d = t === 0 && !this.hist ? designOf(keyOf(this.uni[t])) : t === 1 && this.theirColours ? this.theirColours : null;
+        this.field.colours(this.remote ? 1 - t : t, keyOf(this.uni[t]), null, d); (this.plantedD ||= [null, null])[t] = d || null; }
       if (this.remote) {
         // (and then turned about: the east line, and the guns there, are ours here)
         this.spawns.reverse();
@@ -1728,7 +1731,7 @@ class Arena {
       else net.on.bnade = m => this.field && this.field.nade(new THREE.Vector3(...m.f.map(Number)), new THREE.Vector3(...m.v.map(Number)), 0, +m.fuse || 2);
     }
     // (all of it written down as it's fought, to be played over again: see replay.js)
-    this.stageSetup = { battle: this.battle, multi: this.multi, seed: ground ? ground.seed : 0, x: C.x, z: C.z, fieldSeed: this.fieldSeed || 0, hostFort: this.hostFort ?? null, guns: this.gunsHost || null,
+    this.stageSetup = { pd: this.plantedD || null, battle: this.battle, multi: this.multi, seed: ground ? ground.seed : 0, x: C.x, z: C.z, fieldSeed: this.fieldSeed || 0, hostFort: this.hostFort ?? null, guns: this.gunsHost || null,
       remote: !!this.remote, uni: this.uni ? this.uni.map(u => Object.keys(UNIFORMS).find(k => UNIFORMS[k] === u)) : null, night: !!this.night, hour: this.hour, dx: this.dx, bound: this.bound, cloud: G.cloud || 0, mist: G.mist || 0, hist: HB ? HB.id : undefined, histB: HB && HB.campaign ? { id: HB.id, year: HB.year, lon: HB.lon, lat: HB.lat, map: HB.map } : undefined, histFlip: HB ? this.hist.side === 1 : undefined, rfield: RF ? 1 : undefined, gk: this.gk || undefined, coUni: this.coUni ? this.hist.cos.map(c => c.uni) : undefined,
       custom: this.custom ? { sides: this.custom, camps: camps0(this), flags: this.flags ? this.flags.map(f => ({ key: f.key, x: f.x - C.x, z: f.z - C.z })) : null } : null };
     const rec = this.rec = new Recorder(this, this.stageSetup);
