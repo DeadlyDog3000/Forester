@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.282", date: "10 November 2026", title: "Charge!",
+    items: [
+      "The last of the words of command are shouted aloud too: Charge!, Fall back!, the man to bring down, and the guns — every order now in the voices of a sergeant, an officer and a corporal.",
+    ],
+  },
+  {
     v: "1.99.281", date: "10 November 2026", title: "The castle, the gate, and the river running red",
     items: [
       "The castle on its hill is built again: it stands on a level top, its gate toward the field between two round towers, on battered plinths with battlements, cross-shaped arrow slits, corbelled towers with pennants, and a keep with a turret at each corner and the banner over it.",
