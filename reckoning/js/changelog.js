@@ -11,6 +11,7 @@ export const CHANGELOG = [
     items: [
       "Footsteps sound like boots on the ground they're on: grass, dry leaves, a dirt road, cobbles, floorboards, snow, shallow water and mud — eight steps of each, a heavier man's a little lower.",
       "Rain falls as rain: a light patter that thickens to a downpour, and drums on the roof when you're under one. The brook babbles, the wind blows through the trees, a town's square murmurs, and a melee roars.",
+      "The woods have their birds back: blackbird, chaffinch and great tit, the wood pigeon, the cuckoo in spring and the crow, thickest at dawn and gone quiet at night.",
       "The owl, the woodpecker, the frogs and the ducks are the real creatures now; thunder cracks overhead or grumbles far off; the church bell tolls; doors creak open and bang shut; a knock at the door is a knock.",
       "The axe bites the tree, the tree groans and comes down, the hammer drives the nail and the spade the earth; coins clink, a purse spills on the table, a stone plops in the water, and the fire crackles.",
       "A musket is loaded by ear: the lock cocked, the pan shut, the powder poured, the ball rattling down the barrel and the rod rammed home. On the campaign, the parchment rustles and the quill scratches.",
