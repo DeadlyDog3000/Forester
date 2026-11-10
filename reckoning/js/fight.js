@@ -9,6 +9,7 @@ import { THREE, camera } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
+import { FOLEY } from "./foley.js";
 import { wound, drop } from "./gore.js";
 
 // every raider winds up this long before his blow lands: two seconds to see it coming and meet it
@@ -198,6 +199,8 @@ export function blowLands(a, kind, from = G.player) {
   if (!near) return;
   const at = chestOf(a), dir = from && from.pos ? away(from.pos, a.pos) : new THREE.Vector3(0, 0, 1);
   if (kind === "parried") { burst(at, dir.clone().multiplyScalar(-1), "sparks", 14); hitStop(0.07); shake(0.3); return; }
+  // (the blow heard landing: the dull weight of it through his coat)
+  if (kind === "hit" || kind === "down") FOLEY.blow && FOLEY.blow(a.pos, kind === "down" ? 0.85 : 0.7);
   if (kind === "hit") { burst(at, dir, "blood", 10); wound(a, "hit", dir, at); if (from === G.player) { hitStop(0.06); shake(0.22); } return; }
   if (kind === "down") {
     burst(at, dir, "blood", 22); wound(a, "down", dir, at);
