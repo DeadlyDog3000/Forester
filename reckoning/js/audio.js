@@ -104,10 +104,10 @@ function loadSfx(a) {
 // ---- and the steady ones, recorded to loop: rain light and heavy and on a roof, a brook, wind, a town's crowd, a
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
-const MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
+const HARBOUR_REC = 4.5, MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
 // (each ground's footfalls, and how loud against the made ones)
 const STEP_REC = { grass: ["stGrass", 0.045], leaves: ["stLeaves", 0.038], dirt: ["stDirt", 0.029], stone: ["stStone", 0.031], wood: ["stWood", 0.019], snow: ["stSnow", 0.03], water: ["stWater", 0.043], marsh: ["stMarsh", 0.062] };
-const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar"], LBUF = {};
+const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar", "harbour"], LBUF = {};
 function loadLoops(a) {
   for (const k of LOOPS) fetch(new URL(`../art/sfx/loop_${k}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
     .then(b => a.decodeAudioData(b)).then(b => { LBUF[k] = b; }).catch(() => {});
@@ -892,6 +892,8 @@ export const AUDIO = {
   water(on) {
     loop("water", on, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.06, a.currentTime, 1); g.connect(bus);
+      // (recorded: the harbour's water slapping at the quay and the hulls)
+      { const b = bed(a, "harbour", g, HARBOUR_REC); if (b) return { g, stop: [b.s] }; }
       const s = noiseSrc(a), f = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
       f.type = "lowpass"; f.frequency.value = 420; lfo.frequency.value = 0.18; lg.gain.value = 250;
       lfo.connect(lg); lg.connect(f.frequency); s.connect(f); f.connect(g); s.start(); lfo.start();
