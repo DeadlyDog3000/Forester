@@ -761,17 +761,21 @@ const made = {};
 function ac() { const a = window.__foresterAC; if (a && a.state === "suspended") a.resume(); return a || null; }
 // (a horse's own voice, recorded: its whinny, its scream when it's hit, its snort — art/horse/<name>_NN.ogg; loaded the
 //  first time one's wanted, and the made one played till they're in, or if they never come)
-const RECORDED = { neigh: 5, horseScream: 4, snort: 4 }, heard = {}, hearing = {};
+// (and the field's close sounds the same way, from art/foley: a ball whizzing past, a ball or an arrow into earth or
+//  wood, a blade through the air, a hoofbeat, a horse going down, and a blow landing on a man — the last with no made
+//  one, so silent till it's loaded)
+const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "horse"],
+  whiz: [3, "foley"], thunk: [4, "foley"], swish: [4, "foley"], hoof: [6, "foley"], horseFall: [2, "foley"], blow: [5, "foley"] }, heard = {}, hearing = {};
 function recorded(a, name) {
   if (heard[name]) return heard[name];
-  if (!hearing[name]) { hearing[name] = true; const list = [];
-    for (let i = 0; i < RECORDED[name]; i++) fetch(new URL(`../art/horse/${name}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+  if (!hearing[name]) { hearing[name] = true; const list = [], [n, dir] = RECORDED[name];
+    for (let i = 0; i < n; i++) fetch(new URL(`../art/${dir}/${name}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
       .then(b => a.decodeAudioData(b)).then(b => { list.push(b); if (list.length >= 2) heard[name] = list; }).catch(() => {}); }
   return null;
 }
 function bufs(name) {
   const a = ac(); if (!a) return null;
-  if (RECORDED[name]) { const r = recorded(a, name); if (r) return r; }
+  if (RECORDED[name]) { const r = recorded(a, name); if (r) return r; if (!RECIPES[name]) return null; }
   if (made[name]) return made[name];
   const sr = a.sampleRate, list = [];
   for (let i = 0; i < VARIANTS[name]; i++) {
@@ -861,6 +865,8 @@ export const FOLEY = {
   // the campaign's sounds, beside you (parchment, quill, seal, drum, bell, guns, march, trot, sail, purse, spades)
   cmp: (name, vol = 0.5) => RECIPES[name] && play(name, { vol, rate: name === "bell" ? [0.97, 1.03] : [0.92, 1.08] }),
   thunk: (at, vol = 0.7) => play("thunk", { vol, at, reach: 40, rate: [0.85, 1.15] }),
+  // a blow landing on a man: the dull weight of it through his coat
+  blow: (at, vol = 0.7) => play("blow", { vol, at, reach: 30, rate: [0.88, 1.12] }),
   packIn: (vol = 0.45) => play("packIn", { vol, rate: [0.9, 1.1] }),
   packOut: (vol = 0.45) => play("packOut", { vol, rate: [0.9, 1.1] }),
   fellStart: (at, vol = 1) => play("fellStart", { vol, at, reach: 60, rate: [0.92, 1.06] }),
