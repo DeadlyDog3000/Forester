@@ -100,7 +100,17 @@ const frag = `
     // (shallow: the bed showing through, browner and lighter the shallower — a hand's depth at the shore all but clear)
     float shallow = 1.0 - smoothstep(0.05, 1.4, vDepth);
     deep = mix(deep, uBed, shallow * 0.6);
-    vec3 col = mix(deep, sky, clamp(fres * 0.9 + 0.02, 0.0, 1.0));
+    // (blood in it: a battle's dead in the river and on its banks — the water's body dark red where it's run in, in
+    //  clouds and streaks drifting on down the channel and thinning; its surface still a mirror for the sky, if a duller
+    //  one, and the sun still glinting on it)
+    float bl = 0.0;
+    if (uBloodOn > 0.5) { vec2 bu = (vW.xz - uBloodBox.xy) * uBloodBox.zw; if (bu.x > 0.0 && bu.y > 0.0 && bu.x < 1.0 && bu.y < 1.0) {
+      float cl = wNoise(vW.xz * 0.16 + vec2(uT * 0.03, -uT * 0.02)) * 0.6 + wNoise(vW.xz * 0.62 - vec2(uT * 0.05, uT * 0.04)) * 0.4;
+      bl = clamp(texture2D(uBlood, bu).r * 2.0, 0.0, 1.0) * (0.55 + 0.45 * cl);
+      // (thick, a maroon near black; thin, a rusty brown through the water's own colour)
+      vec3 thick = vec3(0.075, 0.006, 0.005) * (0.4 + 0.6 * length(uHorizon)), thin = deep * vec3(0.55, 0.18, 0.12) + vec3(0.05, 0.008, 0.004);
+      deep = mix(deep, mix(thin, thick, smoothstep(0.35, 0.9, bl)), smoothstep(0.0, 0.45, bl)); } }
+    vec3 col = mix(deep, sky * mix(vec3(1.0), vec3(0.9, 0.62, 0.58), bl), clamp(fres * 0.9 * (1.0 - 0.3 * bl) + 0.02, 0.0, 1.0));
     // the sun's glint: a hard spark on each ripple near you, spread to a glitter further off (not one round blob)
     vec3 hv = normalize(uSunDir + v); float nh = max(dot(n, hv), 0.0), rough = mix(1400.0, 160.0, smoothstep(5.0, 160.0, dist));
     col += uSunCol * (pow(nh, rough) * 2.6 + pow(nh, rough * 0.06) * 0.05) * (0.3 + 0.7 * fres * 4.0);
@@ -113,12 +123,6 @@ const frag = `
       float foam = smoothstep(0.5, 0.85, crest + (br - 0.5) * 0.55) * smoothstep(0.35, 0.65, br) * (0.35 + 0.65 * uWind) * clamp(0.5 + (vR - 1.0) * 0.6, 0.3, 1.4);
       col = mix(col, vec3(0.86, 0.9, 0.92) * (0.35 + 0.65 * length(uHorizon) / 1.5), foam * 0.6);
     }
-    // (blood in it: a battle's dead in the river and on its banks — the water dark red where it's run in, drifting on
-    //  down the channel and thinning; the light still on its surface)
-    if (uBloodOn > 0.5) { vec2 bu = (vW.xz - uBloodBox.xy) * uBloodBox.zw; if (bu.x > 0.0 && bu.y > 0.0 && bu.x < 1.0 && bu.y < 1.0) {
-      float bl = clamp(texture2D(uBlood, bu).r * 2.4, 0.0, 1.0) * (0.8 + 0.2 * wNoise(vW.xz * 0.35 + uT * 0.05));
-      // (blood is dark and thick in water, a maroon that takes the sky's light only on its sheen, not a pink haze)
-      col = mix(col, vec3(0.1, 0.008, 0.006) * (0.4 + 0.6 * length(uHorizon)) + col * vec3(0.22, 0.04, 0.035), bl * 0.95); } }
     // (and at the very edge, gone into the wet ground: no hard line where the water stops)
     float a = uDepthOn > 0.5 ? smoothstep(0.0, 0.1, vDepth) * clamp(0.6 + fres * 1.5 + smoothstep(0.1, 0.5, vDepth) * 0.4, 0.0, 1.0) : 1.0;
     gl_FragColor = vec4(col, a);
