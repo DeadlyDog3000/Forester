@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.280", date: "10 November 2026", title: "Marching without the stutter",
+    items: [
+      "A company on the march no longer stops dead for a moment every few paces: each man keeps his stride and his place in the line as it moves, instead of halting, standing, and setting off again several times a second.",
+    ],
+  },
+  {
     v: "1.99.279", date: "10 November 2026", title: "Your first battle, straight from the title",
     items: [
       "Your first battle is on the title screen now, under Single Player: a battle against the bots, taught as you fight it. In the demo it's always there; in the full game it stays until you've fought it, and it's still under Battles & duels after that.",
