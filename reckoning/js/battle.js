@@ -1152,7 +1152,7 @@ export class Field {
     muzzleFlash(root, at.clone().setY(at.y + 0.2), up, 3.2);
     powderSmoke(root, at.clone().setY(at.y + 0.3), up, { scale: 2.2, life: 16, n: 28, speed: 7, haze: true, hazeN: 6, hazeA: 0.3 });
     cloud(root, at.clone(), up, { n: 14, colour: 0x6a5a44, life: 2.4, speed: 7, size: 1.1, opacity: 0.7 });
-    AUDIO.cannon ? AUDIO.cannon(0.42, at) : AUDIO.gunshot && AUDIO.gunshot(1.3, at);
+    AUDIO.blast ? AUDIO.blast(1, at) : AUDIO.cannon ? AUDIO.cannon(0.42, at) : AUDIO.gunshot && AUDIO.gunshot(1.3, at);
     const pl = G.player, dp = Math.hypot(at.x - pl.pos.x, at.z - pl.pos.z); if (dp < 22) shake(Math.max(0.1, 1 - dp / 22) * 0.6);
     const R = 5;
     for (const u of units) {

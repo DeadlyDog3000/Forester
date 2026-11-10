@@ -85,6 +85,28 @@ function loadOrders(a) {
         .then(b => a.decodeAudioData(b)).then(b => (OBUF[k] ||= []).push(b)).catch(() => {});
   }).catch(() => {});
 }
+// ---- the field's loudest sounds, recorded: the musket and the pistol, the cannon, a grenade bursting, blade on blade,
+// and a man's war cry as he goes in — art/sfx/<kind>_NN.ogg, art/sfx/sfx.json counting them (credits in
+// art/sfx/CREDITS.md). Till they're loaded, or if they never are, the made ones are played as before (the war cry,
+// which has no made one, is silent) ----
+const SBUF = {}, SLAST = {};
+let sLoad = null;
+function loadSfx(a) {
+  if (sLoad) return; sLoad = true;
+  fetch(new URL("../art/sfx/sfx.json", import.meta.url)).then(r => r.ok ? r.json() : Promise.reject()).then(N => {
+    for (const [k, n] of Object.entries(N)) for (let i = 0; i < n; i++)
+      fetch(new URL(`../art/sfx/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+        .then(b => a.decodeAudioData(b)).then(b => (SBUF[k] ||= []).push(b)).catch(() => {});
+  }).catch(() => {});
+}
+// one of a kind's recordings into node at time t (none: false — the made one is played instead)
+function recorded(a, kind, nodes, t, rate = [0.94, 1.06]) {
+  const list = SBUF[kind]; if (!list || list.length < 2) return false;
+  let i = Math.floor(Math.random() * list.length); if (i === SLAST[kind]) i = (i + 1) % list.length; SLAST[kind] = i;
+  const s = a.createBufferSource(); s.buffer = list[i]; s.playbackRate.value = rnd(rate[0], rate[1]);
+  for (const [node, g] of nodes) { const gg = a.createGain(); gg.gain.value = g; s.connect(gg); gg.connect(node); lease(gg, list[i].duration + 1); }
+  s.start(t); return true;
+}
 // (which of them for each cry: a scream of fear is a dying man's, cut short; a sob, a short moan)
 const VOICE_OF = { pain: "pain", death: "death", fear: "death", moan: "moan", sob: "moan", grunt: "grunt" };
 // (the cries kept under the field's other sound, not over it: a man's cry carries, but it isn't a shriek in your ear)
@@ -109,7 +131,7 @@ function ctx() {
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
   ac = window.__foresterAC;
   if (!ac) return null;
-  budget(ac); loadVoices(ac); loadOrders(ac);
+  budget(ac); loadVoices(ac); loadOrders(ac); loadSfx(ac);
   bus = ac.createGain(); bus.gain.value = 1;
   // (and a limiter on it, as the first Forester's sounds have: a battle's cries and shots, all of them heard now, summed
   //  past full scale and broke up; caught and rounded over instead — nothing alone comes near it)
@@ -482,6 +504,8 @@ export const AUDIO = {
     if (!room(D < 150 ? 1 : Math.max(0.6, 1 - D / 400))) return;
     const t = a.currentTime + D / 343 + (at ? 0 : 0);
     const out = shotOut(a, D, 1);
+    // (a recorded shot: the near sound through the dry way, the report off the country round about through the wet)
+    if (recorded(a, small ? "pistol" : "musket", [[out.dry, 1.05 * v], [out.wet, (small ? 0.35 : 0.5) * v]], t, small ? [0.96, 1.08] : [0.93, 1.05])) return;
     // the lock: the flint on the steel, and the priming going up in the pan
     if (D < 40) {
       shotBurst(a, out.dry, t, { type: "highpass", f: 3500, attack: 0.001, peak: 0.25 * v, decay: 0.012 });
@@ -505,6 +529,7 @@ export const AUDIO = {
     const D = shotDistance(at), v = vol * Math.max(0.3, 1 - D / 700);
     const t = a.currentTime + D / 343;
     const out = shotOut(a, D, 1.6);
+    if (recorded(a, "cannon", [[out.dry, 1.3 * v], [out.wet, 0.9 * v]], t, [0.94, 1.04])) return;
     if (D < 30) shotBurst(a, out.dry, t, { type: "bandpass", f: 3000, q: 0.7, attack: 0.02, peak: 0.12 * v, decay: 0.16, len: 0.2 });
     const tc = t + 0.18 + Math.random() * 0.05;
     const crack = shaped(a, out.dry, 6);
@@ -516,6 +541,12 @@ export const AUDIO = {
     shotBurst(a, out.dry, tc + 0.05, { type: "lowpass", f: 160, attack: 0.08, peak: 0.6 * v, decay: 2.6, len: 4 });
     shotBurst(a, out.wet, tc, { type: "lowpass", f: 900, attack: 0.004, peak: 1.6 * v, decay: 0.5 });
     for (const [dt, k] of [[0.45, 0.35], [0.95, 0.22], [1.7, 0.16]]) shotBurst(a, out.wet, tc + dt + Math.random() * 0.15, { type: "lowpass", f: 500, attack: 0.03, peak: k * v, decay: 0.6, len: 1.6 });
+  },
+  // a grenade bursting: its own sharp blast and the earth thrown up falling after (with no recording, a small cannon's)
+  blast(vol = 1, at = null) {
+    const a = ctx(); if (!a) return;
+    const D = shotDistance(at), v = vol * Math.max(0.25, 1 - D / 400), out = shotOut(a, D, 1.2);
+    if (!recorded(a, "nade", [[out.dry, 1.1 * v], [out.wet, 0.7 * v]], a.currentTime + D / 343, [0.92, 1.06])) this.cannon(0.42 * vol, at);
   },
   // loading: the ramrod down the barrel, a scrape and a knock
   ramrod() {
@@ -587,8 +618,11 @@ export const AUDIO = {
   },
   voice(kind = "war", { high = false, at = null, vol = 1, delay = 0, seg = false } = {}) {
     const a = ctx(); if (!a) return;
-    if (kind === "war") return;   // (no recording of a war cry: and the made-up one is gone with the rest)
     const { node, k } = placed(a, at, 70); if (k * vol < 0.02) return;
+    // (the war cry: recorded, a few at once at most, a woman's or a boy's higher; with none loaded, none — the made-up
+    //  one is gone with the rest)
+    if (kind === "war") { if (!SBUF.war || liveCries >= 5 && k * vol < 0.7 || !room(Math.min(1, k * vol))) return; liveCries++; setTimeout(() => liveCries--, 1600);
+      recorded(a, "war", [[node, 0.85 * vol * k]], a.currentTime + delay, high ? [1.2, 1.3] : [0.9, 1.07]); return; }
     if (!room(Math.min(1, k * vol))) return;
     // (cries of their own kept to a few at once — beyond those, only a man right by you is heard: a hundred falling
     //  together was a wall of screaming over everything, and it crowded the muskets out)
@@ -758,6 +792,7 @@ export const AUDIO = {
   clang(vol = 1, at = null) {
     const a = ctx(); if (!a) return;
     const { node, k } = placed(a, at, 55); if (k * vol < 0.02 || !room(k * vol)) return;
+    if (recorded(a, "clang", [[node, 0.75 * vol * k]], a.currentTime, [0.92, 1.1])) return;
     const t = a.currentTime, f = rnd(430, 620), v = 0.2 * vol * k;
     for (const [m, g, d] of [[1, 1, 0.9], [2.76, 0.6, 0.7], [5.40, 0.4, 0.45], [8.93, 0.25, 0.3], [13.3, 0.14, 0.2], [1.51, 0.3, 1.1]]) {
       const o = a.createOscillator(), og = a.createGain(); o.type = "sine"; o.frequency.value = f * m * rnd(0.995, 1.005);
