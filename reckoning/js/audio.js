@@ -86,7 +86,9 @@ function loadOrders(a) {
   }).catch(() => {});
 }
 // ---- some of the field's sounds, recorded: a grenade bursting, blade on blade, a man's war cry as he goes in, and the
-// musket, the pistol and the cannon heard from far off (close by, the made ones below: those are the better there) — art/sfx/<kind>_NN.ogg, art/sfx/sfx.json counting them (credits in
+// musket, the pistol and the cannon heard from far off (close by, the made ones below: those are the better there);
+// and the country's and the house's: owl, woodpecker, frog and duck, thunder near and far, the church bell, a knock,
+// a door opening and shutting — art/sfx/<kind>_NN.ogg, art/sfx/sfx.json counting them (credits in
 // art/sfx/CREDITS.md). Till they're loaded, or if they never are, the made ones are played as before (the war cry,
 // which has no made one, is silent) ----
 const SBUF = {}, SLAST = {};
@@ -98,6 +100,22 @@ function loadSfx(a) {
       fetch(new URL(`../art/sfx/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
         .then(b => a.decodeAudioData(b)).then(b => (SBUF[k] ||= []).push(b)).catch(() => {});
   }).catch(() => {});
+}
+// ---- and the steady ones, recorded to loop: rain light and heavy and on a roof, a brook, wind, a town's crowd, a
+// battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
+// (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
+const MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
+const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar"], LBUF = {};
+function loadLoops(a) {
+  for (const k of LOOPS) fetch(new URL(`../art/sfx/loop_${k}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+    .then(b => a.decodeAudioData(b)).then(b => { LBUF[k] = b; }).catch(() => {});
+}
+// one of them going round into node, from somewhere in it, at gain v: { s, g } (not loaded: null)
+function bed(a, kind, node, v = 1) {
+  const b = LBUF[kind]; if (!b) return null;
+  const s = a.createBufferSource(), g = a.createGain(); s.buffer = b; s.loop = true; g.gain.value = v;
+  s.connect(g); g.connect(node); s.start(a.currentTime, Math.random() * b.duration);
+  return { s, g };
 }
 // one of a kind's recordings into node at time t (none: false — the made one is played instead)
 function recorded(a, kind, nodes, t, rate = [0.94, 1.06]) {
@@ -131,7 +149,7 @@ function ctx() {
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
   ac = window.__foresterAC;
   if (!ac) return null;
-  budget(ac); loadVoices(ac); loadOrders(ac); loadSfx(ac);
+  budget(ac); loadVoices(ac); loadOrders(ac); loadSfx(ac); loadLoops(ac);
   bus = ac.createGain(); bus.gain.value = 1;
   // (and a limiter on it, as the first Forester's sounds have: a battle's cries and shots, all of them heard now, summed
   //  past full scale and broke up; caught and rounded over instead — nothing alone comes near it)
@@ -396,6 +414,8 @@ export const AUDIO = {
 
   bell(vol = 1, pitch = 1) {
     const a = ctx(); if (!a || vol <= 0.01) return;
+    // (a church's bell, recorded; a little hand bell, higher, is still the made one)
+    if (pitch < 1.3 && recorded(a, "bell", [[bus, 0.62 * vol]], a.currentTime, [pitch * 0.98, pitch * 1.02])) return;
     const t = a.currentTime, f0 = 196 * pitch;
     for (const [mul, v] of [[0.5, 0.12], [1, 0.16], [2.0, 0.1], [2.4, 0.07], [3.0, 0.05], [4.2, 0.03]]) {
       const o = a.createOscillator(), g = a.createGain();
@@ -409,6 +429,7 @@ export const AUDIO = {
 
   knock(n = 3, vol = 1) {
     const a = ctx(); if (!a) return;
+    if (recorded(a, "knock", [[bus, 0.9 * vol]], a.currentTime, [0.95, 1.05])) return;
     for (let i = 0; i < n; i++) {
       const t = a.currentTime + i * rnd(0.32, 0.4);
       const o = a.createOscillator(), g = a.createGain();
@@ -426,6 +447,7 @@ export const AUDIO = {
   // wood); shutting it, the creak is cut short by the leaf striking the frame and the latch dropping
   door(open = true, vol = 1) {
     const a = ctx(); if (!a || vol < 0.01) return;
+    if (recorded(a, open ? "doorOpen" : "doorShut", [[bus, 0.55 * vol]], a.currentTime, [0.9, 1.08])) return;
     const t = a.currentTime, dur = open ? rnd(0.7, 1.0) : rnd(0.35, 0.5);
     const o = a.createOscillator(), g = a.createGain();
     o.type = "sawtooth";
@@ -849,6 +871,7 @@ export const AUDIO = {
     loop("murmur", on, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.09 * vol, a.currentTime, 1.2); g.connect(bus);
       const stop = [];
+      { const b = bed(a, "murmur", g, MURMUR_REC); if (b) return { g, stop: [b.s] }; }
       for (let i = 0; i < 5; i++) {
         const s = noiseSrc(a), f = a.createBiquadFilter(), vg = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
         f.type = "bandpass"; f.frequency.value = rnd(300, 900); f.Q.value = 4;
@@ -878,6 +901,10 @@ export const AUDIO = {
     const vol = 0.012 + k * 0.07;
     if (!loops.rain) loop("rain", true, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.connect(bus);
+      // (recorded: light rain and a downpour, the one giving way to the other as it comes on, and the drumming on a roof)
+      const L = bed(a, "rainLight", g, 0), Hv = bed(a, "rainHeavy", g, 0), R = bed(a, "rainRoof", g, 0);
+      if (L && Hv && R) return { g, rec: { L, Hv, R }, stop: [L.s, Hv.s, R.s], k };
+      for (const b of [L, Hv, R]) if (b) b.s.stop();
       const s = noiseSrc(a), hp = a.createBiquadFilter(), lp = a.createBiquadFilter();
       hp.type = "highpass"; hp.frequency.value = 900; lp.type = "lowpass"; lp.frequency.value = 7000;
       s.connect(hp); hp.connect(lp); lp.connect(g); s.start(0, Math.random() * 2);
@@ -889,6 +916,14 @@ export const AUDIO = {
     });
     const l = loops.rain; if (!l) return;
     l.k = k;
+    if (l.rec) {
+      const t = a.currentTime, out = under ? 0 : 1, { L, Hv, R } = l.rec;
+      l.g.gain.setTargetAtTime(1, t, 0.8);
+      L.g.gain.setTargetAtTime(out * RAIN_REC.light * Math.min(1, k * 3) * (1 - 0.7 * k), t, 0.8);
+      Hv.g.gain.setTargetAtTime(out * RAIN_REC.heavy * k ** 1.5, t, 0.8);
+      R.g.gain.setTargetAtTime((1 - out) * RAIN_REC.roof * (0.25 + 0.75 * k), t, 0.8);
+      return;
+    }
     l.g.gain.setTargetAtTime(vol * (under ? 0.7 : 1), a.currentTime, 0.8);
     l.lp.frequency.setTargetAtTime(under ? 1400 : 5000 + k * 3000, a.currentTime, 0.4);
     l.hp.frequency.setTargetAtTime(under ? 250 : 900 - k * 400, a.currentTime, 0.4);
@@ -942,7 +977,8 @@ export const AUDIO = {
       // (the roar: many throats on an open "a" and "o", each swelling and breaking off on its own breath — rough noise
       //  through each voice's own formants, a buzz of chest under it, the pitch wandering)
       const roar = a.createGain(); roar.gain.value = 0.0001; roar.connect(g); self.roar = roar;
-      for (let i = 0; i < 6; i++) {
+      const rb = bed(a, "roar", roar, ROAR_REC); if (rb) stop.push(rb.s);
+      for (let i = 0; i < (rb ? 0 : 6); i++) {
         const v = VOWELS[r2(["a", "a", "o", "ae"])], vg = a.createGain(), sw = a.createGain();
         const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = rnd(0.25, 0.9); lg.gain.value = 0.5; sw.gain.value = 0.5;
         lfo.connect(lg); lg.connect(sw.gain); vg.connect(sw); sw.connect(roar);
@@ -994,6 +1030,7 @@ export const AUDIO = {
     if (!loops.brook) loop("brook", true, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.connect(bus);
       const stop = [];
+      { const b = bed(a, "brook", g, BROOK_REC); if (b) return { g, stop: [b.s] }; }
       for (let i = 0; i < 3; i++) {
         const s = noiseSrc(a), f = a.createBiquadFilter(), vg = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
         f.type = "bandpass"; f.frequency.value = rnd(900, 2600); f.Q.value = 2.5;
@@ -1008,6 +1045,7 @@ export const AUDIO = {
   owl(at) {
     const a = ctx(); if (!a) return;
     const P = placed(a, at, 120); if (P.k <= 0.01) return;
+    if (recorded(a, "owl", [[P.node, 0.4 * P.k]], a.currentTime, [0.96, 1.04])) return;
     const t0 = a.currentTime, note = (t, dur, f0, f1, v) => {
       const o = a.createOscillator(), g = a.createGain(), lp = a.createBiquadFilter();
       o.type = "sine"; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f1, t + dur);
@@ -1023,6 +1061,7 @@ export const AUDIO = {
   woodpecker(at) {
     const a = ctx(); if (!a) return;
     const P = placed(a, at, 90); if (P.k <= 0.01) return;
+    if (recorded(a, "woodpecker", [[P.node, 0.3 * P.k]], a.currentTime)) return;
     const t0 = a.currentTime, n = 14 + Math.floor(Math.random() * 8);
     for (let i = 0; i < n; i++) { const t = t0 + i * (0.045 + i * 0.0012); burst(a, t, 0.02, 0.06 * P.k * (1 - i / n * 0.6), rnd(1300, 1600), 900, 4); }
   },
@@ -1030,6 +1069,7 @@ export const AUDIO = {
   frog(at) {
     const a = ctx(); if (!a) return;
     const P = placed(a, at, 50); if (P.k <= 0.01) return;
+    if (recorded(a, "frog", [[P.node, 0.32 * P.k]], a.currentTime, [0.9, 1.12])) return;
     const t = a.currentTime, f0 = rnd(380, 520), n = Math.random() < 0.6 ? 2 : 3;
     for (let i = 0; i < n; i++) {
       const o = a.createOscillator(), g = a.createGain(), bp = a.createBiquadFilter();
@@ -1045,6 +1085,7 @@ export const AUDIO = {
   quack(at) {
     const a = ctx(); if (!a) return;
     const P = placed(a, at, 40); if (P.k <= 0.01) return;
+    if (recorded(a, "duck", [[P.node, 0.3 * P.k]], a.currentTime)) return;
     const t = a.currentTime, n = Math.random() < 0.5 ? 1 : 2;
     for (let i = 0; i < n; i++) {
       const t0 = t + i * 0.22, o = a.createOscillator(), g = a.createGain(), f1 = a.createBiquadFilter(), f2 = a.createBiquadFilter();
@@ -1057,6 +1098,8 @@ export const AUDIO = {
   // thunder: d is how far the strike was, 0 (overhead: a crack, then the roll) to 1 (far off: only a low grumble)
   thunder(d = 0.5) {
     const a = ctx(); if (!a) return;
+    // (recorded: the crack and roll of a strike close by, or only the grumble of one far off)
+    if (recorded(a, d < 0.45 ? "thunderNear" : "thunderFar", [[bus, (d < 0.45 ? 0.95 : 1.15 - 0.7 * d)]], a.currentTime, [0.9, 1.05])) return;
     const t = a.currentTime, near = 1 - d;
     if (near > 0.6) burst(a, t, 0.35, 0.35 * near, 2400, 300, 0.7, "lowpass");
     // the roll: several overlapping rumbles, each lower and later
@@ -1065,6 +1108,7 @@ export const AUDIO = {
   wind(on, vol = 1) {
     loop("wind", on, a => {
       const g = a.createGain(); g.gain.value = 0.0001; g.gain.setTargetAtTime(0.025 * vol, a.currentTime, 2); g.connect(bus);   // (half what it was: it drowned the woods)
+      { const b = bed(a, "wind", g, WIND_REC); if (b) return { g, stop: [b.s] }; }
       const s = noiseSrc(a), f = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
       s.playbackRate.value = 0.5;
       f.type = "bandpass"; f.frequency.value = 500; f.Q.value = 0.7; lfo.frequency.value = 0.07; lg.gain.value = 300;
