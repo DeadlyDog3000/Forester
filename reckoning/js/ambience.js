@@ -73,8 +73,12 @@ const SONGS = {
 // (the crow's matched to the made one's caw, the songbirds a little under it) ----
 const BIRDS = { blackbird: [3, 0.1245], chaffinch: [3, 0.1245], greattit: [3, 0.1245], pigeon: [2, 0.1245], cuckoo: [2, 0.1245], crow: [3, 0.1479] }, BB = {}, BLAST = {};
 let bLoad = false;
+// (and the wind in the leaves, recorded — one take, played twice over at different places in it, a side each — as loud
+//  as the made bed it stands for)
+let LEAVES = null; const LEAF_REC = 4.7;
 function loadBirds(a) {
   if (bLoad) return; bLoad = true;
+  fetch(new URL("../art/birds/leaves.ogg", import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => { LEAVES = b; }).catch(() => {});
   for (const [k, [n]] of Object.entries(BIRDS)) for (let i = 0; i < n; i++)
     fetch(new URL(`../art/birds/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
       .then(b => a.decodeAudioData(b)).then(b => (BB[k] ||= []).push(b)).catch(() => {});
@@ -104,6 +108,12 @@ function startBed(a, out) {
   const n = window.__foresterNoise; if (!n) return null;
   // the leaves: two bands of noise, each panned to a side and gusting on its own
   const master = a.createGain(); master.gain.value = 0; master.connect(out);
+  if (LEAVES) return { master, rec: true, gust: 0.5, sides: [-0.6, 0.6].map((pan, i) => {
+    const s = a.createBufferSource(); s.buffer = LEAVES; s.loop = true; s.playbackRate.value = rnd(0.95, 1.05);
+    const g = a.createGain(); g.gain.value = 0.5 * LEAF_REC; const p = a.createStereoPanner(); p.pan.value = pan;
+    s.connect(g); g.connect(p); p.connect(master); s.start(0, (i * 0.5 + Math.random() * 0.3) * LEAVES.duration);
+    return { s, g, rec: true };
+  }) };
   const sides = [-0.6, 0.6].map(pan => {
     const s = a.createBufferSource(); s.buffer = n; s.loop = true; s.playbackRate.value = rnd(0.85, 1.1);
     const bp = a.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = rnd(1600, 2400); bp.Q.value = 0.5;
@@ -120,6 +130,8 @@ function tick() {
   if (!on) { if (bed && a) bed.master.gain.setTargetAtTime(0, a.currentTime, 0.8); return; }
   if (!bed) { bed = startBed(a, out); loadBirds(a); }
   if (!bed) return;
+  // (the leaves' recording in since the bed was begun: the made one let go, and the recorded one in its place)
+  if (!bed.rec && LEAVES) { const old = bed; old.master.gain.setTargetAtTime(0, a.currentTime, 0.6); setTimeout(() => { for (const x of old.sides) try { x.s.stop(); } catch (e) {} try { old.master.disconnect(); } catch (e) {} }, 3000); bed = startBed(a, out); }
   const t = a.currentTime, w = G.world, pl = G.player;
   const sun = G.sun ? Math.min(1, G.sun.intensity / 2.4) : 1, night = sun < 0.12;
   const indoor = pl && w.insideCabin && w.insideCabin(pl.pos.x, pl.pos.z);
@@ -130,7 +142,7 @@ function tick() {
   // (a breath under the birds, not a gale: at 0.04 it roared)
   const leaves = (winter ? 0.014 : 0.025) * (0.5 + bed.gust) * (indoor ? 0.25 : 1) * (1 - rain * 0.4);
   bed.master.gain.setTargetAtTime(leaves, t, 1.2);
-  bed.sides.forEach((s, i) => { s.g.gain.setTargetAtTime(0.4 + Math.random() * 0.6, t, 0.8 + i * 0.4); s.bp.frequency.setTargetAtTime(1500 + bed.gust * 1400 + Math.random() * 300, t, 1.5); });
+  bed.sides.forEach((s, i) => { s.g.gain.setTargetAtTime((0.4 + Math.random() * 0.6) * (s.rec ? LEAF_REC : 1), t, 0.8 + i * 0.4); if (s.bp) s.bp.frequency.setTargetAtTime(1500 + bed.gust * 1400 + Math.random() * 300, t, 1.5); });
   // the birds: thick at dawn, a song every few seconds by day, none at night, few in winter and the rain
   const frac = town && town.frac != null ? town.frac : 0.4, dawn = frac > 0.18 && frac < 0.32;
   if (!night && t > nextSong) {
