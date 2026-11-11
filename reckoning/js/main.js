@@ -239,7 +239,7 @@ function refreshTitle() {
   // (the demo: said so on the cards, and the way to the rest)
   const f = full();
   $("tmStoryKick").textContent = f ? "The story · the campaign" : "Demo · Part One of the story";
-  $("tmOnlineKick").textContent = f ? "Multiplayer" : "Multiplayer · try a battle in the demo";
+  $("tmOnlineKick").textContent = f ? "Multiplayer" : "Multiplayer · try a battle";   // (one line, as the story's beside it: the longer one wrapped, and set Online lower than Single Player)
   $("btnCampaign").innerHTML = `The campaign<small class="btn-sub">Europe, 1683 · ${f ? "a crown of your own to rule" : "in the full game"}</small>`;
   UI.show("btnUnlock", !f);
 }
