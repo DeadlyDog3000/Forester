@@ -144,7 +144,7 @@ function loadQuill(a) {
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
 // (the heart, a breath — a man's, a woman's — and the melee's: a musket stock knocked aside, blade on blade, a blow home, men running)
-const CREAK_REC = 0.035, RAM_REC = 0.08, HANDBELL_REC = 0.81, HEART_REC = 0.56, BREATH_REC = [0.08, 0.12], PARRY_REC = 0.18, CLANG_MELEE = 0.17, BLOW_MELEE = 0.15, RUN_REC = 0.7;
+const SWISH_REC = 0.12, CREAK_REC = 0.035, RAM_REC = 0.08, HANDBELL_REC = 0.81, HEART_REC = 0.56, BREATH_REC = [0.08, 0.12], PARRY_REC = 0.18, CLANG_MELEE = 0.17, BLOW_MELEE = 0.15, RUN_REC = 0.7;
 const KITCHEN_REC = { knife: 0.22, stir: 0.11, toss: 0.036, plate: 0.19, sizzle: 5.3, bubble: 3 }, HARBOUR_REC = 4.5, MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
 // (each ground's footfalls, and how loud against the made ones)
 const STEP_REC = { grass: ["stGrass", 0.045], leaves: ["stLeaves", 0.038], dirt: ["stDirt", 0.029], stone: ["stStone", 0.031], wood: ["stWood", 0.019], snow: ["stSnow", 0.03], water: ["stWater", 0.043], marsh: ["stMarsh", 0.062] };
@@ -686,6 +686,8 @@ export const AUDIO = {
     const a = ctx(); if (!a || vol < 0.02 || !room(vol)) return;
     // (a weapon's — an axe, a sword, a musket's butt — the recorded blade through the air, levelled to the made one)
     if (heavy && window.__foley && window.__foley.swishRec && window.__foley.swishRec(vol * 0.16)) return;
+    // (a fist's: an arm swung through the air, recorded)
+    if (!heavy && recorded(a, "armSwish", [[bus, vol * SWISH_REC]], a.currentTime, [0.92, 1.12])) return;
     const t = a.currentTime, dur = heavy ? rnd(0.3, 0.36) : rnd(0.2, 0.25), peak = t + dur * 0.45;
     const s = noiseSrc(a), f = a.createBiquadFilter(), f2 = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.Q.value = 0.9;
