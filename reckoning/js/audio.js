@@ -859,7 +859,11 @@ export const AUDIO = {
         const b = near[Math.random() < 0.6 ? 0 : 1];
         const t = a.currentTime, s = a.createBufferSource(), g = a.createGain(); s.buffer = b;
         s.playbackRate.value = Math.min(1.18, Math.max(0.9, b.duration / want)) * rnd(0.97, 1.03);
-        g.gain.value = BREATH_REC[high ? 1 : 0] * vol; s.connect(g); g.connect(bus); lease(g, b.duration + 1); s.start(t);
+        const v = BREATH_REC[high ? 1 : 0] * vol, len = b.duration / s.playbackRate.value;
+        g.gain.setValueAtTime(v, t);
+        // (badly winded, the breaths come faster than the quickest take: each let go as the next one comes, not over it)
+        s.connect(g); g.connect(bus); lease(g, len + 1); s.start(t);
+        if (len > period) { g.gain.setValueAtTime(v, t + period * 0.85); g.gain.linearRampToValueAtTime(0.0001, t + period); s.stop(t + period + 0.02); }
         return;
       } }
     const t = a.currentTime, dur = period * (inhale ? 0.42 : 0.55);
