@@ -508,6 +508,12 @@ export const AUDIO = {
 
   // a wooden door on iron hinges: the hinge creaks as it swings (stick and slip, rung through the
   // wood); shutting it, the creak is cut short by the leaf striking the frame and the latch dropping
+  // a cart's wooden wheels creaking on the road (recorded; a door's creak only till it's in)
+  cart(vol = 1) {
+    const a = ctx(); if (!a || vol < 0.01) return;
+    if (recorded(a, "cartCreak", [[bus, 0.65 * vol]], a.currentTime, [0.92, 1.06])) return;
+    this.door(true, vol);
+  },
   door(open = true, vol = 1) {
     const a = ctx(); if (!a || vol < 0.01) return;
     if (recorded(a, open ? "doorOpen" : "doorShut", [[bus, 0.55 * vol]], a.currentTime, [0.9, 1.08])) return;

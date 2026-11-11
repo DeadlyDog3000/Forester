@@ -2106,12 +2106,12 @@ async function ch8(w, opts = {}) {
     const c = card("Martinmas", "VIII. Martinmas", 3.2);
     await wait(1.2); fade(0, 2.4); await c;
     await wait(2.5);
-    AUDIO.door(true, 0.25);
+    AUDIO.cart(0.25);
     await wait(1.4);
     sib.person.setPose("idle");
     G.lockMove = true; lookAt(sib, 3); sib.facePlayer();
     await say(P.sib, "Listen.");
-    AUDIO.door(true, 0.35);
+    AUDIO.cart(0.35);
     await wait(1.2);
     await say(P.sib, "A cart. On the road — coming this way. It's Martinmas. Henning said.");
     await say(P.sib, "Put the fire out — kick earth over it. Then into the trees on the far side, and keep low. Don't move till he's gone.");
@@ -2150,7 +2150,7 @@ async function ch8(w, opts = {}) {
   const watch = onFrame(dt => {
     UI.eye(Math.min(1, k.sus));
     if (k.sus > 1 && !caught) caught = true;
-    creak -= dt; if (creak <= 0 && k.i < 2) { creak = 2.6; AUDIO.door(true, clamp(0.4 - Math.hypot(k.a.pos.x - pl.pos.x, k.a.pos.z - pl.pos.z) / 80, 0.05, 0.4)); }
+    creak -= dt; if (creak <= 0 && k.i < 2) { creak = 2.6; AUDIO.cart(clamp(0.4 - Math.hypot(k.a.pos.x - pl.pos.x, k.a.pos.z - pl.pos.z) / 80, 0.05, 0.4)); }
   });
   const ok = await Promise.race([until(() => k.done).then(() => true), until(() => caught).then(() => false)]);
   G.tension = 0;

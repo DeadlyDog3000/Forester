@@ -18,3 +18,4 @@
 - **bowCreak_*.ogg** — a yew bow and its string creaking under the strain as it's held drawn, cut from a take of separate creaks. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made creak and encoded to Opus. (A gun's loading is heard on the gun crew's recorded rammer, art/foley/gunRam_*.)
 - **armSwish_*.ogg** — an arm swung fast through the air (a fist that misses), cut from a take of separate swishes. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made one and encoded to Opus.
 - **warF_*.ogg** — a woman's wordless battle cry; see art/voice/CREDITS.md.
+- **cartCreak_*.ogg** — an old wooden farm cart's wheels creaking on a dirt road (the charcoal buyer's, at Martinmas). Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the door's creak it replaces and encoded to Opus.

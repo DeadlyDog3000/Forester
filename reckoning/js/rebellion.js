@@ -100,13 +100,14 @@ function hit(town, a, dmg) {
   if (a.hp <= 0) { a.knocked = Infinity; a.lying = true; a.path = []; AUDIO.voice && AUDIO.voice("fear", { at: a.pos, high: a.settler.sex === "f" }); checkEnd(town); }
 }
 // your stroke: a rebel in front of you takes it
+// (the blow, when it lands on a rebel: a blow on a body, not blade on blade)
 export function revoltSwing(town, pl) {
   const S = town.S; if (!(S.revolt && S.revolt.active)) return false;
   const f = pl.forward();
   for (const a of town.actors) {
     if (!a.settler || !a.settler.rebel || a.knocked) continue;
     const dx = a.pos.x - pl.pos.x, dz = a.pos.z - pl.pos.z, d = Math.hypot(dx, dz);
-    if (d < 2.2 && (dx * f.x + dz * f.z) / d > 0.5) { hit(town, a, 22 + Math.random() * 10); AUDIO.clang && AUDIO.clang(0.5, a.pos); G.practise && G.practise("strength", 0.5); return true; }
+    if (d < 2.2 && (dx * f.x + dz * f.z) / d > 0.5) { hit(town, a, 22 + Math.random() * 10); { const F = window.__foley; F && F.blow ? F.blow(a.pos, 0.7) : AUDIO.clang && AUDIO.clang(0.5, a.pos); } G.practise && G.practise("strength", 0.5); return true; }
   }
   return false;
 }
