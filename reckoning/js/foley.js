@@ -795,7 +795,7 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (the church bell: audio.js's recordings, levelled to the made one here)
   bell: [2, "sfx", 1.1],
   // (a pickaxe on stone, the smith's hammer on his anvil, a tool's handle snapping: they were a sword's clang)
-  pick: [2, "foley", 0.71], anvil: [3, "foley", 0.87], toolBreak: [3, "foley", 1.27] }, heard = {}, hearing = {};
+  pick: [2, "foley", 0.71], anvil: [3, "foley", 0.87], toolBreak: [3, "foley", 1.27], quench: [3, "foley", 0.77] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -819,7 +819,7 @@ let lastIdx = {};
 // a sound played: how loud, a little higher or lower each time, and from where (quieter far off, to one side,
 // its top lost in the trees) — or right beside you
 // (sounds with no made one, sent for with the first sound played, so they're in by the time they're wanted)
-const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak"]; let early = false;
+const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench"]; let early = false;
 function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}) {
   const a = ac(), out = window.__foresterBus; if (!a || !out) return;
   if (!early) { early = true; for (const n of EARLY) recorded(a, n); }

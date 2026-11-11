@@ -1192,7 +1192,7 @@ export class Town {
       onHoldTick: (dt, t) => {
         const at = n => Math.floor(t * n) !== Math.floor((t - dt) * n);
         if (b.type !== "field") { if (at(2.6)) SFX().hammer(); return; }
-        if ((b.dug || 0) < 3) { if (at(0.9)) SFX().chop(); }
+        if ((b.dug || 0) < 3) { if (at(0.9)) SFX().dig(); }
         else if (b.sown && (b.growth ?? 1) >= 3) { if (at(1.25)) AUDIO.whoosh(0.22, false); }
         else if (at(1.3)) SFX().pickup && SFX().pickup();
       },
@@ -1973,13 +1973,13 @@ export class Town {
     this.smeltIt = w.addInteract({ get x() { return side().x; }, get z() { return side().z; }, get y() { return w.heightAt(side().x, side().z) + 1; }, reach: 2.8, hold: 3, anim: "hammer",
       label: () => { const o = ore(); return o ? `Smelt the ${METAL[o.icon]} ore at the forge (${o.n})` : "Smelt ore"; },
       can: () => !!ore() && !!forge(),
-      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().chop(); },
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) FOLEY.strike("anvil", null, 0.55); },
       use: () => {
         const o = ore(); if (!o) return;
         const to = METAL[o.icon], have = G.pack.find(i => i.icon === to);
         if (have) have.n = (have.n || 1) + o.n; else G.pack.push({ icon: to, name: ITEM[to].name, note: ITEM[to].note, n: o.n });
         G.pack.splice(G.pack.indexOf(o), 1);
-        UI.hint(`${o.n} ${ITEM[to].name.toLowerCase()}, smelted.`, 3); SFX().build();
+        UI.hint(`${o.n} ${ITEM[to].name.toLowerCase()}, smelted.`, 3); FOLEY.strike("quench", null, 0.6);
       } });
     // bronze, as the first Forester makes it: copper and tin melted together in the smith's crucible, one of each for two
     if (this.alloyIt) w.removeInteract(this.alloyIt);
@@ -1987,13 +1987,13 @@ export class Town {
     this.alloyIt = w.addInteract({ get x() { return side().x; }, get z() { return side().z; }, get y() { return w.heightAt(side().x, side().z) + 1.1; }, reach: 2.8, hold: 3, anim: "hammer",
       label: () => `Cast bronze at the forge: copper and tin (${Math.min(packN("copper"), packN("tin"))})`,
       can: () => !!forge() && !ore() && packN("copper") > 0 && packN("tin") > 0,
-      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().chop(); },
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) FOLEY.strike("anvil", null, 0.55); },
       use: () => {
         const n = Math.min(packN("copper"), packN("tin"));
         for (const k of ["copper", "tin"]) { const it = G.pack.find(i => i.icon === k); it.n -= n; if (it.n <= 0) G.pack.splice(G.pack.indexOf(it), 1); }
         const have = G.pack.find(i => i.icon === "bronze");
         if (have) have.n = (have.n || 1) + n * 2; else G.pack.push({ icon: "bronze", name: ITEM.bronze.name, note: ITEM.bronze.note, n: n * 2 });
-        UI.hint(`${n * 2} bronze, cast.`, 3); SFX().build();
+        UI.hint(`${n * 2} bronze, cast.`, 3); FOLEY.strike("quench", null, 0.6);
       } });
     // the fire: meat roasted over it (raw, it brings the plague)
     if (this.cookIt) w.removeInteract(this.cookIt);
@@ -2006,7 +2006,7 @@ export class Town {
         const have = G.pack.find(i => i.icon === "cookedmeat");
         if (have) have.n = (have.n || 1) + (m.n || 1); else G.pack.push({ icon: "cookedmeat", name: "Roast meat", note: "Cooked over the fire. Safe to eat — and better for it.", n: m.n || 1 });
         G.pack.splice(G.pack.indexOf(m), 1);
-        UI.hint("Roasted. It smells like a feast day.", 3); SFX().build();
+        UI.hint("Roasted. It smells like a feast day.", 3); FOLEY.sizzle(null, 0.5);
       } });
     // the kitchen in your house (once it is a house): dishes, judged
     // (only once your cabin has been rebuilt as a house: until then there is only the fire)
@@ -3023,7 +3023,7 @@ export class Town {
       if (r.t >= techTime(t)) {
         this.S.tech.research = null; this.S.tech.done.push(t.id);
         UI.hint(`Research complete: ${t.name} — ${t.desc}.`, 6);
-        SFX().build(); this.persist(); this.emit("researched", t.id);
+        FOLEY.cmp("parchment", 0.5); this.persist(); this.emit("researched", t.id);
       }
     }
     const day = Math.floor(this.t / dayLength);

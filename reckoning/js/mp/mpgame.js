@@ -329,7 +329,7 @@ export class MPGame {
         can: () => !this.dead && ((this.pack.food | 0) + (this.pack.meat | 0)) > 0,
         label: () => `Roast your ${this.pack.meat && this.pack.food ? "meat and fish" : this.pack.meat ? "meat" : "fish"} over the fire (${(this.pack.food | 0) + (this.pack.meat | 0)})`,
         onHoldTick: (dt, t) => { if (Math.floor(t * 1.2) !== Math.floor((t - dt) * 1.2)) FOLEY.sizzle(fa, 0.4); },
-        use: () => { this.net.send({ t: "cook", id: b.id }); UI.hint("Roasted. It smells like a feast day — eat it from your pack (T).", 3.5); FOLEY.packIn(0.35); } });
+        use: () => { this.net.send({ t: "cook", id: b.id }); UI.hint("Roasted. It smells like a feast day — eat it from your pack (T).", 3.5); FOLEY.sizzle(null, 0.5); setTimeout(() => FOLEY.packIn(0.35), 700); } });
       // and the hall rebuilt grander, from the store: a timber hall, plaster, brick — each claiming more ground round it
       const nx = HALL[(b.level || 1) + 1];
       if (nx && this.manages()) {
