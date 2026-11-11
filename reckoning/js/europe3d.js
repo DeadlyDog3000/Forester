@@ -1160,6 +1160,11 @@ export class EuropeView3D {
     while (this.cityJob && performance.now() - t < budget) if (this.cityJob.next().done) this.cityJob = null;
   }
   *cityGen(homePop) {
+    // (a build given up half way for a newer one — the map opened, and a town changing hands before its towns were all
+    //  up — left its names and its first houses in the view for good, under the new ones: taken down first)
+    if (this._halfBuilt) { const { grp: g0, early: e0 } = this._halfBuilt; this._halfBuilt = null;
+      if (g0 !== this.cityGroup) { this.scene.remove(g0); g0.traverse(o => { if (o.isSprite) { o.material.map && o.material.map.dispose(); o.material.dispose(); } }); }
+      if (e0) { this.scene.remove(e0); for (const im of e0.children) im.dispose(); } }
     const grp = new THREE.Group(), labels = [], towns = new Map();
     // (the thousands of houses, roofs, walls and stakes: one instanced draw for each kind, not a mesh apiece — the
     //  scene's thousands of objects were most of a frame's work)
@@ -1428,8 +1433,8 @@ export class EuropeView3D {
       this.scene.add(eg); return eg;
     };
     // (the names, too, as each is placed: the group itself put up at once when there's none before it)
-    if (!this.cityGroup) { this.scene.add(grp); this.labels = labels; }
-    for (let n = 0; n < order.length; n++) { const ct = order[n]; place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false); if (n === 7 && !this.cityGroup && !early) early = showEarly(); yield; }
+    if (!this.cityGroup) { this.scene.add(grp); this.labels = labels; this._halfBuilt = { grp, early: null }; }
+    for (let n = 0; n < order.length; n++) { const ct = order[n]; place(ct[0], ct[1], ct[2], ct[3], cityOwner(this.g, ct), false); if (n === 7 && !this.cityGroup && !early) { early = showEarly(); if (this._halfBuilt) this._halfBuilt.early = early; } yield; }
     // (your own clearing — not on a campaign's map, which has none)
     if (this.homeName !== null) { const [hlon, hlat] = toLL((HOME.mx + 0.5) * CELL, (HOME.my + 0.5) * CELL); place(this.homeName || "Forester's Clearing", hlon, hlat, 1, null, true); }
     if (this.roadEdges) { yield* this.buildRoads(this.roadEdges); this.roadEdges = null; }
@@ -1447,7 +1452,7 @@ export class EuropeView3D {
     //  has only changed hands leaves its woods as they were)
     const sig = M => { if (!M) return null; let h = 0; for (const [k, L] of M) for (const [x, z, r] of L) h = (h + (((k % 1000003) * 31 + Math.round(x * 100) * 7 + Math.round(z * 100) * 13 + Math.round(r * 1000)) * 2654435761 % 4294967291)) % 9007199254740881; return h; };   // (order-free: the towns are laid nearest the view first)
     const sameClear = !!this.clearings && !!this._clearNext && this.clearings.size === this._clearNext.size && sig(this.clearings) === sig(this._clearNext);
-    this.cityGroup = grp; this.labels = labels; this.towns = towns; this.growing = []; this.clearings = this._clearNext; this._clearNext = null;
+    this.cityGroup = grp; this.labels = labels; this.towns = towns; this.growing = []; this.clearings = this._clearNext; this._clearNext = null; this._halfBuilt = null;
     if (!sameClear) { for (const c of this.cells.values()) c.forEach(m => { this.scene.remove(m); m.dispose(); }); this.cells.clear(); }
     this.scene.add(grp);
     if (early) { this.scene.remove(early); for (const im of early.children) im.dispose(); }
