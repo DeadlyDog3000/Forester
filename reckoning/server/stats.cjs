@@ -82,6 +82,9 @@ module.exports = function makeStats({ dataDir, tokenOk, log = () => {} }) {
     const g = u.searchParams.get("g"), i = String(u.searchParams.get("i") || "");
     if (!PLAYED.includes(g) || !/^[0-9a-f]{8,32}$/i.test(i) || tooMany(req, "p", 240)) return res.end();
     const h = crypto.createHash("sha256").update("play:" + i.toLowerCase() + S.salt).digest("hex").slice(0, 24);
+    // (the studio's own copies — on S.own, put there by hand on the server — are never counted: the maker playing
+    //  their own game isn't a player)
+    if ((S.own || []).includes(h)) return res.end();
     const t = Date.now(), k = g + h;
     if (t - (lastBeat.get(k) || 0) < 50000) return res.end();
     lastBeat.set(k, t); if (lastBeat.size > 20000) lastBeat.clear();
