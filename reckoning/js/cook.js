@@ -9,6 +9,9 @@ import { THREE, mat } from "./core.js";
 import { G } from "./engine.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
+import { shownAs } from "./keys.js";
+// (the take/use key as you have it — moved in the settings, or F)
+const FKEY = () => shownAs("F") || "F";
 
 /* global SFX */
 
@@ -216,8 +219,8 @@ function drawHud(s) {
   const zones = [[0, 1 - w - 0.28, "raw", "Raw"], [1 - w - 0.28, 1 - w, "under", "Underdone"], [1 - w, 1 + w, "good", "Just right"], [1 + w, 1 + w + 0.3, "over", "Overdone"], [1 + w + 0.3, max, "burnt", "Burnt"]];
   const seen = Math.max(0, s.d + s.bias);
   const extra = r.vessel === "pot"
-    ? `<div class="ck-sub">Stir it <kbd>F</kbd> before it catches <span class="ck-mini"><i style="width:${Math.round(s.stick * 100)}%" class="${s.stick > 0.75 ? "hot" : ""}"></i></span></div>`
-    : `<div class="ck-sub">${s.flipped ? "Turned." : "Turn it <kbd>F</kbd> once, when the underside is browned — about halfway"}</div>`;
+    ? `<div class="ck-sub">Stir it <kbd>${FKEY()}</kbd> before it catches <span class="ck-mini"><i style="width:${Math.round(s.stick * 100)}%" class="${s.stick > 0.75 ? "hot" : ""}"></i></span></div>`
+    : `<div class="ck-sub">${s.flipped ? "Turned." : `Turn it <kbd>${FKEY()}</kbd> once, when the underside is browned — about halfway`}</div>`;
   el.innerHTML = `<div class="ck-title">${r.name}${s.phase === "prep" ? " — getting it ready" : ""}</div>
     <div class="ck-gauge">${zones.map(([a, b, c, t]) => `<span class="z ${c}" style="left:${pc(a)};width:calc(${pc(b)} - ${pc(a)})">${t}</span>`).join("")}<b class="ck-needle" style="left:${pc(seen)}"></b></div>
     ${s.phase === "cook" ? extra : `<div class="ck-sub">Cutting and seasoning…</div>`}

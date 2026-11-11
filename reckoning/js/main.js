@@ -2160,7 +2160,8 @@ setInterval(() => {
   writeSave({ tips: [...guideSeen(), "guide:" + id] });
   showGuideCard(id);
 }, 400);
-function guideSteps(g) { return g.steps.map(t => `<li>${t}</li>`).join(""); }
+// (a key you've moved shown as the key you gave it)
+function guideSteps(g) { return g.steps.map(t => `<li>${t.replace(/<kbd>([^<]+)<\/kbd>/g, (m, k) => `<kbd>${shownAs(k) || k}</kbd>`)}</li>`).join(""); }
 function showGuideCard(id) {
   const g = GUIDE[id]; guideShowing = true; guidePage = id;
   $("gdKicker").textContent = g.kicker; $("gdTitle").textContent = g.title; $("gdSteps").innerHTML = guideSteps(g);
