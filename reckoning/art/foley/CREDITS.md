@@ -33,3 +33,4 @@
 - **kickEarth_*.ogg** — earth kicked over a campfire's embers. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the spade it replaces and encoded to Opus.
 - **ballEarth_*.ogg** — round shot slamming into the earth and throwing it up. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; cut at each strike and encoded to Opus.
 - **ledgerUp_*, stoneUp_*, axeUp_*.ogg** — a heavy leather-bound ledger picked up off a desk, a small stone taken up off the cobbles, and a felling axe pulled free of the chopping block. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the pickup they replace and encoded to Opus.
+- **whittle_*.ogg** — a knife whittling dry wood (a wooden pick, a mallet, a bow made at the chopping block). Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the pickup and encoded to Opus.

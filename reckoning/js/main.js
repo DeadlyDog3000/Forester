@@ -1019,7 +1019,13 @@ $("craftBody").addEventListener("click", e => {
   // the new one in your hands
   if (r.tool === "crossbow") G.player.showXbow(true); else if (r.tool === "bolts") {} else if (r.tool === "pick") G.player.wield("pick"); else if (r.tool === "sword") G.player.wield("sword"); else if (G.player.axe && (G.player.blade || "axe") === "axe") { G.player.giveAxe(false); G.player.giveAxe(true); }
   G.player.workFor && G.player.workFor("hammer", 1.6);
-  UI.hint(`${r.name} made.`, 3); UISFX.craft();
+  UI.hint(`${r.name} made.`, 3);
+  // (heard as the making is: hides laced into a pack, a stone or metal head knocked onto its haft, a wooden thing whittled
+  //  with the knife — not a chime)
+  { const F = window.__foley, metal = Object.keys(r.cost).some(k => ["stone", "copper", "bronze", "iron"].includes(k));
+    if (r.tool === "pack" && window.__sfxRec && window.__foresterBus) window.__sfxRec("leather", window.__foresterBus, 1.2) || UISFX.craft();
+    else if (F && F.strike) F.strike(metal ? "hammer" : "whittle", null, metal ? 0.5 : 0.4);
+    else UISFX.craft(); }
   G.emitCraft && G.emitCraft(r);
   renderCraft();
 });
