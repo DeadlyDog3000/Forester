@@ -37,6 +37,7 @@ import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
+import { rekeyText } from "./keys.js";
 import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, teamOpen, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
 import { mountPainter } from "./paint.js";
 import { rollFor, regimentOf, muster as callRoll, vetSkill, vetBrave } from "./regiment.js";
@@ -3490,7 +3491,7 @@ class Arena {
     const S = COACH[c.i];
     if (!S) { c.over = true; coachOff(); el.innerHTML = `<div class="co-k">Your first battle</div><b>That's the whole of it.</b><span>The orders' page at the side has the rest: cover, formations, the guns. Win the day.</span>`; setTimeout(() => el.remove(), 7000); return; }
     const n = COACH.filter(s => !(s.skip && s.skip(this))).length, at = COACH.slice(0, c.i).filter(s => !(s.skip && s.skip(this))).length + 1;
-    el.innerHTML = `<div class="co-k">Your first battle · ${at} of ${n}</div><b>${S.t}</b><span>${S.s}</span><button data-coach-off="1">I know how to fight</button>`;
+    el.innerHTML = `<div class="co-k">Your first battle · ${at} of ${n}</div><b>${rekeyText(S.t)}</b><span>${rekeyText(S.s)}</span><button data-coach-off="1">I know how to fight</button>`;
   }
   // the din of the fighting round you: men at close quarters near you, and men running (a charge coming on), heard as one
   dinTick(dt) {

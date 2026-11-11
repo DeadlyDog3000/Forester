@@ -6,7 +6,7 @@
 // who is speaking, what to do next, and the one-key prompt for the thing in
 // front of you.
 
-import { shownAs } from "./keys.js";
+import { shownAs, rekeyText } from "./keys.js";
 
 export const $ = id => document.getElementById(id);
 // (?speed=N on the address hurries the game for testing — the words on the screen too)
@@ -105,7 +105,7 @@ export const UI = {
   bark(name, text, secs) {
     const b = $("bark");
     $("barkName").textContent = name ? name + ":" : "";
-    this.typeInto($("barkText"), text, { cps: 48, click: 0.55 });
+    this.typeInto($("barkText"), rekeyText(text), { cps: 48, click: 0.55 });
     $("barkText").classList.toggle("italic", !name);
     b.classList.remove("hidden");
     b.style.opacity = 1;
@@ -207,7 +207,7 @@ export const UI = {
   objective(text) {
     const o = $("objective");
     if (!text) { o.classList.add("hidden"); this._obj = null; return; }
-    $("objText").textContent = text;
+    $("objText").textContent = text = rekeyText(text);
     // set every frame with a count or a clock in it: only a new task (not a new number) pulses
     const key = text.replace(/[\d:%]+/g, "#");
     if (key === this._obj && !o.classList.contains("hidden")) return;
@@ -218,13 +218,13 @@ export const UI = {
     o.classList.remove("hidden");
     o.classList.remove("pulse"); void o.offsetWidth; o.classList.add("pulse");
   },
-  objectiveCount(text) { $("objText").textContent = text; },
+  objectiveCount(text) { $("objText").textContent = rekeyText(text); },
 
   prompt(text, hold = false) {
     const p = $("prompt");
     if (!text) { p.classList.add("hidden"); return; }
-    $("promptKey").textContent = "F";
-    $("promptText").textContent = (hold ? "Hold — " : "") + text;
+    $("promptKey").textContent = shownAs("F") || "F";
+    $("promptText").textContent = rekeyText((hold ? "Hold — " : "") + text);
     p.classList.remove("hidden");
   },
   hold(frac) {
@@ -259,7 +259,7 @@ export const UI = {
   },
   hint(text, secs = 5) {
     const h = $("hint");
-    h.textContent = text; h.classList.remove("hidden"); h.style.opacity = 1; this.stackHint();
+    h.textContent = text = rekeyText(text); h.classList.remove("hidden"); h.style.opacity = 1; this.stackHint();
     clearTimeout(this._hintT); clearTimeout(this._hintHide);
     this._hintT = setTimeout(() => { h.style.opacity = 0; this._hintHide = setTimeout(() => h.classList.add("hidden"), 500); }, secs * 1000 / SPD);
   },

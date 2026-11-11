@@ -87,6 +87,20 @@ export function keyName(code) {
   return code.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 // (the keys the game was made with, as shown in the controls lists — so a list can print yours in their place)
+// the words of a hint, an objective, a prompt, with a key you've moved written as the key you gave it: "Hold F", "(B)",
+// "F at the site", "press 2"… — only the moved ones, so as it ships every word stays as it was written
+export function rekeyText(text) {
+  if (!text || typeof text !== "string" || !Object.keys(binds).length) return text;
+  // (all at once, so two keys swapped — F for E and E for F — aren't turned and then turned back)
+  const map = {};
+  for (const a of ACTIONS) { if (!binds[a.id]) continue; const from = keyName(a.keys[0]); if (/^[A-Z]$/.test(from)) map[from] = keyName(binds[a.id]); }
+  const L = Object.keys(map).join(""); if (!L) return text;
+  // (each key written once, marked as done so the next pattern doesn't take it again)
+  const sub = (m, pre, k) => pre + "\uE000" + (map[k] || k) + "\uE001";
+  return text.replace(new RegExp(`(\\b(?:press|Press|hold|Hold|tap|Tap|with|key|Key)\\s+)([${L}])\\b`, "g"), sub)
+    .replace(new RegExp(`(\\()([${L}])(?=\\))`, "g"), sub)
+    .replace(new RegExp(`(^|[\\s—·,(:])([${L}])(?= (?:at|by|to|on|for|and|or|again)\\b|[,.;]|$)`, "g"), sub).replace(/[\uE000\uE001]/g, "");
+}
 export function shownAs(defaultName) {
   for (const a of ACTIONS) if (binds[a.id] && a.keys.some(k => keyName(k) === defaultName)) return keyName(binds[a.id]);
   return null;

@@ -23,6 +23,7 @@ export const CHANGELOG = [
       "The Habsburg crown is the Habsburg Monarchy on the campaign (the Austrian Empire wasn't proclaimed until 1804).",
       "On a smaller screen, the campaign's bar shortens the names of the crowns you're at war with but always shows how many more there are (\"+1 more\" was the first thing cut).",
       "A building site's sign is as wide as its longest line: \"Needs a door — hew one at the sawhorse\" was cut off at the dash. A long town name on the campaign map (or your own clearing's) gets a wider card, and a colony's road sign fits its name.",
+      "A key you've moved in Settings is the key the game tells you to press: hints, objectives, the prompt to take or open something, your companion's advice and the first battle's lessons said \"Hold F\" or \"(B)\" whatever you'd changed them to.",
       "On the title screen in the demo, the Online heading fits on one line again, level with Single Player.",
     ],
   },
