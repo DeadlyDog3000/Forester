@@ -390,7 +390,7 @@ class Battle {
     addEventListener("resize", this.onResize = () => { this.renderer.setSize(innerWidth, innerHeight); this.cam.aspect = innerWidth / innerHeight; this.cam.updateProjectionMatrix(); });
     this.last = performance.now(); this.loop = () => { if (!this.el.isConnected) return; const now = performance.now(), dt = Math.min(0.05, (now - this.last) / 1000); this.last = now; this.step(this.paused ? 0 : dt * (this.started ? this.speedK : 0.4)); this.raf = requestAnimationFrame(this.loop); };
     this.raf = requestAnimationFrame(this.loop);
-    try { FOLEY.wash(0.4); } catch (e) {}
+    try { FOLEY.wash(0.4); FOLEY.preload(["hullHit", "shotSplash", "sink", "sea"]); FOLEY.sea(1); } catch (e) {}
   }
   press(k, e) {
     if (!this.started && (k === "Enter" || k === "Space")) { this.begin(); return; }
@@ -438,14 +438,16 @@ class Battle {
       }
       if (hit) {
         const s = hit.s, sc = s.S.scale; this.lastHit = this.t;
+        // (heard: the crash of it into her side, louder the nearer she is to you)
+        try { FOLEY.struck("hullHit", (hit.y < 4.2 * sc ? 0.8 : 0.35) * clamp(1.1 - this.camDist(b.x, b.z) / 900, 0, 1)); } catch (e) {}
         if (hit.y < 4.2 * sc) { s.hull -= b.dmg; s.crew -= b.dmg * 1.6 * (0.6 + Math.random() * 0.8); for (let i = 0; i < 3; i++) this.puff(b.x, b.y, b.z, { color: 0x7a5a3a, size: 0.9, grow: 1, vx: (Math.random() - 0.5) * 6, vy: 3 + Math.random() * 4, vz: (Math.random() - 0.5) * 6, g: 9, life: 1.1, alpha: 0.9 }); if (this.camDist(b.x, b.z) < 260 && Math.random() < 0.3) try { FOLEY.play("crash", { vol: 0.18, rate: [1.3, 1.6] }); } catch (e) {} }
         else { s.rig = Math.max(0.15, s.rig - b.dmg * 0.006); s.crew -= b.dmg * 0.3; }
         // (a ship struck hard: her colours come down when her crew is cut to pieces, or she's sinking under them)
         if (s.hull > 0 && !s.struck && (s.crew < s.S.crew * 0.12 || (s.frac < 0.3 && s.crew < s.S.crew * 0.35 && Math.random() < 0.06))) { s.struck = true; this.note(`${s.team ? "The enemy's" : "Your"} ${s.S.one.toLowerCase()} strikes her colours!`); }
-        if (s.hull <= 0 && !s.sinkTold) { s.sinkTold = true; this.note(`${s.team ? "The enemy's" : "Your"} ${s.S.one.toLowerCase()} is sinking!`); }
+        if (s.hull <= 0 && !s.sinkTold) { s.sinkTold = true; try { FOLEY.play("sink", { vol: 0.9 * clamp(1.2 - this.camDist(s.x, s.z) / 900, 0.15, 1), rate: [0.9, 1] }); } catch (e) {} this.note(`${s.team ? "The enemy's" : "Your"} ${s.S.one.toLowerCase()} is sinking!`); }
         this.scene.remove(b.m); continue;
       }
-      if (b.y < waveH(b.x, b.z, this.t)) { this.splash(b.x, b.z); this.scene.remove(b.m); continue; }
+      if (b.y < waveH(b.x, b.z, this.t)) { try { FOLEY.struck("shotSplash", 0.65 * clamp(1.1 - this.camDist(b.x, b.z) / 900, 0, 1)); } catch (e) {} this.splash(b.x, b.z); this.scene.remove(b.m); continue; }
       if (Math.abs(b.x) > 3000 || Math.abs(b.z) > 3000) { this.scene.remove(b.m); continue; }
       this.balls.push(b);
     }
@@ -468,7 +470,7 @@ class Battle {
     this.unclutter(dt);
     this.renderer.render(this.scene, this.cam);
     this.drawHud();
-    try { FOLEY.wash(f && f.alive ? clamp(f.spd / 8, 0.15, 1) : 0.15); } catch (e) {}
+    try { FOLEY.wash(f && f.alive ? clamp(f.spd / 8, 0.15, 1) : 0.15); FOLEY.sea(1); } catch (e) {}
     if (this.started && !this.over) {
       const mine = this.ships.some(s => s.team === 0 && s.alive), theirs = this.ships.some(s => s.team === 1 && s.alive);
       if (!mine || !theirs) { this.endT = (this.endT || 0) + dt; if (this.endT > 4) this.end(theirs ? false : true); }
@@ -518,7 +520,7 @@ class Battle {
   }
   close() {
     cancelAnimationFrame(this.raf); removeEventListener("keydown", this.onKey, true); removeEventListener("keyup", this.onKey, true); removeEventListener("mouseup", this.onUp); removeEventListener("mousemove", this.onMove); removeEventListener("resize", this.onResize);
-    try { FOLEY.wash(0); } catch (e) {}
+    try { FOLEY.wash(0); FOLEY.sea(0); } catch (e) {}
     this.renderer.dispose(); this.el.remove();
     if (this.o.onEnd) this.o.onEnd(this.result || { won: false, left: true, mine: [], theirs: [] });
   }

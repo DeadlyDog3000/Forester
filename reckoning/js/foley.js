@@ -783,7 +783,10 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   crank: [3, "foley", 0.89], latch: [3, "foley", 1.15], boltLay: [3, "foley", 1.26], oarDip: [3, "foley", 0.63], oarDrip: [2, "foley", 0.36],
   ladder: [3, "foley", 1.34], scrape: [3, "foley", 1.42], tack: [3, "foley", 0.77],
   // (a drink, meat on the fire, and the water along a hull — that one made to go round)
-  gulp: [2, "foley", 1.12], sizzle: [3, "foley", 0.88], wash: [2, "foley", 3.16] }, heard = {}, hearing = {};
+  gulp: [2, "foley", 1.12], sizzle: [3, "foley", 0.88], wash: [2, "foley", 3.16],
+  // (the battle at sea's, which have no made ones: round shot into a hull and into the sea, a ship going down, and the
+  //  sea and the wind in the rigging, made to go round — silent till they're in)
+  hullHit: [4, "foley"], shotSplash: [4, "foley"], sink: [2, "foley"], sea: [2, "foley"] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -831,7 +834,7 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   src.onended = () => { try { last.disconnect(); } catch (e) {} };
   src.start();
 }
-let fireSrc = null, FIRE_AT = null, washSrc = null, roomSrc = null, outSrc = {};
+let fireSrc = null, FIRE_AT = null, washSrc = null, seaSrc = null, seaHits = [], roomSrc = null, outSrc = {};
 let HOOVES = [];
 export const FOLEY = {
   play,
@@ -880,6 +883,18 @@ export const FOLEY = {
     washSrc.s.playbackRate.setTargetAtTime(0.85 + 0.3 * Math.min(1, k), a.currentTime, 0.5);
     if (k <= 0.01) { const w = washSrc; washSrc = null; setTimeout(() => { try { w.s.stop(); } catch (e) {} }, 1500); }
   },
+  // the battle at sea: its sounds sent for before they're wanted; the sea and the rigging round you (k: 0 lets it go);
+  //  a shot striking home, or into the water, at loudness vol (no more than a few at once: a broadside's thirty balls
+  //  are a handful of crashes and not a roar of them)
+  preload(names) { for (const n of names) bufs(n); },
+  sea(k) {
+    const a = ac(), out = window.__foresterBus; if (!a || !out) return;
+    if (k > 0.01 && !seaSrc && heard.sea) { const s = a.createBufferSource(); s.buffer = heard.sea[Math.floor(Math.random() * heard.sea.length)]; s.loop = true; const g = a.createGain(); g.gain.value = 0; s.connect(g); g.connect(out); s.start(0, Math.random() * s.buffer.duration); seaSrc = { s, g }; }
+    if (!seaSrc) { if (k > 0.01) bufs("sea"); return; }
+    seaSrc.g.gain.setTargetAtTime(0.4 * Math.min(1, k), a.currentTime, 0.8);
+    if (k <= 0.01) { const w = seaSrc; seaSrc = null; setTimeout(() => { try { w.s.stop(); } catch (e) {} }, 3000); }
+  },
+  struck(kind, vol) { const t = performance.now(); seaHits = seaHits.filter(q => t - q < 600); if (seaHits.length >= 5 || vol < 0.03) return; seaHits.push(t); play(kind, { vol, rate: [0.88, 1.1] }); },
   gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
   swish: (vol = 0.35) => play("swish", { vol, rate: [0.85, 1.2] }),
   // (a weapon swung, for audio.js's whoosh: the recorded swish once it's in — true — or nothing, and the made whoosh)

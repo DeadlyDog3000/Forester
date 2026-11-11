@@ -10,6 +10,7 @@ export const CHANGELOG = [
     v: "1.99.288", date: "10 November 2026", title: "Loosed, loaded and rowed",
     items: [
       "The bow and the crossbow are recorded: an arrow drawn from the quiver, the bow drawn and loosed, the windlass wound, the string latched, the bolt laid in and let fly. So is a bayonet fixed and pulled.",
+      "A battle at sea is heard: round shot crashing into a hull or plunging into the sea, a ship's timbers groaning as she goes down, and under it all the sea and the wind in the rigging.",
       "Oars going in and coming out, the water along a boat's hull, a keel run aground, a ladder climbed and a horse's harness are real sounds now; so are a drink, a bite of bread, meat on the fire, a fly going by and a man going down. On a summer night the crickets are real, and in a wind the old trunks creak.",
     ],
   },
