@@ -2261,7 +2261,8 @@ function axeBeast(a) {
   G.impact && G.impact();
   G.wear && (G.player.blade || "axe") === "axe" && G.wear("axe");
   // (the blow, dull and heavy; and if it goes down, the weight of it meeting the ground)
-  if (!a.alive || a.state === "dead") AUDIO.killThud && AUDIO.killThud(); else window.__foley && window.__foley.thunk && window.__foley.thunk(a.pos, 0.45);
+  // (the blow landing; its fall, if it goes down, is the beast's own — see hunt.js)
+  { const F = window.__foley; F && F.blow && F.blow(a.pos, 0.6); }
   G.practise && G.practise("strength", 0.6);
 }
 // money as it is written: whole marks, or a mark and a tenth — never 0.30000000000000004
