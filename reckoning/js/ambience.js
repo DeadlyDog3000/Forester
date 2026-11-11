@@ -143,16 +143,21 @@ function tick() {
   const indoor = pl && w.insideCabin && w.insideCabin(pl.pos.x, pl.pos.z);
   const town = G.town, season = town && town.season ? String(town.season) : "summer", winter = /winter/i.test(season) || (w.snowK || 0) > 0.5, spring = /spring/i.test(season);
   const rain = w.rainK || 0;
+  // (the Wide World is not all a German wood: no leaves or songbirds in the desert, on the ice or the tundra, fewer of
+  //  them out on the open grass, the heath and the high mountains, and the leaves' rustle as thick as the trees are)
+  const land = w.land, biome = land && land.biomeAt && pl ? land.biomeAt(pl.pos.x, pl.pos.z) : null;
+  const bare = !!biome && /desert|ice|tundra/.test(biome), open = !!biome && /alpine|grassland|heath/.test(biome);
+  const trees = land && land.forestAt && pl ? Math.min(1, land.forestAt(pl.pos.x, pl.pos.z) + 0.25) : 1;
   // the wind in the leaves: gusting, one side and then the other; quieter in winter's bare woods, muffled indoors
   bed.gust += (Math.random() - 0.5) * 0.12; bed.gust = Math.max(0.15, Math.min(1, bed.gust));
   // (a breath under the birds, not a gale: at 0.04 it roared)
-  const leaves = (winter ? 0.014 : 0.025) * (0.5 + bed.gust) * (indoor ? 0.25 : 1) * (1 - rain * 0.4);
+  const leaves = (winter ? 0.014 : 0.025) * (0.5 + bed.gust) * (indoor ? 0.25 : 1) * (1 - rain * 0.4) * (bare ? 0 : (open ? 0.5 : 1) * trees);
   bed.master.gain.setTargetAtTime(leaves, t, 1.2);
   bed.sides.forEach((s, i) => { s.g.gain.setTargetAtTime((0.4 + Math.random() * 0.6) * (s.rec ? LEAF_REC : 1), t, 0.8 + i * 0.4); if (s.bp) s.bp.frequency.setTargetAtTime(1500 + bed.gust * 1400 + Math.random() * 300, t, 1.5); });
   // the birds: thick at dawn, a song every few seconds by day, none at night, few in winter and the rain
   const frac = town && town.frac != null ? town.frac : 0.4, dawn = frac > 0.18 && frac < 0.32;
-  if (!night && t > nextSong) {
-    const rate = (dawn ? 14 : 28) * (winter ? 1.4 : 1) * (1 + rain * 4) * (indoor ? 2.5 : 1);
+  if (!night && !bare && t > nextSong) {
+    const rate = (dawn ? 14 : 28) * (winter ? 1.4 : 1) * (1 + rain * 4) * (indoor ? 2.5 : 1) * (open ? 2 : 1);
     nextSong = t + rate * rnd(0.6, 1.4);
     const kind = pickSong(dawn, winter, spring), dist = rnd(12, 65), side = rnd(-1, 1);
     const voice = place(a, out, dist, side);
@@ -160,7 +165,7 @@ function tick() {
     try { sung(a, voice, kind, t + 0.05); } catch (e) {}
   }
   // an old trunk creaking, when the wind is up
-  if (bed.gust > 0.7 && !indoor && t > nextCreak) {
+  if (bed.gust > 0.7 && !indoor && !bare && !open && trees > 0.5 && t > nextCreak) {
     nextCreak = t + rnd(8, 22);
     const v = place(a, out, rnd(8, 30), rnd(-1, 1));
     if (CREAKS.length >= 2) { const s = a.createBufferSource(), g = a.createGain(); s.buffer = CREAKS[Math.floor(Math.random() * CREAKS.length)]; s.playbackRate.value = rnd(0.85, 1.1); g.gain.value = CREAK_REC; s.connect(g); g.connect(v); s.start(t); return; }
