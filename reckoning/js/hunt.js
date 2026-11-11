@@ -86,6 +86,8 @@ const VOICED = {};
 function beastVoice(a, alarm = false, hurt = false) {
   const V = VOICES[a.kind], pl = G.player, F = window.__foley; if (!V || !pl || !F || !F.beast || (alarm && !V.alarm && !hurt)) return;
   const d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z), now = G.time || 0; if (d > V.reach) return;
+  // (the clock starts again in a new world: a wait left over from the last one is let go)
+  if ((VOICED[a.kind] || 0) - now > V.gap * 2) VOICED[a.kind] = 0;
   if (!hurt && now < (VOICED[a.kind] || 0)) return;
   // (the idle calls are the country's background: off with the ambient sounds; alarms and cries of pain stay)
   if (!alarm && (window.FSET || {}).ambient === false) return; VOICED[a.kind] = now + V.gap * (alarm ? 0.4 : 1);
