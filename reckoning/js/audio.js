@@ -1060,6 +1060,18 @@ export const AUDIO = {
     });
     if (loops.brook) loops.brook.g.gain.setTargetAtTime(0.05 * k * k, a.currentTime, 0.5);
   },
+  // a wolf howling, far off across the winter woods (recorded; nothing till it's in)
+  wolf(at) {
+    const a = ctx(); if (!a) return;
+    const P = placed(a, at, 500); if (P.k <= 0.01) return;
+    recorded(a, "wolf", [[P.node, 0.16 * P.k]], a.currentTime, [0.95, 1.04]);
+  },
+  // a trunk splitting in the hard frost, sharp as a shot (recorded; nothing till it's in)
+  frostCrack(at) {
+    const a = ctx(); if (!a) return;
+    const P = placed(a, at, 200); if (P.k <= 0.01) return;
+    recorded(a, "frostCrack", [[P.node, 0.5 * P.k]], a.currentTime, [0.92, 1.06]);
+  },
   // a tawny owl, somewhere off in the trees: a long hoo, a pause, and the quavering hoo-hoo-hoooo
   owl(at) {
     const a = ctx(); if (!a) return;

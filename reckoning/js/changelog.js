@@ -14,7 +14,7 @@ export const CHANGELOG = [
       "In a siege, round shot cracks on the stone of a town's wall and splits the oak of its gate, and a breach comes down as masonry and not a gunshot. A ball into a river throws up white water and a splash.",
       "Things that used to come down with the sound of a felled tree have their own: a beast shot in the hunt, a raider falling, a ladder thrown down from the wall, a rock broken, logs put on the pile, a house or a palisade smashed. A pickaxe rings on stone, the gunsmith's hammer on his anvil, and a worn-out tool's handle snaps (they were a sword's clang). Digging a field is a spade and not an axe, the forge rings and hisses as ore is smelted and bronze cast, and meat roasted sizzles.",
       "In the hunt, a boar grunts as it charges and squeals when it's struck (it had a man's grunt), and the first red deer to take fright barks its alarm.",
-      "Oars going in and coming out, the water along a boat's hull, a keel run aground, a ladder climbed and a horse's harness are real sounds now; so are a drink, a bite of bread, meat on the fire, a fly going by and a man going down. On a summer night the crickets are real, and in a wind the old trunks creak.",
+      "Oars going in and coming out, the water along a boat's hull, a keel run aground, a ladder climbed and a horse's harness are real sounds now; so are a drink, a bite of bread, meat on the fire, a fly going by and a man going down. On a summer night the crickets are real, and in a wind the old trunks creak. On a winter night a wolf howls a long way off, and the trees crack in the frost.",
     ],
   },
   {

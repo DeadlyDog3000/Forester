@@ -2254,7 +2254,9 @@ export class Woods extends WorldBase {
       this._voiceT = 18 + Math.random() * 30;
       const f = G.town.frac, p = G.player.pos, a = Math.random() * Math.PI * 2, r = 40 + Math.random() * 60, at = { x: p.x + Math.cos(a) * r, z: p.z + Math.sin(a) * r };
       const rain = (this.rainK || 0) > 0.4, inWoods = Math.hypot(p.x - CLEARING.x, p.z - CLEARING.z) > CLEARING.r + 10;
-      if (!rain && (f > 0.78 || f < 0.03)) AUDIO.owl && AUDIO.owl(at);
+      // (and on a winter's night, now and then, a wolf a long way off instead)
+      if (!rain && (f > 0.78 || f < 0.03) && G.town.winter && Math.random() < 0.4) AUDIO.wolf && AUDIO.wolf({ x: p.x + Math.cos(a) * (r + 140), z: p.z + Math.sin(a) * (r + 140) });
+      else if (!rain && (f > 0.78 || f < 0.03)) AUDIO.owl && AUDIO.owl(at);
       else if (!rain && f > 0.1 && f < 0.6 && !G.town.winter && (inWoods || Math.random() < 0.3)) AUDIO.woodpecker && AUDIO.woodpecker(at);
     }
     // the brook

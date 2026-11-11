@@ -1001,7 +1001,7 @@ export const FOLEY = {
     S.crow = () => window.__ambience && window.__ambience.crowNear();
     S.owl = () => { const A = window.__audio, G = window.__G; if (A && A.owl && G && G.player) { const a = Math.random() * 6.28, d = 25 + Math.random() * 30; A.owl({ x: G.player.pos.x + Math.cos(a) * d, z: G.player.pos.z + Math.sin(a) * d }); } };
     const insOld = S.insectLoop; S.insectLoop = on => { window.__ambience && window.__ambience.crickets(on); if (insOld && !on) try { insOld(false); } catch (e) {} };
-    S.timberCrack = () => {}; S.bell = S.bell || (() => {});
+    S.timberCrack = () => { const A = window.__audio, G = window.__G; if (A && A.frostCrack && G && G.player) { const a = Math.random() * 6.28, d = 30 + Math.random() * 50; A.frostCrack({ x: G.player.pos.x + Math.cos(a) * d, z: G.player.pos.z + Math.sin(a) * d }); } }; S.bell = S.bell || (() => {});
     const fireOld = S.fireLoop;
     S.fireLoop = on => { if ((window.FSET || {}).ambient === false) on = false; FOLEY.fire(on); if (fireOld && !on) try { fireOld(false); } catch (e) {} };
   },
