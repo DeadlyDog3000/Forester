@@ -400,11 +400,13 @@ export const AUDIO = {
   //  were meant to be
   order(key, { at = null, vol = 1, high = false, delay = 0 } = {}) {
     const a = ctx(); if (!a) return 0;
-    const list = OBUF[key]; if (!list || !list.length) return 0;
+    // (a woman giving the word: her own voice — order_<key>F_NN — where it's in, a man's higher only till then)
+    const fem = high && OBUF[key + "F"] && OBUF[key + "F"].length > 0, list = fem ? OBUF[key + "F"] : OBUF[key]; if (!list || !list.length) return 0;
+    const ok = fem ? key + "F" : key;
     const { node, k } = placed(a, at, 140); if (k * vol < 0.02 || !room(at ? Math.min(1, 0.6 + k * vol) : 1)) return 0;
-    let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === OLAST[key]) i = (i + 1) % list.length; OLAST[key] = i;
+    let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === OLAST[ok]) i = (i + 1) % list.length; OLAST[ok] = i;
     const s = a.createBufferSource(), g = a.createGain(), t = a.currentTime + Math.max(0, delay);
-    s.buffer = list[i]; s.playbackRate.value = high ? rnd(1.14, 1.2) : rnd(0.96, 1.03);
+    s.buffer = list[i]; s.playbackRate.value = high && !fem ? rnd(1.14, 1.2) : rnd(0.96, 1.03);
     g.gain.value = 1.1 * vol * k; s.connect(g); g.connect(node); s.start(t);
     return list[i].duration / s.playbackRate.value;
   },

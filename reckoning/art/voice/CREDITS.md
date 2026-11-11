@@ -23,6 +23,6 @@ Men crying out — in pain, dying, groaning, and the grunts of effort — cut fr
 
 ## The shouted orders
 
-- **order_*.ogg** (with **orders.json**) — the words of command ("Make ready!", "Present!", "Fire!", "Form square!" and the rest), voiced for this game with ElevenLabs text-to-speech in three voices made for it (a sergeant, an officer, a corporal); DeadlyDog Productions' own. Trimmed, levelled and encoded to Opus for the game.
+- **order_*.ogg** (with **orders.json**) — the words of command ("Make ready!", "Present!", "Fire!", "Form square!" and the rest), voiced for this game with ElevenLabs text-to-speech in three voices made for it (a sergeant, an officer, a corporal); DeadlyDog Productions' own. Trimmed, levelled and encoded to Opus for the game. **order_<key>F_*.ogg** are a woman's: the same words voiced with ElevenLabs text-to-speech in the sister's voice made for this game and two of ElevenLabs' own (Lily and Alice), for a woman leading her company.
 
 - **painF_*, deathF_*, moanF_*, gruntF_*.ogg** (and **art/sfx/warF_*.ogg**) — a woman’s cries: hurt, dying, moaning, the grunt of a blow, and her war cry. Made for this game with ElevenLabs’ sound generation, DeadlyDog Productions’ own; cut from takes of separate cries, levelled to the men’s and encoded to Opus. Played for the sister, the settlements’ women and women in a battle, in place of a man’s cry played higher.
