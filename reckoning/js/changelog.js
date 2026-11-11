@@ -7,7 +7,7 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.288", date: "10 November 2026", title: "Every sound its own",
+    v: "1.99.288", date: "11 November 2026", title: "Every sound its own",
     items: [
       "The regiments' bands play their marches on real instruments: the fife, the cavalry's natural trumpet and the Ottoman zurna are recorded, each note of the tune played on the nearest held note and pitched to it. The side drum and the great drum are recorded strokes, a different one each beat, and the drum roll in Hamburg's square is beaten stroke by stroke on them. The watch shout a real \"Halt!\" after you (it was a buzz).",
       "Words on the screen are written out to the scratch of a quill, a little of it for each letter, instead of a beep.",
