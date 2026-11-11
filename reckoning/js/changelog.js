@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.288", date: "10 November 2026", title: "Loosed, loaded and rowed",
+    items: [
+      "The bow and the crossbow are recorded: an arrow drawn from the quiver, the bow drawn and loosed, the windlass wound, the string latched, the bolt laid in and let fly. So is a bayonet fixed and pulled.",
+      "Oars going in and coming out, the water along a boat's hull, a keel run aground, a ladder climbed and a horse's harness are real sounds now; so are a drink, a bite of bread, meat on the fire, a fly going by and a man going down.",
+    ],
+  },
+  {
     v: "1.99.287", date: "10 November 2026", title: "Swung, struck and set down",
     items: [
       "An axe, a sword or a musket's butt swung is the recorded blade through the air, and a fist landing in a brawl is a real blow. Taking something up is leather and cloth in the hand.",
