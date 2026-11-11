@@ -1502,7 +1502,7 @@ async function ch6(w) {
       tutor("axe", "Get close, face the trunk, and swing — level, from the shoulder. Four good strokes and it's down.", [["Click", "swing the axe"]]);
       if (choppedBefore) UI.hint("Click to swing. Stand close to a trunk and face it.", 6); } });
   w.addInteract({ x: STACK.x, y: w.cy + 0.8, z: STACK.z, reach: 2.6, label: () => `Stack the logs (${pl.carryN})`, can: () => pl.carryN > 0,
-    use: () => { S.store += pl.carryN; pl.carryN = 0; S.carry = 0; w.setStack(S.store); SFX.build(); persist(); } });
+    use: () => { S.store += pl.carryN; pl.carryN = 0; S.carry = 0; w.setStack(S.store); FOLEY.fall("logsDrop", null, 0.45); persist(); } });
   // (the logs in your arms first, then the stack's)
   w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, hold: 4, label: () => `Hew a door (${DOOR_COST} logs${pl.carryN > 0 ? ` — ${Math.min(DOOR_COST, pl.carryN)} of them the ones you're carrying` : " from the stack"})`,
     can: () => !S.door && S.store + (pl.carryN || 0) >= DOOR_COST,
@@ -1614,7 +1614,7 @@ async function ch6(w) {
       if (off()) return;
       await sib.walkTo(STACK.x + 1.4, STACK.z + 0.6, 1.4);
       if (off()) return;
-      S.store += LOGS_PER_TREE; w.setStack(S.store); SFX.build(); persist();
+      S.store += LOGS_PER_TREE; w.setStack(S.store); FOLEY.fall("logsDrop", { x: STACK.x, z: STACK.z }, 0.45); persist();
       if (Math.random() < 0.45) bark(P.sib, [
         `That's ${S.store} on the stack.`, "Father used to say a merchant counts twice. Count that.", "Don't look at me like that. Swing the axe.",
         "Your turn to fetch water, when there's a bucket.", "I've got a splinter the size of a church spire.",
@@ -1982,7 +1982,7 @@ async function huntForMeat(w, sib) {
   const hunt = new Hunt(w, HUNT, {
     onDown: a => bark(YOU(), a.kind === "deer" ? "...Down. Go to it — hold F to dress it." : "Got it. Hold F to take it.", 3),
     onDress: (a, m) => {
-      meat += m; kills++; SFX.build();
+      meat += m; kills++; FOLEY.packIn(0.4);
       if (kills < NEED) bark(YOU(), ["One.", "Two. One more."][kills - 1] || "", 2.2);
       const have = G.pack.find(i => i.icon === "meat");
       if (have) have.n = (have.n || 1) + m; else G.pack.push({ icon: "meat", name: "Meat", note: "Venison and hare, wrapped in a bit of sacking.", n: m });
@@ -2316,7 +2316,7 @@ async function ch9(w, opts = {}) {
   G.lockMove = false;
   tutor("feed", "Don't let it go out. Feed it before it's embers — not after.", [["F", "feed the hearth"]]);
   const feed = w.addInteract({ x: hx, y: w.cabinY + 0.6, z: hz, reach: 2.4, label: () => `Feed the fire (${wood} split logs)`, can: () => wood > 0,
-    use: () => { wood--; fire = Math.min(1, fire + 0.32); setPile(wood); setInPile(wood); SFX.build(); } });
+    use: () => { wood--; fire = Math.min(1, fire + 0.32); setPile(wood); setInPile(wood); FOLEY.fall("logsDrop", null, 0.3); } });
   const lines = [[12, "I can't feel my feet."], [30, "Tell me about the harbour. Anything. The smell of it."], [50, "Father used to say the winter's longest just before it turns."], [70, "It's getting lighter. Isn't it? Say it is."]];
   let gust = 6, failed = false;
   const tick = onFrame(dt => {
