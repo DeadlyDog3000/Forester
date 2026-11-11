@@ -2538,3 +2538,16 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 #campaign .cmp-top > .cmp-wars b { display: flex; white-space: nowrap; overflow: hidden; }
 #campaign .cmp-top > .cmp-wars b > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 #campaign .cmp-top > .cmp-wars b > i { flex: none; font-style: normal; margin-left: 0.35em; }
+
+/* the crates */
+.cr-buy { display: flex; align-items: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+.cr-got { margin: 8px 0 12px; padding: 10px 12px; border: 2px solid; border-radius: 4px; font-family: var(--serif); animation: crGot .5s ease-out; }
+@keyframes crGot { from { transform: scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+.cr-odds { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 4px 0 10px; font-size: 13px; }
+.cr-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 4px 12px; }
+.cr-row { display: flex; gap: 6px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid rgba(0,0,0,.08); }
+.cr-row small { margin-left: auto; color: var(--ink-dim); font-style: italic; }
+.cr-locked b:not(.cr-rar) { opacity: .45; }
+/* a crate the purse can't pay for */
+.cr-buy .btn:disabled { opacity: .5; filter: grayscale(.6); cursor: default; }
+.cr-rar { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }

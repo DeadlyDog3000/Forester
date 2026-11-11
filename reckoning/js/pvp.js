@@ -38,7 +38,7 @@ import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 import { rekeyText } from "./keys.js";
-import { initArmoury, TEAMS, TEAM_KEYS, ownsTeam, teamOpen, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
+import { initArmoury, unitsOf, setUnits, spend, TEAMS, TEAM_KEYS, ownsTeam, teamOpen, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
 import { mountPainter } from "./paint.js";
 import { rollFor, regimentOf, muster as callRoll, vetSkill, vetBrave } from "./regiment.js";
 import { designOf, setDesign, addTaken, takenAll, drawDesign, imgOk, DEFAULT as DEFAULT_COLOURS, TINCTURES, DIVISIONS, BADGES } from "./colours.js";
@@ -175,6 +175,12 @@ export function initPvp(c) {
     return { weapons: [L.long, L.side, L.blade], team: a.uniform || "imperial", fought };
   }, () => army().uniform);
   $("musTabs").addEventListener("click", e => { const b = e.target.closest("[data-mt]"); if (!b) return; musTab = b.dataset.mt; drawMuster(); sfx("page"); });
+  $("musCrates").addEventListener("click", e => {
+    if (!e.target.closest("[data-crate]")) return;
+    const T = teamNow(), r = openCrate(T); if (!r) { drawCrates(); return; }
+    lastCrate = { ...r, team: T }; sfx("buy", 4); FOLEY.rec("chestOpen", 0.5, 0.35);
+    setArmy({}); drawMuster(); drawPurse();
+  });
   $("musTeam").addEventListener("click", teamClick);
   $("musTeam").addEventListener("change", e => { if (e.target.id === "colCipher") { setDesign(army().uniform, { cipher: e.target.value }); drawTeam(); } });
   $("musTeam").addEventListener("keydown", e => { if (e.target.id === "colCipher") { e.stopPropagation(); if (e.key === "Enter") e.target.blur(); } });
@@ -447,7 +453,7 @@ function openMuster(kind, link = null) {
         if (must !== M || !PURSES[m.v]) return; const was = M.theirPurse || 900; M.theirPurse = +m.v;
         if (was !== +m.v) { setArmy(scaleMuster(army(), was, +m.v)); if (!M.started) UI.hint(`${M.foe.name || "The host"} made it ${PURSES[m.v].toLowerCase()} — your company is raised to match.`, 4); }
         drawArmy();
-        if (M.mine && !M.started) { const A = army(); n.send({ t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0 }, lo: armedLo(true) }); }
+        if (M.mine && !M.started) { const A = army(); n.send({ t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0, boost: boostTable(A.uniform) }, lo: armedLo(true) }); }
       };
       n.send({ t: "bpurseq" });
     }
@@ -480,7 +486,7 @@ const nameOf = (slot, id) => (({ long: LONG, side: SIDE, blade: BLADE })[slot][i
 function musTabs() {
   const k = must.kind, sea = k === "hist" && battleById(histPick().id).sea;
   if (k === "cmp") return [["arms", "Your arms"]];
-  return [k === "hist" && ["battle", "The battle"], !sea && ["arms", "Arms"], k !== "hist" && ["team", "Kingdoms"], (k === "bots" || k === "mp") && ["company", "Company"], k === "bots" && ["field", "The field"], ["armoury", "Armoury"]].filter(Boolean);
+  return [k === "hist" && ["battle", "The battle"], !sea && ["arms", "Arms"], k !== "hist" && ["team", "Kingdoms"], (k === "bots" || k === "mp") && ["company", "Company"], k === "bots" && ["field", "The field"], (k === "bots" || k === "mp") && ["crates", "Crates"], ["armoury", "Armoury"]].filter(Boolean);
 }
 function drawMuster() {
   if (!must) return;
@@ -488,11 +494,29 @@ function drawMuster() {
   if (!tabs.some(t => t[0] === musTab)) musTab = tabs[0][0];
   $("musT").textContent = k === "cmp" ? "Your arms for the battle" : k === "hist" ? "Historical battles" : k === "duel" ? "Your arms" : k === "bots" ? "Muster — against bots" : "Muster your company";
   $("musTabs").innerHTML = tabs.map(([id, n]) => `<button data-mt="${id}" class="${musTab === id ? "on" : ""}">${n}</button>`).join("");
-  const pane = { arms: "musMe", team: "musTeam", company: "musArmy", battle: "musArmy", field: "musField", armoury: "musForge" }[musTab];
-  for (const id of ["musMe", "musTeam", "musArmy", "musField", "musForge"]) $(id).classList.toggle("hidden", id !== pane);
+  const pane = { arms: "musMe", team: "musTeam", company: "musArmy", battle: "musArmy", field: "musField", crates: "musCrates", armoury: "musForge" }[musTab];
+  for (const id of ["musMe", "musTeam", "musArmy", "musField", "musCrates", "musForge"]) $(id).classList.toggle("hidden", id !== pane);
+  if (musTab === "crates") drawCrates();
   drawMe(); drawArmy(); drawTeam(); drawVs(); drawPurse();
   if (musTab === "armoury") drawForge(); else if (table) table.stop();
   { const w = welcome(); if (w) drawMe(w); }
+}
+// ---- the crates: bought with the kingdom's purse, each a troop of its own; what it has, and the odds ----
+let lastCrate = null;
+function drawCrates() {
+  const el = $("musCrates"); if (!el) return;
+  const T = teamNow(), U = unitsFor(T), can = ducats() >= CRATE_COST;
+  const pool = Object.keys(TROOPS).filter(k => troopOk(T, k) || k === "bow").sort((a, b) => RARITY.findIndex(r => r.id === rarityOf(T, a)) - RARITY.findIndex(r => r.id === rarityOf(T, b)) || TROOPS[a].cost - TROOPS[b].cost);
+  const tag = k => { const R = rarityById(rarityOf(T, k)); return `<b class="cr-rar" style="color:${R.col}">${R.name}</b>`; };
+  const L = lastCrate && lastCrate.team === T ? lastCrate : null;
+  el.innerHTML = `<div class="pv-h big">Crates</div>
+    <div class="pv-sn">A crate holds one of the ${esc(TEAM_NAME(T))} troops — common, uncommon, rare, epic, legendary or mythic, the rarer the less often. A troop you have already, drawn again, strikes half a percent harder each time, up to twice as hard. ${troopOk(T, "bow") ? "" : "Bowmen were never this kingdom's own: for it they're mythic."}</div>
+    <div class="cr-buy"><button class="btn primary" data-crate="1"${can ? "" : " disabled"}>Open a crate · ${money(CRATE_COST)}</button>${can ? "" : `<span class="pv-sn">${money(CRATE_COST - ducats())} more wanted in the purse — won in battle.</span>`}</div>
+    ${L ? `<div class="cr-got" style="border-color:${rarityById(L.rarity).col}">${tag(L.kind)} <b>${esc(TROOPS[L.kind].name)}</b> — ${L.dup ? `drawn again: they strike ${((boostOf(T, L.kind) - 1) * 100).toFixed(1)}% harder now` : "new: yours to raise in the company"}</div>` : ""}
+    <div class="pv-h">The odds</div><div class="cr-odds">${RARITY.map(R => `<span><b style="color:${R.col}">${R.name}</b> ${(R.p * 100).toFixed(R.p < 0.02 ? 1 : 0)}%</span>`).join("")}</div>
+    <div class="pv-h">${esc(TEAM_NAME(T))} troops</div>
+    <div class="cr-list">${pool.map(k => k in U ? `<div class="cr-row">${tag(k)} <b>${esc(TROOPS[k].name)}</b><small>${U[k] ? `drawn ${U[k] + 1} times · +${((boostOf(T, k) - 1) * 100).toFixed(1)}% harm` : "yours"}</small></div>`
+      : `<div class="cr-row cr-locked">${tag(k)} <b>${esc(TROOPS[k].name)}</b><small>not yet drawn</small></div>`).join("")}</div>`;
 }
 function drawPurse() { $("musPurse").classList.toggle("hidden", !!must && must.kind === "cmp"); $("musPurse").innerHTML = `${esc(TEAM_NAME(teamNow()))} purse: <b>${money(ducats())}</b>`; $("musPurse").title = `Paid in ${coinName()} — each kingdom has its own purse, in its own coin`; }
 // ---- the team: whose colours you march in — each crown's price, and the arms its soldiers carried ----
@@ -669,7 +693,7 @@ function musterReady() {
   if (must.mine && must.theirs) return;
   must.mine = !must.mine;
   const A = army();
-  must.net.send(must.mine ? { t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0 }, lo: armedLo(true) } : { t: "bunmust" });
+  must.net.send(must.mine ? { t: "bmust", army: { muster: A.muster, guns: A.guns, uniform: A.uniform, allies: menOf(A), ride: riding() ? 1 : 0, boost: boostTable(A.uniform) }, lo: armedLo(true) } : { t: "bunmust" });
   drawVs(); maybeStart();
 }
 function maybeStart() {
@@ -691,7 +715,7 @@ function drawArmy() {
   const tr = (k, T, n, cost, max) => `<div class="pv-tr">${k !== "guns" && plateOf(wayOfUniform(A.uniform), k) ? `<img class="pv-tr-img" src="${plateOf(wayOfUniform(A.uniform), k)}" alt="">` : ""}<span class="pv-tr-n"><b>${T.name || T}</b><small>${T.note || ""}</small></span><i>${cost}</i><button data-tr="${k}" data-d="-1"${n <= 0 ? " disabled" : ""}>−</button><input class="pv-tr-c" data-trn="${k}" value="${n}" inputmode="numeric" maxlength="3" title="Type how many"><button data-tr="${k}" data-d="1"${cost > left || n >= max ? " disabled" : ""}>+</button></div>`;
   const muster = A.battle ? `<div class="pv-purse">${A.vs === "player" ? (() => { const guest = must && must.kind === "mp" && must.side === 1, host = must && must.kind === "mp" && must.side === 0; return `${Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${(guest ? A.purse === +v : A.ppurse === +v) ? " on" : ""}" data-ppurse="${v}"${guest || (host && must.theirs) ? " disabled" : ""}><b>${n}</b><small>${v} thalers</small></button>`).join("")}<span class="pv-pf">The purse: <b>${A.purse}</b> thalers each${guest ? ` — ${esc(must.foe.name || "the host")} chooses the size of battle` : host ? (must.theirs ? ` — ${esc(must.foe.name || "the other player")} is ready, so the size of battle is set` : " — you're the host: the size of battle is yours to choose") : ""}</span>`; })() : Object.entries(PURSES).map(([v, n]) => `<button class="pv-gr${A.purse === +v ? " on" : ""}" data-purse="${v}"><b>${n}</b><small>${v} thalers</small></button>`).join("")}
       <div class="pv-spent"><i style="width:${Math.min(100, spent / A.purse * 100).toFixed(1)}%"></i><span>${spent} of ${A.purse} thalers spent · ${menOf(A)} men${A.guns ? `, ${A.guns} gun${A.guns > 1 ? "s" : ""}` : ""}</span></div></div>
-    <div class="pv-muster">${Object.entries(TROOPS).filter(([k]) => troopOk(A.uniform, k)).map(([k, T]) => tr(k, T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>${A.vs === "player" ? "" : drillRow(A) + bandRow(A, left) + supplyRow(A, left) + regimentRow(A)}` : "";
+    <div class="pv-muster">${Object.entries(TROOPS).filter(([k]) => mayRaise(A.uniform, k, true)).map(([k, T]) => tr(k, lockOn() ? { ...T, note: `${T.note} · <b style="color:${rarityById(rarityOf(A.uniform, k)).col}">${rarityById(rarityOf(A.uniform, k)).name}</b>${boostOf(A.uniform, k) > 1 ? ` · +${((boostOf(A.uniform, k) - 1) * 100).toFixed(1)}% harm` : ""}` } : T, A.muster[k] | 0, T.cost, MAX_MEN - menOf(A) + (A.muster[k] | 0))).join("")}${lockOn() ? `<div class="pv-sn">More troops come out of crates — the Crates tab.</div>` : ""}${tr("guns", { name: "Guns", note: "Field gun, two crew" }, A.guns, GUN_COST, MAX_GUNS)}</div>${A.vs === "player" ? "" : drillRow(A) + bandRow(A, left) + supplyRow(A, left) + regimentRow(A)}` : "";
   if (!A.battle) { el.innerHTML = ""; return; }
   const locked = must && must.mine;
   el.classList.toggle("locked", !!locked);
@@ -845,7 +869,7 @@ async function findMatch() {
     }, 250);
     const r = record(), n = camp.net;
     n.on.duel = m => { if (search !== s) return; clearInterval(clock); matched(n, m); };
-    n.send({ t: "pvpq", lo: armedLo(true), rating: Math.round(r.rating), user: ctx.user(), mode: wantBattle ? "battle" : "duel", army: wantBattle ? { allies: menOf(A0), ground: A0.ground, uniform: A0.uniform, muster: A0.muster, guns: A0.guns } : undefined });
+    n.send({ t: "pvpq", lo: armedLo(true), rating: Math.round(r.rating), user: ctx.user(), mode: wantBattle ? "battle" : "duel", army: wantBattle ? { boost: boostTable(A0.uniform), allies: menOf(A0), ground: A0.ground, uniform: A0.uniform, muster: A0.muster, guns: A0.guns } : undefined });
     return;
   }
   const s = search = { t0: performance.now(), net: null, key: null, done: false, seen: [] };
@@ -879,7 +903,7 @@ async function findMatch() {
       s.done = true; search = null; clearInterval(clock);
       matched(n, m);
     };
-    n.send({ t: "pvpq", lo: armedLo(true), rating: Math.round(r.rating), user: ctx.user(), mode: wantBattle ? "battle" : "duel", army: wantBattle ? { allies: menOf(A0), ground: A0.ground, uniform: A0.uniform, muster: A0.muster, guns: A0.guns } : undefined });
+    n.send({ t: "pvpq", lo: armedLo(true), rating: Math.round(r.rating), user: ctx.user(), mode: wantBattle ? "battle" : "duel", army: wantBattle ? { boost: boostTable(A0.uniform), allies: menOf(A0), ground: A0.ground, uniform: A0.uniform, muster: A0.muster, guns: A0.guns } : undefined });
   };
   while (search === s && !s.done) {
     // the wide world's server, if there is one: everyone shares it
@@ -932,14 +956,14 @@ export function army() {
   const purse = PURSES[a.purse] ? +a.purse : 900;
   // (against bots, the ground and the supplies first out of the purse — the men from what's left)
   const supplies = a.vs === "player" ? 0 : Math.max(0, Math.min(SUPPLY_MAX, a.supplies | 0)), reserve = a.vs === "player" ? 0 : groundCost({ ...a, ground, vs: "bots" }) + supplies * SUPPLY_COST;
-  const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? livePurse(a) : purse - reserve, riding(), a.uniform);
+  const F = fitMuster(a.muster || { musketeer: 8, pike: 2, bow: 2 }, a.guns ?? 1, a.vs === "player" ? livePurse(a) : purse - reserve, riding(), a.uniform, true);
   // (the bands, against bots: one to an arm that's raised, as many as the purse has left for)
   const bands = a.vs === "player" || !Array.isArray(a.bands) ? [] : [...new Set(a.bands)].filter(g => armsIn(F.muster).includes(g));
   while (bands.length && spentOf({ ...F, ride: riding(), bands }) + reserve > purse) bands.pop();
   return { bands, supplies, drill: DRILLS[a.drill] ? a.drill : null, allies: Math.max(0, Math.min(12, a.allies | 0)), enemies: Math.max(1, Math.min(20, a.enemies | 0 || 1)), battle: !!a.battle, uniform, enemyUniform: foe || others[Math.floor(Math.random() * others.length)], foe, ground, vs: a.vs === "player" ? "player" : "bots",
     purse: a.vs === "player" ? livePurse(a) : purse, ppurse: prefPurse(a), muster: F.muster, guns: F.guns, sides: fitSides(a.sides), ride: riding() };
 }
-export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900) - groundCost(a) - (a.supplies | 0) * SUPPLY_COST, riding(), a.uniform); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
+export function setArmy(ch) { try { const a = { ...army(), ...ch }; delete a.enemyUniform; const F = fitMuster(a.muster, a.guns, a.vs === "player" ? livePurse(a) : (PURSES[a.purse] ? +a.purse : 900) - groundCost(a) - (a.supplies | 0) * SUPPLY_COST, riding(), a.uniform, true); a.muster = F.muster; a.guns = F.guns; localStorage.setItem(ARMY_KEY, JSON.stringify(a)); } catch (e) {} }
 // ---- the treasury: what a company costs to raise ----
 // Every side has the same purse, and spends it as its commander sees fit: a few men with the best of arms, or many
 // with cheap ones; guns cost dearest of all (and come with their crews)
@@ -1045,13 +1069,56 @@ export const menOf = A => Object.values(A.muster || {}).reduce((t, n) => t + (n 
 function scaleMuster(a, from, to) {
   if (!from || from === to) return {};
   const k = to / from, m = {}; for (const t in a.muster || {}) m[t] = Math.round((a.muster[t] | 0) * k);
-  const F = fitMuster(m, Math.round((a.guns | 0) * k), to, riding(), a.uniform); return { muster: F.muster, guns: F.guns };
+  const F = fitMuster(m, Math.round((a.guns | 0) * k), to, riding(), a.uniform, true); return { muster: F.muster, guns: F.guns };
 }
 // the men a side may raise: those armed as its colours were — horse for anyone; foot by the arm they carry (no musketeers
 // among the Tatars, no bowmen or crossbowmen in the armies of the West). Colours with no kit of their own: any.
 export const troopOk = (team, k) => { const T = TROOPS[k]; if (!T) return false; if (T.teams) return T.teams.includes(team); if (T.horse || !TEAMS[team]) return true; return T.lo.long !== "none" ? inKit(team, "long", T.lo.long) : inKit(team, "blade", T.lo.blade); };
-function fitMuster(m, guns, purse, ride = false, team = null) {
-  const out = {}; for (const k in TROOPS) out[k] = troopOk(team, k) ? Math.max(0, Math.min(MAX_MEN, (m && m[k]) | 0)) : 0;
+// ---- the crates: each kingdom begins with two of its troops; the rest come out of crates bought with its purse, the
+// rarer the less often — and a troop drawn again makes its men deadlier, half a percent each time. Bowmen, for a
+// kingdom that never had them, the rarest of all. (In battles against bots and other players; a campaign's, the
+// story's and the historical battles raise their men as they always have) ----
+export const RARITY = [
+  { id: "common", name: "Common", p: 0.455, col: "#8a857a" },
+  { id: "uncommon", name: "Uncommon", p: 0.28, col: "#4f8a3e" },
+  { id: "rare", name: "Rare", p: 0.15, col: "#2f68a8" },
+  { id: "epic", name: "Epic", p: 0.07, col: "#7a3fa0" },
+  { id: "legendary", name: "Legendary", p: 0.03, col: "#c07a0e" },
+  { id: "mythic", name: "Mythic", p: 0.015, col: "#b0281a" },
+];
+const RARITY_OF = { militia: "common", pike: "common", axe: "common", bow: "common", musketeer: "uncommon", crossbow: "uncommon", sword: "uncommon", tercio: "uncommon", hajdu: "uncommon", zaporozhian: "uncommon", highlander: "uncommon",
+  grenadier: "rare", strelets: "rare", schiavoni: "rare", janissary: "rare", blueguard: "rare", carolean: "rare", cavalry: "epic", lighthussar: "epic", horsearcher: "epic", mousquetaire: "epic", cuirassier: "legendary", hussar: "legendary" };
+export const CRATE_COST = 80, DUP_BONUS = 0.005, BOOST_MAX = 2;
+// (bowmen for any kingdom — but where they weren't its own, mythic)
+const crateable = (team, k) => troopOk(team, k) || k === "bow";
+export const rarityOf = (team, k) => k === "bow" && !troopOk(team, "bow") ? "mythic" : RARITY_OF[k] || "common";
+export const rarityById = id => RARITY.find(r => r.id === id) || RARITY[0];
+// (the two a kingdom begins with: its plainest own troops — musketeers and pikes for most, the bow for the Tatars)
+const STARTERS = ["musketeer", "pike", "bow", "sword", "axe", "militia", "crossbow"];
+export function unitsFor(team) {
+  let U = unitsOf(team);
+  if (!U) { U = {}; for (const k of [...STARTERS, ...Object.keys(TROOPS)]) if (Object.keys(U).length < 2 && troopOk(team, k) && !(k in U)) U[k] = 0; setUnits(U, team); }
+  return U;
+}
+export const unlocked = (team, k) => crateable(team, k) && k in unitsFor(team);
+export const boostOf = (team, k) => Math.min(BOOST_MAX, 1 + DUP_BONUS * (unitsFor(team)[k] | 0));
+export const boostTable = team => { const U = unitsFor(team), B = {}; for (const k in U) if (U[k] > 0) B[k] = +boostOf(team, k).toFixed(4); return B; };
+// (a crate opened: paid for, a rarity drawn by its odds, and a troop of that rarity this kingdom can have — the nearest
+//  rarity that has one, where it has none of that)
+export function openCrate(team) {
+  if (!spend(CRATE_COST, team)) return null;
+  const pool = Object.keys(TROOPS).filter(k => crateable(team, k));
+  let r = Math.random(), i = 0; for (; i < RARITY.length - 1; i++) { if (r < RARITY[i].p) break; r -= RARITY[i].p; }
+  let cands = []; for (let d = 0; d < RARITY.length && !cands.length; d++) for (const j of [i - d, i + d]) if (!cands.length && j >= 0 && j < RARITY.length) cands = pool.filter(k => rarityOf(team, k) === RARITY[j].id);
+  const k = cands[Math.floor(Math.random() * cands.length)], U = { ...unitsFor(team) }, dup = k in U;
+  U[k] = dup ? (U[k] | 0) + 1 : 0; setUnits(U, team);
+  return { kind: k, rarity: rarityOf(team, k), dup, n: U[k] };
+}
+// (whether the crates govern this muster: against bots or a player, not a campaign's battle or a historical one)
+const lockOn = () => !!must && (must.kind === "bots" || must.kind === "mp");
+const mayRaise = (team, k, own) => own && lockOn() ? unlocked(team, k) : troopOk(team, k);
+function fitMuster(m, guns, purse, ride = false, team = null, own = false) {
+  const out = {}; for (const k in TROOPS) out[k] = mayRaise(team, k, own) ? Math.max(0, Math.min(MAX_MEN, (m && m[k]) | 0)) : 0;
   guns = Math.max(0, Math.min(MAX_GUNS, guns | 0));
   const A = { muster: out, guns, ride };
   // (over the purse: a gun given up first, then the dearest men)
@@ -1591,6 +1658,10 @@ class Arena {
         const theirs = HB ? { muster: this.hist.cos[1].muster, guns: this.hist.cos[1].guns | 0 } : this.netBattle ? fitMuster(foe.army && foe.army.muster, foe.army && foe.army.guns, A.purse || 900, !!(foe.army && foe.army.ride), foe.army && foe.army.uniform) : A.ghost ? { muster: { ...A.ghost.muster }, guns: A.ghost.guns | 0 } : A.challenge ? withSeed(A.challenge.seed + 7, () => botMuster(A.purse, A.enemyUniform)) : botMuster((A.purse || 900) * (generalship() < 0.3 ? 0.85 : 1), A.enemyUniform, generalship());   // (an easy officer's company a little the smaller)
         const list = M => Object.entries(M.muster).flatMap(([k, n]) => Array(n | 0).fill(k));
         this.musters = [list(A), list(theirs)]; this.gunsBought = [A.guns | 0, theirs.guns | 0];
+        // (the crates' bonus to each troop drawn again: yours from your own kingdom's draws; the other player's as their
+        //  muster brought it, kept within what can be had)
+        { const ok = B => { const o = {}; for (const k in B || {}) if (TROOPS[k]) o[k] = clamp(+B[k] || 1, 1, BOOST_MAX); return o; };
+          this.boosts = [!HB && !A.cmpEnd && !A.challenge && lockOn() ? boostTable(A.uniform) : null, this.netBattle && foe.army ? ok(foe.army.boost) : null]; }
         // (your regiment, against bots: the men who came through the last battles, in their places again — see regiment.js)
         this.regOn = !this.net && !HB && !A.challenge && !A.cmpEnd && !A.ghost && ["bots", "quick"].includes(lastMode) && !!A.uniform;
         if (this.regOn) { this.roll = rollFor(A.uniform, this.musters[0]); this.rollKinds = new Set(regimentOf(A.uniform).men.map(m => m.kind)); }
@@ -2008,7 +2079,7 @@ class Arena {
     // (a call that's only worth so much: once in a while, not with every breath)
     (this.rallyAt ||= {}); if (G.time - (this.rallyAt[team] ?? -99) < 8) return 0; this.rallyAt[team] = G.time;
     for (const u of this.alliesOf(team)) {
-      if (!u.routing || u.wounded || Math.hypot(u.pos.x - at.x, u.pos.z - at.z) > 22) continue;
+      if (!u.routing || u.wounded || u instanceof Puppet || Math.hypot(u.pos.x - at.x, u.pos.z - at.z) > 22) continue;
       u.nerve = Math.min(1, (u.nerve || 0) + 0.55 * Math.min(1.2, u.brave || 1));
       if (u.nerve > 0.42) { u.routing = false; u.a.person.crouching = false; u.a.path = []; u.hold(u.lo.long !== "none" ? u.lo.long : u.steel()); n++; }
     }
@@ -3679,7 +3750,7 @@ class Arena {
     if ((this.snapT = (this.snapT || 0) - dt) > 0) return; this.snapT = 1 / 10;
     const D = { up: 0, left: 1, right: 2 }, r2 = v => Math.round(v * 100) / 100;
     const u = this.units.filter(x => !x.isNet && x.alive).map(x => {
-      const P = x.a.person, fl = (P.aimWant ? 2 : 0) | (P.crouching ? 4 : 0) | (x.wind > 0 ? 8 : 0) | (x.T === this.netFoe ? 16 : 0) | ((D[x.dir] | 0) << 5);
+      const P = x.a.person, fl = (P.aimWant ? 2 : 0) | (P.crouching ? 4 : 0) | (x.wind > 0 ? 8 : 0) | (x.T === this.netFoe ? 16 : 0) | ((D[x.dir] | 0) << 5) | (x.routing ? 128 : 0);
       return [x.uid, r2(x.pos.x), r2(x.pos.z), r2(x.a.yaw), fl, P.pose || "idle", x.heldK || "", P.load ? +P.load.e.toFixed(2) : 0];
     });
     const g = this.field ? this.field.guns.map(q => [r2(q.yaw), r2(q.pitch), q.loaded ? 1 : 0, r2(clamp(1 - q.reload / (q.reloadT || 1), 0, 1))]) : [];
@@ -3812,6 +3883,8 @@ class Arena {
 //  a fighter on the field: a body that can be struck and shot (the hunt's arrows and balls find it)
 // ---------------------------------------------------------------------------
 class Fighter {
+  // (the crates' bonus to his harm: his troop drawn again in his kingdom's crates — 1 for most)
+  get boostK() { if (this._bk === undefined) { const B = this.arena && this.arena.boosts && this.arena.boosts[this.team], k = this.info && this.info.kind; this._bk = (B && k && B[k]) || 1; } return this._bk; }
   constructor(arena, info) {
     this.arena = arena; this.info = info; this.hp = HP;
     this.a = new Actor({ ...lookOpts(info.look || randomLook(), info.name), name: info.name }, SPAWN[1].x, SPAWN[1].z, 0);
@@ -3930,6 +4003,7 @@ class Bot extends Fighter {
   // facing whoever struck (the better he is, the oftener)
   struck(dmg, side, by = null) {
     if (!this.alive) return;
+    if (by && by.boostK > 1) dmg *= by.boostK;
     // (who's on him, hand to hand: a man running turns on him, cornered, rather than be cut down from behind)
     this.meleeT = G.time; this.meleeBy = by || this.arena.you;
     const src = by ? by.pos : G.player.pos, dx = src.x - this.pos.x, dz = src.z - this.pos.z;
@@ -4038,7 +4112,7 @@ class Bot extends Fighter {
     { const r = Math.random(); if (r < 0.5) AUDIO.voice && AUDIO.voice(r < 0.16 ? "pain" : r < 0.36 ? "grunt" : "moan", { at: this.pos, vol: 0.8, high: isF(this.info.look) }); }
     if (!(this.wind > 0)) { this.stun = melee ? 0.25 : 0.4; this.a.path = []; this.aimT = 0; }
     // (hurt at range, he doesn't stand there: he moves)
-    if (!melee) { this.stepT = 0; this.hurtT = G.time; (this.arena.shotAt ||= {})[this.team] = G.time; }
+    if (!melee) { this.stepT = 0; this.hurtT = G.time; { const L = ((this.arena.shotAt ||= {})[this.team] ||= []); L.push({ x: this.pos.x, z: this.pos.z, t: G.time }); if (L.length > 16) L.shift(); } }
   }
   // can he see a man: nothing solid on the line from his eyes to the other's chest
   sees(T) {
@@ -4269,7 +4343,7 @@ class Bot extends Fighter {
         const B = this.blade();
         this.cool = (1.4 - s * 0.6) / B.rate * (0.85 + Math.random() * 0.3);
         if (d < B.reach - 0.3 && T.alive) {
-          if (T.isPlayer) { if (strikeYou(a, this.dir, B.dmg * (pl.horse && this.steel() === "spear" ? 2 : 1), d, this.arena.tips ??= {}) === "parry") { this.stun = 1.0; this.cool = Math.max(this.cool, 1.3); a.person.flinch && a.person.flinch(); } }
+          if (T.isPlayer) { if (strikeYou(a, this.dir, B.dmg * this.boostK * (pl.horse && this.steel() === "spear" ? 2 : 1), d, this.arena.tips ??= {}) === "parry") { this.stun = 1.0; this.cool = Math.max(this.cool, 1.3); a.person.flinch && a.person.flinch(); } }
           else { T.struck(B.dmg, this.dir, this); FOLEY.chop && FOLEY.chop(T.pos, 0.6); }
         }
       }
@@ -4399,7 +4473,7 @@ class Bot extends Fighter {
       //  ball's a waste of a charge, and a line that spends its loads there is caught empty when they come on. A volley at
       //  the word goes at whatever range it's given)
       // (but a company being shot at answers back at whatever range it's being shot from)
-      const answering = G.time - ((this.arena.shotAt || {})[this.team] ?? -99) < 8;
+      const answering = ((this.arena.shotAt || {})[this.team] || []).some(h => G.time - h.t < 8 && (h.x - this.pos.x) ** 2 + (h.z - this.pos.z) ** 2 < 625);
       if (!useK || !O.fire || !sees || d > BATTLE_RANGE[useK] * this.arena.sight * (useK === "musket" && !answering ? AT_WILL : 1)) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
       // (the bowmen of a battle shoot as one: at the word every bow comes up and is drawn together, raised high for the
       //  long arc, held — and loosed at once, a whole flight of arrows going up into the sky together; a man who came
@@ -4527,12 +4601,14 @@ class Puppet extends Fighter {
     if (!this.seen) { this.seen = true; this.a.place(x, z, yaw); this.tx = x; this.tz = z; this.tyaw = yaw; this.spd = 0; }
     // (gone off the field in their game — set well out past the trees there: gone here too, not stood in the woods)
     { const far = Math.hypot(x - C.x, z - C.z) > this.arena.bound + 20;
-      if (far !== !!this.fled) { this.fled = far; this.a.root.visible = !far; if (this.a.horse && this.a.horse.root) this.a.horse.root.visible = !far; if (far) { this.a.place(x, z, yaw); this.tx = x; this.tz = z; this.spd = 0; return; } } }
+      if (far !== !!this.fled) { this.fled = far; this.a.root.visible = !far; if (this.a.horse && this.a.horse.root) this.a.horse.root.visible = !far; this.arena.showHud && this.arena.showHud(); this.arena.checkEnd && this.arena.checkEnd(); if (far) { this.a.place(x, z, yaw); this.tx = x; this.tz = z; this.spd = 0; return; } } }
     this.spd = Math.hypot(x - this.tx, z - this.tz) * 10; this.tx = x; this.tz = z; this.tyaw = yaw;
     if (held !== undefined && (held || null) !== (this.heldK || null)) this.hold(held || null);
     const P = this.a.person;
     if (pose && P.pose !== pose) P.setPose(pose);
     P.crouching = !!(fl & 4); this.aimUp(!!(fl & 2));
+    // (running, in their game: not counted among those still standing to fight here either)
+    if (!!(fl & 128) !== !!this.routing) { this.routing = !!(fl & 128); this.arena.showHud && this.arena.showHud(); this.arena.checkEnd && this.arena.checkEnd(); }
     this.wind = fl & 8 ? 0.3 : 0; this.dir = ["up", "left", "right"][(fl >> 5) & 3] || "right";
     this.T = fl & 16 ? this.arena.you : null;
     // (loading: the drill as their game has it, and its sounds)

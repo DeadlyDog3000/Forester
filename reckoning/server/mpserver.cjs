@@ -1747,7 +1747,10 @@ async function start(opts = {}) {
         const mode = m.mode === "battle" ? "battle" : "duel";
         const A = m.army || {}, M = A.muster && typeof A.muster === "object" ? A.muster : {}, muster = {};
         for (const k of Object.keys(M).slice(0, 12)) if (/^[a-z]{1,12}$/.test(k)) muster[k] = Math.max(0, Math.min(30, M[k] | 0));
-        const army = mode === "battle" ? { allies: Math.max(0, Math.min(30, A.allies | 0)), ground: ["open", "ours", "theirs"].includes(A.ground) ? A.ground : "open", uniform: String(A.uniform || "").slice(0, 20), muster, guns: Math.max(0, Math.min(3, A.guns | 0)) } : null;
+        // (the crates' bonus to troops drawn again: names like the muster's, each between 1 and 1.5)
+        const B = A.boost && typeof A.boost === "object" ? A.boost : {}, boost = {};
+        for (const k of Object.keys(B).slice(0, 30)) if (/^[a-z]{1,12}$/.test(k)) boost[k] = Math.max(1, Math.min(2, +B[k] || 1));
+        const army = mode === "battle" ? { allies: Math.max(0, Math.min(30, A.allies | 0)), ground: ["open", "ours", "theirs"].includes(A.ground) ? A.ground : "open", uniform: String(A.uniform || "").slice(0, 20), muster, guns: Math.max(0, Math.min(3, A.guns | 0)), boost } : null;
         const me = { ws, who: { ...who }, lo: cleanLo(m.lo), rating: Math.max(0, Math.min(4000, num(m.rating, 1000))), at: now(), mode, army };
         if (m.user) me.who.user = userOf(m.user);
         let best = -1, bd = Infinity;

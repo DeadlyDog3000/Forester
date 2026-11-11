@@ -140,6 +140,11 @@ function state() {
   return S;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+// ---- the troops each kingdom can raise: two to begin with, the rest out of crates bought with its purse — and a troop
+// drawn again, its men a little deadlier (pvp.js rolls the crate; what's drawn is kept here, with the purse) ----
+// (a kingdom's troops: { kind: how many times drawn again } — null till it's first asked for, and then begun with two)
+export const unitsOf = (t = team()) => { const s = state(); s.units ||= {}; return s.units[t] || null; };
+export function setUnits(units, t = team()) { const s = state(); s.units ||= {}; s.units[t] = units; save(); }
 // (what's in the purse of a team: in ducats' worth — shown with money())
 export const ducats = (t = team()) => state().purse[t] | 0;
 export const owns = (k, t = team()) => WEAPON_PRICE[k] === 0 || (state().own[t] || []).includes(k);
@@ -149,7 +154,7 @@ export const ownsFinish = (slot, id, kind, t = team()) => !FINISH[slot] || !FINI
 export const ownsUp = (kind, id, t = team()) => (state().up[t] || []).includes(`${kind}.${id}`);
 // (a word for whoever fought before the armoury: once)
 export function welcome() { const s = state(); if (!s.welcome) return null; const t = s.welcome; s.welcome = false; save(); return `The armoury is open. For the battles you've already fought you have ${money(s.purse[t] | 0, t)} in the ${(TEAMS[t] && t) ? "purse of your colours" : "purse"}, and you keep the arms and colours you were using.`; }
-function spend(n) { const s = state(), t = team(); if ((s.purse[t] | 0) < n) return false; s.purse[t] = (s.purse[t] | 0) - n; save(); return true; }
+export function spend(n, t = team()) { const s = state(); if ((s.purse[t] | 0) < n) return false; s.purse[t] = (s.purse[t] | 0) - n; save(); return true; }
 export function buyWeapon(k) { if (owns(k)) return true; if (!spend(WEAPON_PRICE[k])) return false; const s = state(), t = team(); (s.own[t] ||= [...START]).push(k); save(); return true; }
 // (a crown's men are raised only once you've taken its colours in battle: see colours.js)
 export const teamOpen = k => ownsTeam(k) || taken(k) > 0;

@@ -1023,7 +1023,7 @@ $("craftBody").addEventListener("click", e => {
   // (heard as the making is: hides laced into a pack, a stone or metal head knocked onto its haft, a wooden thing whittled
   //  with the knife — not a chime)
   { const F = window.__foley, metal = Object.keys(r.cost).some(k => ["stone", "copper", "bronze", "iron"].includes(k));
-    if (r.tool === "pack" && window.__sfxRec && window.__foresterBus) window.__sfxRec("leather", window.__foresterBus, 1.2) || UISFX.craft();
+    if (r.tool === "pack" && window.__sfxRec && window.__foresterBus) window.__sfxRec("leather", window.__foresterBus, 0.17) || UISFX.craft();
     else if (F && F.strike) F.strike(metal ? "hammer" : "whittle", null, metal ? 0.5 : 0.4);
     else UISFX.craft(); }
   G.emitCraft && G.emitCraft(r);

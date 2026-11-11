@@ -284,7 +284,7 @@ export class Artillery {
     for (const gun of this.guns.values()) {
       // loading: sponged, the charge and the ball rammed home
       if (!gun.loaded && gun.reload <= 0) this.startLoad(gun);
-      if (gun.reload > 0) { gun.reload -= dt; if (gun.reload <= 0) { gun.reload = 0; gun.loaded = true; gun.b.loaded = true; if (this.manned === gun) { UI.hint("Loaded.", 1.2); AUDIO.ramrod && AUDIO.ramrod(); } } else if (this.manned === gun && Math.floor((gun.reload + dt) * 2) !== Math.floor(gun.reload * 2) && gun.reload > 1.5) AUDIO.ramrod && AUDIO.ramrod(); }
+      if (gun.reload > 0) { gun.reload -= dt; if (gun.reload <= 0) { gun.reload = 0; gun.loaded = true; gun.b.loaded = true; if (this.manned === gun) { UI.hint("Loaded.", 1.2); AUDIO.ramrod && AUDIO.ramrod(); } } else if (this.manned === gun && Math.floor((gun.reload + dt) / 1.6) !== Math.floor(gun.reload / 1.6) && gun.reload > 1.5) AUDIO.ramrod && AUDIO.ramrod(); }
       // manned: the gun follows your eye, as far as it will go
       if (this.manned === gun) {
         const base = gun.b.ry;

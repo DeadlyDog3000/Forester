@@ -1494,15 +1494,13 @@ export class EuropeView3D {
       }
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; tex.set(k, t); return t;
     };
-    const armsAt = new Map();
     for (const m of list) {
       // (on its town's dry ground, as the town itself is: not on a staff out in the water off a port)
       const [x, z] = this.spotXZ(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army" || m.kind === "party";
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
       sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.62 : swords ? 0.5 : 0.42), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       if (arm || swords) sp.userData.over = { y0, stack: arm ? 1 : 0 };
-      // (two armies at one town side by side, not one drawn over the other — "57" and "12" read as "5712")
-      if (arm) { const key = `${Math.round(x * 40)},${Math.round(z * 40)}`, n = armsAt.get(key) || 0; armsAt.set(key, n + 1); if (n) sp.center.set(0.5 - [0, 1, -1, 2, -2][Math.min(4, n)] * 1.3, 0.5); }
+      // (two armies at one town are set side by side each frame, with every other count on the view: see frame())
       sp.userData.name = m.name;
       grp.add(sp);
     }

@@ -100,7 +100,7 @@ colourTex.needsUpdate = true;
     //  mostly empty at 1024 a square)
     // (and at half the size where there isn't the memory for the whole — 48 MB at once — rather than no colour at all)
     let S = img.height, data = null;
-    for (; S >= 256 && !data; S >>= 1) try { data = new Uint8Array(S * S * 4 * COLOUR_N); } catch (e) { data = null; }
+    for (; S >= Math.min(256, img.height) && !data; S >>= 1) try { data = new Uint8Array(S * S * 4 * COLOUR_N); } catch (e) { data = null; }
     if (!data) return; S <<= 1;
     const c = document.createElement("canvas"); c.width = c.height = S;
     const g = c.getContext("2d", { willReadFrequently: true });
