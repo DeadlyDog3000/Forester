@@ -2489,7 +2489,7 @@ class Arena {
       L.push = at ? (L.push || 0) + dt * Math.min(2, at) : Math.max(0, (L.push || 0) - dt * 0.5);
       if (L.push > 3.2) {
         L.fallT = 1.2; L.push = 0;
-        FOLEY.crash && FOLEY.crash(0.5, { x: L.out.x, z: L.out.z });
+        FOLEY.fall && FOLEY.fall("ladderFall", { x: L.out.x, z: L.out.z }, 0.7);
         for (const u of this.units) if (u.climb && u.climb.L === L) u.fall();
         if (this.alOf(0) !== S.side && Math.hypot(G.player.pos.x - L.out.x, G.player.pos.z - L.out.z) < 30) UI.hint("They've thrown a ladder down!", 2);
       }

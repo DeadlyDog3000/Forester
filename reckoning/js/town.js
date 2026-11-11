@@ -1429,7 +1429,7 @@ export class Town {
     b.hp = (b.hp ?? def.hp) - dmg;
     AUDIO.clang && Math.random() < 0.3 && AUDIO.clang(0.3, { x: b.x, z: b.z });
     SFX().chop();
-    if (b.hp <= 0) { b.broken = true; b.hp = 0; this.show(b); this.persist(); SFX().treeFall(0.5); G.tell("big", null, `The raiders have broken through the ${def.name.toLowerCase()}!`, 4); }
+    if (b.hp <= 0) { b.broken = true; b.hp = 0; this.show(b); this.persist(); FOLEY.fall("timberFall", { x: b.x, z: b.z }, 0.6); G.tell("big", null, `The raiders have broken through the ${def.name.toLowerCase()}!`, 4); }
   }
   // the nearest standing length of wall (or a shut gate) to a point, and the nearest spot on it
   wallNear(p, within = 4) {
@@ -1501,7 +1501,7 @@ export class Town {
     // what comes back goes in the stores (logs as far as there is room for them)
     for (const [k, n] of Object.entries(back)) this.S[k] = (this.S[k] || 0) + n;
     this.S.store = Math.min(this.S.store, this.storeCap);
-    this.showStore(); this.updateStreets(); this.persist(); SFX().treeFall && SFX().treeFall(0.3);
+    this.showStore(); this.updateStreets(); this.persist(); FOLEY.fall("logsDrop", null, 0.45);
     UI.hint(`The ${def.name.toLowerCase()} is pulled down${Object.keys(back).length ? ` — back in the stores: ${this.costText(back)}` : ""}.`, 5);
     this.emit("dismantled", b);
     return true;

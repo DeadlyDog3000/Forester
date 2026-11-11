@@ -132,7 +132,7 @@ class Raider {
     this.a.lying = true; this.a.yOff = 0.05;
     // what he had goes back where it came from
     if (this.loot) { this.raid.giveBack(this.loot); this.loot = null; }
-    SFX.treeFall && SFX.treeFall(0.25);
+    AUDIO.killThud && AUDIO.killThud();
     setTimeout(() => { this.state = "gone"; this.a.remove(); this.raid.forget(this); }, 25000);
   }
 }

@@ -2033,7 +2033,7 @@ function mineSwing() {
   if (k.hp > 0) { k.g.position.x += (Math.random() - 0.5) * 0.02; return; }
   rockChips(k, 2.5);
   w.breakRock(k);
-  SFX.treeFall && SFX.treeFall(0.2);
+  FOLEY.fall("rockBreak", { x: k.x, z: k.z }, 0.55);
   const item = ITEM[R.gives], got = G.packAdd(R.gives, R.n);
   UI.hint(`${got} ${item.name.toLowerCase()}.`, 2);
   G.emitMine && G.emitMine(k.kind);

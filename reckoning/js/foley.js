@@ -788,7 +788,10 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   //  sea and the wind in the rigging, made to go round — silent till they're in)
   hullHit: [4, "foley"], shotSplash: [4, "foley"], sink: [2, "foley"], sea: [2, "foley"],
   // (a siege's: round shot into a stone wall, and a stretch of it coming down)
-  wallHit: [3, "foley", 2.2], wallFall: [3, "foley", 1.4] }, heard = {}, hearing = {};
+  wallHit: [3, "foley", 2.2], wallFall: [3, "foley", 1.4],
+  // (things that came down to the tree's crash before: a beast shot, a ladder thrown down, a rock broken, logs put on
+  //  the pile, a timber house or a palisade smashed)
+  animalFall: [2, "foley", 1.44], ladderFall: [3, "foley", 1.38], rockBreak: [3, "foley", 2.62], logsDrop: [3, "foley", 2.35], timberFall: [3, "foley", 2.58] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -811,8 +814,11 @@ function bufs(name) {
 let lastIdx = {};
 // a sound played: how loud, a little higher or lower each time, and from where (quieter far off, to one side,
 // its top lost in the trees) — or right beside you
+// (sounds with no made one, sent for with the first sound played, so they're in by the time they're wanted)
+const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall"]; let early = false;
 function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}) {
   const a = ac(), out = window.__foresterBus; if (!a || !out) return;
+  if (!early) { early = true; for (const n of EARLY) recorded(a, n); }
   const list = bufs(name); if (!list) return;
   let i = Math.floor(Math.random() * list.length); if (list.length > 1 && i === lastIdx[name]) i = (i + 1) % list.length; lastIdx[name] = i;
   const src = a.createBufferSource(); src.buffer = list[i]; src.playbackRate.value = rand(rate[0], rate[1]);
@@ -889,6 +895,8 @@ export const FOLEY = {
   //  a shot striking home, or into the water, at loudness vol (no more than a few at once: a broadside's thirty balls
   //  are a handful of crashes and not a roar of them)
   preload(names) { for (const n of names) bufs(n); },
+  // something come down: kind one of EARLY's, from where it is
+  fall: (kind, at = null, vol = 1) => play(kind, { vol, at, reach: 70, rate: [0.9, 1.1] }),
   // a town's wall struck by round shot, or its gate; and either coming down (silent till their recordings are in)
   wallHit: (at, vol = 0.8, gate = false) => play(gate ? "hullHit" : "wallHit", { vol: gate ? vol * 0.9 : vol, at, reach: 160, rate: [0.9, 1.1] }),
   wallFall: (at, vol = 1, gate = false) => play(gate ? "hullHit" : "wallFall", { vol: gate ? vol * 1.2 : vol, at, reach: 260, rate: gate ? [0.8, 0.9] : [0.92, 1.05] }),

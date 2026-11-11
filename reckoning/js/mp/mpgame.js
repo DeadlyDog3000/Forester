@@ -385,13 +385,13 @@ export class MPGame {
       if (m.by === this.pid) G.woodChips && G.woodChips(t, 2.2);
       else if (Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 1.4);
     };
-    n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.crash(0.35, { x: k.x, z: k.z }); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("Stone into your pack — put it in the store at the town hall"); };
+    n.rock = m => { const k = w.thing(m.id); if (k) { w.broken.add(m.id); w.hideRock(k); if (Math.hypot(k.x - G.player.pos.x, k.z - G.player.pos.z) < 40) { G.rockChips && G.rockChips(k, 2); FOLEY.fall("rockBreak", { x: k.x, z: k.z }, 0.6); } } else w.broken.add(m.id); if (m.by === this.pid) this.toast("Stone into your pack — put it in the store at the town hall"); };
     n.grow = m => { for (const id of m.trees || []) w.showTree(id); for (const id of m.rocks || []) w.showRock(id); };
     n.b = m => { this.owners[m.b.owner] ??= this.nameOf(m.b.owner); this.addB(m.b); this.clearOf(m.b); if (Math.hypot(m.b.x - G.player.pos.x, m.b.z - G.player.pos.z) < 40) sfx("build"); };
     n.bhp = m => { w.hitBuilding(m.id, m.hp); const e = w.blds.get(m.id); if (e && Math.hypot(e.b.x - G.player.pos.x, e.b.z - G.player.pos.z) < 40) { sfx("chop"); if (e.mine) this.warn(`${this.nameOf(m.by)} is breaking your ${BUILD[e.b.type].name.toLowerCase()}!`); } };
     n.bx = m => {
       const e = w.blds.get(m.id); const mine = e && e.mine;
-      if (e) FOLEY.crash(0.8, { x: e.b.x, z: e.b.z });
+      if (e) FOLEY.fall("timberFall", { x: e.b.x, z: e.b.z }, 0.85);
       this.removeB(m.id);
       if (m.by === this.pid && m.got && (m.got.wood || m.got.stone)) this.toast(`Plundered ${[m.got.wood && `${m.got.wood} logs`, m.got.stone && `${m.got.stone} stone`].filter(Boolean).join(" and ")}`);
       else if (mine && m.by !== this.pid) this.warn(`${this.nameOf(m.by)} broke your ${BUILD[e.b.type].name.toLowerCase()}.`);

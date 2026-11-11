@@ -20,6 +20,7 @@ import { modelCopy, makeBeast } from "./models.js";
 import { SPECIES } from "./mp/fauna.js";
 import { UI } from "./ui.js";
 import { AUDIO } from "./audio.js";
+import { FOLEY } from "./foley.js";
 import { CLEARING, POND, pondR } from "./woods.js";
 
 /* global SFX */
@@ -150,7 +151,7 @@ class Animal {
     // (wounded, it bleeds as it runs: a trail of drops to follow)
     this.bleed = 40; this.bleedAt = null;
     if (!from && !melee) G.practise && G.practise("archery", 3);
-    if (this.hp <= 0) { this.byNpc = !!from; this.state = "dead"; this.slide = Math.min(6, this.speed || 0); this.fall = 0; this.speed = 0; this.hunt.onDown(this); if (this.kind === "boar") G.achEvent && G.achEvent("boar"); SFX.treeFall && SFX.treeFall(0.3); return; }
+    if (this.hp <= 0) { this.byNpc = !!from; this.state = "dead"; this.slide = Math.min(6, this.speed || 0); this.fall = 0; this.speed = 0; this.hunt.onDown(this); if (this.kind === "boar") G.achEvent && G.achEvent("boar"); FOLEY.fall("animalFall", this.pos, 0.7); return; }
     // a wounded boar turns on whoever did it, if they are near enough to reach
     const pl = G.player;
     if (!from && this.kind === "boar" && pl && Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z) < 14) {
