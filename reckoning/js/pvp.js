@@ -2033,7 +2033,9 @@ class Arena {
     if (this.over || this.ended || this.remote) return;
     // (over when your side's gone, or it's the only one left standing — of two sides or of four)
     // (a side whose every man left is running counts as beaten: the field is the other's)
-    const standing = new Set(this.units.filter(u => u.alive && !u.routing).map(u => this.alOf(u.team))); if (this.you.alive) standing.add(0);
+    // (a band's drummer and fifer aren't a side still standing: with every fighting man of theirs running, it's over —
+    //  the band kept a beaten side on the field for good)
+    const standing = new Set(this.units.filter(u => u.alive && !u.routing && !u.fled && !u.musician).map(u => this.alOf(u.team))); if (this.you.alive) standing.add(0);
     const ours = standing.has(0) ? 1 : 0, theirs = [...standing].filter(a => a !== 0).length;
     if (!theirs || !ours) {
       this.ended = true; this.live = false;
