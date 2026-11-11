@@ -38,6 +38,7 @@ import { lookOpts, randomLook, isF } from "./mp/look.js";
 import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 import { rekeyText } from "./keys.js";
+import { crateShow, warmCrate } from "./crateshow.js";
 import { initArmoury, unitsOf, setUnits, spend, TEAMS, TEAM_KEYS, ownsTeam, teamOpen, owns, fitTo, skinOf, skinArm, earn, grant, nextGoal, ducats, welcome, inKit, WEAPON_PRICE, NOT_IN_1683, buyWeapon, buyTeam, buyFinish, ownsFinish, finishOf, setFinish, FINISH, SLOTS, SLOT_NAME, Table, money, coinName, COINS, UPGRADES, ownsUp, buyUp, upsOf, paceOf, UP_FOCUS } from "./armoury.js";
 import { mountPainter } from "./paint.js";
 import { rollFor, regimentOf, muster as callRoll, vetSkill, vetBrave } from "./regiment.js";
@@ -178,8 +179,13 @@ export function initPvp(c) {
   $("musCrates").addEventListener("click", e => {
     if (!e.target.closest("[data-crate]")) return;
     const T = teamNow(), r = openCrate(T); if (!r) { drawCrates(); return; }
-    lastCrate = { ...r, team: T }; sfx("buy", 4); FOLEY.rec("chestOpen", 0.5, 0.35);
+    lastCrate = { ...r, team: T }; sfx("buy", 4);
     setArmy({}); drawMuster(); drawPurse();
+    // (and opened in front of you: the crate itself, prised open, and what came out of it)
+    const R = rarityById(r.rarity), img = plateOf(wayOfUniform(T), r.kind), Tr = TROOPS[r.kind];
+    crateShow({ rarities: RARITY, rarity: RARITY.indexOf(R), brand: TEAM_NAME(T).toUpperCase(),
+      card: `<div style="--cr:${R.col}" class="cc-in"><div class="cc-rar">${R.name}</div>${img ? `<img src="${img}" alt="">` : ""}<div class="cc-name">${esc(Tr.name)}</div>
+        <div class="cc-what">${r.dup ? `<span class="cc-dup">Drawn again — they strike ${((boostOf(T, r.kind) - 1) * 100).toFixed(1)}% harder</span>` : `New: yours to raise in the company`}</div></div>` });
   });
   $("musTeam").addEventListener("click", teamClick);
   $("musTeam").addEventListener("change", e => { if (e.target.id === "colCipher") { setDesign(army().uniform, { cipher: e.target.value }); drawTeam(); } });
@@ -504,7 +510,7 @@ function drawMuster() {
 // ---- the crates: bought with the kingdom's purse, each a troop of its own; what it has, and the odds ----
 let lastCrate = null;
 function drawCrates() {
-  const el = $("musCrates"); if (!el) return;
+  const el = $("musCrates"); if (!el) return; warmCrate();
   const T = teamNow(), U = unitsFor(T), can = ducats() >= CRATE_COST;
   const pool = Object.keys(TROOPS).filter(k => troopOk(T, k) || k === "bow").sort((a, b) => RARITY.findIndex(r => r.id === rarityOf(T, a)) - RARITY.findIndex(r => r.id === rarityOf(T, b)) || TROOPS[a].cost - TROOPS[b].cost);
   const tag = k => { const R = rarityById(rarityOf(T, k)); return `<b class="cr-rar" style="color:${R.col}">${R.name}</b>`; };

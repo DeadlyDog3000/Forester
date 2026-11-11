@@ -834,6 +834,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   swim: [8, "foley", 2.39],
   // (a chest's heavy lid lifted on its hinges, and let fall)
   chestOpen: [3, "foley", 0.94], chestShut: [2, "foley", 0.83],
+  // (a crate from the muster opened: the crowbar under the lid and the nails drawn, the lid thrown down, the straw
+  //  lifted out, and the crate jolted on the floor before it gives)
+  cratePry: [3, "foley", 0.8], crateLid: [2, "foley", 1.0], crateStraw: [3, "foley", 0.72], crateJolt: [3, "foley", 0.92],
   // (the Wide World's beasts, each its own voice — levelled against the horse's neigh, the elephant and the lion loudest)
   elephant: [3, "foley", 0.9], lion: [3, "foley", 0.53], tiger: [3, "foley", 0.67], bear: [3, "foley", 0.38], wolfHowl: [3, "foley", 0.4], monkey: [3, "foley", 0.63], camel: [3, "foley", 0.44], bison: [3, "foley", 0.56], moose: [3, "foley", 0.43], reindeer: [3, "foley", 0.57], zebra: [3, "foley", 0.45], goat: [3, "foley", 0.46], fox: [3, "foley", 0.41], penguin: [3, "foley", 0.55] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
