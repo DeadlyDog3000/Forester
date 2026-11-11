@@ -2123,7 +2123,7 @@ async function ch8(w, opts = {}) {
   mark([FIRE.x, FIRE.z, w.cy + 0.6]);
   let out = false;
   const fi = w.addInteract({ x: FIRE.x, y: w.cy + 0.5, z: FIRE.z, reach: 2.4, hold: 1.4, label: "Kick earth over the fire",
-    onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.dig(); }, use: () => { out = true; } });
+    onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) FOLEY.strike("kickEarth", null, 0.6); },   // (a boot's worth of earth on the embers: not a spade) use: () => { out = true; } });
   await until(() => out);
   w.removeInteract(fi); w.lightFire(false);
   // ---- into the trees ----
