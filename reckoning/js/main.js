@@ -957,7 +957,7 @@ G.chestOpen = () => overlay === "chest";
 G.renderChest = () => { if (overlay === "chest") renderChest(); };
 G.openChest = (mode = "own") => {
   if (G.guide && G.town) G.guide(mode === "own" ? "chest" : "stores");
-  chestMode = mode; chestNote = ""; if (mode !== "stores") G.chestS = null; AUDIO.door && AUDIO.door(true, 0.2); showOverlay("chest", true); renderChest();
+  chestMode = mode; chestNote = ""; if (mode !== "stores") G.chestS = null; { const F = window.__foley; if (mode === "stores") AUDIO.door && AUDIO.door(true, 0.2); else F && F.strike && F.strike("chestOpen", null, 0.6); } showOverlay("chest", true); renderChest();
   // (the first time: whose chest this is)
   if (mode === "own" && !G._toldOwnChest) { G._toldOwnChest = true; UI.hint("This chest is yours, not the settlement's. What you put in it you can sell to Henning or the pedlar — the DM goes in your own purse. The settlement's things are in its store chest.", 8); }
 };
@@ -1076,7 +1076,9 @@ function showOverlay(id, on) {
     setFreeLook(false);
     G.menuLock = true;
   } else {
-    overlay = null; UISFX.close();
+    // (a chest's lid let fall as it's left; the rest, the menus' own close)
+    if (overlay === "chest" && chestMode !== "stores") { const F = window.__foley; F && F.strike && F.strike("chestShut", null, 0.55); } else UISFX.close();
+    overlay = null;
     o.close && o.close();
     G.menuLock = false;
     if (G.mode === "play") lock();
