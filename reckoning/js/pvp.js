@@ -1776,14 +1776,14 @@ class Arena {
   // (a unit's team is its company; its side, the companies it fights with — in any battle but a custom one, the same)
   alOf(team) { return this.cos ? (this.cos[team] ? this.cos[team].al : 1) : team; }
   enemiesOf(team) {
-    const al = this.alOf(team), out = this.units.filter(u => u.alive && !u.musician && this.alOf(u.team) !== al);
+    const al = this.alOf(team), out = this.units.filter(u => u.alive && !u.fled && !u.musician && this.alOf(u.team) !== al);
     if (al !== 0 && this.you.alive) out.push(this.you);
     return out;
   }
   // (every man on a side, every company of it)
   sideOf(al) { return this.units.filter(u => u.alive && this.alOf(u.team) === al); }
   // (a band's drummer and fifer are with the side but not of the fight: not counted among its men, nor aimed at)
-  alliesOf(team) { return this.units.filter(u => u.alive && u.team === team && !u.musician); }
+  alliesOf(team) { return this.units.filter(u => u.alive && !u.fled && u.team === team && !u.musician); }
   // (worth showing you: the hints about a head-shot only if it's near enough to be your doing)
   youCanSee(u) { return Math.hypot(u.pos.x - G.player.pos.x, u.pos.z - G.player.pos.z) < 60; }
   hearable(p) { return Math.hypot(p.x - G.player.pos.x, p.z - G.player.pos.z) < 70; }
@@ -3616,7 +3616,7 @@ class Arena {
     const h = $("pvpHud"); if (!h) return;
     h.classList.toggle("multi", this.multi);
     if (this.multi) {
-      const ours = this.sideOf(0).length + (this.you.alive ? 1 : 0), theirs = this.enemiesOf(0).length;
+      const ours = this.sideOf(0).length + (this.you.alive ? 1 : 0), theirs = this.units.filter(u => u.alive && !u.musician && this.alOf(u.team) !== 0).length;   // (the ones gone off the field still among them: counted as running)
       // (a custom battle: your side, and every other side still in it, by its colours)
       // (a historical battle: the two armies by their own names — King William's, King James's)
       const HS = this.hist ? [this.hist.b.sides[this.hist.side].name, this.hist.b.sides[1 - this.hist.side].name] : null;
@@ -3918,6 +3918,8 @@ class Bot extends Fighter {
   // facing whoever struck (the better he is, the oftener)
   struck(dmg, side, by = null) {
     if (!this.alive) return;
+    // (who's on him, hand to hand: a man running turns on him, cornered, rather than be cut down from behind)
+    this.meleeT = G.time; this.meleeBy = by || this.arena.you;
     const src = by ? by.pos : G.player.pos, dx = src.x - this.pos.x, dz = src.z - this.pos.z;
     const facing = (dx * Math.sin(this.yaw) + dz * Math.cos(this.yaw)) / (Math.hypot(dx, dz) || 1) > 0.3;
     const guarded = by ? Math.random() < 0.15 + this.s * 0.3 : this.guardDir === side && Math.random() < 0.35 + this.s * 0.5;
@@ -3975,6 +3977,16 @@ class Bot extends Fighter {
   woundOut() {
     this.wounded = true; this.routing = true; this.wind = 0; this.aimUp(false); this.releaseCover && this.releaseCover(); this.a.squareTo = null; this.a.person.crouching = false; this.a.person.setPose("idle"); this.a.path = [];
     for (const m of this.arena.alliesOf(this.team)) if (m !== this && Math.hypot(m.pos.x - this.pos.x, m.pos.z - this.pos.z) < 8) m.shaken && m.shaken(0.03);
+  }
+  // off the field: out of sight past the trees, out of the fight — still counted among those that ran, not the dead
+  leaveField() {
+    if (this.fled) return; this.fled = true; this.a.path = [];
+    // (well out past the trees: nothing on the field can hit him there, and on the other player's screen — which follows
+    //  where he is — he's gone over the edge of it too)
+    { const A = this.arena, p = this.a.pos, dx = p.x - C.x, dz = p.z - C.z, d = Math.hypot(dx, dz) || 1, R = A.bound + 40; this.a.place ? this.a.place(C.x + dx / d * R, C.z + dz / d * R) : (p.x = C.x + dx / d * R, p.z = C.z + dz / d * R); }
+    if (this.a.root) this.a.root.visible = false;
+    if (this.a.horse && this.a.horse.root) this.a.horse.root.visible = false;
+    this.arena.showHud && this.arena.showHud(); this.arena.checkEnd && this.arena.checkEnd();
   }
   // he breaks: weapon down, and away from them as fast as he can go — to the back of the field
   rout() {
@@ -4188,14 +4200,25 @@ class Bot extends Fighter {
       const colours = G.time - (this.colT ?? -9) < 1.5;
       this.nerve = clamp(this.nerve + dt * ((this.quietT > 4 && !near ? 0.035 : 0) + (byYou ? 0.02 : 0) + (band ? 0.025 : 0) + (colours ? 0.02 : 0) - (mates / was < 0.45 ? 0.012 : 0)), 0, 1);
       if (!this.routing && this.nerve < 0.22) this.rout();
+      if (this.fled) return;
       if (this.routing) {
         // (rallied, once he's got his breath and his nerve back — and nobody on his heels)
         if (this.nerve > 0.55 && !near && !this.wounded) { this.routing = false; this.hold(this.lo.long !== "none" ? this.lo.long : this.steel()); return; }
-        const home = this.arena.spawns[this.team] || this.pos, away = Math.atan2(home.x - C.x, home.z - C.z), R = this.arena.bound - 4;
-        const tx = C.x + Math.sin(away) * R, tz = C.z + Math.cos(away) * R;
-        if (Math.hypot(tx - a.pos.x, tz - a.pos.z) > 3) { if (!a.path.length || (this.stepT -= dt) <= 0) { this.stepT = 1; a.walkTo(tx + (Math.random() - 0.5) * 16, tz + (Math.random() - 0.5) * 16, this.wounded ? 1.3 : 4.4); } }
-        else { a.path = []; a.person.crouching = true; }
-        return;
+        // (cornered — struck hand to hand a moment ago, and the man who did it still on him — he turns and fights for his
+        //  life, and runs again once he's clear: men ran, but they didn't stand to be cut down from behind)
+        const by = this.meleeBy, cornered = !this.isNet && by && G.time - (this.meleeT ?? -9) < 3 && (by.alive ?? true) && Math.hypot(by.pos.x - a.pos.x, by.pos.z - a.pos.z) < 3.5;
+        if (cornered) { this.T = by; this.pickT = Math.max(this.pickT || 0, 0.6); }
+        else {
+          // (and away off the field: past the trees round it, out of the fight for good — not crouched at its edge,
+          //  waiting to be cut down)
+          const home = this.arena.spawns[this.team] || this.pos, away = Math.atan2(home.x - C.x, home.z - C.z), R = this.arena.bound + 14;
+          const tx = C.x + Math.sin(away) * R, tz = C.z + Math.cos(away) * R, out = Math.hypot(a.pos.x - C.x, a.pos.z - C.z);
+          // (gone once he's in the trees, or once he's at their edge and can get no further)
+          const moved = Math.hypot(a.pos.x - (this.runX ?? 1e9), a.pos.z - (this.runZ ?? 1e9)); if ((this.runT = (this.runT ?? 0) - dt) <= 0) { this.runT = 2.5; this.stuckRun = out > this.arena.bound - 8 && moved < 0.6; this.runX = a.pos.x; this.runZ = a.pos.z; }
+          if (out > this.arena.bound + 2 || this.stuckRun) { this.leaveField(); return; }
+          if (!a.path.length || (this.stepT -= dt) <= 0) { this.stepT = 1; a.walkTo(tx + (Math.random() - 0.5) * 16, tz + (Math.random() - 0.5) * 16, this.wounded ? 1.3 : 4.4); }
+          return;
+        }
       }
     }
     // reloading goes on whatever he's doing, as yours does (each weapon its own time)
