@@ -62,7 +62,8 @@ const room = imp => imp >= 0.85 || liveSrc < (44 + 120 * imp) * pressure || (ski
 // ---- the voices, recorded: men crying out in pain, dying, groaning, and the grunt of a blow — real cries, cut from
 // recordings given to everyone (CC0; art/voice/CREDITS.md names each). Loaded once the sound starts; till then, and for
 // a war cry, the voice below is made as before. Each played a little higher or lower, so a company's cries aren't one man's.
-const VOICE_N = { pain: 17, death: 24, moan: 19, grunt: 32 }, VBUF = {}, VLAST = {};
+// (and a woman's own — painF, deathF, moanF, gruntF: a woman's cries, recorded, not a man's played higher)
+const VOICE_N = { pain: 17, death: 24, moan: 19, grunt: 32, painF: 7, deathF: 3, moanF: 7, gruntF: 9 }, VBUF = {}, VLAST = {};
 // (left out: the cries cut from a recording of a man being beaten and impaled — the screams of torture, not of a field)
 const VOICE_SKIP = { death: [0, 1, 2], pain: [0, 1, 2, 3] };
 let vLoad = null;
@@ -173,12 +174,14 @@ const VOICE_OF = { pain: "pain", death: "death", fear: "death", moan: "moan", so
 // (the cries kept under the field's other sound, not over it: a man's cry carries, but it isn't a shriek in your ear)
 const VOICE_LEVEL = { pain: 1.0, death: 0.9, fear: 0.85, moan: 1.0, sob: 0.8, grunt: 1.0 };
 function recordedVoice(a, kind, high, node, k, vol, t) {
-  const pool = VOICE_OF[kind], list = pool && VBUF[pool]; if (!list || list.length < 3) return false;
+  // (a woman's cry, or a boy's: the women's own recordings where they're in — a man's, higher, only till then)
+  const pool0 = VOICE_OF[kind], fem = high && pool0 && VBUF[pool0 + "F"] && VBUF[pool0 + "F"].length >= 2, pool = fem ? pool0 + "F" : pool0, list = pool && VBUF[pool];
+  if (!list || list.length < (fem ? 2 : 3)) return false;
   let i = Math.floor(Math.random() * list.length); if (i === VLAST[pool]) i = (i + 1) % list.length; VLAST[pool] = i;
   const s = a.createBufferSource(), g = a.createGain(), b = list[i];
   s.buffer = b;
-  // (a woman's or a boy's cry: the same cry, higher — and each man's own a little higher or lower)
-  s.playbackRate.value = (high ? rnd(1.22, 1.32) : rnd(0.9, 1.07)) * (kind === "fear" ? 1.05 : 1);
+  // (each voice its own a little higher or lower)
+  s.playbackRate.value = (fem ? rnd(0.96, 1.06) : high ? rnd(1.22, 1.32) : rnd(0.9, 1.07)) * (kind === "fear" ? 1.05 : 1);
   const v = VOICE_LEVEL[kind] * vol * k;
   g.gain.setValueAtTime(v, t);
   // (a cry of fear, or a sob, is the first of the recording, let go of early)
@@ -723,6 +726,7 @@ export const AUDIO = {
     // (the war cry: recorded, a few at once at most, a woman's or a boy's higher; with none loaded, none — the made-up
     //  one is gone with the rest)
     if (kind === "war") { if (!SBUF.war || liveCries >= 5 && k * vol < 0.7 || !room(Math.min(1, k * vol))) return; liveCries++; setTimeout(() => liveCries--, 1600);
+      if (high && recorded(a, "warF", [[node, 0.85 * vol * k]], a.currentTime + delay, [0.96, 1.06])) return;   // (a woman's own)
       recorded(a, "war", [[node, 0.85 * vol * k]], a.currentTime + delay, high ? [1.2, 1.3] : [0.9, 1.07]); return; }
     if (!room(Math.min(1, k * vol))) return;
     // (cries of their own kept to a few at once — beyond those, only a man right by you is heard: a hundred falling
