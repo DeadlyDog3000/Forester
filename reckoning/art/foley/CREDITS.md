@@ -17,3 +17,4 @@
 - **hoofStone_*, hoofWood_*.ogg** — a shod horse's hooves on cobbles and on a plank bridge, cut stroke by stroke from a horse walking on each; made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the hoofbeat on turf.
 - **blaze_*.ogg** — a log palisade burning fiercely (made to go round): made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the campfire.
 - **reap_*.ogg** — a sickle through ripe rye, cut stroke by stroke from a long take of reaping: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the axe's chop.
+- **fuse_*.ogg** — a black-powder fuse fizzing, cut in pieces from two long takes: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the meat's sizzle it replaces.

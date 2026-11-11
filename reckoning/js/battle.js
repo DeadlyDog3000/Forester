@@ -1151,7 +1151,7 @@ export class Field {
       }
       n.mesh.position.copy(n.p); n.mesh.rotation.x += n.v.length() * dt * 4;
       n.spark.position.set(n.p.x, n.p.y + 0.09, n.p.z); n.spark.scale.setScalar(0.12 + Math.random() * 0.12); n.spark.material.opacity = 0.7 + Math.random() * 0.3;
-      if ((n.hiss -= dt) <= 0) { n.hiss = 0.45; F && F.sizzle && F.sizzle(n.p, 0.35); }
+      if ((n.hiss -= dt) <= 0) { n.hiss = 0.45; F && F.strike && F.strike("fuse", n.p, 0.35); }
       if (n.t >= n.fuse) this.burst(n, units, hit);
     }
     for (const n of this.nades.slice()) if (n.done) { root.remove(n.mesh, n.spark); n.spark.material.dispose(); this.nades.splice(this.nades.indexOf(n), 1); }
