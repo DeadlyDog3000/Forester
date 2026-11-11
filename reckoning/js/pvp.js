@@ -2548,6 +2548,9 @@ class Arena {
     if (this.palLights) {
       const pp = G.player.pos, lit = P.filter(b => b.fire && (!b.down || b.fire.t - b.fire.downAt < 8)).sort((a, c) => Math.hypot(a.x - pp.x, a.z - pp.z) - Math.hypot(c.x - pp.x, c.z - pp.z));
       this.palLights.forEach((L, i) => { const b = lit[i]; if (!b) { L.intensity = 0; return; } const F = b.fire, k = Math.min(1, F.t / 9), out = b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1; L.position.set(b.out.x, this.w.heightAt(b.out.x, b.out.z) + 1.5 + 1.2 * k, b.out.z); L.intensity = 6 * (0.4 + 0.6 * k) * out * (0.85 + Math.random() * 0.3); });
+      // (and heard: the roar of the nearest, louder the closer you are and the more of it that's alight)
+      if (lit.length) { const b = lit[0], F = b.fire, d = Math.hypot(b.x - pp.x, b.z - pp.z), big = Math.min(1, F.t / 9) * (b.down ? Math.max(0, 1 - (F.t - F.downAt) / 8) : 1);
+        FOLEY.blaze && FOLEY.blaze(Math.max(0, Math.min(1, 1 - (d - 4) / 70)) ** 1.4 * big * Math.min(1.3, 0.7 + 0.15 * lit.length)); }
     }
     // (the attacker told, once the fighting's begun, what a palisade's for)
     if (!this.toldPal && this.live && this.clock > 3 && this.alOf(0) !== P.side) { this.toldPal = true; UI.hint("Their town stands behind a palisade. Hold F at a length of it to set it alight. Your men will fire any they reach.", 6); }

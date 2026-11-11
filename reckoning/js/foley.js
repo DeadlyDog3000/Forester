@@ -799,7 +799,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (the hunt's beasts: a boar's grunt as it charges and its squeal when it's struck, a red deer's bark of alarm)
   boar: [4, "foley", 0.58], boarHurt: [3, "foley", 0.71], deerBark: [4, "foley", 0.42],
   // (a horse's shoes on cobbles and on a bridge's planks, cut stroke by stroke from a horse walking on each)
-  hoofStone: [8, "foley", 3.59], hoofWood: [8, "foley", 1.32] }, heard = {}, hearing = {};
+  hoofStone: [8, "foley", 3.59], hoofWood: [8, "foley", 1.32],
+  // (a palisade on fire: a roaring blaze of logs, made to go round)
+  blaze: [2, "foley"] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -850,7 +852,7 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
   src.onended = () => { try { last.disconnect(); } catch (e) {} };
   src.start();
 }
-let fireSrc = null, FIRE_AT = null, washSrc = null, seaSrc = null, seaHits = [], roomSrc = null, outSrc = {};
+let fireSrc = null, FIRE_AT = null, washSrc = null, seaSrc = null, seaHits = [], blazeSrc = null, roomSrc = null, outSrc = {};
 let HOOVES = [];
 export const FOLEY = {
   play,
@@ -924,6 +926,18 @@ export const FOLEY = {
     if (!seaSrc) { if (k > 0.01) bufs("sea"); return; }
     seaSrc.g.gain.setTargetAtTime(0.4 * Math.min(1, k), a.currentTime, 0.8);
     if (k <= 0.01) { const w = seaSrc; seaSrc = null; setTimeout(() => { try { w.s.stop(); } catch (e) {} }, 3000); }
+  },
+  // a great fire nearby (k: how loud, 0 to 1, as near and as big as it is): to be told every frame it burns — let
+  //  go by itself, fading, once it isn't (so a battle that ends with the palisade alight doesn't leave it roaring)
+  blaze(k) {
+    const a = ac(), out = window.__foresterBus; if (!a || !out) return;
+    if (!blazeSrc) { if (k < 0.01) return; if (!heard.blaze) { bufs("blaze"); return; }
+      const s = a.createBufferSource(); s.buffer = heard.blaze[Math.floor(Math.random() * heard.blaze.length)]; s.loop = true; const g = a.createGain(); g.gain.value = 0; s.connect(g); g.connect(out); s.start(0, Math.random() * s.buffer.duration);
+      blazeSrc = { s, g, until: 0 };
+      const watch = () => { const b = blazeSrc; if (!b || b.s !== s) return; if (performance.now() > b.until) { g.gain.setTargetAtTime(0, a.currentTime, 0.6); blazeSrc = null; setTimeout(() => { try { s.stop(); } catch (e) {} }, 3000); return; } setTimeout(watch, 250); };
+      setTimeout(watch, 250); }
+    blazeSrc.until = performance.now() + 400;
+    blazeSrc.g.gain.setTargetAtTime(0.9 * Math.min(1, k), a.currentTime, 0.5);
   },
   struck(kind, vol) { const t = performance.now(); seaHits = seaHits.filter(q => t - q < 600); if (seaHits.length >= 5 || vol < 0.03) return; seaHits.push(t); play(kind, { vol, rate: [0.88, 1.1] }); },
   gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
