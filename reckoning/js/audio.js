@@ -634,7 +634,7 @@ export const AUDIO = {
     const a = ctx(); if (!a) return;
     const t = a.currentTime;
     // (recorded: a longbow's string let go, or a crossbow's steel bow, levelled to the made one)
-    if (recorded(a, power >= 1.15 ? "xbow" : "twang", [[bus, (power >= 1.15 ? 0.112 : 0.216) * (0.4 + 0.6 * power)]], t)) return;
+    if (recorded(a, power >= 1.15 ? "xbow" : "twang", [[bus, (power >= 1.15 ? 0.075 : 0.137) * (0.4 + 0.6 * power)]], t)) return;
     for (const [fq, v, d] of [[rnd(92, 104), 0.32, 0.22], [rnd(186, 206), 0.14, 0.12], [rnd(410, 450), 0.06, 0.06]]) {
       const o = a.createOscillator(), g = a.createGain(); o.type = "triangle";
       o.frequency.setValueAtTime(fq * 1.35, t); o.frequency.exponentialRampToValueAtTime(fq, t + 0.03);
@@ -993,7 +993,7 @@ export const AUDIO = {
   killThud() {
     const a = ctx(); if (!a) return;
     // (recorded: the blow, and a man in his coat going down on the earth)
-    if (recorded(a, "bodyfall", [[bus, 0.95]], a.currentTime + 0.01, [0.95, 1.05])) return;
+    if (recorded(a, "bodyfall", [[bus, 1.12]], a.currentTime + 0.01, [0.95, 1.05])) return;
     const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1900; lp.connect(bus); lease(lp, 3);
     // the blow landing: a hard, dry smack into cloth and what's under it, with a crunch in it
     shotBurst(a, lp, t, { type: "bandpass", f: 1250, q: 1.3, peak: 0.26, attack: 0.001, decay: 0.035 });
