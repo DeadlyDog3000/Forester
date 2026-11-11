@@ -194,6 +194,8 @@ function crowNear() {
 let crick = null;
 function crickets(on) {
   const a = ac(), out = bus(); if (FSET().ambient === false) on = false;
+  // (no crickets on the ice, the tundra or the high mountains)
+  { const G = window.__G, w = G && G.world, pl = G && G.player, b = w && w.land && w.land.biomeAt && pl ? w.land.biomeAt(pl.pos.x, pl.pos.z) : null; if (b && /ice|tundra|alpine/.test(b)) on = false; }
   if (!a || !out) { if (!on) crick = null; return; }
   loadBirds(a);
   // (begun on the made ones before the recordings came in: let go, and the recorded ones in their place)
