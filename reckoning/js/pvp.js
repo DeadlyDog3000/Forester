@@ -4035,7 +4035,7 @@ class Bot extends Fighter {
     { const r = Math.random(); if (r < 0.5) AUDIO.voice && AUDIO.voice(r < 0.16 ? "pain" : r < 0.36 ? "grunt" : "moan", { at: this.pos, vol: 0.8, high: isF(this.info.look) }); }
     if (!(this.wind > 0)) { this.stun = melee ? 0.25 : 0.4; this.a.path = []; this.aimT = 0; }
     // (hurt at range, he doesn't stand there: he moves)
-    if (!melee) { this.stepT = 0; this.hurtT = G.time; }
+    if (!melee) { this.stepT = 0; this.hurtT = G.time; (this.arena.shotAt ||= {})[this.team] = G.time; }
   }
   // can he see a man: nothing solid on the line from his eyes to the other's chest
   sees(T) {
@@ -4395,7 +4395,9 @@ class Bot extends Fighter {
       // (firing at will, a man waits till they're within a telling shot — two-thirds of a musket's reach: at its far end a
       //  ball's a waste of a charge, and a line that spends its loads there is caught empty when they come on. A volley at
       //  the word goes at whatever range it's given)
-      if (!useK || !O.fire || !sees || d > BATTLE_RANGE[useK] * this.arena.sight * (useK === "musket" ? AT_WILL : 1)) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
+      // (but a company being shot at answers back at whatever range it's being shot from)
+      const answering = G.time - ((this.arena.shotAt || {})[this.team] ?? -99) < 8;
+      if (!useK || !O.fire || !sees || d > BATTLE_RANGE[useK] * this.arena.sight * (useK === "musket" && !answering ? AT_WILL : 1)) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
       // (the bowmen of a battle shoot as one: at the word every bow comes up and is drawn together, raised high for the
       //  long arc, held — and loosed at once, a whole flight of arrows going up into the sky together; a man who came
       //  late to the draw waits for the next)
