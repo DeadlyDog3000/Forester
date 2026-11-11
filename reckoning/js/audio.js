@@ -599,6 +599,8 @@ export const AUDIO = {
   twang(power = 1) {
     const a = ctx(); if (!a) return;
     const t = a.currentTime;
+    // (recorded: a longbow's string let go, or a crossbow's steel bow, levelled to the made one)
+    if (recorded(a, power >= 1.15 ? "xbow" : "twang", [[bus, (power >= 1.15 ? 0.112 : 0.216) * (0.4 + 0.6 * power)]], t)) return;
     for (const [fq, v, d] of [[rnd(92, 104), 0.32, 0.22], [rnd(186, 206), 0.14, 0.12], [rnd(410, 450), 0.06, 0.06]]) {
       const o = a.createOscillator(), g = a.createGain(); o.type = "triangle";
       o.frequency.setValueAtTime(fq * 1.35, t); o.frequency.exponentialRampToValueAtTime(fq, t + 0.03);
@@ -815,6 +817,7 @@ export const AUDIO = {
   // a bite, chewed: a soft crunch of noise, low
   chew() {
     const a = ctx(); if (!a) return;
+    if (recorded(a, "chew", [[bus, 0.015]], a.currentTime)) return;
     const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.frequency.value = rnd(700, 1100); f.Q.value = 1.6;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.09, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
@@ -851,6 +854,11 @@ export const AUDIO = {
   // a fly past the ear: a thin whine that swells and pans across
   buzz() {
     const a = ctx(); if (!a) return;
+    // (a fly, recorded, going by from one ear to the other)
+    if (SBUF.fly && SBUF.fly.length >= 2 && a.createStereoPanner) {
+      const p = a.createStereoPanner(), s = Math.random() < 0.5 ? -1 : 1, t = a.currentTime; p.pan.setValueAtTime(s * 0.8, t); p.pan.linearRampToValueAtTime(-s * 0.8, t + 1.4); p.connect(bus); lease(p, 3);
+      if (recorded(a, "fly", [[p, 0.055]], t)) return;
+    }
     const t = a.currentTime, o = a.createOscillator(), g = a.createGain(), f = a.createBiquadFilter(), lfo = a.createOscillator(), lg = a.createGain();
     const pan = a.createStereoPanner ? a.createStereoPanner() : null;
     o.type = "sawtooth"; o.frequency.value = 190 + Math.random() * 60;
@@ -950,6 +958,8 @@ export const AUDIO = {
   // a muted knock in it (no ring, no chime: nothing a field ever made)
   killThud() {
     const a = ctx(); if (!a) return;
+    // (recorded: the blow, and a man in his coat going down on the earth)
+    if (recorded(a, "bodyfall", [[bus, 0.95]], a.currentTime + 0.01, [0.95, 1.05])) return;
     const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1900; lp.connect(bus); lease(lp, 3);
     // the blow landing: a hard, dry smack into cloth and what's under it, with a crunch in it
     shotBurst(a, lp, t, { type: "bandpass", f: 1250, q: 1.3, peak: 0.26, attack: 0.001, decay: 0.035 });
