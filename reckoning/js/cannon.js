@@ -271,7 +271,7 @@ export class Artillery {
         b.p.y = gy + 0.07;
         const sp = b.v.length();
         // earth thrown up where it strikes
-        if (sp > 8) { cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 7, colour: 0x6a5a44, life: 2.2, speed: 3, size: 0.9, opacity: 0.6 }); AUDIO.thud ? AUDIO.thud(Math.min(1, sp / 40)) : null; }
+        if (sp > 8) { cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 7, colour: 0x6a5a44, life: 2.2, speed: 3, size: 0.9, opacity: 0.6 }); { const F = window.__foley; F && F.fall && F.fall("ballEarth", b.p, Math.min(1, sp / 40)); } }
         if (sp > 12 && b.bounces < 3) { b.bounces++; b.v.y = Math.abs(b.v.y) * 0.32; b.v.x *= 0.62; b.v.z *= 0.62; }
         else { b.v.set(0, 0, 0); b.done = true; }
       }

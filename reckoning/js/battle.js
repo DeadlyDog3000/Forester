@@ -1444,7 +1444,7 @@ export class Field {
             // (into a river or a pond: a spout of white water and a splash, not a clod of earth and a thud)
             const wet = this.wet(b.p.x, b.p.z, 0.2), F = window.__foley;
             cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 10, colour: wet ? 0xdfe6e8 : 0x6a5a44, life: wet ? 1.4 : 2.4, speed: wet ? 6 : 4, size: 1.1, opacity: 0.6 });
-            if (wet) F && F.splash && F.splash(b.p, 0.9); else F && F.thunk && F.thunk(b.p, 0.9);
+            if (wet) F && F.splash && F.splash(b.p, 0.9); else F && F.fall && F.fall("ballEarth", b.p, 0.9);
             // (where it strikes: earth, stones and splinters flung about — the men close by cut down or knocked flat)
             // (the man it strikes is killed; the men about him hurt — stones and splinters, not the ball — and the further off,
             //  the less)
