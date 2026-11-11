@@ -517,7 +517,7 @@ async function cutpurse(w, onSnatch) {
     G.lockMove = true; t.place(t.pos.x, t.pos.z); lookAt(t, 1.6); t.faceTo(pl.pos.x, pl.pos.z);
     t.person.flinch && t.person.flinch(); AUDIO.voice && AUDIO.voice("grunt", { at: t.pos });
     await wait(0.4);
-    SFX.pickup(); UI.carry("Father's ledger");
+    FOLEY.strike("ledgerUp", null, 0.32); UI.carry("Father's ledger");
     bark("A cutpurse", "All right! All right — take it, it's only paper!", 2.2);
     await wait(0.6);
     G.lockMove = false; look(null);
@@ -535,7 +535,7 @@ async function cutpurse(w, onSnatch) {
     let got = false;
     const it = w.addInteract({ x: at.x, y: 0.5, z: at.z, reach: 2.2, label: "Pick up the ledger", use: () => { got = true; } });
     await until(() => got);
-    w.removeInteract(it); w.root.remove(book); SFX.pickup(); UI.carry("Father's ledger");
+    w.removeInteract(it); w.root.remove(book); FOLEY.strike("ledgerUp", null, 0.32); UI.carry("Father's ledger");
   }
   return true;
 }
@@ -791,7 +791,7 @@ async function searchedHouse(w, sib) {
     let have = false, burned = false;
     UI.objective(tries === 1 ? "Take Father's letters from his desk, unseen" : "Take Father's letters from his desk — keep out of his lamp");
     mark([desk[0], desk[1], 1.0]);
-    const take = w.addInteract({ x: desk[0], y: 1.0, z: desk[1], reach: 1.8, label: "Take the letters", can: () => !have, use: () => { have = true; SFX.pickup(); UI.carry("Father's letters"); UI.objective("Burn the letters in the hearth"); mark([hearth[0], hearth[1], 0.6]); } });
+    const take = w.addInteract({ x: desk[0], y: 1.0, z: desk[1], reach: 1.8, label: "Take the letters", can: () => !have, use: () => { have = true; FOLEY.strike("parchment", null, 0.4); UI.carry("Father's letters"); UI.objective("Burn the letters in the hearth"); mark([hearth[0], hearth[1], 0.6]); } });
     const burn = w.addInteract({ x: hearth[0], y: 0.7, z: hearth[1], reach: 1.9, label: "Burn the letters", can: () => have && !burned, use: () => { burned = true; UI.carry(null); FOLEY.strike("burn", null, 0.7); } });
     let hb = 0;
     // (sat on the bench where he told you to keep, empty-handed, you're no matter to him)
@@ -1129,7 +1129,7 @@ function stones(w, spots) {
     w.root.add(m);
     const st = { m };
     st.it = w.addInteract({ x, y: m.position.y + 0.2, z, reach: 2.0, label: "Pick up a stone", can: () => pl.stones < 3,
-      use: () => { w.root.remove(m); w.removeInteract(st.it); st.it = null; pl.stones++; show(); SFX.pickup(); tutor("stone", "A stone thrown makes a noise where it lands — and a watchman will go and look.", [["F", "pick up a stone"], ["Click", "throw it"]], 6); } });
+      use: () => { w.root.remove(m); w.removeInteract(st.it); st.it = null; pl.stones++; show(); FOLEY.strike("stoneUp", null, 0.32); tutor("stone", "A stone thrown makes a noise where it lands — and a watchman will go and look.", [["F", "pick up a stone"], ["Click", "throw it"]], 6); } });
     alleyStones.push(st);
   });
   const flying = [];
@@ -1163,7 +1163,7 @@ function stones(w, spots) {
           // and it can be picked up again
           const s2 = { m: st.m };
           s2.it = w.addInteract({ x: st.p.x, y: st.p.y + 0.2, z: st.p.z, reach: 2.0, label: "Pick up the stone", can: () => pl.stones < 3,
-            use: () => { w.root.remove(st.m); w.removeInteract(s2.it); s2.it = null; pl.stones++; show(); SFX.pickup(); } });
+            use: () => { w.root.remove(st.m); w.removeInteract(s2.it); s2.it = null; pl.stones++; show(); FOLEY.strike("stoneUp", null, 0.32); } });
           alleyStones.push(s2);
         }
       }
@@ -1497,7 +1497,7 @@ async function ch6(w) {
 
   // ---- things in the clearing you can use ----
   w.addInteract({ x: BLOCK.x, y: 0.9 + w.cy, z: BLOCK.z, reach: 2.2, label: "Take the old axe", can: () => !S.axe,
-    use: () => { S.axe = true; w.blockAxe.visible = false; pl.giveAxe(true); SFX.pickup(); persist();
+    use: () => { S.axe = true; w.blockAxe.visible = false; pl.giveAxe(true); FOLEY.strike("axeUp", null, 0.4); persist();
       const choppedBefore = tipSeen("axe");
       tutor("axe", "Get close, face the trunk, and swing — level, from the shoulder. Four good strokes and it's down.", [["Click", "swing the axe"]]);
       if (choppedBefore) UI.hint("Click to swing. Stand close to a trunk and face it.", 6); } });
