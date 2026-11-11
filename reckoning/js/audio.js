@@ -129,6 +129,17 @@ function sampledNote(a, kind, f, L, node, v, t) {
   s.connect(g); g.connect(node); s.start(t); s.stop(t + L + 0.05); lease(g, L + 0.5);
   return true;
 }
+// ---- the words as they're written out: a grain of a quill's scratch on paper for each letter (art/foley/quill_*.ogg,
+// the stretches of it where the nib is on the paper) ----
+const QUILL = [], LETTER_REC = 0.043; let qLoad = false;
+function loadQuill(a) {
+  if (qLoad) return; qLoad = true;
+  for (let i = 0; i < 3; i++) fetch(new URL(`../art/foley/quill_0${i}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => {
+    const d = b.getChannelData(0), w = Math.floor(0.04 * b.sampleRate), e = [];
+    for (let j = 0; j + w < d.length; j += w >> 1) { let q = 0; for (let k = j; k < j + w; k += 4) q += d[k] * d[k]; e.push([j / b.sampleRate, q]); }
+    const top = Math.max(...e.map(x => x[1])); for (const [t, q] of e) if (q > top * 0.16) QUILL.push([b, t]);
+  }).catch(() => {});
+}
 // ---- and the steady ones, recorded to loop: rain light and heavy and on a roof, a brook, wind, a town's crowd, a
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
@@ -179,7 +190,7 @@ function ctx() {
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
   ac = window.__foresterAC;
   if (!ac) return null;
-  budget(ac); loadVoices(ac); loadOrders(ac); loadSfx(ac); loadLoops(ac); loadNotes(ac);
+  budget(ac); loadVoices(ac); loadOrders(ac); loadSfx(ac); loadLoops(ac); loadNotes(ac); loadQuill(ac);
   bus = ac.createGain(); bus.gain.value = 1;
   // (and a limiter on it, as the first Forester's sounds have: a battle's cries and shots, all of them heard now, summed
   //  past full scale and broke up; caught and rounded over instead — nothing alone comes near it)
@@ -520,6 +531,13 @@ export const AUDIO = {
   letter(vol = 1) {
     const a = ctx(); if (!a) return;
     const t = a.currentTime;
+    // (a scratch of the quill: a different stretch of it each letter)
+    if (QUILL.length > 8) {
+      const [b, off] = QUILL[Math.floor(Math.random() * QUILL.length)], s = a.createBufferSource(), g = a.createGain(), v = LETTER_REC * vol;
+      s.buffer = b; s.playbackRate.value = rnd(0.92, 1.12);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.006); g.gain.setValueAtTime(v, t + 0.034); g.gain.linearRampToValueAtTime(0, t + 0.045);
+      s.connect(g); g.connect(bus); lease(g, 1); s.start(t, off, 0.05); return;
+    }
     const o = a.createOscillator(), g = a.createGain();
     o.type = "square"; o.frequency.setValueAtTime(rnd(1500, 1900), t);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.018 * vol, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.022);
