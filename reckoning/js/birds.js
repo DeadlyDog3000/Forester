@@ -85,7 +85,7 @@ export class Birds {
     const p = G.player && G.player.pos; if (!p || Math.hypot(x - p.x, z - p.z) > 90) return;
     const away = Math.atan2(x - p.x, z - p.z) + (Math.random() - 0.5) * 1.2;
     // (heard: the wings, once — a volley puts birds up all over, and a dozen flushes at once were a roar of wings)
-    if (this.t > (this.flushAt || 0)) { this.flushAt = this.t + 6; const F = window.__foley; F && F.bird && F.bird("flush", { x, z }, 1); }
+    if (this.t > (this.flushAt || 0) && (window.FSET || {}).ambient !== false) { this.flushAt = this.t + 6; const F = window.__foley; F && F.bird && F.bird("flush", { x, z }, 1); }
     this.flock("finch", x, z, { alt: 7 + Math.random() * 4, dir: away, life: 25, climb: 4, n: 8 + Math.floor(Math.random() * 6) });
     if (Math.random() < 0.6) this.flock("crow", x + 3, z - 2, { alt: 10, dir: away + 0.4, life: 30, climb: 3 });
   }
@@ -124,14 +124,14 @@ export class Birds {
       // stray too far (while they're still about)
       if (K.soar) {
         // (a buzzard mewing now and then as it wheels)
-        if (day && (q.cryT = (q.cryT ?? 4 + Math.random() * 10) - dt) <= 0) { q.cryT = 18 + Math.random() * 26; const F = window.__foley; F && F.bird && F.bird("buzzard", q.pos, 1); }
+        if (day && (q.cryT = (q.cryT ?? 4 + Math.random() * 10) - dt) <= 0) { q.cryT = 18 + Math.random() * 26; const F = window.__foley; if ((window.FSET || {}).ambient !== false) F && F.bird && F.bird("buzzard", q.pos, 1); }
         q.circle += dt * K.speed / 35;
         const cx = q.cx ?? (q.cx = q.pos.x), cz = q.cz ?? (q.cz = q.pos.z);
         const want = new THREE.Vector3(cx + Math.cos(q.circle) * 35 - q.pos.x, 0, cz + Math.sin(q.circle) * 35 - q.pos.z);
         q.vel.lerp(want.normalize().multiplyScalar(K.speed), Math.min(1, dt * 1.5));
       } else if (K.glide && this.opts.at) {
         // (a gull: long easy turns over the water, drifting back over the harbour if it strays — and crying now and then)
-        if ((q.cryT = (q.cryT ?? 2 + Math.random() * 8) - dt) <= 0) { q.cryT = 10 + Math.random() * 14; const F = window.__foley, inside = this.w.inHome && this.w.inHome(p.x, p.z); F && F.gull && F.gull(q.pos, inside ? 0.25 : 1); }
+        if ((q.cryT = (q.cryT ?? 2 + Math.random() * 8) - dt) <= 0) { q.cryT = 10 + Math.random() * 14; const F = window.__foley, inside = this.w.inHome && this.w.inHome(p.x, p.z); if ((window.FSET || {}).ambient !== false) F && F.gull && F.gull(q.pos, inside ? 0.25 : 1); }
         const at = this.opts.at, back = Math.atan2(at.x - q.pos.x, at.z - q.pos.z), da = Math.hypot(at.x - q.pos.x, at.z - q.pos.z);
         q.heading += (Math.sin(this.t * 0.25 + k * 2.1) * 0.5) * dt;
         if (da > 70) { let dh = back - q.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); q.heading += Math.max(-0.5, Math.min(0.5, dh)) * dt; }
