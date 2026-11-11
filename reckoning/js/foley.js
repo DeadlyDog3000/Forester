@@ -793,7 +793,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   //  the pile, a timber house or a palisade smashed)
   animalFall: [2, "foley", 1.44], ladderFall: [3, "foley", 1.38], rockBreak: [3, "foley", 2.62], logsDrop: [3, "foley", 2.35], timberFall: [3, "foley", 2.58],
   // (the church bell: audio.js's recordings, levelled to the made one here)
-  bell: [2, "sfx", 1.1] }, heard = {}, hearing = {};
+  bell: [2, "sfx", 1.1],
+  // (a pickaxe on stone, the smith's hammer on his anvil, a tool's handle snapping: they were a sword's clang)
+  pick: [2, "foley", 0.71], anvil: [3, "foley", 0.87], toolBreak: [3, "foley", 1.27] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -817,7 +819,7 @@ let lastIdx = {};
 // a sound played: how loud, a little higher or lower each time, and from where (quieter far off, to one side,
 // its top lost in the trees) — or right beside you
 // (sounds with no made one, sent for with the first sound played, so they're in by the time they're wanted)
-const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall"]; let early = false;
+const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak"]; let early = false;
 function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}) {
   const a = ac(), out = window.__foresterBus; if (!a || !out) return;
   if (!early) { early = true; for (const n of EARLY) recorded(a, n); }
@@ -899,6 +901,8 @@ export const FOLEY = {
   preload(names) { for (const n of names) bufs(n); },
   // something come down: kind one of EARLY's, from where it is
   fall: (kind, at = null, vol = 1) => play(kind, { vol, at, reach: 70, rate: [0.9, 1.1] }),
+  // a blow at something close: kind "pick", "anvil" or "toolBreak"
+  strike: (kind, at = null, vol = 0.8) => play(kind, { vol, at, reach: 40, rate: [0.92, 1.08] }),
   // a town's wall struck by round shot, or its gate; and either coming down (silent till their recordings are in)
   wallHit: (at, vol = 0.8, gate = false) => play(gate ? "hullHit" : "wallHit", { vol: gate ? vol * 0.9 : vol, at, reach: 160, rate: [0.9, 1.1] }),
   wallFall: (at, vol = 1, gate = false) => play(gate ? "hullHit" : "wallFall", { vol: gate ? vol * 1.2 : vol, at, reach: 260, rate: gate ? [0.8, 0.9] : [0.92, 1.05] }),

@@ -30,7 +30,7 @@ export function gunsmithTick(town, dt) {
     const o = S.gunOrders.shift();
     if (o.who === "you") { S.gunForYou = (S.gunForYou || 0) + 1; UI.hint(`${NAME} has finished your musket. Collect it at his bench.`, 6); }
     else { S.muskets = (S.muskets || 0) + 1; UI.hint(`${NAME} has finished a musket for the armoury — ${S.muskets} there now. The watch take them first in a raid, then anyone who fights.`, 6); }
-    AUDIO.clang && AUDIO.clang(0.5); town.persist();
+    window.__foley && window.__foley.strike("anvil", null, 0.6); town.persist();
   }
 }
 
@@ -78,7 +78,7 @@ function openBench(town) {
   const S = town.S, b = G.body, now = S.playSecs || 0;
   const mine = () => !!(b.tools && b.tools.musket), waitingMine = () => S.gunOrders.some(o => o.who === "you") || (S.gunForYou || 0) > 0;
   const next = () => Math.max(now, S.gunOrders.length ? S.gunOrders[S.gunOrders.length - 1].ready : now) + GUN_SECS;
-  const order = who => { S.gunOrders.push({ who, ready: next() }); town.persist(); AUDIO.clang && AUDIO.clang(0.4); };
+  const order = who => { S.gunOrders.push({ who, ready: next() }); town.persist(); window.__foley && window.__foley.strike("anvil", null, 0.5); };
   const queue = () => S.gunOrders.length ? S.gunOrders.map((o, i) => `${o.who === "you" ? "yours" : "the armoury's"} ${i === 0 ? `in ${mmss(o.ready - (S.playSecs || 0))}` : `after that, in ${mmss(o.ready - (S.playSecs || 0))}`}`).join("; ") : "nothing on the bench";
   const offers = () => [
     { own: true, icon: "musket", label: "Collect your musket", note: "It's done: oiled, flinted, and yours.", get: "", can: () => (S.gunForYou || 0) > 0, done: () => !(S.gunForYou > 0) && mine(), doneText: " — you have it",

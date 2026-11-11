@@ -375,7 +375,7 @@ export class MPGame {
     n.pl = m => { this.online.delete(m.pid); const r = this.remotes.get(m.pid); if (r) { r.remove(); this.remotes.delete(m.pid); } this.hudCount(); this.refreshFriends(); };
     n.stock = m => { const fed = (m.food | 0) > (this.stock.food | 0) + 4; this.stock = { wood: m.wood, stone: m.stone, food: m.food | 0 }; this.hudStock(true); if (fed && this.settlers.size) this.toast(`Harvest in: ${m.food} food in the store`); G.renderChest && G.renderChest(); };
     n.bg = m => { const e = this.w.blds.get(m.id); if (e) { e.b.growth = m.growth; this.w.setGrowth(e.b, e.g, m.growth); } };
-    n.chip = m => { const t = w.thing(m.id); if (!t) return; const r = this.remotes.get(m.by); if (t.id[0] === "r" || t.id[0] === "s") { AUDIO.clang && AUDIO.clang(0.25, { x: t.x, y: t.y + 0.5, z: t.z }); } else if (r && Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 0.6); };
+    n.chip = m => { const t = w.thing(m.id); if (!t) return; const r = this.remotes.get(m.by); if (t.id[0] === "r" || t.id[0] === "s") { FOLEY.strike("pick", { x: t.x, z: t.z }, 0.5); } else if (r && Math.hypot(t.x - G.player.pos.x, t.z - G.player.pos.z) < 30) G.woodChips && G.woodChips(t, 0.6); };
     n.fell = m => {
       const t = w.fell(m.id, m.dx, m.dz); if (!t) return;
       FOLEY.fellStart({ x: t.x, z: t.z });
@@ -538,7 +538,7 @@ export class MPGame {
       for (const k of cave.rocks) { if (k.gone) continue; const d = ahead(k.x, k.z, k.s + 2.2) - k.s; if (d < bd) { bd = d; rk = k; } }
       if (!rk) return;
       if (G.player.blade !== "pick") { UI.hint("Stone wants the pickaxe — take it out (2) and swing at the seam.", 3); return; }
-      AUDIO.clang && AUDIO.clang(0.35, { x: rk.x, y: rk.y + 0.5, z: rk.z }); G.rockChips && G.rockChips(rk, 1); G.impact && G.impact();
+      FOLEY.strike("pick", { x: rk.x, z: rk.z }, 0.8); G.rockChips && G.rockChips(rk, 1); G.impact && G.impact();
       this.net.send({ t: "mine", id: rk.id });
       return;
     }
@@ -596,7 +596,7 @@ export class MPGame {
     let rk = null; bd = Infinity;
     for (const c of this.chunksNear(p)) for (const k of c.rocks) { if (k.gone) continue; const d = ahead(k.x, k.z, k.s + 2.2) - k.s; if (d < bd) { bd = d; rk = k; } }
     if (rk) {
-      AUDIO.clang && AUDIO.clang(0.35, { x: rk.x, y: rk.y + 0.5, z: rk.z }); G.rockChips && G.rockChips(rk, 1); G.impact && G.impact();
+      FOLEY.strike("pick", { x: rk.x, z: rk.z }, 0.8); G.rockChips && G.rockChips(rk, 1); G.impact && G.impact();
       this.net.send({ t: "mine", id: rk.id });
     }
   }

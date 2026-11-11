@@ -2896,7 +2896,7 @@ export class Town {
         await a.walkTo(f.x, f.z, 1.2); alive();
         a.faceTo(this.S.gunsmith.x, this.S.gunsmith.z); a.person.setPose(busy ? "hammer" : "armsCrossed");
         await sleep(busy ? 7 : 5); alive();
-        if (busy && Math.random() < 0.6) AUDIO.clang && AUDIO.clang(0.25, a.pos);
+        if (busy && Math.random() < 0.6) FOLEY.strike("anvil", a.pos, 0.45);
         a.person.setPose("idle");
       } else if (job === "farmer") {
         // the fields as they need it: a ripe one reaped first, then bare ground sown, then the growing rye weeded —

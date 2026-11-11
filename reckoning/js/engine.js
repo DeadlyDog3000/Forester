@@ -1806,7 +1806,7 @@ G.wear = (k, n = 1) => {
   if (!r) return;
   UI.hint(r.text, r.broke ? 4.5 : 3);
   if (r.broke) {
-    AUDIO.clang && AUDIO.clang(0.6);
+    FOLEY.strike("toolBreak", null, 0.7);
     const pl = G.player;
     // (the pickaxe or your own sword gone from your hands: the axe again, if you have one)
     if (pl && pl.axe && pl.blade === k && !(G.body.tools[k] > 0)) { if (pl.hasAxe || k !== "axe") pl.wield("axe"); }
@@ -2019,14 +2019,14 @@ function mineSwing() {
   G.wear("pick");
   const R = ROCKS[k.kind];
   if ((tools.pick || 0) < R.need) {
-    AUDIO.clang(0.25, { x: k.x, y: k.y + 0.6, z: k.z });
+    FOLEY.strike("pick", { x: k.x, z: k.z }, 0.45);
     rockChips(k, 0.3);
     UI.hint(`Too hard for a ${TIER_NAME[tools.pick]} pick — ${k.kind === "iron" ? "iron wants a bronze pickaxe" : `${k.kind} wants a stone pickaxe`}.`, 3);
     return;
   }
   // (a full pack: nothing more to put it in)
   if (roomFor(G.pack, G.body, R.gives) <= 0) { UI.hint("Your pack is full. Put things in a chest — or make a backpack from hides at the chopping block.", 3.5); return; }
-  AUDIO.clang(0.4, { x: k.x, y: k.y + 0.6, z: k.z }); SFX.chop && SFX.chop();
+  FOLEY.strike("pick", { x: k.x, z: k.z }, 0.8);
   rockChips(k, 1);
   k.hp -= 1 + ((tools.pick - R.need) * 0.5) + (Math.random() < skillK(G.body, "strength") * 0.6 ? 1 : 0);
   G.practise("strength", 0.5);
