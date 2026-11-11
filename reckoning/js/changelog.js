@@ -7,6 +7,17 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.289", date: "11 November 2026", title: "The armoury, by ear",
+    items: [
+      "The armoury and the muster sound like what you're doing there: a sword or a dagger drawn from its scabbard, a musket, a bow or a spear taken up, a pistol cocked, coins counted onto the table and the strongbox shut, the gunsmith's file on the lock, a brush along the stock, a leather grip worked, colours shaken out, muskets brought to the shoulder, a company halting and turning, and the drum's roll.",
+      "When you're out of breath you hear a real man's breathing (a woman's, as the sister), a whole breath at a time and quickening as you tire, and your heart when you're badly hurt or about to be caught is a real heartbeat.",
+      "A melee sounds like one: blade on blade, musket stocks knocking together, blows landing, and the men running in over the grass.",
+      "On the campaign, the drum when you pick out a foe or an army is beaten on the recorded side drum, a letter is sealed with a real seal, and the room you plan in has a real log fire in its hearth. The cook's hand bell for a dish done to a turn is a real bell.",
+      "On the campaign's map, town names are no longer written over each other: when a town changed hands while the map was still putting its towns up, a second set of names was left underneath, so Wien could be lost under Pressburg and Brussel under Antwerpen.",
+      "The Habsburg crown is the Habsburg Monarchy on the campaign (the Austrian Empire wasn't proclaimed until 1804).",
+    ],
+  },
+  {
     v: "1.99.288", date: "11 November 2026", title: "Every sound its own",
     items: [
       "The regiments' bands play their marches on real instruments: the fife, the cavalry's natural trumpet and the Ottoman zurna are recorded, each note of the tune played on the nearest held note and pitched to it. The side drum and the great drum are recorded strokes, a different one each beat, and the drum roll in Hamburg's square is beaten stroke by stroke on them. The watch shout a real \"Halt!\" after you (it was a buzz).",
