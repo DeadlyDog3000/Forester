@@ -79,11 +79,14 @@ let LEAVES = null; const LEAF_REC = 4.7;
 // (an old trunk creaking, and the crickets of a summer night — two takes of them, made to go round — as loud as the
 //  made ones they stand for)
 const CREAKS = [], CRICKS = [], CREAK_REC = 0.0156, CRICK_REC = 0.395;
+// (and a tropical forest by day — its birds and insects, made to go round — for the Wide World's jungles)
+const TROPIC = [], TROPIC_REC = 0.0204; let tropic = null;
 function loadBirds(a) {
   if (bLoad) return; bLoad = true;
   const take = (name, list) => fetch(new URL(`../art/birds/${name}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => list.push(b)).catch(() => {});
   for (let i = 0; i < 4; i++) take(`creak_0${i}`, CREAKS);
   for (let i = 0; i < 2; i++) take(`crickets_0${i}`, CRICKS);
+  for (let i = 0; i < 2; i++) take(`tropic_0${i}`, TROPIC);
   fetch(new URL("../art/birds/leaves.ogg", import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => { LEAVES = b; }).catch(() => {});
   for (const [k, [n]] of Object.entries(BIRDS)) for (let i = 0; i < n; i++)
     fetch(new URL(`../art/birds/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
@@ -133,7 +136,7 @@ function startBed(a, out) {
 function tick() {
   const a = ac(), out = bus(), G = window.__G;
   const on = a && out && G && G.mode === "play" && FSET().ambient !== false && G.world && (G.world.name === "woods" || G.world.name === "mp") && !(G.world.cave && G.world.cave.inside);
-  if (!on) { if (bed && a) bed.master.gain.setTargetAtTime(0, a.currentTime, 0.8); return; }
+  if (!on) { if (bed && a) bed.master.gain.setTargetAtTime(0, a.currentTime, 0.8); if (tropic && a) tropic.g.gain.setTargetAtTime(0, a.currentTime, 0.8); return; }
   if (!bed) { bed = startBed(a, out); loadBirds(a); }
   if (!bed) return;
   // (the leaves' recording in since the bed was begun: the made one let go, and the recorded one in its place)
@@ -146,7 +149,11 @@ function tick() {
   // (the Wide World is not all a German wood: no leaves or songbirds in the desert, on the ice or the tundra, fewer of
   //  them out on the open grass, the heath and the high mountains, and the leaves' rustle as thick as the trees are)
   const land = w.land, biome = land && land.biomeAt && pl ? land.biomeAt(pl.pos.x, pl.pos.z) : null;
-  const bare = !!biome && /desert|ice|tundra/.test(biome), open = !!biome && /alpine|grassland|heath/.test(biome);
+  const bare = !!biome && /desert|ice|tundra/.test(biome), open = !!biome && /alpine|grassland|heath|savanna|steppe|scrub/.test(biome), tropical = !!biome && /jungle|rainforest/.test(biome);
+  // (in the jungle: its own day, in place of the German wood's songbirds)
+  { const want = tropical && !night && TROPIC.length ? (indoor ? 0.3 : 1) * (1 - rain * 0.5) : 0;
+    if (want > 0 && !tropic) { const s = a.createBufferSource(), g = a.createGain(); s.buffer = TROPIC[Math.floor(Math.random() * TROPIC.length)]; s.loop = true; g.gain.value = 0; s.connect(g); g.connect(out); s.start(0, Math.random() * s.buffer.duration); tropic = { s, g }; }
+    if (tropic) { tropic.g.gain.setTargetAtTime(TROPIC_REC * want, t, 2); if (!want && tropic.g.gain.value < 0.0005) { try { tropic.s.stop(); } catch (e) {} tropic = null; } } }
   const trees = land && land.forestAt && pl ? Math.min(1, land.forestAt(pl.pos.x, pl.pos.z) + 0.25) : 1;
   // the wind in the leaves: gusting, one side and then the other; quieter in winter's bare woods, muffled indoors
   bed.gust += (Math.random() - 0.5) * 0.12; bed.gust = Math.max(0.15, Math.min(1, bed.gust));
@@ -156,7 +163,7 @@ function tick() {
   bed.sides.forEach((s, i) => { s.g.gain.setTargetAtTime((0.4 + Math.random() * 0.6) * (s.rec ? LEAF_REC : 1), t, 0.8 + i * 0.4); if (s.bp) s.bp.frequency.setTargetAtTime(1500 + bed.gust * 1400 + Math.random() * 300, t, 1.5); });
   // the birds: thick at dawn, a song every few seconds by day, none at night, few in winter and the rain
   const frac = town && town.frac != null ? town.frac : 0.4, dawn = frac > 0.18 && frac < 0.32;
-  if (!night && !bare && t > nextSong) {
+  if (!night && !bare && !tropical && t > nextSong) {
     const rate = (dawn ? 14 : 28) * (winter ? 1.4 : 1) * (1 + rain * 4) * (indoor ? 2.5 : 1) * (open ? 2 : 1);
     nextSong = t + rate * rnd(0.6, 1.4);
     const kind = pickSong(dawn, winter, spring), dist = rnd(12, 65), side = rnd(-1, 1);
