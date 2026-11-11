@@ -235,7 +235,11 @@ const SITE_ICON = { store: "../assets/sprites/items/logs.png", stone: "../assets
 const iconImg = {};
 const loadIcon = src => iconImg[src] ??= new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
 export function siteSign(rows, ready) {
-  const W = 256, H = 64 * Math.max(1, rows.length) + (ready ? 0 : 0);
+  // (as wide as its longest line: at a fixed 256 the door's — "Needs a door — hew one at the sawhorse" — was cut off at
+  //  the dash)
+  const FONT = "600 30px 'Open Sans', system-ui, sans-serif";
+  let W = 256; { const m = document.createElement("canvas").getContext("2d"); m.font = FONT; for (const [k, text] of rows) W = Math.max(W, Math.ceil(m.measureText(text).width) + (SITE_ICON[k] ? 70 : 18) + 18); W = Math.min(720, W); }
+  const H = 64 * Math.max(1, rows.length);
   const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
@@ -247,7 +251,7 @@ export function siteSign(rows, ready) {
     const c = cv.getContext("2d");
     c.fillStyle = "rgba(8,20,13,0.82)"; c.strokeStyle = ready ? "#8cc084" : "rgba(140,192,132,0.55)"; c.lineWidth = 3;
     c.beginPath(); c.roundRect(2, 2, W - 4, H - 4, 10); c.fill(); c.stroke();
-    c.font = "600 30px 'Open Sans', system-ui, sans-serif"; c.textBaseline = "middle"; c.imageSmoothingEnabled = false;
+    c.font = FONT; c.textBaseline = "middle"; c.imageSmoothingEnabled = false;
     for (let i = 0; i < rows.length; i++) {
       const [k, text, done] = rows[i], y = 32 + i * 64;
       const im = SITE_ICON[k] ? await loadIcon(SITE_ICON[k]) : null;
