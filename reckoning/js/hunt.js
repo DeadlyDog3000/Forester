@@ -63,6 +63,29 @@ const PACE = { deer: { walk: 0.9, run: 7.5 }, hare: { walk: 3.7, run: 3.7 }, bea
 // beasts with no model of their own, drawn as their nearest kin that has one, in their own coat and size: the reindeer
 // and the moose as the red stag (greyer, and bigger), the antelope as the hind (sandier, and slighter)
 const KIN = { reindeer: ["deer", 0x9a9a92, 1.0], moose: ["deer", 0x5a4232, 1.4], antelope: ["doe", 0xd8a868, 0.82] };
+// each beast's voice, when it's within earshot now and then (every: seconds, about; reach: how far it carries; the same
+// kind no oftener than gap seconds, so a herd isn't a din), and the alarm some give when they take fright
+const VOICES = {
+  elephant: { kind: "elephant", every: 70, reach: 260, gap: 25, vol: 1, alarm: true },
+  lion: { kind: "lion", every: 80, reach: 420, gap: 40, vol: 1 }, tiger: { kind: "tiger", every: 80, reach: 300, gap: 40, vol: 1 },
+  jaguar: { kind: "tiger", every: 90, reach: 220, gap: 45, vol: 0.7, rate: 1.15 },
+  bear: { kind: "bear", every: 55, reach: 110, gap: 20, vol: 0.9 }, polarbear: { kind: "bear", every: 55, reach: 110, gap: 20, vol: 0.9 },
+  wolf: { kind: "wolfHowl", every: 60, reach: 300, gap: 25, vol: 0.9 },
+  monkey: { kind: "monkey", every: 30, reach: 120, gap: 12, vol: 0.8, alarm: true },
+  camel: { kind: "camel", every: 60, reach: 80, gap: 25, vol: 0.8 },
+  bison: { kind: "bison", every: 50, reach: 160, gap: 18, vol: 0.9 }, muskox: { kind: "bison", every: 60, reach: 120, gap: 22, vol: 0.7 },
+  moose: { kind: "moose", every: 70, reach: 140, gap: 30, vol: 0.9 }, reindeer: { kind: "reindeer", every: 45, reach: 60, gap: 15, vol: 0.7 },
+  zebra: { kind: "zebra", every: 45, reach: 160, gap: 15, vol: 0.9, alarm: true },
+  goat: { kind: "goat", every: 50, reach: 100, gap: 18, vol: 0.8 }, fox: { kind: "fox", every: 70, reach: 130, gap: 30, vol: 0.8 },
+  penguin: { kind: "penguin", every: 25, reach: 100, gap: 10, vol: 0.8 },
+};
+const VOICED = {};
+function beastVoice(a, alarm = false) {
+  const V = VOICES[a.kind], pl = G.player, F = window.__foley; if (!V || !pl || !F || !F.beast || (alarm && !V.alarm)) return;
+  const d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z), now = G.time || 0; if (d > V.reach) return;
+  if (now < (VOICED[a.kind] || 0)) return; VOICED[a.kind] = now + V.gap * (alarm ? 0.4 : 1);
+  F.beast(V.kind, a.pos, V.vol * (alarm ? 1.1 : 1), V.reach);
+}
 class Animal {
   constructor(hunt, kind, x, z, opts = {}) {
     this.hunt = hunt; this.kind = kind; this.K = KINDS[kind];
@@ -171,6 +194,7 @@ class Animal {
     this.target = { x: this.pos.x + Math.sin(a) * 40, z: this.pos.z + Math.cos(a) * 40 };
     // (a deer that's first to take fright barks its alarm — once, and not every one of the herd that runs with it)
     if (k >= 1 && this.state !== "flee" && this.kind === "deer" && G.time > (this.hunt.barkAt || 0)) { this.hunt.barkAt = G.time + 6; FOLEY.beast("deerBark", this.pos, 0.8); }
+    else if (k >= 1 && this.state !== "flee") beastVoice(this, true);
     this.state = "flee"; this.t = 5 + Math.random() * 3 * k; this.fear = 1;
     // the others see it go
     for (const o of this.hunt.animals) if (o !== this && o.alive && o.state !== "flee" && o.state !== "charge" && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 14) o.startle(from, 0.8);
@@ -204,6 +228,8 @@ class Animal {
       if (this.neck) this.neck.rotation.x += (this.neck0 - 0.3 - this.neck.rotation.x) * Math.min(1, dt * 3);
       return;
     }
+    // (its voice, now and then, if you're near enough to hear it)
+    if (VOICES[this.kind] && (this.voiceT = (this.voiceT ?? VOICES[this.kind].every * (0.2 + Math.random())) - dt) <= 0) { this.voiceT = VOICES[this.kind].every * (0.6 + Math.random() * 0.8); beastVoice(this); }
     if (this.puppet) return this.puppetUpdate(dt);
     // what it hears of you
     const d = Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z);

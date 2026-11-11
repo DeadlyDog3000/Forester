@@ -814,7 +814,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (a herring gull crying over the harbour, as loud as the woods' crow)
   gull: [5, "foley", 0.079],
   // (the woods': a buzzard mewing as it wheels overhead, and a flock of small birds bursting out of a bush)
-  buzzard: [2, "foley", 0.115], flush: [3, "foley", 0.256] }, heard = {}, hearing = {};
+  buzzard: [2, "foley", 0.115], flush: [3, "foley", 0.256],
+  // (the Wide World's beasts, each its own voice — levelled against the horse's neigh, the elephant and the lion loudest)
+  elephant: [3, "foley", 0.9], lion: [3, "foley", 0.53], tiger: [3, "foley", 0.67], bear: [3, "foley", 0.38], wolfHowl: [3, "foley", 0.4], monkey: [3, "foley", 0.63], camel: [3, "foley", 0.44], bison: [3, "foley", 0.56], moose: [3, "foley", 0.43], reindeer: [3, "foley", 0.57], zebra: [3, "foley", 0.45], goat: [3, "foley", 0.46], fox: [3, "foley", 0.41], penguin: [3, "foley", 0.55] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -929,7 +931,7 @@ export const FOLEY = {
   // a blow at something close: kind "pick", "anvil" or "toolBreak"
   strike: (kind, at = null, vol = 0.8) => play(kind, { vol, at, reach: 40, rate: [0.92, 1.08] }),
   // a beast's cry, heard a good way off: kind "boar", "boarHurt" or "deerBark"
-  beast: (kind, at, vol = 0.8) => play(kind, { vol, at, reach: 70, rate: [0.9, 1.1] }),
+  beast: (kind, at, vol = 0.8, reach = 70) => { if (!heard[kind]) { bufs(kind); return; } play(kind, { vol, at, reach, rate: [0.92, 1.08] }); },
   // a gull overhead, crying: heard a long way over the water
   gull: (at, vol = 1) => play("gull", { vol, at, reach: 140, rate: [0.92, 1.1] }),
   // a bird of the woods heard from where it is: "buzzard" (high overhead, carrying far) or "flush" (wings out of a bush)
