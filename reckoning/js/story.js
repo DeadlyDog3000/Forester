@@ -792,7 +792,7 @@ async function searchedHouse(w, sib) {
     UI.objective(tries === 1 ? "Take Father's letters from his desk, unseen" : "Take Father's letters from his desk — keep out of his lamp");
     mark([desk[0], desk[1], 1.0]);
     const take = w.addInteract({ x: desk[0], y: 1.0, z: desk[1], reach: 1.8, label: "Take the letters", can: () => !have, use: () => { have = true; SFX.pickup(); UI.carry("Father's letters"); UI.objective("Burn the letters in the hearth"); mark([hearth[0], hearth[1], 0.6]); } });
-    const burn = w.addInteract({ x: hearth[0], y: 0.7, z: hearth[1], reach: 1.9, label: "Burn the letters", can: () => have && !burned, use: () => { burned = true; UI.carry(null); AUDIO.whoosh && AUDIO.whoosh(0.25, false); } });
+    const burn = w.addInteract({ x: hearth[0], y: 0.7, z: hearth[1], reach: 1.9, label: "Burn the letters", can: () => have && !burned, use: () => { burned = true; UI.carry(null); FOLEY.strike("burn", null, 0.7); } });
     let hb = 0;
     // (sat on the bench where he told you to keep, empty-handed, you're no matter to him)
     const watch = onFrame(dt => { if (!have && Math.hypot(pl.pos.x - start.x, pl.pos.z - start.z) < 1.6) g.sus = 0; UI.eye(Math.min(1, g.sus)); hb -= dt; if (g.sus > 0.25 && hb <= 0) { hb = 1.1 - g.sus * 0.6; AUDIO.heartbeat(0.2 + g.sus * 0.4); } });

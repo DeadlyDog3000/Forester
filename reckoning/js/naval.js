@@ -376,7 +376,7 @@ class Battle {
     this.puff(x + nx, y, z + nz, { color: 0xffd27a, size: 2.6, life: 0.18, alpha: 1, grow: 0.5 });
     for (let i = 0; i < 3; i++) this.puff(x + nx * (1.5 + i * 1.6), y + Math.random(), z + nz * (1.5 + i * 1.6), { vx: nx * (4 - i) + this.windTo[0] * 2, vy: 0.4, vz: nz * (4 - i) + this.windTo[1] * 2, size: 3.2 + i, life: 7 + Math.random() * 3, alpha: 0.62 });
   }
-  splash(x, z) { const h = waveH(x, z, this.t); for (let i = 0; i < 5; i++) this.puff(x + (Math.random() - 0.5), h, z + (Math.random() - 0.5), { color: 0xf2f6f8, vy: 7 + Math.random() * 6, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, g: 14, size: 1.2, grow: 1.2, life: 1.3, alpha: 0.85 }); if (this.camDist(x, z) < 220 && Math.random() < 0.35) try { FOLEY.splash(null, 0.35); } catch (e) {} }
+  splash(x, z) { const h = waveH(x, z, this.t); for (let i = 0; i < 5; i++) this.puff(x + (Math.random() - 0.5), h, z + (Math.random() - 0.5), { color: 0xf2f6f8, vy: 7 + Math.random() * 6, vx: (Math.random() - 0.5) * 2, vz: (Math.random() - 0.5) * 2, g: 14, size: 1.2, grow: 1.2, life: 1.3, alpha: 0.85 }); }
   start() {
     document.body.appendChild(this.el);
     // (the keys are the battle's while it's on: nothing behind it — the map, the menus — hears them)
