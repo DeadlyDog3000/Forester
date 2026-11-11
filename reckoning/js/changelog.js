@@ -17,6 +17,7 @@ export const CHANGELOG = [
       "On the campaign, the drum when you pick out a foe or an army is beaten on the recorded side drum, a letter is sealed with a real seal, and the room you plan in has a real log fire in its hearth. The cook's hand bell for a dish done to a turn is a real bell.",
       "On the campaign's map, town names are no longer written over each other: when a town changed hands while the map was still putting its towns up, a second set of names was left underneath, so Wien could be lost under Pressburg and Brussel under Antwerpen.",
       "The Habsburg crown is the Habsburg Monarchy on the campaign (the Austrian Empire wasn't proclaimed until 1804).",
+      "On a smaller screen, the campaign's bar shortens the names of the crowns you're at war with but always shows how many more there are (\"+1 more\" was the first thing cut).",
       "A building site's sign is as wide as its longest line: \"Needs a door — hew one at the sawhorse\" was cut off at the dash. A long town name on the campaign map (or your own clearing's) gets a wider card, and a colony's road sign fits its name.",
       "On the title screen in the demo, the Online heading fits on one line again, level with Single Player.",
     ],
