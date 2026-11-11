@@ -98,10 +98,13 @@ colourTex.needsUpdate = true;
   img.onload = () => {
     // (a square at a time, through one canvas the size of a square: the whole strip at once in one wide canvas came back
     //  mostly empty at 1024 a square)
-    const S = img.height, c = document.createElement("canvas"); c.width = c.height = S;
+    // (and at half the size where there isn't the memory for the whole — 48 MB at once — rather than no colour at all)
+    let S = img.height, data = null;
+    for (; S >= 256 && !data; S >>= 1) try { data = new Uint8Array(S * S * 4 * COLOUR_N); } catch (e) { data = null; }
+    if (!data) return; S <<= 1;
+    const c = document.createElement("canvas"); c.width = c.height = S;
     const g = c.getContext("2d", { willReadFrequently: true });
-    const data = new Uint8Array(S * S * 4 * COLOUR_N);
-    for (let k = 0; k < COLOUR_N; k++) { g.clearRect(0, 0, S, S); g.drawImage(img, k * S, 0, S, S, 0, 0, S, S); data.set(g.getImageData(0, 0, S, S).data, k * S * S * 4); }
+    for (let k = 0; k < COLOUR_N; k++) { g.clearRect(0, 0, S, S); g.drawImage(img, k * img.height, 0, img.height, img.height, 0, 0, S, S); data.set(g.getImageData(0, 0, S, S).data, k * S * S * 4); }
     // (the grey placeholder's storage let go first, so the texture is made again at its full size)
     colourTex.dispose();
     colourTex.image = { data, width: S, height: S, depth: COLOUR_N };
