@@ -794,6 +794,8 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   animalFall: [2, "foley", 1.44], ladderFall: [3, "foley", 1.38], rockBreak: [3, "foley", 2.62], logsDrop: [3, "foley", 2.35], timberFall: [3, "foley", 2.58],
   // (the campaign room's hearth: a log fire in a stone fireplace, recorded close, made to go round)
   room: [2, "foley", 3.5],
+  // (the wax seal on a letter: a brass seal pressed down through the paper onto the desk)
+  seal: [3, "foley", 3.5],
   // (the church bell: audio.js's recordings, levelled to the made one here)
   bell: [2, "sfx", 1.1],
   // (a pickaxe on stone, the smith's hammer on his anvil, a tool's handle snapping: they were a sword's clang)
@@ -877,6 +879,15 @@ function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}
 }
 let fireSrc = null, FIRE_AT = null, washSrc = null, seaSrc = null, seaHits = [], blazeSrc = null, roomSrc = null, outSrc = {};
 let HOOVES = [];
+// (the campaign's drum, beaten on the recorded side drum's strokes (audio.js's, art/sfx/snare_*) as the made one is: a
+//  flam, a short roll, three beats — false till they're in)
+const DRUM_PAT = [[0, 0.45], [0.03, 1], ...[0, 1, 2, 3, 4, 5, 6].map(k => [0.3 + k * 0.045, 0.35 + k * 0.05]), [0.66, 1], [1.0, 0.8], [1.2, 0.9]], DRUM_REC = 0.58;
+function drumRec(vol) {
+  const a = ac(), out = window.__foresterBus, R = window.__sfxRec; if (!a || !out || !R) return false;
+  const t = a.currentTime + 0.01; if (!R("snare", out, vol * DRUM_REC * DRUM_PAT[0][1], t, [0.97, 1.03])) return false;
+  for (const [dt, k] of DRUM_PAT.slice(1)) R("snare", out, vol * DRUM_REC * k, t + dt + Math.random() * 0.006, [0.97, 1.03]);
+  return true;
+}
 export const FOLEY = {
   play,
   // a horse's hooves, its snorting and its tack, from where it is — hoofbeats kept to so many a second over the whole
@@ -977,7 +988,7 @@ export const FOLEY = {
   // a step of loading (see the recipes): at a place, or in your own hands
   load: (step, at = null, vol = 0.55, small = false) => RECIPES[step] && play(step, { vol, at, reach: 25, rate: small ? [1.12, 1.25] : [0.94, 1.06] }),
   // the campaign's sounds, beside you (parchment, quill, seal, drum, bell, guns, march, trot, sail, purse, spades)
-  cmp: (name, vol = 0.5) => RECIPES[name] && play(name, { vol, rate: name === "bell" ? [0.97, 1.03] : [0.92, 1.08] }),
+  cmp: (name, vol = 0.5) => { if (name === "drum" && drumRec(vol)) return; RECIPES[name] && play(name, { vol, rate: name === "bell" ? [0.97, 1.03] : [0.92, 1.08] }); },
   thunk: (at, vol = 0.7) => play("thunk", { vol, at, reach: 40, rate: [0.85, 1.15] }),
   // a blow landing on a man: the dull weight of it through his coat
   blow: (at, vol = 0.7) => play("blow", { vol, at, reach: 30, rate: [0.88, 1.12] }),
