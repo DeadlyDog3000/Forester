@@ -2550,7 +2550,7 @@ export class Town {
           if (d > 1.6) { await Promise.race([a.approach(r.pos, 1.3, 2.4), sleep(0.4)]); alive(); }
           // (a stroke from the side, or now and then from above; it lands as the swing comes through)
           a.path = []; a.faceTo(r.pos.x, r.pos.z); a.person.setPose(arm !== "fists" && Math.random() < 0.3 ? "overhead" : arm === "fists" ? "punch" : "chop"); await sleep(0.6); alive(); a.person.setPose("idle");
-          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm) * armSkill(a.settler, "fighting") * temperArm(a.settler), a); this.learn(a, "fighting", 0.5); arm === "fists" ? AUDIO.whoosh(0.3, false) : Math.random() < 0.35 ? AUDIO.clang(0.7, a.pos) : this.sfxAt(a, "chop"); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
+          if (!a.knocked && r.alive && Math.hypot(r.pos.x - a.pos.x, r.pos.z - a.pos.z) < 1.9) { r.damage(this.armDmg(arm) * armSkill(a.settler, "fighting") * temperArm(a.settler), a); this.learn(a, "fighting", 0.5); AUDIO.whoosh(arm === "fists" ? 0.3 : 0.45, arm !== "fists"); if (Math.random() < 0.3) AUDIO.voice(Math.random() < 0.5 ? "war" : "grunt", { at: a.pos, high: a.settler.sex === "f" }); }
           await sleep(arm === "fists" ? 0.55 : 0.8); continue;
         }
       }
