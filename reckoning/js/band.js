@@ -5,7 +5,7 @@
 // A REGIMENT'S BAND — a drummer and a fifer (the horse's trumpeters; for the Ottomans, a zurna and the great davul) who go with one arm of
 // your company: they play its nation's march while it marches and stop when it halts. The tunes are the period's own,
 // written down in ABC notation (see TUNES) and played here note by note on the instruments in audio.js — the fife, the
-// natural trumpet and the zurna recorded, a held note or two of each pitched to the tune's notes; the drums still made.
+// natural trumpet and the zurna recorded, a held note or two of each pitched to the tune's notes; the drums' strokes recorded too.
 
 import { AUDIO } from "./audio.js";
 

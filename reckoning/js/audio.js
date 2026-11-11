@@ -106,6 +106,8 @@ function loadSfx(a) {
 const NOTES = { fifeN: [363.31, 1685.68], trumpetN: [294.39, 328.95, 704.39], zurnaN: [284.51, 373.64, 422.23] }, NBUF = {};
 // (how loud against the made ones, measured on a held note)
 const NOTE_GAIN = { fifeN: 1.45, trumpetN: 1.86, zurnaN: 3.5 };
+// (and the drums: a stroke of each recorded, against the made one)
+const DRUM_GAIN = { snare: 0.86, bassDrum: 0.8 };
 let nLoad = false;
 function loadNotes(a) {
   if (nLoad) return; nLoad = true;
@@ -325,6 +327,8 @@ export const AUDIO = {
   sideDrum({ at = null, when = 0, vol = 1, accent = false, flam = false } = {}) {
     const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 160); if (k * vol < 0.02 || !room(0.55)) return;
     const hit = (t, amp) => {
+      // (recorded: a stick on a rope-tensioned field drum, a different stroke each time)
+      if (recorded(a, "snare", [[node, amp * DRUM_GAIN.snare]], t, [0.96, 1.04])) return;
       const n = noiseSrc(a, false), hp = a.createBiquadFilter(), g = a.createGain(); hp.type = "highpass"; hp.frequency.value = 1800;
       n.connect(hp); hp.connect(g); g.connect(node); g.gain.setValueAtTime(amp * 0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.16); n.start(t); n.stop(t + 0.18);
       const o = a.createOscillator(), og = a.createGain(); o.frequency.setValueAtTime(190, t); o.frequency.exponentialRampToValueAtTime(120, t + 0.08); o.connect(og); og.connect(node);
@@ -332,7 +336,7 @@ export const AUDIO = {
       lease(g, 0.4); lease(og, 0.4);
     };
     const t = Math.max(a.currentTime, when), amp = (accent ? 1 : 0.62) * vol * k * 0.55;
-    if (flam) hit(t - 0.028, amp * 0.45); hit(t, amp);
+    if (flam) hit(Math.max(a.currentTime, t - 0.028), amp * 0.45); hit(t, amp);
   },
   // the zurna: the Ottoman shawm, a double reed — loud, nasal and bright, made to carry over a battlefield
   zurna(midi, dur, { at = null, when = 0, vol = 1 } = {}) {
@@ -366,6 +370,7 @@ export const AUDIO = {
   bigDrum({ at = null, when = 0, vol = 1, accent = false } = {}) {
     const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 200); if (k * vol < 0.02 || !room(0.55)) return;
     const t = Math.max(a.currentTime, when), amp = (accent ? 1 : 0.6) * vol * k * 0.8;
+    if (recorded(a, "bassDrum", [[node, amp * DRUM_GAIN.bassDrum]], t, accent ? [0.9, 0.96] : [0.98, 1.04])) return;
     const o = a.createOscillator(), og = a.createGain(); o.frequency.setValueAtTime(accent ? 72 : 95, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.35); o.connect(og); og.connect(node);
     og.gain.setValueAtTime(amp, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.6); o.start(t); o.stop(t + 0.62);
     const n = noiseSrc(a, false), lp = a.createBiquadFilter(), ng = a.createGain(); lp.type = "lowpass"; lp.frequency.value = 900; n.connect(lp); lp.connect(ng); ng.connect(node);
