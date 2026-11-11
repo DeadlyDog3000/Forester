@@ -144,7 +144,7 @@ function loadQuill(a) {
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
 // (the heart, a breath — a man's, a woman's — and the melee's: a musket stock knocked aside, blade on blade, a blow home, men running)
-const HEART_REC = 0.56, BREATH_REC = [0.08, 0.12], PARRY_REC = 0.18, CLANG_MELEE = 0.17, BLOW_MELEE = 0.15, RUN_REC = 0.7;
+const HANDBELL_REC = 0.81, HEART_REC = 0.56, BREATH_REC = [0.08, 0.12], PARRY_REC = 0.18, CLANG_MELEE = 0.17, BLOW_MELEE = 0.15, RUN_REC = 0.7;
 const KITCHEN_REC = { knife: 0.22, stir: 0.11, toss: 0.036, plate: 0.19, sizzle: 5.3, bubble: 3 }, HARBOUR_REC = 4.5, MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
 // (each ground's footfalls, and how loud against the made ones)
 const STEP_REC = { grass: ["stGrass", 0.045], leaves: ["stLeaves", 0.038], dirt: ["stDirt", 0.029], stone: ["stStone", 0.031], wood: ["stWood", 0.019], snow: ["stSnow", 0.03], water: ["stWater", 0.043], marsh: ["stMarsh", 0.062] };
@@ -468,8 +468,9 @@ export const AUDIO = {
 
   bell(vol = 1, pitch = 1) {
     const a = ctx(); if (!a || vol <= 0.01) return;
-    // (a church's bell, recorded; a little hand bell, higher, is still the made one)
+    // (a church's bell, recorded; and a little brass hand bell, rung once)
     if (pitch < 1.3 && recorded(a, "bell", [[bus, 0.62 * vol]], a.currentTime, [pitch * 0.98, pitch * 1.02])) return;
+    if (pitch >= 1.3 && recorded(a, "handbell", [[bus, HANDBELL_REC * vol]], a.currentTime, [0.97, 1.03])) return;
     const t = a.currentTime, f0 = 196 * pitch;
     for (const [mul, v] of [[0.5, 0.12], [1, 0.16], [2.0, 0.1], [2.4, 0.07], [3.0, 0.05], [4.2, 0.03]]) {
       const o = a.createOscillator(), g = a.createGain();
