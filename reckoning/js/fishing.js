@@ -69,7 +69,7 @@ class Gear {
       if (pl.bow) pl.showBow(false); if (pl.gun) pl.showGun(false); if (pl.xbow) pl.showXbow(false);
       pl.dropFood && pl.dropFood();
       this.out = true; G.rodOut = true; this.rod(true); this.raise = 0;
-      FOLEY.swish(0.2);
+      FOLEY.cast(0.2);
       if (!this.toldRod) { this.toldRod = true; UI.keys([["Click", "cast, facing the water"], ["Click", "strike, when the line is drawn away under"], ["Right-click", "lift the line out"]], 9); }
     } else {
       this.cast = null; this.out = false; G.rodOut = false; this.rod(false);
@@ -86,10 +86,10 @@ class Gear {
     // the bank on the way back in, where a hooked fish is played to
     let sx = to.x, sz = to.z; for (let k = 0; k <= 1; k += 0.05) { const x = to.x + (pl.pos.x - to.x) * k, z = to.z + (pl.pos.z - to.z) * k; if (!this.wet(x, z, 0.94)) break; sx = x; sz = z; }
     this.cast = { st: "back", t: 0, x: to.x, z: to.z, sx, sz, nib: 1 + Math.random() * 3, wait: (3.5 + Math.random() * 8) * (1.35 - this.odds()), from: null };
-    FOLEY.swish(0.4);
+    FOLEY.cast(0.4);
   }
   // the line lifted out (nothing on it): the hook skims back to you
-  reelIn() { const c = this.cast; if (!c || c.st === "reel" || c.st === "land") return; c.st = "reel"; c.t = 0; c.from = this.float.position.clone(); FOLEY.swish(0.25); }
+  reelIn() { const c = this.cast; if (!c || c.st === "reel" || c.st === "land") return; c.st = "reel"; c.t = 0; c.from = this.float.position.clone(); FOLEY.cast(0.25); }
   fishTick(dt) {
     const pl = G.player, input = G.input; if (!pl) return;
     if (this.out && (pl.axe || pl.bow || pl.gun || pl.xbow || G.heldFood || pl.horse || this.frozen || !hasRod())) this.setOut(false);
@@ -111,7 +111,7 @@ class Gear {
         // the rod lifted back over your shoulder, and flicked forward
         const k = c.t / 0.28; rx = -1.05 + 1.2 * Math.sin(Math.min(1, k) * Math.PI / 2);
         F.position.set(tip.x, tip.y - 0.5 + k * 0.4, tip.z);
-        if (c.t >= 0.28) { c.st = "fly"; c.t = 0; c.from = tip.clone(); FOLEY.swish(0.45); }
+        if (c.t >= 0.28) { c.st = "fly"; c.t = 0; c.from = tip.clone(); FOLEY.cast(0.45); }
       } else if (c.st === "fly") {
         const k = Math.min(1, c.t / 0.55); rx = 0.15 - 1.45 * Math.min(1, c.t / 0.18); bend = Math.max(0, 0.25 - c.t);
         F.position.set(c.from.x + (c.x - c.from.x) * k, c.from.y + (L - c.from.y) * k + Math.sin(k * Math.PI) * 1.6, c.from.z + (c.z - c.from.z) * k);

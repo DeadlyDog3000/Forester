@@ -802,7 +802,7 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (round shot slamming into the earth — it was an arrow into wood)
   ballEarth: [4, "foley"],
   // (things taken up that aren't cloth in the hand: the ledger, a stone off the cobbles, the axe out of the block)
-  ledgerUp: [3, "foley", 1.84], whittle: [4, "foley", 0.85], matsDrop: [3, "foley", 3], stoneUp: [3, "foley", 2.26], axeUp: [5, "foley", 0.76],
+  ledgerUp: [3, "foley", 1.84], whittle: [4, "foley", 0.85], matsDrop: [3, "foley", 3], rodCast: [6, "foley"], stoneUp: [3, "foley", 2.26], axeUp: [5, "foley", 0.76],
   // (the wax seal on a letter: a brass seal pressed down through the paper onto the desk)
   seal: [3, "foley", 3.5],
   // (the church bell: audio.js's recordings, levelled to the made one here)
@@ -859,7 +859,7 @@ let lastIdx = {};
 // a sound played: how loud, a little higher or lower each time, and from where (quieter far off, to one side,
 // its top lost in the trees) — or right beside you
 // (sounds with no made one, sent for with the first sound played, so they're in by the time they're wanted)
-const EARLY = ["matsDrop", "whittle", "ledgerUp", "stoneUp", "axeUp", "ballEarth", "sow", "pluck", "moss", "chink", "stake", "furnish", "kickEarth", "animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark", "reap", "fuse", "blow", "gull", "buzzard", "flush", "swim", "chestOpen", "chestShut"]; let early = false;
+const EARLY = ["rodCast", "matsDrop", "whittle", "ledgerUp", "stoneUp", "axeUp", "ballEarth", "sow", "pluck", "moss", "chink", "stake", "furnish", "kickEarth", "animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark", "reap", "fuse", "blow", "gull", "buzzard", "flush", "swim", "chestOpen", "chestShut"]; let early = false;
 function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}) {
   const a = ac(), out = window.__foresterBus; if (!a || !out) return;
   if (!early) { early = true; for (const n of EARLY) recorded(a, n); }
@@ -991,6 +991,8 @@ export const FOLEY = {
   struck(kind, vol) { const t = performance.now(); seaHits = seaHits.filter(q => t - q < 600); if (seaHits.length >= 5 || vol < 0.03) return; seaHits.push(t); play(kind, { vol, rate: [0.88, 1.1] }); },
   gulp: (vol = 0.5) => play("gulp", { vol, rate: [0.92, 1.08] }),
   swish: (vol = 0.35) => play("swish", { vol, rate: [0.85, 1.2] }),
+  // (a fishing rod cast or lifted: its own whippy swish of line through the air — the swish is a blade's)
+  cast: (vol = 0.35) => heard.rodCast ? play("rodCast", { vol, rate: [0.9, 1.12] }) : (bufs("rodCast"), play("swish", { vol, rate: [0.85, 1.2] })),
   // (a weapon swung, for audio.js's whoosh: the recorded swish once it's in — true — or nothing, and the made whoosh)
   swishRec: vol => { if (!heard.swish) { bufs("swish"); return false; } play("swish", { vol, rate: [0.9, 1.12] }); return true; },
   whiz: (vol = 0.55) => play("whiz", { vol, rate: [0.9, 1.12] }),
