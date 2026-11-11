@@ -786,7 +786,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   gulp: [2, "foley", 1.12], sizzle: [3, "foley", 0.88], wash: [2, "foley", 3.16],
   // (the battle at sea's, which have no made ones: round shot into a hull and into the sea, a ship going down, and the
   //  sea and the wind in the rigging, made to go round — silent till they're in)
-  hullHit: [4, "foley"], shotSplash: [4, "foley"], sink: [2, "foley"], sea: [2, "foley"] }, heard = {}, hearing = {};
+  hullHit: [4, "foley"], shotSplash: [4, "foley"], sink: [2, "foley"], sea: [2, "foley"],
+  // (a siege's: round shot into a stone wall, and a stretch of it coming down)
+  wallHit: [3, "foley", 2.2], wallFall: [3, "foley", 1.4] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -887,6 +889,9 @@ export const FOLEY = {
   //  a shot striking home, or into the water, at loudness vol (no more than a few at once: a broadside's thirty balls
   //  are a handful of crashes and not a roar of them)
   preload(names) { for (const n of names) bufs(n); },
+  // a town's wall struck by round shot, or its gate; and either coming down (silent till their recordings are in)
+  wallHit: (at, vol = 0.8, gate = false) => play(gate ? "hullHit" : "wallHit", { vol: gate ? vol * 0.9 : vol, at, reach: 160, rate: [0.9, 1.1] }),
+  wallFall: (at, vol = 1, gate = false) => play(gate ? "hullHit" : "wallFall", { vol: gate ? vol * 1.2 : vol, at, reach: 260, rate: gate ? [0.8, 0.9] : [0.92, 1.05] }),
   sea(k) {
     const a = ac(), out = window.__foresterBus; if (!a || !out) return;
     if (k > 0.01 && !seaSrc && heard.sea) { const s = a.createBufferSource(); s.buffer = heard.sea[Math.floor(Math.random() * heard.sea.length)]; s.loop = true; const g = a.createGain(); g.gain.value = 0; s.connect(g); g.connect(out); s.start(0, Math.random() * s.buffer.duration); seaSrc = { s, g }; }

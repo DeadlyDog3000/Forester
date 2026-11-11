@@ -483,6 +483,8 @@ export class Field {
     };
     void M;
     this.fortSide = battle ? fort : null; this.siege = siege; this.breaks = [];
+    // (a siege's sounds sent for now, so the first ball on the wall is heard)
+    if (siege) { const F = window.__foley; F && F.preload && F.preload(["wallHit", "wallFall", "hullHit"]); }
     if (camps) for (const c of camps) this.battery(c);
     // (a town of the woods' nations: its own side has its palisade and no battery — no guns, no gabions)
     // (two armies met in the open have no works: no gabions, banks or chevaux-de-frise dug in front of them — those are a
@@ -646,12 +648,14 @@ export class Field {
       b.hp -= dmg;
       cloud(this.w.root, p.clone(), new THREE.Vector3(0, 1, 0), { n: 8, colour: b.gate ? 0x6a5236 : 0x9a917f, life: 2.6, speed: 3.5, size: 1.2, opacity: 0.65 });
       // (the merlons knocked off one by one as it's hit; the parapet low and broken once it's half gone)
+      // (heard: the ball's crack on the stone, or the gate's oak splitting)
+      if (dmg > 1 && b.hp > 0) { const F = window.__foley; F && F.wallHit && F.wallHit(p, 0.8, b.gate); }
       if (b.merl.length && Math.random() < 0.6) { const m = b.merl.splice(Math.floor(Math.random() * b.merl.length), 1)[0]; m.visible = false; }
       if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) m.visible = false; b.merl = []; b.rub.visible = true; }
       if (b.hp <= 0) {
         b.down = true; b.grp.visible = false; b.rub.visible = true; b.col.disabled = true;
         cloud(this.w.root, new THREE.Vector3(b.x, b.top - 1, b.z), new THREE.Vector3(0, 1, 0), { n: 22, colour: 0x9a917f, life: 4, speed: 5, size: 2.2, opacity: 0.7 });
-        AUDIO.cannon && AUDIO.cannon(0.6, new THREE.Vector3(b.x, b.top, b.z)); shake(0.25);
+        { const F = window.__foley; F && F.wallFall && F.wallFall(new THREE.Vector3(b.x, b.top, b.z), 1, b.gate); } shake(0.25);
         this.onBreach && this.onBreach(b);
       }
       return true;
@@ -1429,7 +1433,10 @@ export class Field {
           b.p.y = Math.max(b.p.y, gy + 0.07);
           const sp = b.v.length();
           if (sp > 8) {
-            cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 10, colour: 0x6a5a44, life: 2.4, speed: 4, size: 1.1, opacity: 0.6 }); const F = window.__foley; F && F.thunk && F.thunk(b.p, 0.9);
+            // (into a river or a pond: a spout of white water and a splash, not a clod of earth and a thud)
+            const wet = this.wet(b.p.x, b.p.z, 0.2), F = window.__foley;
+            cloud(root, b.p.clone(), new THREE.Vector3(0, 1, 0), { n: 10, colour: wet ? 0xdfe6e8 : 0x6a5a44, life: wet ? 1.4 : 2.4, speed: wet ? 6 : 4, size: 1.1, opacity: 0.6 });
+            if (wet) F && F.splash && F.splash(b.p, 0.9); else F && F.thunk && F.thunk(b.p, 0.9);
             // (where it strikes: earth, stones and splinters flung about — the men close by cut down or knocked flat)
             // (the man it strikes is killed; the men about him hurt — stones and splinters, not the ball — and the further off,
             //  the less)
