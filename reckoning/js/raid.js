@@ -244,7 +244,7 @@ export class Raids {
       if (d < bd && (dx * f.x + dz * f.z) / (d || 1) > 0.4) { bd = d; best = r; }
     }
     if (!best) return false;
-    SFX.chop && SFX.chop();
+    // (heard as his damage lands — the blow, or the parry's clang: not an axe biting into a tree on top of it)
     best.damage(this.town.armDmg(pl.blade && pl.blade !== "axe" ? pl.blade : "axe") * blowMul(G.body) * ownBlade(pl), pl); G.practise("strength", 1.5);
     return true;
   }
