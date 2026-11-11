@@ -1096,7 +1096,7 @@ export class Player {
       h.rotation.set(-0.5 + out * 0.4, 0.3 - tug * 0.4, 0.6 - out * 0.3);
       h.scale.setScalar(1);
       h.children[0] && (h.children[0].scale.x = 1 - (p > 0.38 && p < 0.65 ? 0.25 : 0));   // (the hand closing round it)
-      if (beat(1.4) && !wk.quiet && Math.random() < 0.7) SFX.pickup && SFX.pickup();
+      if (beat(1.4) && !wk.quiet && Math.random() < 0.7) FOLEY.strike("pluck", null, 0.32);   // (leaves and a stem: picked off the bush by hand)
     } else if (kind === "sow") {
       // a handful out of the sack, cast wide in an arc
       const p = (t * 1.3) % 1;

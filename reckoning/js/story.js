@@ -1849,10 +1849,10 @@ async function ch7(w) {
         seg: [st.x - s2 * 3.3, st.z - c2 * 3.3, st.x + s2 * 3.3, st.z + c2 * 3.3],
         label: () => S.dug.includes(st.i) ? "Sow the rye" : "Dig the strip",
         can: () => !S.sown.includes(st.i),
-        onHoldTick: (dt, t) => { if (Math.floor(t * 2.4) !== Math.floor((t - dt) * 2.4)) (S.dug.includes(st.i) ? SFX.pickup : SFX.hammer)(); },
+        onHoldTick: (dt, t) => { if (Math.floor(t * 2.4) !== Math.floor((t - dt) * 2.4)) S.dug.includes(st.i) ? FOLEY.strike("sow", null, 0.32) : SFX.dig(); },   // (a spade, or the seed cast — not a hammer, nor something picked up)
         use: () => {
           if (!S.dug.includes(st.i)) { S.dug.push(st.i); addSoil(st); SFX.dig(); }
-          else { S.sown.push(st.i); addRows(st); SFX.pickup(); if (S.sown.length === 1) bark(P.sib, "Not too deep. A thumb's depth, and cover it over. Father sowed his window box like that every spring."); }
+          else { S.sown.push(st.i); addRows(st); FOLEY.strike("sow", null, 0.32); if (S.sown.length === 1) bark(P.sib, "Not too deep. A thumb's depth, and cover it over. Father sowed his window box like that every spring."); }
           persist();
         } }));
     }
@@ -2260,12 +2260,12 @@ async function ch9(w, opts = {}) {
     for (const m of MOSS) {
       if (S.moss.includes(m.i)) continue;
       const it = w.addInteract({ x: m.x, y: w.heightAt(m.x, m.z) + 0.5, z: m.z, reach: 2.4, hold: 1, label: "Pull the moss from under the snow",
-        use: () => { S.moss.push(m.i); w.root.remove(mossObjs[m.i]); w.removeInteract(it); SFX.pickup(); persist(); if (S.moss.length === 1) bark(P.sib, "Frozen stiff, but it'll soften by the fire."); } });
+        use: () => { S.moss.push(m.i); w.root.remove(mossObjs[m.i]); w.removeInteract(it); FOLEY.strike("moss", null, 0.32); persist(); if (S.moss.length === 1) bark(P.sib, "Frozen stiff, but it'll soften by the fire."); } });
       its.push(it);
     }
     const door = [CABIN.x + Math.sin(CABIN.ry) * 3.4, CABIN.z + Math.cos(CABIN.ry) * 3.4];
     its.push(w.addInteract({ x: door[0], y: w.cy + 1.2, z: door[1], reach: 3, hold: 4, label: "Chink the walls with moss", can: () => S.moss.length >= 6 && !S.chinked,
-      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX.pickup(); },
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) FOLEY.strike("chink", null, 0.3); },   // (moss pushed into the gaps between the logs)
       use: () => { S.chinked = true; persist(); bark(P.sib, "Listen. You can't hear the wind in the walls now."); } }));
     let mossTold = false;
     const obj = onFrame(() => {
@@ -2627,7 +2627,7 @@ async function ch11(w) {
         seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
         can: () => (b.growth ?? 1) >= 3,
         onHoldTick: (dt, t) => { if (Math.floor(t * 1.5) !== Math.floor((t - dt) * 1.5)) FOLEY.strike("reap", null, 0.7); },
-        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.pickup(); } });
+        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); FOLEY.strike("reap", null, 0.6); } });
       reapIts.push(b._reap);
     }
   };
@@ -2788,7 +2788,7 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
       const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3 && !town.winter,
         seg: [fl.x - Math.sin(fl.ry) * 3.4, fl.z - Math.cos(fl.ry) * 3.4, fl.x + Math.sin(fl.ry) * 3.4, fl.z + Math.cos(fl.ry) * 3.4],
         onHoldTick: (dt2, t) => { if (Math.floor(t * 1.5) !== Math.floor((t - dt2) * 1.5)) FOLEY.strike("reap", null, 0.7); },
-        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.pickup(); if (onReap) onReap(fl); } });
+        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); FOLEY.strike("reap", null, 0.6); if (onReap) onReap(fl); } });
       ripe.set(fl, it);
     }
   });
