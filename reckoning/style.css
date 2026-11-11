@@ -2532,3 +2532,9 @@ img { -webkit-user-drag: none; user-drag: none; -webkit-user-select: none; user-
 .pn-syms .pn-sym { flex-direction: row; align-items: center; gap: 6px; padding: 3px 8px 3px 3px; cursor: grab; touch-action: none; }
 .pn-sym canvas { width: 30px; height: 30px; border-radius: 2px; pointer-events: none; }
 .pn-ghost { position: fixed; width: 44px; height: 44px; pointer-events: none; z-index: 9999; border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+
+/* (the wars in the campaign's bar: the names cut short when there's no room, the count of the rest always shown — it was
+   the first thing the ellipsis took) */
+#campaign .cmp-top > .cmp-wars b { display: flex; white-space: nowrap; overflow: hidden; }
+#campaign .cmp-top > .cmp-wars b > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+#campaign .cmp-top > .cmp-wars b > i { flex: none; font-style: normal; margin-left: 0.35em; }
