@@ -81,6 +81,9 @@ let LEAVES = null; const LEAF_REC = 4.7;
 const CREAKS = [], CRICKS = [], CREAK_REC = 0.0156, CRICK_REC = 0.395;
 // (and a tropical forest by day — its birds and insects, made to go round — for the Wide World's jungles)
 const TROPIC = [], TROPIC_REC = 0.0204; let tropic = null;
+// (the wind over open country, where there are no leaves to hear it in: audio.js's recorded wind, set going here)
+let ambWind = 0;
+const setWind = v => { if (v === ambWind) return; const A = window.__audio; if (!A || !A.wind) return; if (ambWind) A.wind(false); if (v) A.wind(true, v); ambWind = v; };
 function loadBirds(a) {
   if (bLoad) return; bLoad = true;
   const take = (name, list) => fetch(new URL(`../art/birds/${name}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => list.push(b)).catch(() => {});
@@ -136,7 +139,7 @@ function startBed(a, out) {
 function tick() {
   const a = ac(), out = bus(), G = window.__G;
   const on = a && out && G && G.mode === "play" && FSET().ambient !== false && G.world && (G.world.name === "woods" || G.world.name === "mp") && !(G.world.cave && G.world.cave.inside);
-  if (!on) { if (bed && a) bed.master.gain.setTargetAtTime(0, a.currentTime, 0.8); if (tropic && a) tropic.g.gain.setTargetAtTime(0, a.currentTime, 0.8); return; }
+  if (!on) { if (bed && a) bed.master.gain.setTargetAtTime(0, a.currentTime, 0.8); if (tropic && a) tropic.g.gain.setTargetAtTime(0, a.currentTime, 0.8); setWind(0); return; }
   if (!bed) { bed = startBed(a, out); loadBirds(a); }
   if (!bed) return;
   // (the leaves' recording in since the bed was begun: the made one let go, and the recorded one in its place)
@@ -150,6 +153,8 @@ function tick() {
   //  them out on the open grass, the heath and the high mountains, and the leaves' rustle as thick as the trees are)
   const land = w.land, biome = land && land.biomeAt && pl ? land.biomeAt(pl.pos.x, pl.pos.z) : null;
   const bare = !!biome && /desert|ice|tundra/.test(biome), open = !!biome && /alpine|grassland|heath|savanna|steppe|scrub/.test(biome), tropical = !!biome && /jungle|rainforest/.test(biome);
+  // (out in the desert, on the ice and the tundra, the wind; a little of it over grass, heath and steppe)
+  if (biome) setWind(indoor ? 0 : bare ? 1.4 : open ? 0.7 : 0);
   // (in the jungle: its own day, in place of the German wood's songbirds)
   { const want = tropical && !night && TROPIC.length ? (indoor ? 0.3 : 1) * (1 - rain * 0.5) : 0;
     if (want > 0 && !tropic) { const s = a.createBufferSource(), g = a.createGain(); s.buffer = TROPIC[Math.floor(Math.random() * TROPIC.length)]; s.loop = true; g.gain.value = 0; s.connect(g); g.connect(out); s.start(0, Math.random() * s.buffer.duration); tropic = { s, g }; }
