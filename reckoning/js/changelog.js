@@ -9,7 +9,7 @@ export const CHANGELOG = [
   {
     v: "1.99.289", date: "11 November 2026", title: "The armoury, by ear",
     items: [
-      "The armoury and the muster sound like what you're doing there: a sword or a dagger drawn from its scabbard, a musket, a bow or a spear taken up, a pistol cocked, coins counted onto the table and the strongbox shut, the gunsmith's file on the lock, a brush along the stock, a leather grip worked, colours shaken out, muskets brought to the shoulder, a company halting and turning, and the drum's roll.",
+      "The armoury and the muster sound like what you're doing there: a sword or a dagger drawn from its scabbard, a musket, a bow or a spear taken up, a pistol cocked, coins counted onto the table and the strongbox shut, the gunsmith's file on the lock, a brush along the stock, a brass fitting tapped home, a leather grip worked, colours shaken out, muskets brought to the shoulder, a company halting and turning, and the drum's roll.",
       "When you're out of breath you hear a real man's breathing (a woman's, as the sister), a whole breath at a time and quickening as you tire, and your heart when you're badly hurt or about to be caught is a real heartbeat.",
       "A woman hurt, dying or crying out in a charge has a woman's own voice — the sister, the settlements' women and women in a battle — and so does a woman leading her company in a battle when she gives the word of command. Both were a man's voice played higher.",
       "A melee sounds like one: blade on blade, musket stocks knocking together, blows landing, and the men running in over the grass.",

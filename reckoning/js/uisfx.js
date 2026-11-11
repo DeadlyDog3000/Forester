@@ -103,7 +103,7 @@ const thud = (a, o, t, vol = 0.08, f = 80) => { note(a, o, f, t, { vol, decay: 0
 //  way at t, levelled against the made one by UREC; or one of the foley's (art/foley) a moment on. False till they're in)
 //  (measured through the screens' way, offline; the made brush, grip, page and feet were barely there, so theirs are put
 //  down quiet but heard)
-const UREC = { swordDraw: 0.14, daggerDraw: 0.16, musketUp: 0.12, bowUp: 0.2, haft: 0.17, file: 0.17, halt: 0.13, shuffle: 0.08, brush: 0.075, flag: 0.38, shoulder: 0.09, leather: 0.14, snare: 0.16 };
+const UREC = { swordDraw: 0.14, daggerDraw: 0.16, musketUp: 0.12, bowUp: 0.2, haft: 0.17, file: 0.17, halt: 0.13, shuffle: 0.08, brush: 0.075, flag: 0.38, shoulder: 0.09, leather: 0.14, snare: 0.16, fitTap: 0.22 };
 const FREC = { coin: 0.25, purse: 0.17, parchment: 0.06, cock: 0.29, chestShut: 0.25 };
 const rec = (o, kind, t, g = 1, rate) => !!window.__sfxRec && window.__sfxRec(kind, o, g * (UREC[kind] || 1), t, rate);
 const frec = (name, after = 0, g = 1, rate) => { const F = window.__foley; return !!F && !!F.rec && F.rec(name, g * (FREC[name] || 1), after, rate); };
@@ -132,7 +132,7 @@ Object.assign(UISFX, {
   }),
   // a finish chosen: a brush through stain, a fitting tapped, leather worked, cloth shaken
   finish: slot => play((a, o, t) => {
-    if (slot === "wood" ? rec(o, "brush", t) : slot === "grip" ? rec(o, "leather", t) : slot !== "fit" && rec(o, "flag", t, 0.25)) return;
+    if (slot === "wood" ? rec(o, "brush", t) : slot === "grip" ? rec(o, "leather", t) : slot === "fit" ? rec(o, "fitTap", t) : rec(o, "flag", t, 0.25)) return;
     if (slot === "wood") { for (let i = 0; i < 2; i++) burst(a, o, t + i * 0.16, { f: 1800, q: 0.7, dur: 0.15, vol: 0.04, sweep: i ? -900 : 900 }); return; }
     if (slot === "fit") { ring(a, o, t, 1650, { vol: 0.05, decay: 0.5, parts: [1, 2.6, 4.9] }); ring(a, o, t + 0.11, 1650, { vol: 0.03, decay: 0.35, parts: [1, 2.6, 4.9] }); return; }
     if (slot === "grip") { for (let i = 0; i < 3; i++) burst(a, o, t + i * 0.07, { f: 500 + i * 120, q: 6, dur: 0.06, vol: 0.05 }); return; }
