@@ -3628,7 +3628,7 @@ class Arena {
       // (a historical battle: the two armies by their own names — King William's, King James's)
       const HS = this.hist ? [this.hist.b.sides[this.hist.side].name, this.hist.b.sides[1 - this.hist.side].name] : null;
       const runT = this.units.filter(u => u.alive && u.routing && this.alOf(u.team) !== 0).length, runM = this.units.filter(u => u.alive && u.routing && this.alOf(u.team) === 0).length;
-      const others = HS ? `${HS[1]} · ${theirs - runT}${runT ? ` · ${runT} running` : ""}` : this.custom ? this.custom.map((n, a) => a && this.sideOf(a).length ? `${this.uni[a].name} ${this.sideOf(a).length}` : null).filter(Boolean).join(" · ") : null;
+      const others = HS ? `${HS[1]} · ${theirs - runT}${runT ? ` · ${runT} running` : ""}` : this.custom ? this.custom.map((n, a) => { const k = a && this.sideOf(a).filter(u => !u.fled && !u.routing && !u.musician).length; return k ? `${this.uni[a].name} ${k}` : null; }).filter(Boolean).join(" · ") : null;   // (each side by the men it has still standing: not the ones gone off the field, nor its band)
       h.querySelector(".ph-me .ph-name").textContent = `${HS ? HS[0] : this.uni ? this.uni[0].name : "Yours"} · ${ours - runM}${HS ? "" : " standing"}${runM ? ` · ${runM} running` : ""}`;
       h.querySelector(".ph-foe .ph-name").textContent = others != null ? (others || "None standing") : `${this.uni ? this.uni[1].name : "Theirs"} · ${theirs - runT} standing${runT ? ` · ${runT} running` : ""}`;
       h.querySelector(".ph-me .ph-pips").innerHTML = ""; h.querySelector(".ph-foe .ph-pips").innerHTML = "";
