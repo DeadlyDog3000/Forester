@@ -801,7 +801,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (a horse's shoes on cobbles and on a bridge's planks, cut stroke by stroke from a horse walking on each)
   hoofStone: [8, "foley", 3.59], hoofWood: [8, "foley", 1.32],
   // (a palisade on fire: a roaring blaze of logs, made to go round)
-  blaze: [2, "foley"] }, heard = {}, hearing = {};
+  blaze: [2, "foley"],
+  // (a sickle through ripe rye, cut stroke by stroke from a long take of reaping)
+  reap: [8, "foley", 0.48] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -825,7 +827,7 @@ let lastIdx = {};
 // a sound played: how loud, a little higher or lower each time, and from where (quieter far off, to one side,
 // its top lost in the trees) — or right beside you
 // (sounds with no made one, sent for with the first sound played, so they're in by the time they're wanted)
-const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark"]; let early = false;
+const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark", "reap"]; let early = false;
 function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}) {
   const a = ac(), out = window.__foresterBus; if (!a || !out) return;
   if (!early) { early = true; for (const n of EARLY) recorded(a, n); }

@@ -2256,7 +2256,7 @@ async function ch9(w, opts = {}) {
     const its = [];
     its.push(w.addInteract({ x: BLOCK.x, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, hold: 2.2, label: () => `Split a log (${S.stack} on the stack)`, can: () => S.stack > 0 && S.wood < 12,
       onHoldTick: (dt, t) => { if (Math.floor(t * 1.4) !== Math.floor((t - dt) * 1.4)) SFX.chop(); },
-      use: () => { S.stack--; S.wood = Math.min(12, S.wood + 2); w.setStack(S.stack); setPile(S.wood); SFX.build(); persist(); } }));
+      use: () => { S.stack--; S.wood = Math.min(12, S.wood + 2); w.setStack(S.stack); setPile(S.wood); FOLEY.fall("logsDrop", null, 0.4); persist(); } }));
     for (const m of MOSS) {
       if (S.moss.includes(m.i)) continue;
       const it = w.addInteract({ x: m.x, y: w.heightAt(m.x, m.z) + 0.5, z: m.z, reach: 2.4, hold: 1, label: "Pull the moss from under the snow",
@@ -2626,8 +2626,8 @@ async function ch11(w) {
       b._reap = w.addInteract({ x: b.x, y: w.heightAt(b.x, b.z) + 0.5, z: b.z, reach: 4.2, hold: 3, label: "Reap the rye",
         seg: [b.x - Math.sin(b.ry) * 3.4, b.z - Math.cos(b.ry) * 3.4, b.x + Math.sin(b.ry) * 3.4, b.z + Math.cos(b.ry) * 3.4],
         can: () => (b.growth ?? 1) >= 3,
-        onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.chop(); },
-        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.build(); } });
+        onHoldTick: (dt, t) => { if (Math.floor(t * 1.5) !== Math.floor((t - dt) * 1.5)) FOLEY.strike("reap", null, 0.7); },
+        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); b.growth = 1; town.show(b); w.removeInteract(b._reap); b._reap = null; T.reaped = true; persistT(); town.persist(); SFX.pickup(); } });
       reapIts.push(b._reap);
     }
   };
@@ -2787,8 +2787,8 @@ function dayCycle(w, town, DAY, { onReap } = {}) {
     for (const fl of S.buildings) if (fl.type === "field" && fl.sown && (fl.growth ?? 1) >= 3 && !ripe.has(fl)) {
       const it = w.addInteract({ x: fl.x, y: w.heightAt(fl.x, fl.z) + 0.5, z: fl.z, reach: 4.2, hold: 3, label: "Reap the rye", can: () => (fl.growth ?? 1) >= 3 && !town.winter,
         seg: [fl.x - Math.sin(fl.ry) * 3.4, fl.z - Math.cos(fl.ry) * 3.4, fl.x + Math.sin(fl.ry) * 3.4, fl.z + Math.cos(fl.ry) * 3.4],
-        onHoldTick: (dt2, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt2) * 3)) SFX.chop(); },
-        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.build(); if (onReap) onReap(fl); } });
+        onHoldTick: (dt2, t) => { if (Math.floor(t * 1.5) !== Math.floor((t - dt2) * 1.5)) FOLEY.strike("reap", null, 0.7); },
+        use: () => { S.rye += RYE_HARVEST; S.seed = +((S.seed ?? 3) + 0.3).toFixed(2); fl.growth = 1; town.show(fl); w.removeInteract(it); ripe.delete(fl); town.persist(); SFX.pickup(); if (onReap) onReap(fl); } });
       ripe.set(fl, it);
     }
   });

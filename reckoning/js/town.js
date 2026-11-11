@@ -1193,7 +1193,7 @@ export class Town {
         const at = n => Math.floor(t * n) !== Math.floor((t - dt) * n);
         if (b.type !== "field") { if (at(2.6)) SFX().hammer(); return; }
         if ((b.dug || 0) < 3) { if (at(0.9)) SFX().dig(); }
-        else if (b.sown && (b.growth ?? 1) >= 3) { if (at(1.25)) AUDIO.whoosh(0.22, false); }
+        else if (b.sown && (b.growth ?? 1) >= 3) { if (at(1.25)) FOLEY.strike("reap", null, 0.6); }
         else if (at(1.3)) SFX().pickup && SFX().pickup();
       },
       use: () => {
