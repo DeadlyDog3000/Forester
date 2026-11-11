@@ -7,12 +7,13 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.288", date: "10 November 2026", title: "Loosed, loaded and rowed",
+    v: "1.99.288", date: "10 November 2026", title: "Every sound its own",
     items: [
       "The bow and the crossbow are recorded: an arrow drawn from the quiver, the bow drawn and loosed, the windlass wound, the string latched, the bolt laid in and let fly. So is a bayonet fixed and pulled.",
       "A battle at sea is heard: round shot crashing into a hull or plunging into the sea, a ship's timbers groaning as she goes down, and under it all the sea and the wind in the rigging.",
       "In a siege, round shot cracks on the stone of a town's wall and splits the oak of its gate, and a breach comes down as masonry and not a gunshot. A palisade set alight roars and crackles as it burns, louder the nearer you are. A ball into a river throws up white water and a splash.",
-      "Things that used to come down with the sound of a felled tree have their own: a beast shot in the hunt, a raider falling, a ladder thrown down from the wall, a rock broken, logs put on the pile, a house or a palisade smashed. A pickaxe rings on stone, the gunsmith's hammer on his anvil, and a worn-out tool's handle snaps (they were a sword's clang). Digging a field is a spade and not an axe, reaping rye is a sickle through the stalks (it was an axe too), a door at the sawhorse is sawn, the forge rings and hisses as ore is smelted and bronze cast, and meat roasted sizzles. Logs stacked or put on the fire knock as logs, and a beast dressed is done with the knife.",
+      "Things that used to come down with the sound of a felled tree have their own: a beast shot in the hunt, a raider falling, a ladder thrown down from the wall, a rock broken, logs put on the pile, a house or a palisade smashed.",
+      "Work sounds like the work: a pickaxe rings on stone, the gunsmith's hammer on his anvil, and a worn-out tool's handle snaps (they were a sword's clang). Digging a field is a spade and not an axe, reaping rye is a sickle through the stalks (it was an axe too), a door at the sawhorse is sawn, the forge rings and hisses as ore is smelted and bronze cast, and meat roasted sizzles. Logs stacked or put on the fire knock as logs, and a beast dressed is done with the knife.",
       "In the hunt, a boar grunts as it charges and squeals when it's struck (it had a man's grunt), and the first red deer to take fright barks its alarm.",
       "A horse's hooves ring on cobbles, knock on planks and splash through water, instead of falling on turf wherever it goes.",
       "Oars going in and coming out, the water along a boat's hull, a keel run aground, a ladder climbed and a horse's harness are real sounds now; so are a drink, a bite of bread, meat on the fire, a fly going by and a man going down. On a summer night the crickets are real, and in a wind the old trunks creak. On a winter night a wolf howls a long way off, and the trees crack in the frost.",
