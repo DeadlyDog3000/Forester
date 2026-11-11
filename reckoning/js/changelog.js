@@ -7,7 +7,7 @@
 
 export const CHANGELOG = [
   {
-    v: "1.99.289", date: "11 November 2026", title: "The armoury, by ear",
+    v: "1.99.289", date: "11 November 2026", title: "They break and run",
     items: [
       "Men who break in a battle run off the field: away past the trees, gone for good and counted among those who fled, not crouched at the edge of the field waiting to be cut down. And a running man caught and struck hand to hand turns and fights for his life, then runs again once he's clear.",
       "A battle ends when every fighting man of a side is running or down: their band's drummer and fifer left on the field kept a beaten side from losing, and the battle went on with nobody to fight.",
