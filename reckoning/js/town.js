@@ -1217,7 +1217,7 @@ export class Town {
         if (Object.keys(want).length) {
           b.got = b.got || {};
           for (const [k, n] of Object.entries(want)) { const m = Math.min(n, this.haveYou(k)); this.take(k, m, true); b.got[k] = (b.got[k] || 0) + m; }
-          this.show(b); this.persist(); SFX().pickup(); return;
+          this.show(b); this.persist(); FOLEY.strike("matsDrop", null, 0.5); return;
         }
         if (NEEDS_DOOR.has(b.type) && !b.door) {
           if (!(this.S.doors > 0)) return;
