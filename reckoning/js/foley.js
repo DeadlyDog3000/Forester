@@ -795,7 +795,7 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (the church bell: audio.js's recordings, levelled to the made one here)
   bell: [2, "sfx", 1.1],
   // (a pickaxe on stone, the smith's hammer on his anvil, a tool's handle snapping: they were a sword's clang)
-  pick: [2, "foley", 0.71], anvil: [3, "foley", 0.87], toolBreak: [3, "foley", 1.27], quench: [3, "foley", 0.77], burn: [3, "foley", 0.62],
+  pick: [7, "foley", 1.6], anvil: [3, "foley", 0.87], toolBreak: [3, "foley", 1.27], quench: [3, "foley", 0.77], burn: [3, "foley", 0.62],
   // (the hunt's beasts: a boar's grunt as it charges and its squeal when it's struck, a red deer's bark of alarm)
   boar: [4, "foley", 0.58], boarHurt: [3, "foley", 0.71], deerBark: [4, "foley", 0.42],
   // (a horse's shoes on cobbles and on a bridge's planks, cut stroke by stroke from a horse walking on each)
