@@ -2665,7 +2665,7 @@ export class Town {
         matSite.got = matSite.got || {};
         let left = 4;
         for (const [k, n] of Object.entries(this.wants(matSite))) { const m = Math.min(n, this.have(k), left); this.S[k] -= m; matSite.got[k] = (matSite.got[k] || 0) + m; left -= m; }
-        a.person.setPose("idle"); this.show(matSite); this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "building", 0.6);
+        a.person.setPose("idle"); this.show(matSite); this.persist(); this.sfxAt(a, "matsDrop"); this.learn(a, "building", 0.6);
         await sleep(2);
       } else if (!clearing && works && workAt && this.untended) {
         a.doing = `waiting at the ${BUILDINGS[workAt.type].name.toLowerCase()} — the keep isn't paid`;
