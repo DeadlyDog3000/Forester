@@ -1570,7 +1570,7 @@ export class Player {
       if (this.crouched) this.crouched = false;
       // the strokes: a splash now and then as the arms come round
       const ph = (this.swimT * 0.55) % 1;
-      if (moving && (this.lastStroke ?? 1) > ph) FOLEY_SPLASH(this.pos, 0.25);
+      if (moving && (this.lastStroke ?? 1) > ph) { const F = window.__foley; if (F && F.strike) F.strike("swim", null, 0.4); }
       this.lastStroke = ph;
     } else {
       if (was && this.swimStow) {
