@@ -1621,7 +1621,7 @@ export class Town {
       const d = Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z);
       if (d > 1.6) { await Promise.race([a.approach(foe.a.pos, 1.3, 3.2), sleep(0.7)]); alive(); return true; }
       a.faceTo(foe.a.pos.x, foe.a.pos.z); a.person.setPose(Math.random() < 0.3 ? "overhead" : "chop"); await sleep(0.6); alive(); a.person.setPose("idle");
-      if (!foe.down && Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z) < 2) { foe.hurt(this.armDmg(arm) * armSkill(a.settler, "fighting")); this.learn(a, "fighting", 0.5); AUDIO.clang(0.5, a.pos); }
+      if (!foe.down && Math.hypot(foe.a.pos.x - a.pos.x, foe.a.pos.z - a.pos.z) < 2) { foe.hurt(this.armDmg(arm) * armSkill(a.settler, "fighting")); this.learn(a, "fighting", 0.5); }
       await sleep(0.8); return true;
     }
     // otherwise, close behind you
