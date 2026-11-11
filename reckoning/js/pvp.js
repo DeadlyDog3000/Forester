@@ -105,7 +105,7 @@ const RELOAD = { musket: 6.5, pistol: 4.2, bow: 0.9, crossbow: 2.6 };
 const RANGE = { musket: 100, pistol: 12, bow: 38, crossbow: 45 };   // (a musket's reach: the two lines as they first stand, and a little more)
 // (in a battle, a line of bowmen looses at a line of men, not one man: arrows dropped into the mass from well out —
 //  the Tatars' composite bows carried a long way — so they shoot before the muskets close, not only at forty paces)
-const BATTLE_RANGE = { ...RANGE, bow: 85, crossbow: 70 };
+const BATTLE_RANGE = { ...RANGE, bow: 85, crossbow: 70 }, AT_WILL = 0.65;
 const HP = 100, ROUNDS_TO_WIN = 2, ROUND_SECS = 150;
 
 // what a shot or an arrow does to a man (by its power, as the hunt tells it): a musket ball, a pistol's, a bolt, an
@@ -4387,7 +4387,10 @@ class Bot extends Fighter {
       a.path = [];
       // (a high arrow goes over the heads of the men in front: the rear ranks of the bowmen shoot too)
       const sees = this.los || (useK === "bow" && this.arena.battle && d > 22);
-      if (!useK || !O.fire || !sees || d > BATTLE_RANGE[useK] * this.arena.sight) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
+      // (firing at will, a man waits till they're within a telling shot — two-thirds of a musket's reach: at its far end a
+      //  ball's a waste of a charge, and a line that spends its loads there is caught empty when they come on. A volley at
+      //  the word goes at whatever range it's given)
+      if (!useK || !O.fire || !sees || d > BATTLE_RANGE[useK] * this.arena.sight * (useK === "musket" ? AT_WILL : 1)) { this.aimT = 0; this.aimUp(false); a.faceTo(fp.x, fp.z); if (!useK && this.heldK !== longK && longK !== "none") this.hold(longK); return; }
       // (the bowmen of a battle shoot as one: at the word every bow comes up and is drawn together, raised high for the
       //  long arc, held — and loosed at once, a whole flight of arrows going up into the sky together; a man who came
       //  late to the draw waits for the next)
