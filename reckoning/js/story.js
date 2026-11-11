@@ -1752,7 +1752,7 @@ async function ch7(w) {
     let took = false;
     const it = w.addInteract({ x: STACK.x, y: w.cy + 0.8, z: STACK.z, reach: 2.6, label: "Take six logs", use: () => { took = true; } });
     await until(() => took);
-    w.removeInteract(it); SFX.pickup();
+    w.removeInteract(it); FOLEY.fall("logsDrop", null, 0.4);
     pl.carryN = 6; w.setStack(2); UI.carry("Carrying 6 logs");
     S.stage = 1; persist();
   } else if (S.stage === 1) { pl.carryN = 6; w.setStack(2); UI.carry("Carrying 6 logs"); }
