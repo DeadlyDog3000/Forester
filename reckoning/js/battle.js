@@ -1408,7 +1408,9 @@ export class Field {
       const n = units.filter(u => u.alive && (u.al ?? u.team) !== this.siege.side && Math.hypot(u.pos.x - b.x, u.pos.z - b.z) < 3.2).length;
       if (!n) continue;
       b.hp -= n * dt * 0.9; b.knock = (b.knock || 0) - dt;
-      if (b.knock <= 0) { b.knock = 0.7 + Math.random() * 0.6; const F = window.__foley; F && F.thunk && F.thunk(new THREE.Vector3(b.x, b.top - 1.5, b.z), 0.5); }
+      if (b.knock <= 0) { b.knock = 0.7 + Math.random() * 0.6; const F = window.__foley, at = new THREE.Vector3(b.x, b.top - 1.5, b.z);
+        // (axes into the gate's oak, and the butts of muskets and shoulders against it)
+        if (b.gate && F && F.chop && Math.random() < 0.6) F.chop(at, 0.6); else F && F.thunk && F.thunk(at, 0.5); }
       if (b.hp <= 0) this.batter(new THREE.Vector3(b.x, b.top - 1, b.z), 1);
     }
     const root = this.w.root;
