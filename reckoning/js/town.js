@@ -1106,7 +1106,7 @@ export class Town {
         const i = G.onFrame.indexOf(tick); if (i >= 0) G.onFrame.splice(i, 1);
         w.root.remove(ghost); this.planning = null;
         // (in someone else's colony the plan goes to their game, which lays it out, by these same rules)
-        if (b) { if (this.remoteAct) { this.remoteAct("plan", b); SFX().build(); } else this.commitPlan(b); }
+        if (b) { if (this.remoteAct) { this.remoteAct("plan", b); FOLEY.strike("stake", null, 0.7); } else this.commitPlan(b); }
         res(b);
         // (a path or a wall goes on: the next length is ready to lay until you put the plan away)
         if (b && strip) setTimeout(() => { if (!this.planning && !this.stopped) this.plan(type); }, 0);
@@ -1121,7 +1121,7 @@ export class Town {
   commitPlan(b) {
     const def = BUILDINGS[b.type];
     if (b.type === "field") this.S.seed = +((this.S.seed || 0) - 1).toFixed(2);
-    this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.clearStumps(b); this.persist(); SFX().build();
+    this.S.buildings.push(b); this.show(b); if (!def.path) this.site(b); this.clearStumps(b); this.persist(); FOLEY.strike("stake", null, 0.7);   // (the site staked out)
   }
   // ---- furnishing the cabin: a ghost of the piece stands where you look, inside the walls ----
   canAfford(type) { const d = FURNITURE[type]; return this.S.store >= (d.logs || 0) && this.S.rye >= (d.rye || 0); }
@@ -1159,7 +1159,7 @@ export class Town {
         if (f) {
           this.S.store -= d.logs || 0; this.S.rye -= d.rye || 0; this.showStore();
           this.S.furniture = [...w.furniture, f]; w.setFurniture(this.S.furniture);
-          this.persist(); SFX().build(); this.emit("furnished", f);
+          this.persist(); FOLEY.strike("furnish", null, 0.7); this.emit("furnished", f);   // (set down in the room)
           // made on the spot: a moment's hammering
           pl.workFor && pl.workFor("hammer", 1.8);
           UI.hint(`${d.name} made: ${[d.logs ? `${d.logs} logs` : "", d.rye ? `${d.rye} rye` : ""].filter(Boolean).join(" and ")} from the ${this.has("woodshed") ? "woodshed" : "stack"} (${this.S.store} left).`, 4);

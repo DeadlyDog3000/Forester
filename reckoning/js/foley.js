@@ -797,6 +797,8 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (the field's hand-work: seed cast onto the dug earth, a bush picked over by hand, frozen moss torn up — each its own,
   //  where they were all one "picked something up")
   sow: [6, "foley", 0.89], pluck: [6, "foley", 2.08], moss: [5, "foley", 1.74], chink: [4, "foley", 2.31],
+  // (a building site laid out — its corner stakes driven in with a mallet — and furniture set down in a house)
+  stake: [5, "foley", 1.56], furnish: [5, "foley", 1.79],
   // (the wax seal on a letter: a brass seal pressed down through the paper onto the desk)
   seal: [3, "foley", 3.5],
   // (the church bell: audio.js's recordings, levelled to the made one here)
@@ -853,7 +855,7 @@ let lastIdx = {};
 // a sound played: how loud, a little higher or lower each time, and from where (quieter far off, to one side,
 // its top lost in the trees) — or right beside you
 // (sounds with no made one, sent for with the first sound played, so they're in by the time they're wanted)
-const EARLY = ["sow", "pluck", "moss", "chink", "animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark", "reap", "fuse", "blow", "gull", "buzzard", "flush", "swim", "chestOpen", "chestShut"]; let early = false;
+const EARLY = ["sow", "pluck", "moss", "chink", "stake", "furnish", "animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark", "reap", "fuse", "blow", "gull", "buzzard", "flush", "swim", "chestOpen", "chestShut"]; let early = false;
 function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}) {
   const a = ac(), out = window.__foresterBus; if (!a || !out) return;
   if (!early) { early = true; for (const n of EARLY) recorded(a, n); }
