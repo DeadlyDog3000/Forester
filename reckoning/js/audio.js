@@ -101,6 +101,32 @@ function loadSfx(a) {
         .then(b => a.decodeAudioData(b)).then(b => (SBUF[k] ||= []).push(b)).catch(() => {});
   }).catch(() => {});
 }
+// ---- the band's instruments, recorded: a held note or two of each (art/sfx/<kind>_NN.ogg), and the pitch of each
+// take, measured — each of the tune's notes played on the take nearest it, pitched to it ----
+const NOTES = { fifeN: [363.31, 1685.68], trumpetN: [294.39, 328.95, 704.39], zurnaN: [284.51, 373.64, 422.23] }, NBUF = {};
+// (how loud against the made ones, measured on a held note)
+const NOTE_GAIN = { fifeN: 1.45, trumpetN: 1.86, zurnaN: 3.5 };
+let nLoad = false;
+function loadNotes(a) {
+  if (nLoad) return; nLoad = true;
+  for (const [k, F] of Object.entries(NOTES)) F.forEach((_, i) => fetch(new URL(`../art/sfx/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url))
+    .then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => { (NBUF[k] ||= [])[i] = b; }).catch(() => {}));
+}
+// a note of f Hz, L seconds long, into node at gain v from time t (not loaded: false, and the made one plays)
+function sampledNote(a, kind, f, L, node, v, t) {
+  const F = NOTES[kind], B = NBUF[kind]; if (!B || F.some((_, i) => !B[i])) return false;
+  let i = 0; for (let j = 1; j < F.length; j++) if (Math.abs(Math.log2(f / F[j])) < Math.abs(Math.log2(f / F[i]))) i = j;
+  const s = a.createBufferSource(), g = a.createGain(), per = 1 / F[i];
+  s.buffer = B[i]; s.playbackRate.value = f / F[i];
+  // (held longer than the take: round and round a stretch of its steady middle, cut at a whole number of its own waves
+  //  — on whole samples of the buffer, or the wrap ticks)
+  const sr = B[i].sampleRate, ls = Math.round(0.55 / per) * per, le = ls + Math.round(0.6 / per) * per;
+  s.loop = true; s.loopStart = Math.round(ls * sr) / sr; s.loopEnd = Math.round(le * sr) / sr;
+  v *= NOTE_GAIN[kind];
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + 0.012); g.gain.setValueAtTime(v, t + Math.max(0.02, L - 0.035)); g.gain.linearRampToValueAtTime(0, t + L);
+  s.connect(g); g.connect(node); s.start(t); s.stop(t + L + 0.05); lease(g, L + 0.5);
+  return true;
+}
 // ---- and the steady ones, recorded to loop: rain light and heavy and on a roof, a brook, wind, a town's crowd, a
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
@@ -151,7 +177,7 @@ function ctx() {
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
   ac = window.__foresterAC;
   if (!ac) return null;
-  budget(ac); loadVoices(ac); loadOrders(ac); loadSfx(ac); loadLoops(ac);
+  budget(ac); loadVoices(ac); loadOrders(ac); loadSfx(ac); loadLoops(ac); loadNotes(ac);
   bus = ac.createGain(); bus.gain.value = 1;
   // (and a limiter on it, as the first Forester's sounds have: a battle's cries and shots, all of them heard now, summed
   //  past full scale and broke up; caught and rounded over instead — nothing alone comes near it)
@@ -284,6 +310,7 @@ export const AUDIO = {
   fife(midi, dur, { at = null, when = 0, vol = 1 } = {}) {
     const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 160); if (k * vol < 0.02 || !room(0.6)) return;
     const t = Math.max(a.currentTime, when), f = 440 * 2 ** ((midi - 69) / 12), L = Math.max(0.06, dur * 0.9), g = a.createGain(), v = 0.13 * vol * k;
+    if (!window.__madeNotes && sampledNote(a, "fifeN", f, L, node, v, t)) return;
     const o = a.createOscillator(); o.type = "triangle"; o.frequency.value = f;
     const o3 = a.createOscillator(); o3.type = "sine"; o3.frequency.value = f * 3; const g3 = a.createGain(); g3.gain.value = 0.12; o3.connect(g3); g3.connect(g);
     const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 5 + Math.random(); vg.gain.value = f * 0.005; vib.connect(vg); vg.connect(o.frequency);
@@ -311,6 +338,7 @@ export const AUDIO = {
   zurna(midi, dur, { at = null, when = 0, vol = 1 } = {}) {
     const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 200); if (k * vol < 0.02 || !room(0.6)) return;
     const t = Math.max(a.currentTime, when), f = 440 * 2 ** ((midi - 69) / 12), L = Math.max(0.06, dur * 0.94), v = 0.075 * vol * k;
+    if (!window.__madeNotes && sampledNote(a, "zurnaN", f, L, node, v, t)) return;
     const o = a.createOscillator(); o.type = "sawtooth"; o.frequency.value = f;
     const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 6; vg.gain.value = f * 0.008; vib.connect(vg); vg.connect(o.frequency);
     const f1 = a.createBiquadFilter(); f1.type = "peaking"; f1.frequency.value = 1300; f1.Q.value = 2; f1.gain.value = 9;
@@ -325,6 +353,7 @@ export const AUDIO = {
   trumpet(midi, dur, { at = null, when = 0, vol = 1, accent = false } = {}) {
     const a = ctx(); if (!a) return; const { node, k } = placed(a, at, 220); if (k * vol < 0.02 || !room(0.6)) return;
     const t = Math.max(a.currentTime, when), f = 440 * 2 ** ((midi - 69) / 12), L = Math.max(0.07, dur * 0.88), v = 0.09 * vol * k * (accent ? 1.15 : 1);
+    if (!window.__madeNotes && sampledNote(a, "trumpetN", f, L, node, v, t)) return;
     const o = a.createOscillator(); o.type = "sawtooth"; o.frequency.setValueAtTime(f * 0.97, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.04);
     const vib = a.createOscillator(), vg = a.createGain(); vib.frequency.value = 5.2; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(f * 0.004, t + Math.min(0.4, L)); vib.connect(vg); vg.connect(o.frequency);
     const lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.Q.value = 1.2; lp.frequency.setValueAtTime(f * 1.5, t); lp.frequency.linearRampToValueAtTime(f * 6, t + 0.06); lp.frequency.setValueAtTime(f * 5, t + Math.max(0.07, L - 0.05)); lp.frequency.linearRampToValueAtTime(f * 1.5, t + L);
