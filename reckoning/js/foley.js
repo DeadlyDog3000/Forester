@@ -812,7 +812,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (the two smallest clicks — a flintlock to half cock, an arrow's nock onto the string — cut from takes of several)
   halfcock: [4, "foley", 1.6], nock: [2, "foley", 0.92],
   // (a herring gull crying over the harbour, as loud as the woods' crow)
-  gull: [5, "foley", 0.079] }, heard = {}, hearing = {};
+  gull: [5, "foley", 0.079],
+  // (the woods': a buzzard mewing as it wheels overhead, and a flock of small birds bursting out of a bush)
+  buzzard: [2, "foley", 0.115], flush: [3, "foley", 0.256] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -836,7 +838,7 @@ let lastIdx = {};
 // a sound played: how loud, a little higher or lower each time, and from where (quieter far off, to one side,
 // its top lost in the trees) — or right beside you
 // (sounds with no made one, sent for with the first sound played, so they're in by the time they're wanted)
-const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark", "reap", "fuse", "blow", "gull"]; let early = false;
+const EARLY = ["animalFall", "ladderFall", "rockBreak", "logsDrop", "timberFall", "pick", "anvil", "toolBreak", "quench", "burn", "boar", "boarHurt", "deerBark", "reap", "fuse", "blow", "gull", "buzzard", "flush"]; let early = false;
 function play(name, { vol = 1, rate = [0.95, 1.05], at = null, reach = 50 } = {}) {
   const a = ac(), out = window.__foresterBus; if (!a || !out) return;
   if (!early) { early = true; for (const n of EARLY) recorded(a, n); }
@@ -930,6 +932,8 @@ export const FOLEY = {
   beast: (kind, at, vol = 0.8) => play(kind, { vol, at, reach: 70, rate: [0.9, 1.1] }),
   // a gull overhead, crying: heard a long way over the water
   gull: (at, vol = 1) => play("gull", { vol, at, reach: 140, rate: [0.92, 1.1] }),
+  // a bird of the woods heard from where it is: "buzzard" (high overhead, carrying far) or "flush" (wings out of a bush)
+  bird: (kind, at, vol = 1) => play(kind, { vol, at, reach: kind === "buzzard" ? 180 : 90, rate: [0.93, 1.07] }),
   // a town's wall struck by round shot, or its gate; and either coming down (silent till their recordings are in)
   wallHit: (at, vol = 0.8, gate = false) => play(gate ? "hullHit" : "wallHit", { vol: gate ? vol * 0.9 : vol, at, reach: 160, rate: [0.9, 1.1] }),
   wallFall: (at, vol = 1, gate = false) => play(gate ? "hullHit" : "wallFall", { vol: gate ? vol * 1.2 : vol, at, reach: 260, rate: gate ? [0.8, 0.9] : [0.92, 1.05] }),

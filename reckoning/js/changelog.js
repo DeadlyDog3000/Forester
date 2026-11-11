@@ -17,7 +17,7 @@ export const CHANGELOG = [
       "In the hunt, a boar grunts as it charges and squeals when it's struck (it had a man's grunt), and the first red deer to take fright barks its alarm.",
       "The cover scattered between two armies — walls, felled trees, a farm, wagons — no longer stands half in a river: nothing is set down where any of it would be in the water.",
       "A horse's hooves ring on cobbles, knock on planks and splash through water, instead of falling on turf wherever it goes.",
-      "Oars going in and coming out, the water along a boat's hull, a keel run aground, a ladder climbed and a horse's harness are real sounds now; so are a drink, a bite of bread, meat on the fire, a fly going by and a man going down. On a summer night the crickets are real, and in a wind the old trunks creak. On a winter night a wolf howls a long way off, and the trees crack in the frost. Hamburg's gulls cry as they wheel over the harbour (they flew in silence).",
+      "Oars going in and coming out, the water along a boat's hull, a keel run aground, a ladder climbed and a horse's harness are real sounds now; so are a drink, a bite of bread, meat on the fire, a fly going by and a man going down. On a summer night the crickets are real, and in a wind the old trunks creak. On a winter night a wolf howls a long way off, and the trees crack in the frost. Hamburg's gulls cry as they wheel over the harbour, the buzzard over the woods mews as it circles, and birds put up by a falling tree or a shot burst out of the trees with a rush of wings (they all flew in silence).",
     ],
   },
   {
