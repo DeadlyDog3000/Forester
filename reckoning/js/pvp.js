@@ -4525,6 +4525,9 @@ class Puppet extends Fighter {
     if (!this.alive) return;
     // (the first word of where he is: put there, not slid there from the one spot every man was made at)
     if (!this.seen) { this.seen = true; this.a.place(x, z, yaw); this.tx = x; this.tz = z; this.tyaw = yaw; this.spd = 0; }
+    // (gone off the field in their game — set well out past the trees there: gone here too, not stood in the woods)
+    { const far = Math.hypot(x - C.x, z - C.z) > this.arena.bound + 20;
+      if (far !== !!this.fled) { this.fled = far; this.a.root.visible = !far; if (this.a.horse && this.a.horse.root) this.a.horse.root.visible = !far; if (far) { this.a.place(x, z, yaw); this.tx = x; this.tz = z; this.spd = 0; return; } } }
     this.spd = Math.hypot(x - this.tx, z - this.tz) * 10; this.tx = x; this.tz = z; this.tyaw = yaw;
     if (held !== undefined && (held || null) !== (this.heldK || null)) this.hold(held || null);
     const P = this.a.person;
