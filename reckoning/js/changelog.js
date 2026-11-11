@@ -28,6 +28,7 @@ export const CHANGELOG = [
       "A key you've moved in Settings is the key the game tells you to press: hints, objectives, the prompt to take or open something, your companion's advice, the first battle's lessons, the guide, the cooking and the panels' own \"B or F to close\" all said the key the game came with, whatever you'd changed it to.",
       "The hide pack you stitch at the chopping block is a knapsack, as it was called in 1683 (\"backpack\" is a word of the twentieth century).",
       "Arming for a campaign battle no longer tells you about bots and the purse: every arm is free there, and the screen says so; the purse it never touches isn't shown.",
+      "A regiment's battle honours carry the place's name — \"Poland–Lithuania\", \"The Sahara\" — not \"Near Poland–Lithuania\".",
       "On the title screen in the demo, the Online heading fits on one line again, level with Single Player.",
     ],
   },

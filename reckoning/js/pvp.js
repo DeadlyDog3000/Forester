@@ -754,7 +754,7 @@ function regimentRow(A) {
   if (!R.men.length) return `<div class="pv-h">Your regiment</div><div class="pv-sn">The men who come through a battle against bots march in the next, the steadier and the better shots for it, and are made corporal and sergeant as they earn it. None yet: fight, and the rolls begin.</div>`;
   return `<div class="pv-h">Your regiment</div><div class="pv-sn">${R.men.length} men on the rolls${R.fought ? `, ${R.fought} battle${R.fought > 1 ? "s" : ""} fought` : ""}. The longest-serving go first into the places of their arm.</div>
     <div class="rg-list">${men.map(m => `<div class="rg-m"><b>${esc(m.name)}</b><small>${m.rank ? m.rank[0].toUpperCase() + m.rank.slice(1) + " · " : ""}${esc((TROOPS[m.kind] || { one: m.kind }).one)} · ${m.battles} battle${m.battles > 1 ? "s" : ""}</small></div>`).join("")}</div>
-    ${(R.honours || []).length ? `<div class="rg-hon"><b>Battle honours:</b> ${R.honours.slice(0, 8).map(h => esc(h.place)).join(" · ")}</div>` : ""}`;
+    ${(R.honours || []).length ? `<div class="rg-hon"><b>Battle honours:</b> ${R.honours.slice(0, 8).map(h => esc(honourOf(h.place || ""))).join(" · ")}</div>` : ""}`;
 }
 // (supplies for works: loads of fascines, stakes and tools, bought here, and in the deployment spent on the works)
 function supplyRow(A, left) {
@@ -1408,6 +1408,9 @@ function histGround(b, given = null) {
   }
   return battleGround();
 }
+// a battle honour as a regiment would carry it: the place's name, not where it was from ("Near Poland–Lithuania" was
+// the honour; now "Poland–Lithuania", "The Sahara", "Beyond the Dzungar Khanate")
+const honourOf = t => t.replace(" · by night", "").replace(/^Near (the )?/, (m, th) => th ? "The " : "").replace(/^Far beyond /, "Beyond ");
 function placeName(lon, lat) {
   let best = null, bd = Infinity;
   for (const [n, lo, la] of REALMS_1683) { const dl = Math.abs(((lon - lo + 540) % 360) - 180) * Math.cos(lat * Math.PI / 180), d = Math.hypot(dl, lat - la); if (d < bd) { bd = d; best = n; } }
@@ -3422,7 +3425,7 @@ class Arena {
     // (the roll called: who of your regiment came through, who fell, who was made corporal or sergeant for it)
     if (this.regOn && this.army) {
       const men = this.units.filter(u => u.info && u.info.roll && this.alOf(u.team) === 0).map(u => ({ ...u.info.roll, alive: !!u.alive }));
-      const r = callRoll(this.army.uniform, men, won && !left, won && this.place ? this.place.text.replace(" · by night", "") : null), bits = [];
+      const r = callRoll(this.army.uniform, men, won && !left, won && this.place ? honourOf(this.place.text) : null), bits = [];
       if (r.fell) bits.push(`${r.fell} fell`); if (r.wounded) bits.push(`${r.wounded} wounded, back for the next`); if (r.joined) bits.push(`${r.joined} new men on the rolls`);
       const pr = r.promoted.slice(0, 4).map(p => `${esc(p.name)} made ${p.rank}`).join(", ") + (r.promoted.length > 4 ? `, and ${r.promoted.length - 4} more` : "");
       $("pvpEndS").innerHTML += `<div class="pv-pay"><b>The roll:</b> ${bits.join(" · ") || "all present"}${pr ? ` · ${pr}` : ""}${r.honour ? ` · a battle honour: <b>${esc(r.honour)}</b>` : ""}</div>`;
