@@ -144,7 +144,7 @@ function loadQuill(a) {
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
 // (the heart, a breath — a man's, a woman's — and the melee's: a musket stock knocked aside, blade on blade, a blow home, men running)
-const HANDBELL_REC = 0.81, HEART_REC = 0.56, BREATH_REC = [0.08, 0.12], PARRY_REC = 0.18, CLANG_MELEE = 0.17, BLOW_MELEE = 0.15, RUN_REC = 0.7;
+const CREAK_REC = 0.035, RAM_REC = 0.08, HANDBELL_REC = 0.81, HEART_REC = 0.56, BREATH_REC = [0.08, 0.12], PARRY_REC = 0.18, CLANG_MELEE = 0.17, BLOW_MELEE = 0.15, RUN_REC = 0.7;
 const KITCHEN_REC = { knife: 0.22, stir: 0.11, toss: 0.036, plate: 0.19, sizzle: 5.3, bubble: 3 }, HARBOUR_REC = 4.5, MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
 // (each ground's footfalls, and how loud against the made ones)
 const STEP_REC = { grass: ["stGrass", 0.045], leaves: ["stLeaves", 0.038], dirt: ["stDirt", 0.029], stone: ["stStone", 0.031], wood: ["stWood", 0.019], snow: ["stSnow", 0.03], water: ["stWater", 0.043], marsh: ["stMarsh", 0.062] };
@@ -641,6 +641,8 @@ export const AUDIO = {
   // loading: the ramrod down the barrel, a scrape and a knock
   ramrod() {
     const a = ctx(); if (!a) return;
+    // (the gun loaded: its rammer driven home — the gun crew's own recording, foley.js)
+    if (window.__foley && window.__foley.rec && window.__foley.rec("gunRam", RAM_REC)) return;
     const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.frequency.value = 1800; f.Q.value = 3;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.08, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
@@ -649,6 +651,9 @@ export const AUDIO = {
   // a bow drawn: the wood of the limbs creaking under the strain, a tick and a groan, louder the further it comes back
   bowCreak(k = 0.5) {
     const a = ctx(); if (!a) return;
+    // (recorded: the yew and the string creaking under the strain — a creak's a run of little catches half a second long,
+    //  so one at a time, not one on every call)
+    if (SBUF.bowCreak && SBUF.bowCreak.length >= 2) { const n = a.currentTime; if (n < (this._creakT || 0)) return; this._creakT = n + rnd(0.45, 0.8); recorded(a, "bowCreak", [[bus, CREAK_REC * (0.5 + k)]], n, [0.92, 1.08]); return; }
     const t = a.currentTime, s = noiseSrc(a), f = a.createBiquadFilter(), g = a.createGain();
     f.type = "bandpass"; f.frequency.value = rnd(380, 560) + k * 200; f.Q.value = 9;
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.05 + 0.1 * k, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + rnd(0.07, 0.14));
