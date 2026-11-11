@@ -338,7 +338,8 @@ export class Camps {
     const home = this.town.viewFor ? this.town.viewFor(c.main ? null : (this.S.colonies || []).find(k => k.name === c.name)) : this.town;
     const { got, full } = lootStash(1 + (c.st.gen || 0) * 0.15, home);
     c.st.looted = true; if (c.st.cleared == null) this.cleared(c);
-    AUDIO.pickup ? AUDIO.pickup() : null;
+    // (their stash into your pack: there was no AUDIO.pickup, and the looting made no sound at all)
+    { const F = window.__foley; F && F.packIn && F.packIn(0.5); }
     UI.hint(`The stash: ${got.join(", ")}.${full ? " (Your pack is full — some was left.)" : ""}`, 7);
     G.report && G.report(`The raiders' stash near ${c.name} was taken back.`, "trade", c.main ? null : c.name);
     this.town.persist();
