@@ -1145,7 +1145,7 @@ export class Field {
       for (let k = 0; k < steps; k++) {
         n.v.y -= 9.8 * h; const prev = n.p.clone(); n.p.addScaledVector(n.v, h);
         const gy = this.y(n.p.x, n.p.z) + 0.075;
-        if (n.p.y < gy) { n.p.y = gy; if (n.v.y < -1.5) { n.v.y = -n.v.y * 0.28; F && F.thunk && n.v.length() > 3 && F.thunk(n.p, 0.25); } else n.v.y = 0; n.v.x *= 0.62; n.v.z *= 0.62; }
+        if (n.p.y < gy) { n.p.y = gy; if (n.v.y < -1.5) { n.v.y = -n.v.y * 0.28; F && F.fall && n.v.length() > 3 && F.fall("ballEarth", n.p, 0.18); } else n.v.y = 0; n.v.x *= 0.62; n.v.z *= 0.62; }
         else if (this.w.col.solidAt(n.p.x, n.p.y, n.p.z, 0)) { n.p.copy(prev); n.v.x *= -0.3; n.v.z *= -0.3; n.v.y *= 0.5; }
         if (n.p.y <= gy + 0.001) { n.v.x *= Math.exp(-h * 3); n.v.z *= Math.exp(-h * 3); }
       }
