@@ -89,8 +89,14 @@ export function keyName(code) {
 // (the keys the game was made with, as shown in the controls lists — so a list can print yours in their place)
 // the words of a hint, an objective, a prompt, with a key you've moved written as the key you gave it: "Hold F", "(B)",
 // "F at the site", "press 2"… — only the moved ones, so as it ships every word stays as it was written
+let rkIn = null, rkOut = null, rkFor = null;
 export function rekeyText(text) {
   if (!text || typeof text !== "string" || !Object.keys(binds).length) return text;
+  // (an objective with a clock in it is set every frame: the same words, the same answer)
+  const now = JSON.stringify(binds); if (text === rkIn && now === rkFor) return rkOut; rkIn = text; rkFor = now;
+  return (rkOut = rekeyNow(text));
+}
+function rekeyNow(text) {
   // (all at once, so two keys swapped — F for E and E for F — aren't turned and then turned back)
   const map = {};
   for (const a of ACTIONS) { if (!binds[a.id]) continue; const from = keyName(a.keys[0]); if (/^[A-Z]$/.test(from)) map[from] = keyName(binds[a.id]); }
