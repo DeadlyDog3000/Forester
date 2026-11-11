@@ -1056,10 +1056,16 @@ export const AUDIO = {
 
   // your own heart, loud in your ears: the lub, low and thick, and the dub a sixth of a second after, a little higher and
   // softer — felt as much as heard, the chest's thud and no ring to it
-  heartbeat(vol = 1) {
+  heartbeat(vol = 1, period = 0) {
     const a = ctx(); if (!a) return;
-    // (recorded: a heart's lub-dub, as through a stethoscope, levelled to the made one)
-    if (recorded(a, "heart", [[bus, HEART_REC * vol]], a.currentTime + 0.01, [0.96, 1.04])) return;
+    // (recorded: a heart's lub-dub, as through a stethoscope, levelled to the made one — and racing, each beat let go as
+    //  the next comes rather than over it)
+    { const list = SBUF.heart; if (list && list.length >= 2) {
+      let i = Math.floor(Math.random() * list.length); if (i === SLAST.heart) i = (i + 1) % list.length; SLAST.heart = i;
+      const t = a.currentTime + 0.01, b = list[i], s = a.createBufferSource(), g = a.createGain(), v = HEART_REC * vol; s.buffer = b; s.playbackRate.value = rnd(0.96, 1.04);
+      g.gain.setValueAtTime(v, t); s.connect(g); g.connect(bus); lease(g, b.duration + 1); s.start(t);
+      if (period > 0 && b.duration > period) { g.gain.setValueAtTime(v, t + period * 0.8); g.gain.linearRampToValueAtTime(0.0001, t + period * 0.98); s.stop(t + period); }
+      return; } }
     const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 160; lp.Q.value = 0.9; lp.connect(bus); lease(lp, 3);
     for (const [dt, f, k] of [[0, 52, 1], [0.17, 64, 0.65]]) {
       thump(a, lp, t + dt, f * 1.25, f * 0.75, 0.55 * vol * k, 0.11);

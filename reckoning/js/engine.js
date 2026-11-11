@@ -2329,7 +2329,7 @@ function heartTick(dt) {
   heart.on += ((low > 0 ? 1 : 0) - heart.on) * Math.min(1, dt * 2);
   if (heart.on < 0.01) { if (el.style.opacity !== "0") el.style.opacity = "0"; heart.t = 0; return; }
   const period = 60 / (72 + 68 * low);
-  if ((heart.t -= dt) <= 0) { heart.t += period; heart.beat = 0; if (low > 0) AUDIO.heartbeat && AUDIO.heartbeat(0.45 + 0.55 * low); }
+  if ((heart.t -= dt) <= 0) { heart.t += period; heart.beat = 0; if (low > 0) AUDIO.heartbeat && AUDIO.heartbeat(0.45 + 0.55 * low, period); }
   heart.beat += dt;
   // (the lub and the dub, a sixth of a second apart, the second weaker; each a quick swell and a slower ebb)
   const pulse = b => b < 0 ? 0 : b < 0.05 ? b / 0.05 : Math.exp(-(b - 0.05) * 7);
