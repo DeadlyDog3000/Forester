@@ -2458,7 +2458,9 @@ export class Town {
 
   // each settler's day: their job, over and over
   // a settler's sound: only heard near them (the engine's sounds have no distance of their own)
-  sfxAt(a, name) { const p = G.player && G.player.pos; if (!p || Math.hypot(a.pos.x - p.x, a.pos.z - p.z) < 22) SFX()[name](); }
+  // (a settler's work, heard where it's done: the first Forester's few sounds by name, or any of the recorded work —
+  //  logs set down on the pile, the seed cast, the rye reaped — placed at the settler)
+  sfxAt(a, name, vol = 0.55) { const p = G.player && G.player.pos; if (p && Math.hypot(a.pos.x - p.x, a.pos.z - p.z) >= 22) return; const S = SFX(); if (S[name]) S[name](); else FOLEY.strike(name, a.pos, vol); }
   async work(a) {
     // (in the game's own time, not the clock's: paused, nobody's work gets done; hurried, it's done sooner)
     const sleep = s => new Promise(r => { const until = this.t + s; const tick = () => (this.t >= until || this.stopped ? r() : setTimeout(tick, 40)); setTimeout(tick, Math.min(40, s * 1000)); });
@@ -2631,14 +2633,14 @@ export class Town {
             const [nx, nz] = at(lz + 1); a.faceTo(nx, nz);
             a.person.setPose("dig");
             await sleep(2.2 * this.workMul * this.pace(a, "farming")); alive();
-            if (Math.random() < 0.6) this.sfxAt(a, "chop");
+            if (Math.random() < 0.6) this.sfxAt(a, "dig");
             a.person.setPose("idle");
           }
         } finally { a.person.held.remove(sp); f._farm = null; }
         f.dug = Math.min(3, (f.dug || 0) + 1);
         // (dug: a field now, bare and waiting for the seed — the farmers sow it next)
         if (f.dug >= 3) { f.done = true; f.sown = false; this.emit("dug", f); }
-        this.learn(a, "farming", 0.5); this.show(f); this.persist(); this.sfxAt(a, "build");
+        this.learn(a, "farming", 0.5); this.show(f); this.persist(); this.sfxAt(a, "dig");
         continue;
       }
       // no farmer: whoever does the fields in their place reaps and sows them too, before their own work
@@ -2704,7 +2706,7 @@ export class Town {
         a.person.setPose("hold");
         await a.walkTo(this.stackAt.x + 1.0, this.stackAt.z + 0.6, 1.1); alive();
         a.person.setPose("idle");
-        this.S.store = Math.min(this.storeCap, this.S.store + n); this.showStore(); this.persist(); this.sfxAt(a, "build");
+        this.S.store = Math.min(this.storeCap, this.S.store + n); this.showStore(); this.persist(); this.sfxAt(a, "logsDrop");
         await sleep(2);
       } else if (!clearing && job === "hauler" && site && this.S.store > this.woodReserve()) {
         a.doing = `carrying logs to the ${BUILDINGS[site.type].name.toLowerCase()}`;
@@ -2715,7 +2717,7 @@ export class Town {
         await a.walkTo(site.x + 1.6, site.z + BUILDINGS[site.type].d / 2 + 1.4, 1.1); alive();
         // (the site pulled down while they were on the way: the logs go back on the stack)
         if (site.gone) { this.S.store = Math.min(this.storeCap, this.S.store + n); a.person.setPose("idle"); this.showStore(); this.persist(); continue; }
-        site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); this.sfxAt(a, "pickup"); this.learn(a, "building", 0.6);
+        site.logs = Math.min(BUILDINGS[site.type].cost, site.logs + n); a.person.setPose("idle"); this.show(site); this.persist(); this.sfxAt(a, "logsDrop"); this.learn(a, "building", 0.6);
         await sleep(2);
       } else if (!clearing && job === "hauler" && !site && (stump = this.stumpToDig())) {
         // nothing to carry: the stumps left in the settlement, grubbed out one by one
@@ -2726,7 +2728,7 @@ export class Town {
         if (!this.stumps.has(stump)) { stump.claimed = null; continue; }
         a.faceTo(stump.x, stump.z); a.person.setPose("dig");
         const sp = a.hold(makeSpade());
-        for (let i = 0; i < 5; i++) { await sleep(1.1 * this.pace(a, "building")); alive(); this.sfxAt(a, "chop"); }
+        for (let i = 0; i < 5; i++) { await sleep(1.1 * this.pace(a, "building")); alive(); this.sfxAt(a, "dig"); }
         a.person.held.remove(sp); a.person.setPose("idle");
         const m = this.stumps.get(stump);
         if (m) { this.w.root.remove(m); this.stumps.delete(stump); if (m.userData.it) this.w.removeInteract(m.userData.it); }
@@ -2757,7 +2759,7 @@ export class Town {
         a.person.setPose("hold");
         await Promise.race([a.walkTo(this.stackAt.x + 1.1, this.stackAt.z + 0.4, 1.2), sleep(80)]); alive();
         a.person.setPose("idle");
-        this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); this.sfxAt(a, "build");
+        this.S.store = Math.min(this.storeCap, this.S.store + this.logsPerTree); this.showStore(); this.persist(); this.sfxAt(a, "logsDrop");
         await sleep(3 + Math.random() * 3);
       } else if (job === "carter") {
         // the carter goes where they are wanted: loads up at the stores that can spare it, and hauls it by road to the ones that can't
@@ -2932,7 +2934,7 @@ export class Town {
           if (task === "reap") {
             // reaped: the field bare again, and the sheaves carried in their arms to the store chest
             const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0);
-            f.growth = 0; f.sown = false; f.stooks = this.day; this.show(f); this.persist(); this.sfxAt(a, "build");
+            f.growth = 0; f.sown = false; f.stooks = this.day; this.show(f); this.persist(); this.sfxAt(a, "reap");
             const ch = this.chestAt(f), sheaf = a.hold(makeSheaf());
             a.person.setPose("hold"); a.doing = "carrying the rye to the store chest";
             // (whatever stops them on the way, the rye still goes in: it's never lost on the road)
@@ -2943,7 +2945,7 @@ export class Town {
             continue;
           }
           else { f.sown = true; f.growth = 1; f.growDays = 0; }
-          this.show(f); this.persist(); this.sfxAt(a, "build");
+          this.show(f); this.persist(); this.sfxAt(a, "sow");
         } else f._farm = null;
       } else {
         // a downpour, and nothing that needs doing: indoors till it eases (those with a roof of their own)
