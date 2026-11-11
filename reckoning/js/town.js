@@ -1201,7 +1201,7 @@ export class Town {
           if ((b.dug || 0) < 3) { b.dug = (b.dug || 0) + 1; G.wear && G.wear("spade", 2); if (b.dug >= 3) b.done = true; }
           else if (b.sown && (b.growth ?? 1) >= 3) { const got = RYE_HARVEST + (this.has("well") ? WELL_RYE : 0); this.S.rye += got; b.growth = 0; b.sown = false; b.stooks = this.day; this.S.seed = +((this.S.seed || 0) + SEED_BACK).toFixed(2); UI.hint(`Reaped: ${got} rye to the stores, and ${SEED_BACK} of a rye seed.`, 3); }
           else { b.sown = true; b.growth = 1; b.growDays = 0; b.done = true; }
-          this.show(b); this.persist(); SFX().build(); this.emit("dug", b); G.guide && G.guide("field"); return;
+          this.show(b); this.persist(); SFX().dig(); this.emit("dug", b); G.guide && G.guide("field"); return;
         }
         if (b.logs < def.cost) {
           const n = Math.min(pl.carryN, def.cost - b.logs);
@@ -1794,7 +1794,7 @@ export class Town {
           if (pl.carryN > 0) { const n = Math.min(pl.carryN, v().storeCap - (c.store || 0)); c.store = (c.store || 0) + n; pl.carryN -= n; }
           else { const n = Math.min(CARRY_MAX, c.store || 0); c.store -= n; pl.carryN += n; }
           UI.carry(pl.carryN ? `Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}` : null);
-          this.showStore(); this.persist(); SFX().build();
+          this.showStore(); this.persist(); FOLEY.fall("logsDrop", null, 0.4);
         } }),
     ];
     this.yards.set(c.name, { pile, its, m });
@@ -2037,7 +2037,7 @@ export class Town {
         if (pl.carryN > 0) { const n = Math.min(pl.carryN, this.storeCap - this.S.store); this.S.store += n; pl.carryN -= n; }
         else { const n = Math.min(CARRY_MAX, this.S.store); this.S.store -= n; pl.carryN += n; }
         UI.carry(pl.carryN ? `Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}` : null);
-        this.showStore(); this.persist(); SFX().build();
+        this.showStore(); this.persist(); FOLEY.fall("logsDrop", null, 0.4);
       } });
   }
 
