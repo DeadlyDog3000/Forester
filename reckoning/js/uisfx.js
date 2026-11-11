@@ -38,6 +38,8 @@ function play(fn) {
   try { fn(a, out, a.currentTime + 0.005); } catch (e) {}
 }
 let lastHover = 0, lastChat = 0;
+// (a new task in the game: the recorded quill on paper, levelled to the made scratches — foley.js's)
+const QUILL_OBJ = 0.035;
 // (in the game itself, nothing tuned: no notes over the woods — a rustle, a scratch, a knock; the chimes and fanfares
 //  are the menus' only)
 const inGame = () => { const G = window.__G; return !!G && G.mode !== "title"; };
@@ -58,7 +60,7 @@ export const UISFX = {
   }),
   // a new task on the board: the quill, and two notes
   objective: () => play((a, o, t) => {
-    if (inGame()) { for (let i = 0; i < 3; i++) burst(a, o, t + i * 0.07, { f: 3200 + i * 300, q: 1.2, dur: 0.06, vol: 0.04, sweep: -1400 }); return; }
+    if (inGame()) { const F = window.__foley; if (F && F.rec && F.rec("quill", QUILL_OBJ)) return; for (let i = 0; i < 3; i++) burst(a, o, t + i * 0.07, { f: 3200 + i * 300, q: 1.2, dur: 0.06, vol: 0.04, sweep: -1400 }); return; }
     for (let i = 0; i < 3; i++) burst(a, o, t + i * 0.07, { f: 3200 + i * 300, q: 1.2, dur: 0.06, vol: 0.035, sweep: -1400 });
     note(a, o, hz(76), t + 0.2, { vol: 0.09, decay: 0.9, bright: 0.4 }); note(a, o, hz(81), t + 0.33, { vol: 0.08, decay: 1.2, bright: 0.4 });
   }),
