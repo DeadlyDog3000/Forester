@@ -654,7 +654,7 @@ export class Player {
     } else if (free && input.click && !this.gunLoaded) {
       input.click = false;
       // (the dry click of a cock let fall on an empty pan — and a word, if you've forgotten)
-      if (!reloading && !this.bayonet && G.time > (this.emptyTold || 0)) { this.emptyTold = G.time + 2.5; const F = window.__foley; F && F.load && F.load("latch", null, 0.35, pis); UI.hint("Empty — R to load.", 1.6); }
+      if (!reloading && !this.bayonet && G.time > (this.emptyTold || 0)) { this.emptyTold = G.time + 2.5; const F = window.__foley; F && F.load && F.load("frizzen", null, 0.45, pis); UI.hint("Empty — R to load.", 1.6); }
     }
     this.gunKickT = Math.max(0, this.gunKickT - dt * 4);
     if (this.gunModel.userData.lock) gunLock(this.gunModel.userData.lock, dt, this.gunLoaded, reloading ? (RL - this.gunReload) / RL : -1);
