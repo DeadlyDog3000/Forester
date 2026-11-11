@@ -126,7 +126,8 @@ export class Birds {
         const want = new THREE.Vector3(cx + Math.cos(q.circle) * 35 - q.pos.x, 0, cz + Math.sin(q.circle) * 35 - q.pos.z);
         q.vel.lerp(want.normalize().multiplyScalar(K.speed), Math.min(1, dt * 1.5));
       } else if (K.glide && this.opts.at) {
-        // (a gull: long easy turns over the water, drifting back over the harbour if it strays)
+        // (a gull: long easy turns over the water, drifting back over the harbour if it strays — and crying now and then)
+        if ((q.cryT = (q.cryT ?? 2 + Math.random() * 8) - dt) <= 0) { q.cryT = 10 + Math.random() * 14; const F = window.__foley, inside = this.w.inHome && this.w.inHome(p.x, p.z); F && F.gull && F.gull(q.pos, inside ? 0.25 : 1); }
         const at = this.opts.at, back = Math.atan2(at.x - q.pos.x, at.z - q.pos.z), da = Math.hypot(at.x - q.pos.x, at.z - q.pos.z);
         q.heading += (Math.sin(this.t * 0.25 + k * 2.1) * 0.5) * dt;
         if (da > 70) { let dh = back - q.heading; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); q.heading += Math.max(-0.5, Math.min(0.5, dh)) * dt; }

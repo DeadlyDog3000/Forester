@@ -20,3 +20,4 @@
 - **fuse_*.ogg** — a black-powder fuse fizzing, cut in pieces from two long takes: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the meat's sizzle it replaces.
 - **runOut_*, prick_*, sponge_*, gunRam_*.ogg** — a field gun run back up by its crew on iron-tyred wheels, its vent pricked and primed from the horn, its bore sponged and the charge rammed home. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made ones.
 - **halfcock_*, nock_*.ogg** — a flintlock drawn to half cock, and an arrow's nock snapped onto the string, each cut click by click from a take of several: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made ones.
+- **gull_*.ogg** — a herring gull crying over the harbour: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the woods' crow.
