@@ -808,7 +808,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   fuse: [8, "foley", 0.91],
   // (a gun's crew: the bore sponged and the charge rammed, the vent pricked and primed, and the gun run back up to its
   //  place on its wheels)
-  runOut: [3, "foley", 0.88], prick: [2, "foley", 0.46], sponge: [3, "foley", 0.84], gunRam: [3, "foley", 1.06] }, heard = {}, hearing = {};
+  runOut: [3, "foley", 0.88], prick: [2, "foley", 0.46], sponge: [3, "foley", 0.84], gunRam: [3, "foley", 1.06],
+  // (the two smallest clicks — a flintlock to half cock, an arrow's nock onto the string — cut from takes of several)
+  halfcock: [4, "foley", 1.6], nock: [2, "foley", 0.92] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {

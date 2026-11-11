@@ -9,7 +9,7 @@ export const CHANGELOG = [
   {
     v: "1.99.288", date: "10 November 2026", title: "Every sound its own",
     items: [
-      "The bow and the crossbow are recorded: an arrow drawn from the quiver, the bow drawn and loosed, the windlass wound, the string latched, the bolt laid in and let fly. So is a bayonet fixed and pulled.",
+      "The bow and the crossbow are recorded: an arrow drawn from the quiver and nocked, the bow drawn and loosed, the windlass wound, the string latched, the bolt laid in and let fly. So is a bayonet fixed and pulled, and the musket's first click to half cock.",
       "A battle at sea is heard: round shot crashing into a hull or plunging into the sea, a ship's timbers groaning as she goes down, and under it all the sea and the wind in the rigging.",
       "In a siege, round shot cracks on the stone of a town's wall and splits the oak of its gate, and a breach comes down as masonry and not a gunshot. A palisade set alight roars and crackles as it burns, louder the nearer you are. A ball into a river throws up white water and a splash, and one that strikes a gun is heard smashing its carriage. A grenade's fuse fizzes like a fuse (it was meat frying). A gun's crew are heard sponging the bore, ramming the charge, priming the vent and running the gun back up on its wheels.",
       "Things that used to come down with the sound of a felled tree have their own: a beast shot in the hunt, a raider falling, a ladder thrown down from the wall, a rock broken, logs put on the pile, a house or a palisade smashed.",
