@@ -78,12 +78,15 @@ const VOICES = {
   zebra: { kind: "zebra", every: 45, reach: 160, gap: 15, vol: 0.9, alarm: true },
   goat: { kind: "goat", every: 50, reach: 100, gap: 18, vol: 0.8 }, fox: { kind: "fox", every: 70, reach: 130, gap: 30, vol: 0.8 },
   penguin: { kind: "penguin", every: 25, reach: 100, gap: 10, vol: 0.8 },
+  horse: { kind: "neigh", every: 60, reach: 150, gap: 25, vol: 0.8, alarm: true },
 };
+// (the great beasts cry out when they're struck)
+const HURT = new Set(["elephant", "lion", "tiger", "jaguar", "bear", "polarbear", "wolf", "bison", "moose", "horse"]);
 const VOICED = {};
-function beastVoice(a, alarm = false) {
-  const V = VOICES[a.kind], pl = G.player, F = window.__foley; if (!V || !pl || !F || !F.beast || (alarm && !V.alarm)) return;
+function beastVoice(a, alarm = false, hurt = false) {
+  const V = VOICES[a.kind], pl = G.player, F = window.__foley; if (!V || !pl || !F || !F.beast || (alarm && !V.alarm && !hurt)) return;
   const d = Math.hypot(pl.pos.x - a.pos.x, pl.pos.z - a.pos.z), now = G.time || 0; if (d > V.reach) return;
-  if (now < (VOICED[a.kind] || 0)) return; VOICED[a.kind] = now + V.gap * (alarm ? 0.4 : 1);
+  if (!hurt && now < (VOICED[a.kind] || 0)) return; VOICED[a.kind] = now + V.gap * (alarm ? 0.4 : 1);
   F.beast(V.kind, a.pos, V.vol * (alarm ? 1.1 : 1), V.reach);
 }
 class Animal {
@@ -171,8 +174,9 @@ class Animal {
     // (in someone else's colony this beast is theirs, shown here: the arrow's told to their game, which brings it down)
     if (this.puppet) { G.practise && G.practise("archery", 3); G.mp && G.mp.huntHit && G.mp.huntHit(this, power); return; }
     this.hp -= power > 0.7 ? 2 : 1;
-    // (a boar squeals when it's struck)
+    // (a boar squeals when it's struck; the great beasts cry out)
     if (this.kind === "boar") FOLEY.beast("boarHurt", this.pos, 0.9);
+    else if (HURT.has(this.kind)) beastVoice(this, true, true);
     // (wounded, it bleeds as it runs: a trail of drops to follow)
     this.bleed = 40; this.bleedAt = null;
     if (!from && !melee) G.practise && G.practise("archery", 3);
