@@ -483,8 +483,8 @@ export class Field {
     };
     void M;
     this.fortSide = battle ? fort : null; this.siege = siege; this.breaks = [];
-    // (a siege's sounds sent for now, so the first ball on the wall is heard)
-    if (siege) { const F = window.__foley; F && F.preload && F.preload(["wallHit", "wallFall", "hullHit"]); }
+    // (the sounds of shot striking home sent for now — a siege's walls and gate, any field's guns — so the first is heard)
+    { const F = window.__foley; F && F.preload && F.preload(siege ? ["wallHit", "wallFall", "hullHit"] : ["hullHit"]); }
     if (camps) for (const c of camps) this.battery(c);
     // (a town of the woods' nations: its own side has its palisade and no battery — no guns, no gabions)
     // (two armies met in the open have no works: no gabions, banks or chevaux-de-frise dug in front of them — those are a
@@ -669,7 +669,10 @@ export class Field {
   foeTo(u, side) { return side == null || (u.al ?? u.team ?? 0) !== side; }
   // a gun struck: a ball's direct hit wrecks it — the carriage smashed, the barrel down in the dirt; no more firing
   hitGun(g) {
-    if (g.dead) return; g.hp = (g.hp ?? 2) - 1; if (g.hp > 0) return;
+    if (g.dead) return; g.hp = (g.hp ?? 2) - 1;
+    // (heard: the ball smashing into the carriage's oak — and, the second time, the gun going over)
+    { const F = window.__foley, at = new THREE.Vector3(g.x, this.y(g.x, g.z), g.z); F && F.wallHit && F.wallHit(at, 0.8, true); if (g.hp <= 0 && F && F.fall) setTimeout(() => F.fall("timberFall", at, 0.6), 180); }
+    if (g.hp > 0) return;
     g.dead = true; g.loaded = false; g.firing = false;
     const m = g.model; m.rotation.z = 0.35; m.position.y -= 0.25; if (m.userData.barrel) m.userData.barrel.rotation.x = -0.25;
     m.traverse(o => { if (o.isMesh && o.material && o.material.color) { o.material = o.material.clone(); o.material.color.multiplyScalar(0.45); } });
