@@ -523,7 +523,10 @@ export class Field {
   // and the ground level enough for it
   free(x, z, rad, gap = 1.6) {
     if (this.used.some(u => Math.hypot(u.x - x, u.z - z) < u.rad + rad + gap)) return false;
-    if (this.wet(x, z)) return false;
+    // (nothing set down in water: not its middle, and not its ends or sides either — a long wall laid half into a ford
+    //  stood in the river like logs afloat)
+    if (this.wet(x, z, 0.1)) return false;
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; if (this.wet(x + Math.cos(a) * rad, z + Math.sin(a) * rad, 0.1)) return false; }
     for (let i = 0; i < 9; i++) {
       const a = i / 8 * Math.PI * 2, k = i ? rad : 0, px = x + Math.cos(a) * k, pz = z + Math.sin(a) * k;
       if (this.w.col.solidAt(px, this.y(px, pz) + 0.8, pz, 0.8)) return false;
