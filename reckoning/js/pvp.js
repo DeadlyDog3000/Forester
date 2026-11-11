@@ -3426,7 +3426,7 @@ class Arena {
     if (this.regOn && this.army) {
       const men = this.units.filter(u => u.info && u.info.roll && this.alOf(u.team) === 0).map(u => ({ ...u.info.roll, alive: !!u.alive }));
       const r = callRoll(this.army.uniform, men, won && !left, won && this.place ? honourOf(this.place.text) : null), bits = [];
-      if (r.fell) bits.push(`${r.fell} fell`); if (r.wounded) bits.push(`${r.wounded} wounded, back for the next`); if (r.joined) bits.push(`${r.joined} new men on the rolls`);
+      if (r.fell) bits.push(`${r.fell} fell`); if (r.wounded) bits.push(`${r.wounded} wounded, back for the next`); if (r.joined) bits.push(`${r.joined} new ${r.joined === 1 ? "man" : "men"} on the rolls`);
       const pr = r.promoted.slice(0, 4).map(p => `${esc(p.name)} made ${p.rank}`).join(", ") + (r.promoted.length > 4 ? `, and ${r.promoted.length - 4} more` : "");
       $("pvpEndS").innerHTML += `<div class="pv-pay"><b>The roll:</b> ${bits.join(" · ") || "all present"}${pr ? ` · ${pr}` : ""}${r.honour ? ` · a battle honour: <b>${esc(r.honour)}</b>` : ""}</div>`;
     }

@@ -3117,9 +3117,9 @@ export class Town {
         if ((d === YEAR - 4 || d === YEAR - 3) && (this.S.store || 0) < need && this.S.woodTold !== this.day) {
           this.S.woodTold = this.day;
           const sib = G.who === "sister" ? "Brother" : "Sister", eve = d === YEAR - 3;
-          UI.bark(sib, eve ? `Winter tomorrow, and the stack's at ${this.S.store || 0}. ${n} hearths, ${need} logs to see it out — everyone to the trees, or someone freezes.`
+          UI.bark(sib, eve ? `Winter tomorrow, and the stack's at ${this.S.store || 0}. ${n} hearth${n > 1 ? "s" : ""}, ${need} logs to see it out — everyone to the trees, or someone freezes.`
             : `Autumn. In two days it's winter: ${n} hearth${n > 1 ? "s" : ""}, a log a day each — we want ${need} logs on the stack. I'll keep the builders off it till we have them.`, 8);
-          G.report && G.report(eve ? `Winter comes tomorrow, and the woodpile is short: ${this.S.store || 0} logs for ${n} hearths.` : `Autumn: ${need} logs wanted on the stack for the winter fires. Building waits till they're there.`, "trouble");
+          G.report && G.report(eve ? `Winter comes tomorrow, and the woodpile is short: ${this.S.store || 0} log${(this.S.store || 0) === 1 ? "" : "s"} for ${n} hearth${n > 1 ? "s" : ""}.` : `Autumn: ${need} logs wanted on the stack for the winter fires. Building waits till they're there.`, "trouble");
         } }
       // room to grow: said once for each claim earned
       const due = this.roomDue();

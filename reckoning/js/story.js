@@ -1946,7 +1946,7 @@ async function roadAmbush(w, B) {
   await wait(1.2);
   owner.band[0].wake();
   if (pl.hasBow && !pl.bow) pl.showBow(true);
-  UI.objective(`Two men on the road, coming for you — shoot them before they reach you (${pl.arrows || 0} arrows)`);
+  UI.objective(`Two men on the road, coming for you — shoot them before they reach you (${pl.arrows || 0} arrow${(pl.arrows || 0) === 1 ? "" : "s"})`);
   const swingWas = G.onSwing, downedWas = G.onDowned;
   let beaten = false;
   G.onSwing = () => swingAt(owner.band, pl);
@@ -2004,7 +2004,7 @@ async function huntForMeat(w, sib) {
   tutor("bow", "Creep up on them — crouch, and don't run; they hear a runner a long way off. Draw, and let go.", [["Hold right-click", "draw — and look closer"], ["Release", "loose"], ["C", "crouch"], ["F", "pull an arrow out"]], 10);
   const obj = onFrame(() => {
     const inRide = Math.hypot(pl.pos.x - HUNT.x, pl.pos.z - HUNT.z) < HUNT.r;
-    UI.objective(kills >= NEED ? "" : `Hunt in the deer ride — ${kills} of ${NEED} animals${pl.arrows <= 3 ? ` · ${pl.arrows} arrows left` : ""}`);
+    UI.objective(kills >= NEED ? "" : `Hunt in the deer ride — ${kills} of ${NEED} animals${pl.arrows <= 3 ? ` · ${pl.arrows} arrow${pl.arrows === 1 ? "" : "s"} left` : ""}`);
     // the way there, and then the kill to dress; the living you find for yourself
     const down = hunt.animals.find(a => !a.alive);
     mark(down ? [down.pos.x, down.pos.z, down.pos.y + 0.8] : !inRide ? [HUNT.x, HUNT.z, w.heightAt(HUNT.x, HUNT.z) + 1.5] : null);
