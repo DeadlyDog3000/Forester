@@ -791,7 +791,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   wallHit: [3, "foley", 2.2], wallFall: [3, "foley", 1.4],
   // (things that came down to the tree's crash before: a beast shot, a ladder thrown down, a rock broken, logs put on
   //  the pile, a timber house or a palisade smashed)
-  animalFall: [2, "foley", 1.44], ladderFall: [3, "foley", 1.38], rockBreak: [3, "foley", 2.62], logsDrop: [3, "foley", 2.35], timberFall: [3, "foley", 2.58] }, heard = {}, hearing = {};
+  animalFall: [2, "foley", 1.44], ladderFall: [3, "foley", 1.38], rockBreak: [3, "foley", 2.62], logsDrop: [3, "foley", 2.35], timberFall: [3, "foley", 2.58],
+  // (the church bell: audio.js's recordings, levelled to the made one here)
+  bell: [2, "sfx", 1.1] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
