@@ -102,7 +102,7 @@ export const NATIONS = {
   brandenburg: { name: "Brandenburg", color: "#9aa9d8", strength: 2 },
   saxony: { name: "Saxony", color: "#86c2a0", strength: 2 },
   bavaria: { name: "Bavaria", color: "#90b6e0", strength: 2 },
-  austria: { name: "Austrian Empire", color: "#e8a0a8", strength: 5 },
+  austria: { name: "Habsburg Monarchy", color: "#e8a0a8", strength: 5 },
   milan: { name: "Milan", color: "#c9a0d8", strength: 2 },
   savoy: { name: "Savoy", color: "#e38c8c", strength: 2 },
   venice: { name: "Venice", color: "#7fc0b8", strength: 2 },
@@ -153,7 +153,7 @@ export const NATION_FAITH = {
 export const NEAR = new Set(["denmark", "sweden", "brandenburg", "hre", "saxony", "poland", "england", "france", "bavaria", "dutch"]);
 
 // a crown's name as a sentence wants it: "the Kingdom of France", "The Ottoman Empire seizes…", "Denmark"
-export const the = id => (NATIONS[id].people || /^(Kingdom|Tsardom|Holy|Papal|Swedish|Austrian|Ottoman|Crimean|Cossacks|Dutch|Sultanate)/.test(NATIONS[id].name) ? "the " : "") + NATIONS[id].name;
+export const the = id => (NATIONS[id].people || /^(Kingdom|Tsardom|Holy|Papal|Swedish|Habsburg|Ottoman|Crimean|Cossacks|Dutch|Sultanate)/.test(NATIONS[id].name) ? "the " : "") + NATIONS[id].name;
 export const The = id => { const n = the(id); return n[0].toUpperCase() + n.slice(1); };
 // (the Cossacks are many: "the Cossacks seize", not "seizes")
 const seizes = id => id === "cossacks" || NATIONS[id].people ? "seize" : "seizes";
