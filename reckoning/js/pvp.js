@@ -516,7 +516,7 @@ function drawCrates() {
   const tag = k => { const R = rarityById(rarityOf(T, k)); return `<b class="cr-rar" style="color:${R.col}">${R.name}</b>`; };
   const L = lastCrate && lastCrate.team === T ? lastCrate : null;
   el.innerHTML = `<div class="pv-h big">Crates</div>
-    <div class="pv-sn">A crate holds one of the ${esc(TEAM_NAME(T))} troops — common, uncommon, rare, epic, legendary or mythic, the rarer the less often. A troop you have already, drawn again, strikes half a percent harder each time, up to twice as hard. ${troopOk(T, "bow") ? "" : "Bowmen were never this kingdom's own: for it they're mythic."}</div>
+    <div class="pv-sn">A crate holds one of the ${esc(TEAM_NAME(T))} troops — common, uncommon, rare, epic, legendary or mythic, the rarer the less often. A troop you have already, drawn again, strikes two percent harder each time, up to twice as hard. ${troopOk(T, "bow") ? "" : "Bowmen were never this kingdom's own: for it they're mythic."}</div>
     <div class="cr-buy"><button class="btn primary" data-crate="1"${can ? "" : " disabled"}>Open a crate · ${money(CRATE_COST)}</button>${can ? "" : `<span class="pv-sn">${money(CRATE_COST - ducats())} more wanted in the purse — won in battle.</span>`}</div>
     ${L ? `<div class="cr-got" style="border-color:${rarityById(L.rarity).col}">${tag(L.kind)} <b>${esc(TROOPS[L.kind].name)}</b> — ${L.dup ? `drawn again: they strike ${((boostOf(T, L.kind) - 1) * 100).toFixed(1)}% harder now` : "new: yours to raise in the company"}</div>` : ""}
     <div class="pv-h">The odds</div><div class="cr-odds">${RARITY.map(R => `<span><b style="color:${R.col}">${R.name}</b> ${(R.p * 100).toFixed(R.p < 0.02 ? 1 : 0)}%</span>`).join("")}</div>
@@ -1081,7 +1081,7 @@ function scaleMuster(a, from, to) {
 // among the Tatars, no bowmen or crossbowmen in the armies of the West). Colours with no kit of their own: any.
 export const troopOk = (team, k) => { const T = TROOPS[k]; if (!T) return false; if (T.teams) return T.teams.includes(team); if (T.horse || !TEAMS[team]) return true; return T.lo.long !== "none" ? inKit(team, "long", T.lo.long) : inKit(team, "blade", T.lo.blade); };
 // ---- the crates: each kingdom begins with two of its troops; the rest come out of crates bought with its purse, the
-// rarer the less often — and a troop drawn again makes its men deadlier, half a percent each time. Bowmen, for a
+// rarer the less often — and a troop drawn again makes its men deadlier, two percent each time. Bowmen, for a
 // kingdom that never had them, the rarest of all. (In battles against bots and other players; a campaign's, the
 // story's and the historical battles raise their men as they always have) ----
 export const RARITY = [
@@ -1094,7 +1094,7 @@ export const RARITY = [
 ];
 const RARITY_OF = { militia: "common", pike: "common", axe: "common", bow: "common", musketeer: "uncommon", crossbow: "uncommon", sword: "uncommon", tercio: "uncommon", hajdu: "uncommon", zaporozhian: "uncommon", highlander: "uncommon",
   grenadier: "rare", strelets: "rare", schiavoni: "rare", janissary: "rare", blueguard: "rare", carolean: "rare", cavalry: "epic", lighthussar: "epic", horsearcher: "epic", mousquetaire: "epic", cuirassier: "legendary", hussar: "legendary" };
-export const CRATE_COST = 80, DUP_BONUS = 0.005, BOOST_MAX = 2;
+export const CRATE_COST = 80, DUP_BONUS = 0.02, BOOST_MAX = 2;
 // (bowmen for any kingdom — but where they weren't its own, mythic)
 const crateable = (team, k) => troopOk(team, k) || k === "bow";
 export const rarityOf = (team, k) => k === "bow" && !troopOk(team, "bow") ? "mythic" : RARITY_OF[k] || "common";

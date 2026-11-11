@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.290", date: "11 November 2026", title: "Drawn again",
+    items: [
+      "A troop drawn again from a crate now strikes two percent harder each time, not half a percent — up to twice as hard, after fifty. Troops you've drawn again already count at the new rate.",
+    ],
+  },
+  {
     v: "1.99.289", date: "11 November 2026", title: "They break and run",
     items: [
       "Crates: in battles against the bots or other players each kingdom starts with two of its troops, and the rest come out of crates bought from its purse in the muster's new Crates tab. Each troop is common, uncommon, rare, epic or legendary, the rarer the less often; a troop drawn again strikes half a percent harder each time (up to twice as hard), and the muster shows how much. Bowmen can now come to any kingdom — for one whose own troops they never were, they're mythic, rarer than legendary. Campaign, story and the week's challenge battles are as they were.",
