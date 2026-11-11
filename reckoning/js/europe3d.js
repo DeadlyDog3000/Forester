@@ -1502,7 +1502,7 @@ export class EuropeView3D {
       sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.62 : swords ? 0.5 : 0.42), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       if (arm || swords) sp.userData.over = { y0, stack: arm ? 1 : 0 };
       // (two armies at one town side by side, not one drawn over the other — "57" and "12" read as "5712")
-      if (arm) { const key = `${Math.round(x * 40)},${Math.round(z * 40)}`, n = armsAt.get(key) || 0; armsAt.set(key, n + 1); if (n) sp.center.set(0.5 - [0, 1, -1, 2, -2][Math.min(4, n)] * 0.95, 0.5); }
+      if (arm) { const key = `${Math.round(x * 40)},${Math.round(z * 40)}`, n = armsAt.get(key) || 0; armsAt.set(key, n + 1); if (n) sp.center.set(0.5 - [0, 1, -1, 2, -2][Math.min(4, n)] * 1.3, 0.5); }
       sp.userData.name = m.name;
       grp.add(sp);
     }
@@ -1845,20 +1845,27 @@ export class EuropeView3D {
           const turn = d > 0 ? this.dryTurn(R, ry, d) : 0, wx0 = nd * 0.6, wz0 = nd * 0.8, wx = Math.cos(turn) * wx0 - Math.sin(turn) * wz0, wz = Math.sin(turn) * wx0 + Math.cos(turn) * wz0;
           R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz); }
       }
-      const atLab = new Map();
+      const tags = [];
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) { cl.parent.getWorldQuaternion(_fq); _fe.setFromQuaternion(_fq, "YXZ"); cl.rotation.y = WIND_YAW - _fe.y; } }
         else if (o.userData.over) {
           // (over a town, the number would be written across the town's name: set beside the name instead)
           const c = o.userData.over.position, lab = this.dist > 2.6 && this.labels && this.labels.find(l => l.visible && Math.abs(l.position.x - c.x) < 0.6 && Math.abs(l.position.z - c.z) < 0.6);
           // (far off, where the names crowd one another, over the name instead)
-          // (and a second army at the same town beside the first, not written over it — "57" and "12" read as "5712")
-          if (lab) { const d = this.camera.position.distanceTo(lab.position), n = atLab.get(lab) || 0; atLab.set(lab, n + 1); const step = o.scale.x * d * 1.05;
-            if (this.dist < 30) o.position.set(lab.position.x + (lab.scale.x * (lab.userData.w || 1) / 2 + 0.022) * d + n * step, lab.position.y, lab.position.z);
-            else o.position.set(lab.position.x + [0, 1, -1, 2, -2][Math.min(4, n)] * step, lab.position.y + 0.046 * d, lab.position.z); }
+          if (lab) { const d = this.camera.position.distanceTo(lab.position); if (this.dist < 30) o.position.set(lab.position.x + (lab.scale.x * (lab.userData.w || 1) / 2 + 0.022) * d, lab.position.y, lab.position.z); else o.position.set(lab.position.x, lab.position.y + 0.046 * d, lab.position.z); }
           else o.position.set(c.x, c.y + k * 3.6, c.z);
+          tags.push(o);
         }
       }
+      // (and no army's count written over another's: two at one town, or one just outside it whose own name is out of
+      //  sight — "12" and "12" read as "1212". Each set beside the last one it would cover, on the view)
+      { const P = this.camera.projectionMatrix.elements, sx = P[0], sy = P[5], done = [];
+        for (const o of tags) { if (!o.visible) continue;
+          // (right of where it'd be, then left, then further each way: kept as near its town as there's room for)
+          const x0 = o.position.x, step = o.scale.x * this.camera.position.distanceTo(o.position) * 1.02;
+          for (const m of [0, 1, -1, 2, -2, 3, -3]) { o.position.x = x0 + m * step; _lv.copy(o.position).project(this.camera); const hw = o.scale.x * sx * 0.5, hh = o.scale.y * sy * 0.35;
+            if (!done.some(q => Math.abs(q[0] - _lv.x) < q[2] + hw && Math.abs(q[1] - _lv.y) < q[3] + hh)) break; }
+          done.push([_lv.x, _lv.y, o.scale.x * sx * 0.5, o.scale.y * sy * 0.35]); } }
       for (const R of (this.armyMap || new Map()).values()) for (const m of R.men) m.mixer.update(dt);
       // (the dust a company raises on the march: puffs left behind it on the road, rising and spreading as they settle)
       { const D = this.dust ||= { grp: (() => { const g = new THREE.Group(); this.scene.add(g); return g; })(), list: [], last: new Map() };
