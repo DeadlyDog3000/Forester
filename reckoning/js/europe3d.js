@@ -1409,16 +1409,18 @@ export class EuropeView3D {
         const sp = new THREE.Mesh(spireGeo, slate); sp.scale.setScalar(cs * 0.75); sp.position.set(x - 0.02 * cs, y0 + th + 0.037 * cs, z); put(sp);
       }
       // the name
-      const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64; const c = cv.getContext("2d");
-      c.font = `${rank === 3 ? "600 " : ""}30px "IM Fell English", Georgia, serif`; const w = Math.min(248, c.measureText(name).width + 22);
-      c.fillStyle = "rgba(239,228,198,0.92)"; c.fillRect(128 - w / 2, 10, w, 40);
-      c.fillStyle = isHome ? "#b0281a" : own ? NATIONS[own].color : "#888"; c.fillRect(128 - w / 2, 10, 7, 40);
-      c.strokeStyle = "#3a2a1a"; c.lineWidth = 2; c.strokeRect(128 - w / 2, 10, w, 40);
-      c.fillStyle = "#2a1c10"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(name, 128 + 3, 31);
+      // (a long name — San Luis de Talimali, or your own clearing's, whatever you called it — on a wider card, not cut off)
+      const font = `${rank === 3 ? "600 " : ""}30px "IM Fell English", Georgia, serif`, cv = document.createElement("canvas"); let c = cv.getContext("2d"); c.font = font;
+      const tw = c.measureText(name).width + 22, CW = Math.max(256, Math.ceil(tw / 64) * 64 + 8), mid = CW / 2;
+      cv.width = CW; cv.height = 64; c = cv.getContext("2d"); c.font = font; const w = Math.min(CW - 8, tw);
+      c.fillStyle = "rgba(239,228,198,0.92)"; c.fillRect(mid - w / 2, 10, w, 40);
+      c.fillStyle = isHome ? "#b0281a" : own ? NATIONS[own].color : "#888"; c.fillRect(mid - w / 2, 10, 7, 40);
+      c.strokeStyle = "#3a2a1a"; c.lineWidth = 2; c.strokeRect(mid - w / 2, 10, w, 40);
+      c.fillStyle = "#2a1c10"; c.textAlign = "center"; c.textBaseline = "middle"; c.fillText(name, mid + 3, 31);
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, sizeAttenuation: false, transparent: true }));
-      sprite.scale.set(0.16, 0.04, 1); sprite.position.set(x, y0 + 0.3, z); sprite.renderOrder = 5;
-      sprite.userData = { rank, city: isHome ? null : name, y0, w: w / 256, pop: pop || 0, own };
+      sprite.scale.set(0.16 * CW / 256, 0.04, 1); sprite.position.set(x, y0 + 0.3, z); sprite.renderOrder = 5;
+      sprite.userData = { rank, city: isHome ? null : name, y0, w: w / CW, pop: pop || 0, own };
       grp.add(sprite); labels.push(sprite);
     };
     // (nearest the eye first; and the first time the map is opened, those few shown as soon as they're laid out, rather
