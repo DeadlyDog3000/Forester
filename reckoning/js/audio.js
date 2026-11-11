@@ -107,7 +107,7 @@ const NOTES = { fifeN: [363.31, 1685.68], trumpetN: [294.39, 328.95, 704.39], zu
 // (how loud against the made ones, measured on a held note)
 const NOTE_GAIN = { fifeN: 1.45, trumpetN: 1.86, zurnaN: 3.5 };
 // (and the drums: a stroke of each recorded, against the made one)
-const DRUM_GAIN = { snare: 0.86, bassDrum: 0.8 };
+const DRUM_GAIN = { snare: 0.86, bassDrum: 0.8 }, SHOUT_REC = 0.5, ROLL_REC = 0.35;
 let nLoad = false;
 function loadNotes(a) {
   if (nLoad) return; nLoad = true;
@@ -544,6 +544,8 @@ export const AUDIO = {
   drumRoll(secs = 4, vol = 0.5) {
     const a = ctx(); if (!a) return;
     const t0 = a.currentTime;
+    // (recorded: the roll beaten stroke by stroke on the field drum, swelling as it goes)
+    if (SBUF.snare && SBUF.snare.length >= 2) { for (let t = 0; t < secs; t += 0.07) recorded(a, "snare", [[bus, vol * (0.35 + 0.65 * (t / secs)) * rnd(0.7, 1) * ROLL_REC]], t0 + t + rnd(0, 0.008), [0.97, 1.03]); return; }
     for (let t = 0; t < secs; t += 0.07) {
       const s = noiseSrc(a, false), f = a.createBiquadFilter(), g = a.createGain();
       f.type = "bandpass"; f.frequency.value = 260 + Math.random() * 60; f.Q.value = 1.5;
@@ -878,6 +880,8 @@ export const AUDIO = {
   shout() {
     const a = ctx(); if (!a) return;
     const t = a.currentTime;
+    // (recorded: a watchman's "Halt!" down a stone street)
+    if (recorded(a, "shout", [[bus, SHOUT_REC]], t, [0.95, 1.05])) return;
     const o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain();
     o.type = "sawtooth"; o.frequency.setValueAtTime(200, t); o.frequency.linearRampToValueAtTime(260, t + 0.15); o.frequency.linearRampToValueAtTime(170, t + 0.5);
     f.type = "bandpass"; f.frequency.value = 700; f.Q.value = 3;

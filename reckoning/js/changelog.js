@@ -9,7 +9,7 @@ export const CHANGELOG = [
   {
     v: "1.99.288", date: "10 November 2026", title: "Every sound its own",
     items: [
-      "The regiments' bands play their marches on real instruments: the fife, the cavalry's natural trumpet and the Ottoman zurna are recorded, each note of the tune played on the nearest held note and pitched to it. The side drum and the great drum are recorded strokes, a different one each beat.",
+      "The regiments' bands play their marches on real instruments: the fife, the cavalry's natural trumpet and the Ottoman zurna are recorded, each note of the tune played on the nearest held note and pitched to it. The side drum and the great drum are recorded strokes, a different one each beat, and the drum roll in Hamburg's square is beaten stroke by stroke on them. The watch shout a real \"Halt!\" after you (it was a buzz).",
       "The bow and the crossbow are recorded: an arrow drawn from the quiver and nocked, the bow drawn and loosed, the windlass wound, the string latched, the bolt laid in and let fly. So is a bayonet fixed and pulled, and the musket's first click to half cock.",
       "A battle at sea is heard: round shot crashing into a hull or plunging into the sea, a ship's timbers groaning as she goes down, and under it all the sea and the wind in the rigging.",
       "In a siege, round shot cracks on the stone of a town's wall and splits the oak of its gate, and a breach comes down as masonry and not a gunshot. A palisade set alight roars and crackles as it burns, louder the nearer you are.",
