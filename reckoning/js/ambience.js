@@ -76,8 +76,14 @@ let bLoad = false;
 // (and the wind in the leaves, recorded — one take, played twice over at different places in it, a side each — as loud
 //  as the made bed it stands for)
 let LEAVES = null; const LEAF_REC = 4.7;
+// (an old trunk creaking, and the crickets of a summer night — two takes of them, made to go round — as loud as the
+//  made ones they stand for)
+const CREAKS = [], CRICKS = [], CREAK_REC = 0.0156, CRICK_REC = 0.395;
 function loadBirds(a) {
   if (bLoad) return; bLoad = true;
+  const take = (name, list) => fetch(new URL(`../art/birds/${name}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => list.push(b)).catch(() => {});
+  for (let i = 0; i < 4; i++) take(`creak_0${i}`, CREAKS);
+  for (let i = 0; i < 2; i++) take(`crickets_0${i}`, CRICKS);
   fetch(new URL("../art/birds/leaves.ogg", import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject()).then(b => a.decodeAudioData(b)).then(b => { LEAVES = b; }).catch(() => {});
   for (const [k, [n]] of Object.entries(BIRDS)) for (let i = 0; i < n; i++)
     fetch(new URL(`../art/birds/${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
@@ -156,7 +162,9 @@ function tick() {
   // an old trunk creaking, when the wind is up
   if (bed.gust > 0.7 && !indoor && t > nextCreak) {
     nextCreak = t + rnd(8, 22);
-    const v = place(a, out, rnd(8, 30), rnd(-1, 1)), o = a.createOscillator(), bp = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
+    const v = place(a, out, rnd(8, 30), rnd(-1, 1));
+    if (CREAKS.length >= 2) { const s = a.createBufferSource(), g = a.createGain(); s.buffer = CREAKS[Math.floor(Math.random() * CREAKS.length)]; s.playbackRate.value = rnd(0.85, 1.1); g.gain.value = CREAK_REC; s.connect(g); g.connect(v); s.start(t); return; }
+    const o = a.createOscillator(), bp = a.createBiquadFilter(), g = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
     o.type = "sawtooth"; o.frequency.value = rnd(70, 110); bp.type = "bandpass"; bp.frequency.value = rnd(500, 900); bp.Q.value = 6;
     lfo.frequency.value = rnd(9, 16); lg.gain.value = 12; lfo.connect(lg); lg.connect(o.frequency);
     const d = rnd(0.8, 1.6); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.03, t + d * 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + d);
@@ -175,7 +183,18 @@ let crick = null;
 function crickets(on) {
   const a = ac(), out = bus(); if (FSET().ambient === false) on = false;
   if (!a || !out) { if (!on) crick = null; return; }
-  if (on && !crick) {
+  loadBirds(a);
+  // (begun on the made ones before the recordings came in: let go, and the recorded ones in their place)
+  if (on && crick && !crick.rec && CRICKS.length >= 2) { crickets(false); }
+  if (on && !crick && CRICKS.length >= 2) {
+    const master = a.createGain(); master.gain.value = 0; master.gain.setTargetAtTime(0.03, a.currentTime, 2); master.connect(out);
+    const srcs = CRICKS.slice(0, 2).map((b, i) => {
+      const s = a.createBufferSource(); s.buffer = b; s.loop = true; s.playbackRate.value = rnd(0.97, 1.03);
+      const g = a.createGain(); g.gain.value = CRICK_REC / Math.SQRT2; const p = a.createStereoPanner(); p.pan.value = i ? 0.45 : -0.45;
+      s.connect(g); g.connect(p); p.connect(master); s.start(0, Math.random() * b.duration); return s;
+    });
+    crick = { master, stop: srcs, rec: true };
+  } else if (on && !crick) {
     const n = window.__foresterNoise; if (!n) return;
     const master = a.createGain(); master.gain.value = 0; master.gain.setTargetAtTime(0.03, a.currentTime, 2); master.connect(out);
     const voices = [[4300, -0.5, 1.7], [4700, 0.6, 2.3], [3900, 0.1, 3.1]].map(([f, pan, rate]) => {
