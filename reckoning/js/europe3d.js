@@ -1494,12 +1494,15 @@ export class EuropeView3D {
       }
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; tex.set(k, t); return t;
     };
+    const armsAt = new Map();
     for (const m of list) {
       // (on its town's dry ground, as the town itself is: not on a staff out in the water off a port)
       const [x, z] = this.spotXZ(m.lon, m.lat), y0 = Math.max(0, this.groundY(x, z)), swords = m.kind === "swords", arm = m.kind === "army" || m.kind === "party";
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: texOf(m.kind, m.color, !!m.dim, m.n, m.mine), depthTest: false, sizeAttenuation: false, transparent: true }));
       sp.scale.set(arm ? 0.05 : swords ? 0.034 : 0.05, arm ? 0.05 : swords ? 0.034 : 0.05, 1); sp.position.set(x, y0 + (arm ? 0.62 : swords ? 0.5 : 0.42), z); sp.renderOrder = arm ? 7 : swords ? 6 : 4;
       if (arm || swords) sp.userData.over = { y0, stack: arm ? 1 : 0 };
+      // (two armies at one town side by side, not one drawn over the other — "57" and "12" read as "5712")
+      if (arm) { const key = `${Math.round(x * 40)},${Math.round(z * 40)}`, n = armsAt.get(key) || 0; armsAt.set(key, n + 1); if (n) sp.center.set(0.5 - [0, 1, -1, 2, -2][Math.min(4, n)] * 0.95, 0.5); }
       sp.userData.name = m.name;
       grp.add(sp);
     }
@@ -1842,13 +1845,17 @@ export class EuropeView3D {
           const turn = d > 0 ? this.dryTurn(R, ry, d) : 0, wx0 = nd * 0.6, wz0 = nd * 0.8, wx = Math.cos(turn) * wx0 - Math.sin(turn) * wz0, wz = Math.sin(turn) * wx0 + Math.cos(turn) * wz0;
           R.inner.position.set(Math.cos(ry) * wx - Math.sin(ry) * wz, 0, Math.sin(ry) * wx + Math.cos(ry) * wz); }
       }
+      const atLab = new Map();
       for (const o of this.armyGroup.children) {
         if (o.userData.army) { o.scale.setScalar(k); o.position.y = Math.max(0, this.groundY(o.position.x, o.position.z)); const cl = o.userData.cloth; if (cl) { cl.parent.getWorldQuaternion(_fq); _fe.setFromQuaternion(_fq, "YXZ"); cl.rotation.y = WIND_YAW - _fe.y; } }
         else if (o.userData.over) {
           // (over a town, the number would be written across the town's name: set beside the name instead)
           const c = o.userData.over.position, lab = this.dist > 2.6 && this.labels && this.labels.find(l => l.visible && Math.abs(l.position.x - c.x) < 0.6 && Math.abs(l.position.z - c.z) < 0.6);
           // (far off, where the names crowd one another, over the name instead)
-          if (lab) { const d = this.camera.position.distanceTo(lab.position); if (this.dist < 30) o.position.set(lab.position.x + (lab.scale.x * (lab.userData.w || 1) / 2 + 0.022) * d, lab.position.y, lab.position.z); else o.position.set(lab.position.x, lab.position.y + 0.046 * d, lab.position.z); }
+          // (and a second army at the same town beside the first, not written over it — "57" and "12" read as "5712")
+          if (lab) { const d = this.camera.position.distanceTo(lab.position), n = atLab.get(lab) || 0; atLab.set(lab, n + 1); const step = o.scale.x * d * 1.05;
+            if (this.dist < 30) o.position.set(lab.position.x + (lab.scale.x * (lab.userData.w || 1) / 2 + 0.022) * d + n * step, lab.position.y, lab.position.z);
+            else o.position.set(lab.position.x + [0, 1, -1, 2, -2][Math.min(4, n)] * step, lab.position.y + 0.046 * d, lab.position.z); }
           else o.position.set(c.x, c.y + k * 3.6, c.z);
         }
       }
