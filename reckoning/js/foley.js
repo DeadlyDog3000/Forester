@@ -811,6 +811,8 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   runOut: [3, "foley", 0.88], prick: [2, "foley", 0.46], sponge: [3, "foley", 0.84], gunRam: [3, "foley", 1.06],
   // (the two smallest clicks — a flintlock to half cock, an arrow's nock onto the string — cut from takes of several)
   halfcock: [4, "foley", 1.6], nock: [2, "foley", 0.92],
+  // (a hand saw through a log, cut stroke by stroke from a long take of sawing)
+  saw: [10, "foley", 0.47],
   // (a herring gull crying over the harbour, as loud as the woods' crow)
   gull: [5, "foley", 0.079],
   // (the woods': a buzzard mewing as it wheels overhead, and a flock of small birds bursting out of a bush)
