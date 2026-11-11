@@ -78,13 +78,15 @@ function loadVoices(a) {
 // till there are any, an order is given in silence) ----
 const OBUF = {}, OLAST = {};
 let oLoad = null;
-function loadOrders(a) {
-  if (oLoad) return; oLoad = true;
-  fetch(new URL("../art/voice/orders.json", import.meta.url)).then(r => r.ok ? r.json() : Promise.reject()).then(N => {
-    for (const [k, n] of Object.entries(N)) for (let i = 0; i < n; i++)
-      fetch(new URL(`../art/voice/order_${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
-        .then(b => a.decodeAudioData(b)).then(b => (OBUF[k] ||= []).push(b)).catch(() => {});
-  }).catch(() => {});
+// (a woman's — order_<key>F — only once a woman first gives the word: most never hear them, and decoded they're
+//  eighteen megabytes held for nothing)
+let oFem = false;
+function loadOrders(a, fem = false) {
+  const go = (N, f) => { for (const [k, n] of Object.entries(N)) if (k.endsWith("F") === f) for (let i = 0; i < n; i++)
+    fetch(new URL(`../art/voice/order_${k}_${String(i).padStart(2, "0")}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
+      .then(b => a.decodeAudioData(b)).then(b => (OBUF[k] ||= []).push(b)).catch(() => {}); };
+  if (!oLoad) oLoad = fetch(new URL("../art/voice/orders.json", import.meta.url)).then(r => r.ok ? r.json() : Promise.reject()).then(N => { go(N, false); return N; }).catch(() => null);
+  if (fem && !oFem) { oFem = true; oLoad.then(N => N && go(N, true)); }
 }
 // ---- some of the field's sounds, recorded: a grenade bursting, blade on blade, a man's war cry as he goes in, and the
 // musket, the pistol and the cannon heard from far off (close by, the made ones below: those are the better there);
@@ -401,6 +403,7 @@ export const AUDIO = {
   order(key, { at = null, vol = 1, high = false, delay = 0 } = {}) {
     const a = ctx(); if (!a) return 0;
     // (a woman giving the word: her own voice — order_<key>F_NN — where it's in, a man's higher only till then)
+    if (high && !oFem) loadOrders(a, true);
     const fem = high && OBUF[key + "F"] && OBUF[key + "F"].length > 0, list = fem ? OBUF[key + "F"] : OBUF[key]; if (!list || !list.length) return 0;
     const ok = fem ? key + "F" : key;
     const { node, k } = placed(a, at, 140); if (k * vol < 0.02 || !room(at ? Math.min(1, 0.6 + k * vol) : 1)) return 0;
