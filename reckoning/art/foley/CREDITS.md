@@ -13,3 +13,4 @@
 - **pick_*, anvil_*, toolBreak_*.ogg** — an iron pickaxe on rock, a smith's hammer on his anvil, a tool's handle snapping. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the axe's chop, the hammer and the tree's crash, and encoded to Opus.
 - **quench_*.ogg** — red-hot metal quenched in a bucket: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the meat's sizzle.
 - **burn_*.ogg** — letters thrown on a fire, flaring up: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the meat's sizzle.
+- **boar_*, boarHurt_*, deerBark_*.ogg** — a wild boar grunting as it charges and squealing when struck, a red deer's bark of alarm. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the horse's neigh.

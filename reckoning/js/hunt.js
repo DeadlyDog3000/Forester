@@ -148,6 +148,8 @@ class Animal {
     // (in someone else's colony this beast is theirs, shown here: the arrow's told to their game, which brings it down)
     if (this.puppet) { G.practise && G.practise("archery", 3); G.mp && G.mp.huntHit && G.mp.huntHit(this, power); return; }
     this.hp -= power > 0.7 ? 2 : 1;
+    // (a boar squeals when it's struck)
+    if (this.kind === "boar") FOLEY.beast("boarHurt", this.pos, 0.9);
     // (wounded, it bleeds as it runs: a trail of drops to follow)
     this.bleed = 40; this.bleedAt = null;
     if (!from && !melee) G.practise && G.practise("archery", 3);
@@ -156,7 +158,7 @@ class Animal {
     const pl = G.player;
     if (!from && this.kind === "boar" && pl && Math.hypot(pl.pos.x - this.pos.x, pl.pos.z - this.pos.z) < 14) {
       this.state = "charge"; this.t = 5; this.gore = 0; this.fear = 1;
-      AUDIO.voice && AUDIO.voice("grunt", { at: this.pos, vol: 1.3 });
+      FOLEY.beast("boar", this.pos, 0.9);
       return;
     }
     this.startle(from || G.player.pos, 1.5);
@@ -167,6 +169,8 @@ class Animal {
     const dx = this.pos.x - from.x, dz = this.pos.z - from.z, l = Math.hypot(dx, dz) || 1;
     const a = Math.atan2(dx / l, dz / l) + (Math.random() - 0.5) * 0.8;
     this.target = { x: this.pos.x + Math.sin(a) * 40, z: this.pos.z + Math.cos(a) * 40 };
+    // (a deer that's first to take fright barks its alarm — once, and not every one of the herd that runs with it)
+    if (k >= 1 && this.state !== "flee" && this.kind === "deer" && G.time > (this.hunt.barkAt || 0)) { this.hunt.barkAt = G.time + 6; FOLEY.beast("deerBark", this.pos, 0.8); }
     this.state = "flee"; this.t = 5 + Math.random() * 3 * k; this.fear = 1;
     // the others see it go
     for (const o of this.hunt.animals) if (o !== this && o.alive && o.state !== "flee" && o.state !== "charge" && Math.hypot(o.pos.x - this.pos.x, o.pos.z - this.pos.z) < 14) o.startle(from, 0.8);
@@ -292,7 +296,7 @@ class Animal {
       this.gore -= dt;
       if (d < 1.3 && this.gore <= 0 && !G.downed) {
         G.hurt && G.hurt(pl.guard ? 5 : 15, "boar"); this.gore = 1.8;
-        AUDIO.voice && AUDIO.voice("grunt", { at: this.pos, vol: 1.2 });
+        FOLEY.beast("boar", this.pos, 0.8);
         if (Math.random() < 0.65) { this.startle(pl.pos, 1); }
       }
       if (this.t <= 0 || d > 30) this.startle(pl.pos, 1);
