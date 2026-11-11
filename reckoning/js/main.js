@@ -108,6 +108,7 @@ $("setQuality").addEventListener("change", e => { G.settings.quality = e.target.
 // ---- your keys: each action, the key it's on — click it and press another. A key another action had is swapped over to
 //      it, so nothing's ever left without one ----
 function drawKeys(note = "") {
+  relabelControls();
   const el = $("keyBinds");
   el.innerHTML = ACTIONS.map(a => `<div class="kb-row${changedKey(a.id) ? " moved" : ""}"><span>${a.label}</span><button class="kb-key" data-kb="${a.id}">${keyName(keyOf(a.id))}</button></div>`).join("")
     + `<div class="kb-foot"><span class="kb-note" id="kbNote">${note || "Click a key, then press the one you want. Esc and the number keys stay as they are."}</span><button class="kb-reset" id="kbReset">Reset all</button></div>`;
@@ -126,9 +127,14 @@ $("keyBinds").addEventListener("click", e => {
   });
 });
 // (the controls list shows your keys, not the ones the game came with)
-function relabelControls() {
-  for (const k of document.querySelectorAll("#controls kbd")) { k.dataset.k ??= k.textContent; k.textContent = shownAs(k.dataset.k) || k.dataset.k; }
+// (and every key written into the page — the panels' "B or F to close", the map's, the guide's — the same; not the
+//  settings' own list of keys, which says them as they are)
+//  settings' own list of keys, which says them as they are. The page's own are marked the first time, at the start: what's
+//  drawn later — the guide's, the cooking's — is written in the right key already, and isn't turned again)
+function relabelControls(first = false) {
+  for (const k of document.querySelectorAll(first ? "kbd" : "kbd[data-k], #controls kbd")) { if (k.closest("#keyBinds")) continue; k.dataset.k ??= k.textContent; k.textContent = shownAs(k.dataset.k) || k.dataset.k; }
 }
+relabelControls(true);
 // ---- FPS boosters ----
 const PRESETS = {
   // (High keeps everything, and draws fewer pixels only when it must to keep up: on a Retina screen at full size even
