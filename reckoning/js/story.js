@@ -490,7 +490,7 @@ async function cutpurse(w, onSnatch) {
   if (!near) { t.walk([[0.9, -41], [-30, -41.4]], 1.4); setTimeout(() => t.remove(), 25000); return false; }
   onSnatch && onSnatch();
   t.faceTo(pl.pos.x, pl.pos.z);
-  SFX.pickup(); UI.carry(null); AUDIO.whoosh && AUDIO.whoosh(0.3, false);
+  FOLEY.strike("ledgerUp", null, 0.32); UI.carry(null); AUDIO.whoosh && AUDIO.whoosh(0.3, false);
   bark("A cutpurse", "Obliged to you!", 1.6);
   // (down to the quay, along it west, and up the far street towards the walls)
   const route = [[0.6, -32], [0.4, -41.5], [-18, -41.6], [-34.6, -41.4], [-35, -24], [-35, -6], [-35, 12], [-35, 28]];
@@ -576,7 +576,7 @@ async function ch1(w) {
   await say("Father", `Take the ledger down to Jakob at the warehouse. He wants the tally signed before the Lübeck master sails on the tide.`);
   await say(YOU(), "Now? Supper's nearly on.");
   await say("Father", `Then walk quickly. Straight there, straight back. And don't let Jakob start on the weather, or you'll be home by Michaelmas.`);
-  SFX.pickup();
+  FOLEY.strike("ledgerUp", null, 0.32);
   UI.carry("Father's ledger");
   G.lockMove = false; look(null); father.stopFacing(); father.faceTo(11, -10); father.person.setPose("hold");
   UI.objective("Take the ledger to Jakob at the harbour warehouse");
@@ -602,14 +602,14 @@ async function ch1(w) {
   G.lockMove = true; lookAt(jakob); jakob.facePlayer(); jakob.lookAtPlayer(true); jakob.person.setPose("hold");
   mark(null); UI.objective(null);
   await say("Jakob", `Ah — the merchant's ${P.child}! Give it here, give it here. Hm. Hm. Two hundred and twelve, and not a sack short. He's a marvel, your father.`);
-  UI.carry(null); SFX.pickup();
+  UI.carry(null); FOLEY.strike("ledgerUp", null, 0.32);
   jakob.person.setPose("idle");
   await say("Jakob", "Tell him the Riga ship's been sighted off Cuxhaven. Tomorrow, if the wind holds. We'll need every back on this quay.");
   await say(YOU(), "He'll be pleased.");
   await say("Jakob", "He'll be insufferable. Oh — and this is for you. Your father had it copied from the one on the counting-house wall.");
   jakob.person.setPose("hold");
   await say("Jakob", "Every lane from the harbour to the Alster. A merchant's child ought to know the city — and it'll know you back, the more of it you walk.");
-  jakob.person.setPose("idle"); SFX.pickup();
+  jakob.person.setPose("idle"); FOLEY.strike("parchment", null, 0.4);
   G.hasMap = true; writeSave({ map: true });
   if (!G.pack.some(i => i.icon === "map")) G.pack.push({ icon: "map", name: "Jakob's map of the city", note: "Copied from the one on the counting-house wall. It fills in as you go." });
   await say("Jakob", "Go on, then — your supper's getting cold, and I can smell the rain coming.");
