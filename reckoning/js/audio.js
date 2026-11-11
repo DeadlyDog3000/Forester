@@ -143,10 +143,12 @@ function loadQuill(a) {
 // ---- and the steady ones, recorded to loop: rain light and heavy and on a roof, a brook, wind, a town's crowd, a
 // battle's roar (art/sfx/loop_<kind>.ogg, their ends folded into their beginnings). Till they're loaded the made ones ----
 // (how loud each, against the made one it stands for: measured, so a recording comes in no louder or softer)
+// (the heart, a breath — a man's, a woman's — and the melee's: a musket stock knocked aside, blade on blade, a blow home, men running)
+const HEART_REC = 0.56, BREATH_REC = [0.08, 0.12], PARRY_REC = 0.18, CLANG_MELEE = 0.17, BLOW_MELEE = 0.15, RUN_REC = 0.7;
 const KITCHEN_REC = { knife: 0.22, stir: 0.11, toss: 0.036, plate: 0.19, sizzle: 5.3, bubble: 3 }, HARBOUR_REC = 4.5, MURMUR_REC = 0.84, BROOK_REC = 2.2, WIND_REC = 2.0, ROAR_REC = 0.93, RAIN_REC = { light: 0.95, heavy: 0.33, roof: 0.17 };
 // (each ground's footfalls, and how loud against the made ones)
 const STEP_REC = { grass: ["stGrass", 0.045], leaves: ["stLeaves", 0.038], dirt: ["stDirt", 0.029], stone: ["stStone", 0.031], wood: ["stWood", 0.019], snow: ["stSnow", 0.03], water: ["stWater", 0.043], marsh: ["stMarsh", 0.062] };
-const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar", "harbour", "sizzle", "bubble"], LBUF = {};
+const LOOPS = ["rainLight", "rainHeavy", "rainRoof", "brook", "wind", "murmur", "roar", "harbour", "sizzle", "bubble", "runCrowd"], LBUF = {};
 function loadLoops(a) {
   for (const k of LOOPS) fetch(new URL(`../art/sfx/loop_${k}.ogg`, import.meta.url)).then(r => r.ok ? r.arrayBuffer() : Promise.reject())
     .then(b => a.decodeAudioData(b)).then(b => { LBUF[k] = b; }).catch(() => {});
@@ -185,6 +187,8 @@ function recordedVoice(a, kind, high, node, k, vol, t) {
   s.connect(g); g.connect(node); s.start(t); s.stop(t + cut + 0.02);
   return cut;
 }
+// (for the screens' own sounds, uisfx.js: one of a kind's recordings into its node at t — false till they're loaded)
+window.__sfxRec = (kind, node, g, t, rate) => { const a = ctx(); return !!a && recorded(a, kind, [[node, g]], t ?? a.currentTime, rate); };
 function ctx() {
   if (ac) { if (ac.state === "suspended") ac.resume(); return ac; }
   try { SFX.setMaster(SFX._vol ?? 0.6); } catch (e) {}
@@ -832,6 +836,18 @@ export const AUDIO = {
   // "haa" going out and a thinner "hih" coming in, swelling and fading smoothly; winded, a little voice comes into it
   breath(inhale, vol = 0.6, period = 1.2, high = false) {
     const a = ctx(); if (!a) return;
+    // (recorded: a man or a woman out of breath, a whole breath in and out at the in-breath — the take nearest the pace,
+    //  hurried or let out a little to fit it; the out-breath is in it)
+    { const list = SBUF[high ? "breathW" : "breathM"];
+      if (list && list.length >= 2) {
+        if (!inhale) return;
+        const want = period * 0.95, near = [...list].sort((x, y) => Math.abs(Math.log(x.duration / want)) - Math.abs(Math.log(y.duration / want)));
+        const b = near[Math.random() < 0.6 ? 0 : 1];
+        const t = a.currentTime, s = a.createBufferSource(), g = a.createGain(); s.buffer = b;
+        s.playbackRate.value = Math.min(1.18, Math.max(0.9, b.duration / want)) * rnd(0.97, 1.03);
+        g.gain.value = BREATH_REC[high ? 1 : 0] * vol; s.connect(g); g.connect(bus); lease(g, b.duration + 1); s.start(t);
+        return;
+      } }
     const t = a.currentTime, dur = period * (inhale ? 0.42 : 0.55);
     const pk = pinkNoise(a);
     const v = 0.22 * vol * (inhale ? 0.7 : 1);
@@ -926,16 +942,7 @@ export const AUDIO = {
     o.start(t); lfo.start(t); o.stop(t + 1.6); lfo.stop(t + 1.6);
   },
 
-  heartbeat(vol = 0.4) {
-    const a = ctx(); if (!a) return;
-    for (const d of [0, 0.22]) {
-      const t = a.currentTime + d;
-      const o = a.createOscillator(), g = a.createGain();
-      o.type = "sine"; o.frequency.setValueAtTime(62, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.14);
-      g.gain.setValueAtTime(vol * (d ? 0.7 : 1), t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
-      o.connect(g); g.connect(bus); lease(g, 8); o.start(t); o.stop(t + 0.2);
-    }
-  },
+
 
   // a crowd murmuring: a handful of voice-band noises, each swelling and falling
   murmur(on, vol = 1) {
@@ -1033,6 +1040,8 @@ export const AUDIO = {
   // softer — felt as much as heard, the chest's thud and no ring to it
   heartbeat(vol = 1) {
     const a = ctx(); if (!a) return;
+    // (recorded: a heart's lub-dub, as through a stethoscope, levelled to the made one)
+    if (recorded(a, "heart", [[bus, HEART_REC * vol]], a.currentTime + 0.01, [0.96, 1.04])) return;
     const t = a.currentTime + 0.01, lp = a.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 160; lp.Q.value = 0.9; lp.connect(bus); lease(lp, 3);
     for (const [dt, f, k] of [[0, 52, 1], [0.17, 64, 0.65]]) {
       thump(a, lp, t + dt, f * 1.25, f * 0.75, 0.55 * vol * k, 0.11);
@@ -1069,7 +1078,8 @@ export const AUDIO = {
       }
       // (the feet: a thudding rumble, uneven, low)
       const feet = a.createGain(); feet.gain.value = 0.0001; feet.connect(g); self.feet = feet;
-      { const s = noiseSrc(a), lp = a.createBiquadFilter(), am = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
+      const fb = bed(a, "runCrowd", feet, RUN_REC); if (fb) stop.push(fb.s);
+      else { const s = noiseSrc(a), lp = a.createBiquadFilter(), am = a.createGain(), lfo = a.createOscillator(), lg = a.createGain();
         lp.type = "lowpass"; lp.frequency.value = 170; lp.Q.value = 1.2; am.gain.value = 0.6; lfo.type = "square"; lfo.frequency.value = 5.3; lg.gain.value = 0.4;
         lfo.connect(lg); lg.connect(am.gain); s.connect(lp); lp.connect(am); am.connect(feet); s.start(0, Math.random()); lfo.start(); stop.push(s, lfo); }
       // (and struck things, now and again — more of them the thicker the fight)
@@ -1079,7 +1089,10 @@ export const AUDIO = {
         if (k > 0.02 && room(0.35)) {
           const far = rnd(0.35, 1) * k, r = Math.random(), o = a.createGain(); o.gain.value = far; o.connect(g);
           const b = (dur, vol, f0, f1, q, type = "bandpass") => { const s = noiseSrc(a), f = a.createBiquadFilter(), gg = a.createGain(); f.type = type; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, f1), t + dur); gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(vol, t + 0.003); gg.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(f); f.connect(gg); gg.connect(o); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.02); };
-          if (r < 0.4) {
+          // (recorded, each its own: blade on blade, two musket stocks knocked together, a blow home on a body)
+          const rec = r < 0.4 ? recorded(a, "clang", [[o, CLANG_MELEE]], t, [0.95, 1.15]) : r < 0.75 ? recorded(a, "parry", [[o, PARRY_REC]], t, [0.85, 1.15])
+            : !!(window.__foley && window.__foley.blowRec && window.__foley.blowRec(null, far * BLOW_MELEE));
+          if (rec) {} else if (r < 0.4) {
             // steel on steel: a hard tick and a short ring of a blade's partials
             b(0.03, 0.12, rnd(3000, 4500), 2500, 2);
             for (const f of [rnd(1900, 2600), rnd(3300, 4200), rnd(5200, 6400)]) { const os = a.createOscillator(), og = a.createGain(); os.frequency.value = f; og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.02, t + 0.002); og.gain.exponentialRampToValueAtTime(0.0001, t + rnd(0.12, 0.3)); os.connect(og); og.connect(o); os.start(t); os.stop(t + 0.32); }

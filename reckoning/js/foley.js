@@ -792,6 +792,8 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (things that came down to the tree's crash before: a beast shot, a ladder thrown down, a rock broken, logs put on
   //  the pile, a timber house or a palisade smashed)
   animalFall: [2, "foley", 1.44], ladderFall: [3, "foley", 1.38], rockBreak: [3, "foley", 2.62], logsDrop: [3, "foley", 2.35], timberFall: [3, "foley", 2.58],
+  // (the campaign room's hearth: a log fire in a stone fireplace, recorded close, made to go round)
+  room: [2, "foley", 3.5],
   // (the church bell: audio.js's recordings, levelled to the made one here)
   bell: [2, "sfx", 1.1],
   // (a pickaxe on stone, the smith's hammer on his anvil, a tool's handle snapping: they were a sword's clang)
@@ -932,6 +934,8 @@ export const FOLEY = {
   //  a shot striking home, or into the water, at loudness vol (no more than a few at once: a broadside's thirty balls
   //  are a handful of crashes and not a roar of them)
   preload(names) { for (const n of names) bufs(n); },
+  // (a recording, if it's in, played after a moment: false, and asked for, if it isn't — for uisfx.js's screens)
+  rec(name, vol = 0.5, after = 0, rate = [0.93, 1.07]) { if (!heard[name]) { bufs(name); return false; } after > 0 ? setTimeout(() => play(name, { vol, rate }), after * 1000) : play(name, { vol, rate }); return true; },
   // something come down: kind one of EARLY's, from where it is
   fall: (kind, at = null, vol = 1) => play(kind, { vol, at, reach: 70, rate: [0.9, 1.1] }),
   // a blow at something close: kind "pick", "anvil" or "toolBreak"
@@ -1008,8 +1012,8 @@ export const FOLEY = {
   room(on) {
     const a = ac(), out = window.__foresterBus; if (!a || !out) return;
     if (on && !roomSrc) {
-      const s = a.createBufferSource(); s.buffer = bufs("room")[0]; s.loop = true;
-      const g = a.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(0.13, a.currentTime, 0.8);
+      const rb = bufs("room"), s = a.createBufferSource(); s.buffer = rb[Math.floor(Math.random() * rb.length)]; s.loop = true;
+      const g = a.createGain(); g.gain.value = 0; g.gain.setTargetAtTime(0.13 * lift("room"), a.currentTime, 0.8);
       s.connect(g); g.connect(out); s.start(); roomSrc = { s, g };
     } else if (!on && roomSrc) {
       const f = roomSrc; roomSrc = null; f.g.gain.cancelScheduledValues(a.currentTime); f.g.gain.setTargetAtTime(0, a.currentTime, 0.3); setTimeout(() => { try { f.s.stop(); } catch (e) {} }, 2000);

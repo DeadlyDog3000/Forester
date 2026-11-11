@@ -26,3 +26,4 @@
 - **swim_*.ogg** — a swimmer's breaststroke, cut stroke by stroke from a long take: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the splash it replaces.
 - **chestOpen_*, chestShut_*.ogg** — an old chest's lid lifted on its iron hinges, and let fall shut: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the satchel.
 - **saw_*.ogg** — a hand saw through a log, cut stroke by stroke from a long take of sawing: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made saw.
+- **room_*.ogg** — the campaign room's hearth: a small log fire in a stone fireplace, recorded close and made to go round. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made fire it stands for and encoded to Opus.
