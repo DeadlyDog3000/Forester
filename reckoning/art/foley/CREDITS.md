@@ -18,4 +18,4 @@
 - **blaze_*.ogg** — a log palisade burning fiercely (made to go round): made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the campfire.
 - **reap_*.ogg** — a sickle through ripe rye, cut stroke by stroke from a long take of reaping: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the axe's chop.
 - **fuse_*.ogg** — a black-powder fuse fizzing, cut in pieces from two long takes: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; set against the meat's sizzle it replaces.
-- **runOut_*, prick_*.ogg** — a field gun run back up by its crew on iron-tyred wheels, and its vent pricked and primed from the horn. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made ones.
+- **runOut_*, prick_*, sponge_*, gunRam_*.ogg** — a field gun run back up by its crew on iron-tyred wheels, its vent pricked and primed from the horn, its bore sponged and the charge rammed home. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the made ones.
