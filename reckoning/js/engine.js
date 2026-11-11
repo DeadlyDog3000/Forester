@@ -1347,7 +1347,7 @@ export class Player {
       h.phase = h.gait(dt, this.speed);
       // (hoofbeats: each hoof as it comes down — the walk's four, the trot's two, the gallop's drumming three and the
       //  moment in the air; the tack jingling with the pace, and now and then a snort)
-      if (this.onGround) for (const i of h.falls) FOLEY.hoof(null, (this.speed > 6 ? 0.75 : 0.55) * (i < 2 ? 1 : 0.85));
+      if (this.onGround && h.falls.length) { const w = G.world, surf = w && w.surfaceAt ? w.surfaceAt(this.pos.x, this.pos.z) : null; for (const i of h.falls) FOLEY.hoof(null, (this.speed > 6 ? 0.75 : 0.55) * (i < 2 ? 1 : 0.85), surf); }
       if (this.speed > 1.5 && h.falls.length && Math.random() < 0.18 * Math.min(1, this.speed / 6)) FOLEY.tack(null, 0.22);
       if ((h.snortT = (h.snortT ?? 8) - dt) <= 0) { h.snortT = 8 + Math.random() * 14; if (this.speed > 3 || Math.random() < 0.4) FOLEY.snort(null, 0.4); }
     }
@@ -2660,7 +2660,7 @@ export class Actor {
       const h = this.horse, sx = Math.sin(this.yaw) * 0.31, sz = Math.cos(this.yaw) * 0.31; h.root.position.set(p.x - sx, p.y - this.yOff, p.z - sz); h.root.rotation.y = this.yaw; h.gait(dt, this.speed);
       // (reared: the saddle carried back toward the hips, and him in it)
       if (h.back) { this.root.position.x -= Math.sin(this.yaw) * h.back; this.root.position.z -= Math.cos(this.yaw) * h.back; }
-      if (h.falls.length && far2 < 3600) { const at = { x: p.x, z: p.z }; for (const i of h.falls) FOLEY.hoof(at, this.speed > 6 ? 0.7 : 0.5); if (Math.random() < 0.12) FOLEY.tack(at, 0.25); }
+      if (h.falls.length && far2 < 3600) { const at = { x: p.x, z: p.z }, w = G.world, surf = w && w.surfaceAt ? w.surfaceAt(p.x, p.z) : null; for (const i of h.falls) FOLEY.hoof(at, this.speed > 6 ? 0.7 : 0.5, surf); if (Math.random() < 0.12) FOLEY.tack(at, 0.25); }
       if ((h.snortT = (h.snortT ?? 4 + Math.random() * 20) - dt) <= 0) { h.snortT = 10 + Math.random() * 25; if (far2 < 900) FOLEY.snort({ x: p.x, z: p.z }, 0.45); }
     }
     // (his horse, riderless: off at a gallop away from the fight, and gone)

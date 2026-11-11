@@ -14,3 +14,4 @@
 - **quench_*.ogg** — red-hot metal quenched in a bucket: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the meat's sizzle.
 - **burn_*.ogg** — letters thrown on a fire, flaring up: made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the meat's sizzle.
 - **boar_*, boarHurt_*, deerBark_*.ogg** — a wild boar grunting as it charges and squealing when struck, a red deer's bark of alarm. Made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the horse's neigh.
+- **hoofStone_*, hoofWood_*.ogg** — a shod horse's hooves on cobbles and on a plank bridge, cut stroke by stroke from a horse walking on each; made for this game with ElevenLabs' sound generation, DeadlyDog Productions' own; levelled against the hoofbeat on turf.

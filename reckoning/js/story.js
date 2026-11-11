@@ -1276,7 +1276,7 @@ async function ridersPass(w, sib, barkQ) {
     let ahead = i0; d = 0; while (ahead < R.length - 1 && d < 110) { d += Math.hypot(R[ahead + 1].x - R[ahead].x, R[ahead + 1].z - R[ahead].z); ahead++; }
     const route = []; for (let k = back; k <= ahead; k += 4) route.push([R[k].x, R[k].z]);
     // hooves, far off
-    for (const t of [0, 0.9, 1.7]) setTimeout(() => FOLEY.hoof && FOLEY.hoof({ x: R[back].x, y: 0, z: R[back].z }, 0.5), t * 1000);
+    for (const t of [0, 0.9, 1.7]) setTimeout(() => FOLEY.hoof && FOLEY.hoof({ x: R[back].x, y: 0, z: R[back].z }, 0.5, G.world && G.world.surfaceAt ? G.world.surfaceAt(R[back].x, R[back].z) : null), t * 1000);
     await barkQ(P.sib, tries === 1 ? "Horses. Behind us — on the road. Off it, into the trees — get down!" : "They're coming again — off the road, now! Down!");
     UI.objective("Riders on the road — get into the trees, well off it, and crouch (C)");
     sib.stopFollow();
@@ -1290,7 +1290,7 @@ async function ridersPass(w, sib, barkQ) {
       T += dt;
       for (const a of riders) {
         const dd = Math.hypot(a.pos.x - pl.pos.x, a.pos.z - pl.pos.z), off = w.anyRoadDist(pl.pos.x, pl.pos.z).d;
-        if ((T * 10 | 0) % 3 === 0 && FOLEY.hoof) FOLEY.hoof({ x: a.pos.x, y: a.pos.y, z: a.pos.z }, 0.55);
+        if ((T * 10 | 0) % 3 === 0 && FOLEY.hoof) FOLEY.hoof({ x: a.pos.x, y: a.pos.y, z: a.pos.z }, 0.55, G.world && G.world.surfaceAt ? G.world.surfaceAt(a.pos.x, a.pos.z) : null);
         // (on the road, or near it and standing, as one comes by: seen)
         if (dd < 16 && (off < 3.5 || (off < 6.5 && !pl.crouched) || (!pl.crouched && dd < 8))) seen = true;
       }

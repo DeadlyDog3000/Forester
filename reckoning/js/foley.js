@@ -797,7 +797,9 @@ const RECORDED = { neigh: [5, "horse"], horseScream: [4, "horse"], snort: [4, "h
   // (a pickaxe on stone, the smith's hammer on his anvil, a tool's handle snapping: they were a sword's clang)
   pick: [2, "foley", 0.71], anvil: [3, "foley", 0.87], toolBreak: [3, "foley", 1.27], quench: [3, "foley", 0.77], burn: [3, "foley", 0.62],
   // (the hunt's beasts: a boar's grunt as it charges and its squeal when it's struck, a red deer's bark of alarm)
-  boar: [4, "foley", 0.58], boarHurt: [3, "foley", 0.71], deerBark: [4, "foley", 0.42] }, heard = {}, hearing = {};
+  boar: [4, "foley", 0.58], boarHurt: [3, "foley", 0.71], deerBark: [4, "foley", 0.42],
+  // (a horse's shoes on cobbles and on a bridge's planks, cut stroke by stroke from a horse walking on each)
+  hoofStone: [8, "foley", 3.59], hoofWood: [8, "foley", 1.32] }, heard = {}, hearing = {};
 // (how much louder a sound's recordings are played than its made ones: 1 till they're heard)
 const lift = name => heard[name] ? (RECORDED[name][2] || 1) : 1;
 function recorded(a, name) {
@@ -854,7 +856,13 @@ export const FOLEY = {
   play,
   // a horse's hooves, its snorting and its tack, from where it is — hoofbeats kept to so many a second over the whole
   //  field, so a charge of thirty is a drumming and not a jam (the nearest are heard; the rest are already a roar)
-  hoof(at, vol = 0.6) { const t = performance.now(); HOOVES = HOOVES.filter(q => t - q < 1000); if (HOOVES.length > 26) return; HOOVES.push(t); play("hoof", { vol, at, reach: 70, rate: [0.88, 1.12] }); },
+  // (surf: the ground it comes down on, as a world's surfaceAt tells it — iron on stone, a knock on timber, a splash in
+  //  water, and turf for the rest)
+  hoof(at, vol = 0.6, surf = null) { const t = performance.now(); HOOVES = HOOVES.filter(q => t - q < 1000); if (HOOVES.length > 26) return; HOOVES.push(t);
+    const k = surf === "stone" ? "hoofStone" : surf === "wood" ? "hoofWood" : null;
+    if (surf === "water" || surf === "marsh") { play("splash", { vol: vol * 0.45, at, reach: 50, rate: [1.1, 1.35] }); return; }
+    if (k && !heard[k]) bufs(k);
+    play(k && heard[k] ? k : "hoof", { vol, at, reach: 70, rate: [0.88, 1.12] }); },
   snort: (at, vol = 0.5) => play("snort", { vol, at, reach: 35, rate: [0.9, 1.12] }),
   neigh: (at, vol = 0.6) => play("neigh", { vol, at, reach: 80, rate: [0.92, 1.08] }),
   horseScream: (at, vol = 0.7) => play("horseScream", { vol, at, reach: 60, rate: [0.92, 1.1] }),
