@@ -1571,7 +1571,7 @@ async function ch6(w) {
       use: () => {
         if (pl.carryN >= CARRY_MAX) { bark(P.sib, "You'll drop the lot. Six is all anyone can carry — stack them by the cabin, then come back.", 4); return; }
         const take = Math.min(b.n, CARRY_MAX - pl.carryN);
-        pl.carryN += take; b.n -= take; S.carry = pl.carryN; SFX.pickup();
+        pl.carryN += take; b.n -= take; S.carry = pl.carryN; FOLEY.fall("logsDrop", null, 0.3);
         tutor("stack", "Good. Now the stack, by the cabin — we'll need twenty for walls and five for a door.", [["F", "stack the logs by the cabin"], ["T", "see what you carry"]]);
         if (b.n <= 0) { w.removeInteract(b.it); w.root.remove(g); bundles.splice(bundles.indexOf(b), 1); }
         saveLogs();
@@ -1851,7 +1851,7 @@ async function ch7(w) {
         can: () => !S.sown.includes(st.i),
         onHoldTick: (dt, t) => { if (Math.floor(t * 2.4) !== Math.floor((t - dt) * 2.4)) (S.dug.includes(st.i) ? SFX.pickup : SFX.hammer)(); },
         use: () => {
-          if (!S.dug.includes(st.i)) { S.dug.push(st.i); addSoil(st); SFX.build(); }
+          if (!S.dug.includes(st.i)) { S.dug.push(st.i); addSoil(st); SFX.dig(); }
           else { S.sown.push(st.i); addRows(st); SFX.pickup(); if (S.sown.length === 1) bark(P.sib, "Not too deep. A thumb's depth, and cover it over. Father sowed his window box like that every spring."); }
           persist();
         } }));
@@ -2123,7 +2123,7 @@ async function ch8(w, opts = {}) {
   mark([FIRE.x, FIRE.z, w.cy + 0.6]);
   let out = false;
   const fi = w.addInteract({ x: FIRE.x, y: w.cy + 0.5, z: FIRE.z, reach: 2.4, hold: 1.4, label: "Kick earth over the fire",
-    onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.pickup(); }, use: () => { out = true; } });
+    onHoldTick: (dt, t) => { if (Math.floor(t * 3) !== Math.floor((t - dt) * 3)) SFX.dig(); }, use: () => { out = true; } });
   await until(() => out);
   w.removeInteract(fi); w.lightFire(false);
   // ---- into the trees ----

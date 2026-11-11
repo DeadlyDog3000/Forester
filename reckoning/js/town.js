@@ -1206,7 +1206,7 @@ export class Town {
         if (b.logs < def.cost) {
           const n = Math.min(pl.carryN, def.cost - b.logs);
           b.logs += n; pl.carryN -= n; UI.carry(pl.carryN ? `Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}` : null);
-          this.show(b); this.persist(); SFX().pickup(); return;
+          this.show(b); this.persist(); FOLEY.fall("logsDrop", null, 0.4); return;
         }
         // the stone, planks and bricks come from the stores, as much as there is
         const want = this.wants(b);
@@ -2000,7 +2000,7 @@ export class Town {
     this.cookIt = w.addInteract({ x: FIRE.x, y: w.cy + 0.4, z: FIRE.z, reach: 2.6, hold: 3, anim: "craft",
       label: () => `Roast your ${G.pack.some(i => i.icon === "fish") && !G.pack.some(i => isRawMeat(i.icon) && i.icon !== "fish") ? "fish" : G.pack.some(i => i.icon === "fish") ? "meat and fish" : "meat"} over the fire (${G.pack.filter(i => isRawMeat(i.icon)).reduce((s, i) => s + (i.n || 1), 0)})${(this.S.homeTier || 1) >= 2 ? " — or cook it properly in the kitchen" : ""}`,
       can: () => G.pack.some(i => isRawMeat(i.icon)),
-      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX().pickup && SFX().pickup(); },
+      onHoldTick: (dt, t) => { if (Math.floor(t * 0.8) !== Math.floor((t - dt) * 0.8)) FOLEY.sizzle(null, 0.4); },
       use: () => {
         const m = G.pack.find(i => isRawMeat(i.icon)); if (!m) return;
         const have = G.pack.find(i => i.icon === "cookedmeat");
@@ -2190,7 +2190,7 @@ export class Town {
       can: () => pl.carryN < CARRY_MAX,
       use: () => {
         const take = Math.min(b.n, CARRY_MAX - pl.carryN);
-        pl.carryN += take; b.n -= take; SFX().pickup();
+        pl.carryN += take; b.n -= take; FOLEY.fall("logsDrop", null, 0.3);
         UI.carry(`Carrying ${pl.carryN} log${pl.carryN > 1 ? "s" : ""}`);
         if (b.n <= 0) this.pickUp(b);
         this.saveLogs();

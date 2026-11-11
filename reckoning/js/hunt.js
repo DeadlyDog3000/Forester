@@ -531,7 +531,7 @@ export class Hunt {
     // a fallen beast can be dressed where it lies
     const it = a._dressIt = this.w.addInteract({ get x() { return a.pos.x; }, get z() { return a.pos.z; }, get y() { return a.pos.y + 0.4; }, reach: 2.2, hold: 2.2,
       label: `Dress the ${a.K.name}`,
-      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) SFX.pickup && SFX.pickup(); },
+      onHoldTick: (dt, t) => { if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) AUDIO.knife && AUDIO.knife(); },
       use: () => {
         this.w.removeInteract(it);
         this.w.root.remove(a.root);
