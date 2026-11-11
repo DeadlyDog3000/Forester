@@ -2186,8 +2186,8 @@ class Arena {
     const label = (text, sub) => {
       const cv = document.createElement("canvas"); cv.width = 512; cv.height = 128; const x = cv.getContext("2d");
       x.fillStyle = "rgba(20,14,8,0.78)"; const rr = 26; x.beginPath(); x.roundRect ? x.roundRect(8, 8, 496, 112, rr) : x.rect(8, 8, 496, 112); x.fill();
-      x.fillStyle = "#f6ecd0"; x.font = "600 44px 'Open Sans', sans-serif"; x.textAlign = "center"; x.fillText(text, 256, 62);
-      x.fillStyle = "#e0b25a"; x.font = "28px 'Open Sans', sans-serif"; x.fillText(sub, 256, 102);
+      x.fillStyle = "#f6ecd0"; x.font = "600 44px 'Open Sans', sans-serif"; x.textAlign = "center"; x.fillText(text, 256, 62, 476);
+      x.fillStyle = "#e0b25a"; x.font = "28px 'Open Sans', sans-serif"; x.fillText(sub, 256, 102, 476);
       const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); sp.renderOrder = 6; sp.scale.set(9, 2.25, 1); return sp;
     };

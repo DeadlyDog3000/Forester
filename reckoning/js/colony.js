@@ -109,7 +109,7 @@ export function lay(town, c) {
   g.add(b.build(MAT.rough));
   const cv = document.createElement("canvas"); cv.width = 256; cv.height = 64;
   const x2 = cv.getContext("2d"); x2.fillStyle = "#c8a878"; x2.fillRect(0, 0, 256, 64); x2.strokeStyle = "#3b2612"; x2.lineWidth = 4; x2.strokeRect(2, 2, 252, 60);
-  x2.fillStyle = "#2a1a0c"; x2.font = "italic 30px Georgia, serif"; x2.textAlign = "center"; x2.textBaseline = "middle"; x2.fillText(c.name, 128, 34);
+  x2.fillStyle = "#2a1a0c"; x2.font = "italic 30px Georgia, serif"; x2.textAlign = "center"; x2.textBaseline = "middle"; x2.fillText(c.name, 128, 34, 236);   // (a long name drawn narrower, not cut off at the sign's ends)
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
   const sign = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.38, 0.05), [mat(0x7a5634), mat(0x7a5634), mat(0x7a5634), mat(0x7a5634), new THREE.MeshStandardMaterial({ map: tex }), new THREE.MeshStandardMaterial({ map: tex })]);
   sign.position.set(sx + 2.2, w.heightAt(sx + 2.2, sz) + 2.1, sz); sign.rotation.y = Math.atan2(c.x - sx, c.z - sz) + Math.PI / 2; g.add(sign);
