@@ -25,6 +25,7 @@ export const CHANGELOG = [
       "A building site's sign is as wide as its longest line: \"Needs a door — hew one at the sawhorse\" was cut off at the dash. A long town name on the campaign map (or your own clearing's) gets a wider card, and a colony's road sign fits its name.",
       "A key you've moved in Settings is the key the game tells you to press: hints, objectives, the prompt to take or open something, your companion's advice, the first battle's lessons, the guide, the cooking and the panels' own \"B or F to close\" all said the key the game came with, whatever you'd changed it to.",
       "The hide pack you stitch at the chopping block is a knapsack, as it was called in 1683 (\"backpack\" is a word of the twentieth century).",
+      "Arming for a campaign battle no longer tells you about bots and the purse: every arm is free there, and the screen says so; the purse it never touches isn't shown.",
       "On the title screen in the demo, the Online heading fits on one line again, level with Single Player.",
     ],
   },
