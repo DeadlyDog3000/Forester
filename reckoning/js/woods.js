@@ -2112,7 +2112,7 @@ export class Woods extends WorldBase {
           if (!got) return;
           bush.ripeAt = G.time + 300 + Math.random() * 120; fruit.visible = false;
           UI.hint(`${got} blackberries${got < n ? " (your pack is full)" : ""}. Your fingers are purple.`, 2.5);
-          window.SFX && window.SFX.pickup && window.SFX.pickup();
+          { const F = window.__foley; F && F.strike ? F.strike("pluck", null, 0.4) : window.SFX && window.SFX.pickup && window.SFX.pickup(); }
         } });
       this.bushes.push(bush); i++;
     }
