@@ -2441,7 +2441,7 @@ G.emitCraft = r => {
     spade5: "Iron. The fields will dig themselves. Nearly.",
     hammer1: "A mallet. We'll have the next cabin up by supper.",
     hammer2: "A stone hammer — mind your thumbs.",
-    pack1: "A backpack! You'll carry twice what you did. More hides and you could stitch a bigger one.",
+    pack1: "A knapsack! You'll carry twice what you did. More hides and you could stitch a bigger one.",
     pack2: "That'll hold a fair load.",
     pack3: "A pedlar's frame. You could walk to Lübeck with that.",
     sword1: "A wooden sword. Well. It's better than your fists.",
@@ -3551,7 +3551,7 @@ async function chFree(w) {
   w.huntOpen = true;
   const hunt = new Hunt(w, HUNT, {
     onDown: a => bark(YOU(), a.kind === "deer" ? "Down. Hold F to dress it." : a.kind === "boar" ? "...It's down. Careful — hold F to dress it." : "Got it. Hold F to take it.", 2.5),
-    // (its own meat — venison, hare or boar — and the hide off it: four hides make a backpack)
+    // (its own meat — venison, hare or boar — and the hide off it: four hides make a knapsack)
     onDress: (a, m) => { const k = a.K.meatKind || "meat"; G.packAdd(k, m, ITEM[k] ? ITEM[k].name : "Meat", ITEM[k] ? ITEM[k].note : ""); G.packAdd("hide", a.kind === "boar" ? 2 : 1); town.persist(); },
   });
   // and out in the woods all round: beasts of their own, that keep away from where people live

@@ -759,7 +759,7 @@ function renderInventory() {
   // your pack, as a grid: every thing in it takes the room it takes, your tools and the bow among them. Drag a thing
   // to move it; drop it on another to change them over; click food to eat it
   const L = packLayout(G.pack, G.body), tl = G.body && G.body.tools;
-  const bag = tl && tl.pack ? ["", "a hide backpack", "a stitched pack", "a pedlar's frame pack"][tl.pack] : "no backpack — four hides make one";
+  const bag = tl && tl.pack ? ["", "a hide knapsack", "a stitched pack", "a pedlar's frame pack"][tl.pack] : "no knapsack — four hides make one";
   const used = L.pieces.reduce((a, p) => a + p.w * p.h, 0);
   html += `<div class="mc-sec">Your pack <span class="mc-hint" style="float:right">${used} of ${L.W * L.H} squares · ${bag}</span></div>`;
   html += `<div class="pk-grid" id="pkGrid" style="--W:${L.W};--H:${L.H}">`;

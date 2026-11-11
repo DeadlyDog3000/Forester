@@ -2025,7 +2025,7 @@ function mineSwing() {
     return;
   }
   // (a full pack: nothing more to put it in)
-  if (roomFor(G.pack, G.body, R.gives) <= 0) { UI.hint("Your pack is full. Put things in a chest — or make a backpack from hides at the chopping block.", 3.5); return; }
+  if (roomFor(G.pack, G.body, R.gives) <= 0) { UI.hint("Your pack is full. Put things in a chest — or make a knapsack from hides at the chopping block.", 3.5); return; }
   FOLEY.strike("pick", { x: k.x, z: k.z }, 0.8);
   rockChips(k, 1);
   k.hp -= 1 + ((tools.pick - R.need) * 0.5) + (Math.random() < skillK(G.body, "strength") * 0.6 ? 1 : 0);
@@ -2308,7 +2308,7 @@ G.packAdd = (icon, n, name, note) => {
     else G.pack.push({ icon, name: name || (ITEM[icon] || {}).name || icon, note: note || (ITEM[icon] || {}).note || "", n: put });
   }
   if (put > 0 && window.__foley) window.__foley.packIn(0.32);
-  if (put < n) UI.hint(`Your pack is full${put ? ` — only ${put} went in` : ""}. Put things in a chest, or make a bigger backpack from hides.`, 4);
+  if (put < n) UI.hint(`Your pack is full${put ? ` — only ${put} went in` : ""}. Put things in a chest, or make a bigger knapsack from hides.`, 4);
   return put;
 };
 // practice at something: a word when it rises

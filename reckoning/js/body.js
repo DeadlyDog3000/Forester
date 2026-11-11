@@ -56,7 +56,7 @@ export const TOOL_RECIPES = [
   { tool: "hammer", tier: 3, name: "Copper hammer", cost: { logs: 1, copper: 3 }, note: "Quicker again." },
   { tool: "hammer", tier: 4, name: "Bronze hammer", cost: { logs: 1, bronze: 3 }, note: "Quicker again." },
   { tool: "hammer", tier: 5, name: "Iron hammer", cost: { logs: 1, iron: 3 }, note: "A building raised in half the time." },
-  { tool: "pack", tier: 1, name: "Hide backpack", cost: { hide: 4 }, note: "Four hides, laced: a pack ten squares by five, instead of what a sack over your shoulder holds (ten by four)." },
+  { tool: "pack", tier: 1, name: "Hide knapsack", cost: { hide: 4 }, note: "Four hides, laced: a pack ten squares by five, instead of what a sack over your shoulder holds (ten by four)." },
   { tool: "pack", tier: 2, name: "Stitched pack", cost: { hide: 6, logs: 1 }, note: "Doubled hide on a bent-wood frame: ten squares by six." },
   { tool: "pack", tier: 3, name: "Pedlar's frame pack", cost: { hide: 8, logs: 2, iron: 1 }, note: "A wooden frame with an iron buckle, as the pedlars carry: twelve squares by six." },
   { tool: "sword", tier: 1, name: "Wooden sword", cost: { logs: 2 }, note: "Better than your fists when they come up the road. Not much better." },
@@ -132,7 +132,7 @@ export const ITEM = {
   boar: { name: "Boar", note: "Fat and strong: taste 4.5, tenderness 1/4, fills 36%. Forgiving if left on — dangerous if taken off too soon." },
   crossbow: { name: "Crossbow", note: "Right-click to aim down it; click to loose a bolt. It cranks itself back for the next." },
   bolts: { name: "Crossbow bolts", note: "For the crossbow. Made at the chopping block, eight at a time, once there's a forge." },
-  hide: { name: "Hide", note: "A skin off something you hunted. Four make a backpack, at the chopping block; tanned at a tanning rack, it's leather." },
+  hide: { name: "Hide", note: "A skin off something you hunted. Four make a knapsack, at the chopping block; tanned at a tanning rack, it's leather." },
   leather: { name: "Leather", note: "A hide tanned on the rack. For a buff coat — or the market." },
 };
 
@@ -225,7 +225,7 @@ export function hungerTick(b, dt, running) {
 
 // ---- what you can carry: a pack laid out as a grid, as a pedlar packs his: every thing takes the room it takes —
 // an axe two squares by two, the bow a long one by four, a fish one by two, a handful of stone one square, a dozen of
-// it to the square. Your tools and the bow ride in it too. A backpack gives a bigger grid. ----
+// it to the square. Your tools and the bow ride in it too. A knapsack gives a bigger grid. ----
 export const GRID = [[10, 4], [10, 5], [10, 6], [12, 6]], STACK = 12;
 // (kept for what still counts in slots: the number of squares)
 export const PACK_SLOTS = GRID.map(([w, h]) => w * h);
