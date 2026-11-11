@@ -1785,7 +1785,7 @@ export class Town {
       w.addInteract({ x: bx + 1.3, y: y + 0.9, z: bz, reach: 2.4, anim: "saw", get hold() { return 4 * buildMul(G.body); },
         label: () => `Hew a door (${DOOR_LOGS} logs${pl.carryN > 0 ? ` — ${Math.min(DOOR_LOGS, pl.carryN)} of them the ones you're carrying` : ` from ${c.name}'s ${shed() ? "woodshed" : "stack"}`})`,
         can: () => (c.store || 0) + (pl.carryN || 0) >= DOOR_LOGS && v().doorWanted(),
-        onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
+        onHoldTick: (dt, t) => { if (Math.floor(t * 1.6) !== Math.floor((t - dt) * 1.6)) FOLEY.play("saw", { vol: 0.45, rate: [0.9, 1.1] }); },
         use: () => { const own = Math.min(DOOR_LOGS, pl.carryN || 0); pl.carryN -= own; c.store -= DOOR_LOGS - own; this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4); } }),
       w.addInteract({ get x() { return v().stackAt.x; }, y: y + 0.8, get z() { return v().stackAt.z; }, reach: 2.6,
         label: () => pl.carryN > 0 ? `${shed() ? `Put the logs in ${c.name}'s woodshed` : `Stack the logs at ${c.name}`} (${pl.carryN})` : `Take logs from ${c.name}'s ${shed() ? "woodshed" : "stack"} (${c.store || 0})`,
@@ -2025,7 +2025,7 @@ export class Town {
       // (the logs in your arms first, then the stack's)
       label: () => `Hew a door (${DOOR_LOGS} logs${pl.carryN > 0 ? ` — ${Math.min(DOOR_LOGS, pl.carryN)} of them the ones you're carrying` : ` from the ${this.has("woodshed") ? "woodshed" : "stack"}`})`,
       can: () => this.doorWanted() && this.S.store + (pl.carryN || 0) >= DOOR_LOGS,
-      onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX().hammer(); },
+      onHoldTick: (dt, t) => { if (Math.floor(t * 1.6) !== Math.floor((t - dt) * 1.6)) FOLEY.play("saw", { vol: 0.45, rate: [0.9, 1.1] }); },
       use: () => {
         const own = Math.min(DOOR_LOGS, pl.carryN || 0); pl.carryN -= own; this.S.store -= DOOR_LOGS - own;
         this.S.doors = (this.S.doors || 0) + 1; this.showStore(); this.persist(); SFX().build(); UI.hint("A door, hewn. Hang it on the cabin — F at the site.", 4);

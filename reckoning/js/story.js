@@ -1506,7 +1506,7 @@ async function ch6(w) {
   // (the logs in your arms first, then the stack's)
   w.addInteract({ x: BLOCK.x + 1.3, y: w.cy + 0.9, z: BLOCK.z, reach: 2.4, hold: 4, label: () => `Hew a door (${DOOR_COST} logs${pl.carryN > 0 ? ` — ${Math.min(DOOR_COST, pl.carryN)} of them the ones you're carrying` : " from the stack"})`,
     can: () => !S.door && S.store + (pl.carryN || 0) >= DOOR_COST,
-    onHoldTick: (dt, t) => { if (Math.floor(t * 2.6) !== Math.floor((t - dt) * 2.6)) SFX.hammer(); },
+    onHoldTick: (dt, t) => { if (Math.floor(t * 1.6) !== Math.floor((t - dt) * 1.6)) FOLEY.play("saw", { vol: 0.45, rate: [0.9, 1.1] }); },
     use: () => { const own = Math.min(DOOR_COST, pl.carryN || 0); pl.carryN -= own; S.carry = pl.carryN; S.door = true; S.store -= DOOR_COST - own; w.setStack(S.store); w.doorProp.visible = true; SFX.build(); persist(); bark(P.sib, "A door! Crooked as a dog's hind leg. It's perfect."); } });
   let rebuilt = false;
   w.addInteract({ x: CABIN.x + Math.sin(CABIN.ry) * 3.3, y: w.cy + 1.2, z: CABIN.z + Math.cos(CABIN.ry) * 3.3, reach: 3, hold: 5, label: `Rebuild the cabin (${CABIN_COST} logs and the door)`,
