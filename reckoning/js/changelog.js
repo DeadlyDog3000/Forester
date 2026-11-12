@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.295", date: "12 November 2026", title: "Shot through the works",
+    items: [
+      "Round shot breaks field works now. A gabion takes a ball or two and bursts in a spray of earth and wicker; a palisade or a row of chevaux-de-frise is smashed to splinters, and the ball goes on through. An earth bank soaks shot up, as it should.",
+      "What's left lies there — spilt earth, broken stakes — and the cover it gave is gone: the men crouched behind it have to find another place.",
+      "A bomb bursting beside the works blows them in too.",
+    ],
+  },
+  {
     v: "1.99.294", date: "12 November 2026", title: "The walls come down",
     items: [
       "A length of wall, a tower or a gate battered through doesn't vanish in a puff any more: it shudders, drops into its own foot, flings stones and timbers out over the ground and rolls a wall of dust out after it, with the roar of it falling and the stones settling.",
