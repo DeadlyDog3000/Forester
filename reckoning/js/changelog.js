@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.292", date: "12 November 2026", title: "Every man counted",
+    items: [
+      "The pay for a battle reckons the odds from every man who fought on each side. A man of yours whose place you took when you fell went uncounted, so your side looked a man smaller for each one and a win paid a little more than it should. He's counted now.",
+    ],
+  },
+  {
     v: "1.99.291", date: "11 November 2026", title: "Round the works",
     items: [
       "Horse charging an enemy dug in behind gabions, banks or chevaux-de-frise no longer piles up against them. A trooper who's getting nowhere rides round by a way he can see to his man; if there isn't one, he wheels off and picks someone he can reach. Riding through after a blow, he makes for open ground, not into the works behind his man.",
