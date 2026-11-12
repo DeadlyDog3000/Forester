@@ -211,6 +211,8 @@ export class WaterMat {
     this.rough = { data, n, x0, z0, size };
     this.uni.uRough.value = t; this.uni.uRoughBox.value.set(x0, z0, 1 / size, 1 / size); this.uni.uRoughOn.value = 1;
   }
+  // (let go of with its world: the roughness map is the water's own, and a battle's sea made a new one every battle)
+  dispose() { const t = this.uni.uRough && this.uni.uRough.value; if (t && t.isDataTexture && this.rough) t.dispose(); this.rough = null; this.mat.dispose(); }
   roughAt(x, z) {
     const r = this.rough; if (!r) return 1;
     const fx = Math.max(0, Math.min(r.n - 1.001, (x - r.x0) / r.size * r.n - 0.5)), fz = Math.max(0, Math.min(r.n - 1.001, (z - r.z0) / r.size * r.n - 0.5));

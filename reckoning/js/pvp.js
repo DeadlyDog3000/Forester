@@ -3644,6 +3644,9 @@ class Arena {
     if (this.gunMan) this.unmanGun();
     for (const it of this.gunIts || []) this.w.removeInteract(it);
     if (this.field) this.field.dispose();
+    // (each side's carried colours: on the ensign, or on the ground — never under the field's root, so let go of here,
+    //  their painted cloth with them, or every battle left two on the graphics card)
+    for (const C of this.cols || []) if (C && C.g) { if (C.g.parent) C.g.parent.remove(C.g); C.g.traverse(o => { if (o.geometry && !o.geometry._shared) o.geometry.dispose(); for (const m of [].concat(o.material || [])) if (m && m.map && m.map.isTexture && !m.map.userData.shared && !m.map.userData.keep) m.map.dispose(); }); }
     for (const m of this.marks || []) this.w.root.remove(m.mesh);
     this.marks = [];
   }

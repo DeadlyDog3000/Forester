@@ -1057,6 +1057,7 @@ export class Wilds extends WorldBase {
   dispose() {
     for (const ch of [...this.chunks.values()]) this.dropChunk(ch);
     if (this.birds && this.birds.dispose) this.birds.dispose();
+    if (this.wm && this.wm.dispose) this.wm.dispose();
     super.dispose();
   }
 }
