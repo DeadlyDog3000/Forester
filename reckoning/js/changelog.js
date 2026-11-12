@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.294", date: "12 November 2026", title: "The walls come down",
+    items: [
+      "A length of wall, a tower or a gate battered through doesn't vanish in a puff any more: it shudders, drops into its own foot, flings stones and timbers out over the ground and rolls a wall of dust out after it, with the roar of it falling and the stones settling.",
+      "Merlons knocked off the top go over and tumble down the face, and lie where they land.",
+      "When a breach opens and no enemy's on you, the picture cuts out to it for a few seconds to watch it come down. Any key or click takes you straight back.",
+      "A palisade burnt through falls the same way, in smoke.",
+    ],
+  },
+  {
     v: "1.99.293", date: "12 November 2026", title: "Lighter after battle",
     items: [
       "A battle by the sea gives back the sea's surface and the colours both sides carried when it ends, and a fight at sea hands back its drawing at once when you leave it. Long evenings of battle after battle sit lighter on your machine.",

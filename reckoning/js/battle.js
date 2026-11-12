@@ -461,6 +461,18 @@ function wickerMat() {
   return WICKER;
 }
 
+// ---- a fortification coming down: not gone in a puff, but falling — the masonry slumping into its own foot, stones
+//  and timbers flung out before it, the merlons toppling off, and a wall of dust rolling out over the ground after ----
+const CHUNK = new THREE.DodecahedronGeometry(1, 0); CHUNK._shared = true;
+const SPLINTER = new THREE.BoxGeometry(0.22, 0.22, 1); SPLINTER._shared = true;
+const _o = new THREE.Object3D(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+// (the stuff of it: the first solid thing's material in the length, and whether it's wood)
+function stuffOf(b) {
+  let m = null; b.grp.traverse(o => { if (!m && o.isMesh && o.material && !Array.isArray(o.material)) m = o.material; });
+  const wood = !!(b.gate || b.kind === "palisade");
+  return { m: m || mat(wood ? 0x6a4a30 : 0x9a917f, { surface: wood ? "wood" : "stone" }), wood };
+}
+
 export class Field {
   // C: the middle of the field; dx: how far either side's line stands from it (west is side 0, east side 1)
   // fort: the side whose fort it is (0 yours, 1 theirs), or null for the open field
@@ -626,6 +638,112 @@ export class Field {
     for (let i = 0; i < n; i++) { const p = S.guns[i]; this.gun(side, p.x, p.z, sx); this.claim(p.x, p.z, 1.6); }
     for (let z = -12; z <= 12; z += 4) this.claim(S.anchor.x, S.anchor.z + z, 2.5);
   }
+  // which way is out from a length of wall: away from the town (a siege's wall line, a palisade's own outward side),
+  //  or else back the way the shot came
+  outOf(b, dir) {
+    const W = this.siege && this.siege.wall;
+    if (b.out) { const x = b.out.x - b.x, z = b.out.z - b.z, l = Math.hypot(x, z); if (l > 0.01) return new THREE.Vector3(x / l, 0, z / l); }
+    if (W && W.ux) return new THREE.Vector3(-Math.sign(W.ux), 0, 0);
+    if (dir && Math.hypot(dir.x, dir.z) > 0.01) return new THREE.Vector3(-dir.x, 0, -dir.z).normalize();
+    const a = Math.random() * Math.PI * 2; return new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+  }
+  // a merlon (or a coping stone) knocked off the top: over it goes, end over end, and lies where it lands
+  topple(b, m, dir) {
+    if (!m || !m.parent || m.userData.fell) return;
+    const home = b.rub.parent || m.parent; m.userData.fell = true; home.attach(m); m.visible = true;
+    const out = this.outOf(b, dir), v = out.clone().multiplyScalar(1.5 + Math.random() * 3.5); v.y = 1 + Math.random() * 2.5; v.x += (Math.random() - 0.5) * 1.5; v.z += (Math.random() - 0.5) * 1.5;
+    const spin = new THREE.Vector3((Math.random() - 0.5) * 7, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 7);
+    (this.falls ||= []).push({ m, v, spin, t: 0, rest: false, h: m.geometry.parameters ? (m.geometry.parameters.height || 0.8) / 2 : 0.4 });
+  }
+  // a whole length (a tower, the gate) brought down
+  collapse(b, dir, { burnt = false } = {}) {
+    const root = this.w.root, out = this.outOf(b, dir), S = stuffOf(b);
+    const gy = this.y(b.x, b.z), top = Math.max(b.top, gy + 2), H = top - gy, tower = b.kind === "tower";
+    // (along it: the long side of its footing)
+    const along = b.hd >= b.hw ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0), span = Math.max(b.hd, b.hw) * 2 - 1;
+    const F = { b, t: 0, out, H, gy, top, span, along, burnt, grpY: b.grp.position.y, grpX: b.grp.position.x, grpZ: b.grp.position.z, rubUp: !b.rub.visible, sfx: [] };
+    if (F.rubUp) { b.rub.visible = true; b.rub.position.y = -H * 0.6; }
+    // the stones (or timbers) flung out from the face as it goes: one drawn shape for them all
+    const n = tower ? 70 : S.wood ? 34 : Math.round(30 + span * 2.5);
+    // (each piece its own: the face's own colour, darker or lighter, and among them the grey of the mortar and the core —
+    //  a breach is mostly what was inside the wall)
+    const deb = new THREE.InstancedMesh(S.wood ? SPLINTER : CHUNK, mat(0xffffff, { surface: S.wood ? "wood" : "rock" }), n); deb.castShadow = true; deb.frustumCulled = false;
+    { const face = S.m.color ? S.m.color.clone() : new THREE.Color(0x9a917f), core = new THREE.Color(S.wood ? 0x5a4630 : 0x8b8273), c = new THREE.Color();
+      for (let i = 0; i < n; i++) { c.copy(Math.random() < (S.wood ? 0.3 : 0.45) ? core : face).multiplyScalar(0.55 + Math.random() * 0.4); deb.setColorAt(i, c); } }
+    deb.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const bits = [];
+    for (let i = 0; i < n; i++) {
+      const a = (Math.random() - 0.5) * span, hy = Math.random(), sz = S.wood ? 0.6 + Math.random() * 1.6 : (tower ? 0.25 : 0.18) + Math.random() * Math.random() * (tower ? 0.75 : 0.55);
+      const p = new THREE.Vector3(b.x + along.x * a + out.x * (b.hw * 0.3), gy + 0.4 + hy * H * 0.95, b.z + along.z * a + out.z * (b.hw * 0.3));
+      // (the top goes furthest, thrown out as the face bursts; the foot just slumps out a little)
+      const kick = 1 + hy * (tower ? 7 : 5) * (0.5 + Math.random());
+      const v = out.clone().multiplyScalar(kick).addScaledVector(along, (Math.random() - 0.5) * 4); v.y = Math.random() * (2 + hy * 4);
+      bits.push({ p, v, r: new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6), w: new THREE.Vector3((Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9, (Math.random() - 0.5) * 9), s: sz, k: [0.7 + Math.random() * 0.6, 0.45 + Math.random() * 0.5, 0.7 + Math.random() * 0.6], d: (1 - hy) * 0.18 + Math.random() * 0.35 + (hy > 0.6 ? 0.15 : 0), rest: false });
+      _o.position.copy(p); _o.scale.setScalar(0.0001); _o.updateMatrix(); deb.setMatrixAt(i, _o.matrix);
+    }
+    (this.fallRoot ||= (() => { const r = new THREE.Group(); root.add(r); return r; })()).add(deb);
+    F.deb = deb; F.bits = bits;
+    (this.collapses ||= []).push(F);
+    // the dust: a burst off the top as it breaks, the column of it as it goes down
+    const dust = burnt ? 0x3a332c : S.wood ? 0x7a6448 : 0xa39882, up = new THREE.Vector3(0, 1, 0);
+    F.dust = dust;
+    cloud(root, new THREE.Vector3(b.x, top - 0.5, b.z).addScaledVector(out, 0.8), out.clone().add(up).normalize(), { n: tower ? 34 : 24, colour: dust, life: 6, speed: 6, size: tower ? 3.4 : 2.6, opacity: 0.8 });
+    // (heard: the crack of it giving, and then the long roar of it coming down, and the stones settling after)
+    const Fo = window.__foley, at = new THREE.Vector3(b.x, top, b.z);
+    if (S.wood && !b.gate) Fo && Fo.fall && Fo.fall("timberFall", at, 1); else Fo && Fo.wallFall && Fo.wallFall(at, 1, b.gate);
+    F.sfx = [[0.45, () => Fo && Fo.fall && Fo.fall(S.wood ? "timberFall" : "rockBreak", at.clone().setY(gy + 1), 1)], [1.05, () => S.wood ? Fo && Fo.fall && Fo.fall("logsDrop", at.clone().setY(gy), 0.8) : Fo && Fo.wallFall && Fo.wallFall(at.clone().setY(gy), 0.7, false)], [1.9, () => Fo && Fo.fall && Fo.fall(S.wood ? "logsDrop" : "rockBreak", at.clone().setY(gy), 0.55)]];
+    // (felt: the ground shaking under you, the nearer the more)
+    const pl = G.player, d = pl && pl.pos ? Math.hypot(pl.pos.x - b.x, pl.pos.z - b.z) : 999;
+    if (d < 160) shake(0.15 + 0.55 * Math.max(0, 1 - d / 160) * (tower ? 1.3 : 1));
+    this.onCollapse && this.onCollapse({ x: b.x, z: b.z, gy, top, out, along, span, tower, gate: !!b.gate, wood: S.wood });
+  }
+  // the falling, each frame: the length going down into its own foot, its rubble heaped up as it does, the pieces flying
+  fallTick(dt) {
+    for (const f of this.falls || []) {
+      if (f.rest) continue;
+      f.t += dt; const m = f.m; f.v.y -= 9.8 * dt; m.position.addScaledVector(f.v, dt);
+      m.rotation.x += f.spin.x * dt; m.rotation.y += f.spin.y * dt; m.rotation.z += f.spin.z * dt;
+      const g = this.y(m.position.x, m.position.z) + f.h * 0.6;
+      if (m.position.y <= g) { m.position.y = g; if (f.v.y < -3) { f.v.y *= -0.25; f.v.x *= 0.5; f.v.z *= 0.5; f.spin.multiplyScalar(0.4); } else f.rest = true; }
+      if (f.t > 6) f.rest = true;
+    }
+    if (!this.collapses || !this.collapses.length) return;
+    const root = this.w.root;
+    for (const F of this.collapses.slice()) {
+      const t0 = F.t; F.t += dt; const t = F.t, b = F.b;
+      // (it shudders a moment, then drops — faster as it goes — sinking into the heap of itself, leaning out)
+      const k = Math.max(0, t - 0.12), drop = Math.min(F.H * 1.05, 0.5 * 11 * k * k), jit = t < 0.5 ? (0.5 - t) * 0.12 : 0;
+      if (b.grp.visible) {
+        b.grp.position.set(F.grpX + F.out.x * drop * 0.18 + (Math.random() - 0.5) * jit, F.grpY - drop, F.grpZ + F.out.z * drop * 0.18 + (Math.random() - 0.5) * jit);
+        if (drop >= F.H * 1.05) { b.grp.visible = false; b.grp.position.set(F.grpX, F.grpY, F.grpZ); }
+      }
+      if (F.rubUp) { const r = Math.min(1, Math.max(0, (t - 0.2) / 1.3)); b.rub.position.y = -F.H * 0.6 * (1 - (1 - (1 - r) * (1 - r))); }
+      // (the dust thrown out along the ground as the mass lands: rolling out from the foot, and a pall hanging after)
+      const at = s => new THREE.Vector3(b.x, F.gy + 0.8, b.z).addScaledVector(F.along, s * F.span * 0.5).addScaledVector(F.out, 1.2);
+      if (t0 < 0.35 && t >= 0.35) for (let i = -2; i <= 2; i++) cloud(root, at(i / 2), F.out.clone().addScaledVector(F.along, i * 0.25).normalize(), { n: 9, colour: F.dust, life: 8, speed: 8, size: 3.2, opacity: 0.75 });
+      if (t0 < 0.9 && t >= 0.9) for (let i = -2; i <= 2; i++) cloud(root, at(i / 2 + (Math.random() - 0.5) * 0.3), F.out.clone().addScaledVector(F.along, i * 0.45).normalize(), { n: 6, colour: F.dust, life: 9, speed: 5, size: 3.4, opacity: 0.55 });
+      if (t0 < 1.7 && t >= 1.7) cloud(root, new THREE.Vector3(b.x, F.gy + 2.5, b.z).addScaledVector(F.out, 3), new THREE.Vector3(0, 1, 0), { n: 10, colour: F.dust, life: 14, speed: 1.2, size: 5, opacity: 0.32 });
+      for (const [when, fn] of F.sfx) if (t0 < when && t >= when) fn();
+      // (the flung pieces: out, down, a bounce, and lying there)
+      let moving = 0;
+      for (let i = 0; i < F.bits.length; i++) {
+        const c = F.bits[i]; if (t < c.d) continue;
+        if (!c.rest) {
+          moving++;
+          c.v.y -= 9.8 * dt; c.p.addScaledVector(c.v, dt); c.r.x += c.w.x * dt; c.r.y += c.w.y * dt; c.r.z += c.w.z * dt;
+          const g = this.y(c.p.x, c.p.z) + c.s * 0.35;
+          if (c.p.y <= g) { c.p.y = g; if (c.v.y < -2.5) { c.v.y *= -0.3; c.v.x *= 0.45; c.v.z *= 0.45; c.w.multiplyScalar(0.5); } else { c.rest = true; c.v.set(0, 0, 0); } }
+        }
+        // (they lie a while, then settle down into the ground — the heap that's left is the rubble's)
+        const sink = t > 12 ? Math.min(1, (t - 12) / 3) : 0;
+        _o.position.set(c.p.x, c.p.y - sink * c.s * 1.2, c.p.z); _o.rotation.copy(c.r);
+        if (F.deb.geometry === SPLINTER) _o.scale.set(c.s * 0.5, c.s * 0.5, c.s); else _o.scale.set(c.s * c.k[0], c.s * c.k[1], c.s * c.k[2]);
+        _o.updateMatrix(); F.deb.setMatrixAt(i, _o.matrix);
+      }
+      F.deb.instanceMatrix.needsUpdate = true;
+      if (t > 15.2) { F.deb.parent && F.deb.parent.remove(F.deb); F.deb.dispose(); this.collapses.splice(this.collapses.indexOf(F), 1); if (b.grp.visible) b.grp.visible = false; b.rub.position.y = 0; }
+    }
+  }
   // ---- battering: a ball (or a bomb, or men at the gate) into the town's wall; a length of it, its tower, its gate,
   //  brought down a little at a time — the merlons first, then the whole of it into a slope of rubble, a breach ----
   // the walls as a siege left them: a year or more of the besiegers' guns before the assault — stretches of the parapet
@@ -645,7 +763,7 @@ export class Field {
   }
   // smoke off something burning: a few dark puffs, rising slow and spreading
   smoke(x, y, z, light = false) { cloud(this.w.root, new THREE.Vector3(x, y, z), new THREE.Vector3(0, 1, 0), light ? { n: 1, colour: 0x9a948a, life: 6, speed: 0.9, size: 1.3, opacity: 0.28 } : { n: 3, colour: 0x3a332c, life: 5, speed: 2.2, size: 2.4, opacity: 0.45 }); }
-  batter(p, dmg) {
+  batter(p, dmg, dir = null) {
     for (const b of this.breaks) {
       if (b.down || Math.abs(p.x - b.x) > b.hw || Math.abs(p.z - b.z) > b.hd || p.y > b.top + 1.5) continue;
       b.hp -= dmg;
@@ -653,12 +771,13 @@ export class Field {
       // (the merlons knocked off one by one as it's hit; the parapet low and broken once it's half gone)
       // (heard: the ball's crack on the stone, or the gate's oak splitting)
       if (dmg > 1 && b.hp > 0) { const F = window.__foley; F && F.wallHit && F.wallHit(p, 0.8, b.gate); }
-      if (b.merl.length && Math.random() < 0.6) { const m = b.merl.splice(Math.floor(Math.random() * b.merl.length), 1)[0]; m.visible = false; }
-      if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) m.visible = false; b.merl = []; b.rub.visible = true; }
+      // (a merlon knocked off: it goes over, tumbling down the face, and lies at the foot)
+      if (b.merl.length && Math.random() < 0.6) this.topple(b, b.merl.splice(Math.floor(Math.random() * b.merl.length), 1)[0], dir);
+      if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) this.topple(b, m, dir); b.merl = []; b.rub.visible = true; }
       if (b.hp <= 0) {
-        b.down = true; b.grp.visible = false; b.rub.visible = true; b.col.disabled = true;
-        cloud(this.w.root, new THREE.Vector3(b.x, b.top - 1, b.z), new THREE.Vector3(0, 1, 0), { n: 22, colour: 0x9a917f, life: 4, speed: 5, size: 2.2, opacity: 0.7 });
-        { const F = window.__foley; F && F.wallFall && F.wallFall(new THREE.Vector3(b.x, b.top, b.z), 1, b.gate); } shake(0.25);
+        b.down = true; b.col.disabled = true;
+        for (const m of b.merl) this.topple(b, m, dir); b.merl = [];
+        this.collapse(b, dir);
         this.onBreach && this.onBreach(b);
       }
       return true;
@@ -1372,6 +1491,7 @@ export class Field {
   // each frame: the guns laid and fired, the balls flying; hit(u, from, v) is called for anyone a ball goes through
   update(dt, units, hit) {
     for (const f of this.flames || []) flicker(f, dt);
+    if (this.falls || this.collapses) this.fallTick(dt);
     if (this.flags) { const wind = flagWind(G.windV, this._wind || (this._wind = new THREE.Vector3())); for (const f of this.flags) f.step(dt, wind); }
     // (the guns open only once the field's had a moment: a crew isn't cut down before it's even seen the enemy)
     if (this.active !== false) this.opened = (this.opened || 0) + dt;
@@ -1436,7 +1556,7 @@ export class Field {
         const gy = this.y(b.p.x, b.p.z);
         const struck = b.v.length() > 8 && b.t > 0.035 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0);
         // (into a town's wall: it takes the blow, and the ball's spent)
-        if (struck && this.breaks.length && this.batter(b.p, 18 * Math.min(1.4, b.v.length() / 120))) { b.v.set(0, 0, 0); b.done = true; continue; }
+        if (struck && this.breaks.length && this.batter(b.p, 18 * Math.min(1.4, b.v.length() / 120), b.v)) { b.v.set(0, 0, 0); b.done = true; continue; }
         if (b.p.y <= gy + 0.07 || struck) {
           b.p.y = Math.max(b.p.y, gy + 0.07);
           const sp = b.v.length();
@@ -1478,7 +1598,9 @@ export class Field {
     }
     return best;
   }
-  dispose() { for (const n of this.nades || []) this.w.root.remove(n.mesh, n.spark); for (const f of this.flames || []) FLAMES.delete(f); this.w.root.remove(this.root);
+  dispose() { for (const n of this.nades || []) this.w.root.remove(n.mesh, n.spark);
+    // (the pieces of anything brought down, still lying or flying)
+    if (this.fallRoot) { for (const d of this.fallRoot.children.slice()) { d.dispose && d.dispose(); } this.w.root.remove(this.fallRoot); this.fallRoot = null; } this.collapses = []; this.falls = []; for (const f of this.flames || []) FLAMES.delete(f); this.w.root.remove(this.root);
     // (the field's own shapes — every gabion, cart, bank and staff made for it — let go of on the graphics card too: taken
     //  out of the world, they'd otherwise stay there after every battle; a shape shared with the world's stays)
     this.root.traverse(o => { if (o.geometry && !o.geometry._shared) o.geometry.dispose(); for (const m of [].concat(o.material || [])) if (m && m.map && m.map.isTexture && !m.map.userData.shared && !m.map.userData.keep) m.map.dispose(); }); for (const b of this.balls) this.w.root.remove(b.mesh); for (const c of [...this.pieces.map(p => p.c), ...this.cols]) c && this.w.col.remove && this.w.col.remove(c); }

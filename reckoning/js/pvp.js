@@ -1719,6 +1719,8 @@ class Arena {
       // (besieged a year or more before this: the walls as the guns left them, breaches already open)
       if (this.things && this.things.battered) { const n = this.field.preBatter(this.things.battered); this.breachedAtStart = n; }
       this.field.onBreach = b => { if (G.arena === this) UI.hint(b.gate ? "The gate's down!" : b.kind === "tower" ? "A tower's down — a breach!" : "A breach in the wall!", 3); };
+      // (and seen: a few seconds' picture of it coming down — see breachCam)
+      this.field.onCollapse = info => this.breachCam(info);
       // (a gun wrecked: its crew take up their swords and fall in with the rest)
       this.field.onGunDown = g => { for (const u of g.crew) if (u && u.alive) { u.crewOf = null; u.wasCrew = null; u.a.path = []; u.hold && u.hold(u.lo.long !== "none" ? u.lo.long : u.lo.blade); } g.crew = []; if (G.arena === this && g.side === 0) UI.hint("One of your guns is wrecked.", 2.5); };
       if (camps) { let k = 0; for (const c of camps) for (let j = 0; j < Math.min(2, c.guns); j++) if (this.field.guns[k]) this.field.guns[k++].co = c.co; }
@@ -2693,7 +2695,9 @@ class Arena {
       b.hp -= dt * b.max / 22;
       if (b.hp < b.max * 0.5 && !b.half) { b.half = true; b.col.y1 -= 1.6; b.top -= 1.6; }
       if (b.hp <= 0) {
-        b.down = true; F.downAt = F.t; b.grp.visible = false; b.rub.visible = true; b.col.disabled = true;
+        b.down = true; F.downAt = F.t; b.col.disabled = true;
+        // (it goes over, burning, in a shower of sparks and smoke — see Field.collapse)
+        if (this.field && this.field.collapse) this.field.collapse(b, null, { burnt: true }); else { b.grp.visible = false; b.rub.visible = true; }
         FOLEY.crash && FOLEY.crash(0.55, { x: b.x, z: b.z });
         if (Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 70) UI.hint("The palisade's burnt through: a way in!", 3);
       }
@@ -3323,6 +3327,51 @@ class Arena {
     document.body.classList.add("dead");
     AUDIO.voice && AUDIO.voice("death", { high: G.who === "sister", vol: 1 });
   }
+  // ---- a wall coming down, seen: the picture cut away to it from out in the field, the camera drifting along the face as
+  //  the masonry drops and the dust rolls out — a few seconds, bars top and bottom, and back to your own eyes. Not with
+  //  the enemy on you, not in a game with others (the world doesn't wait), and not twice in quick succession ----
+  breachCam(info) {
+    const pl = G.player;
+    if (G.arena !== this || G.mp || this.remote || this.over || G.deathCam || G.freecam || G.deploying || this.watching || UI.dialogOpen || G.mode !== "play") return;
+    if (!pl || !pl.pos || (G.health != null && G.health <= 0)) return;
+    if (G.time - (this.breachCamAt ?? -99) < 20) return;
+    const d = Math.hypot(pl.pos.x - info.x, pl.pos.z - info.z); if (d > 320) return;
+    if (this.units.some(u => u.alive && !this.alliesOf(0).includes(u) && Math.hypot(u.pos.x - pl.pos.x, u.pos.z - pl.pos.z) < 22)) return;
+    this.breachCamAt = G.time;
+    const H = (x, z) => this.w.heightAt(x, z), { out, along, span, gy, top } = info, ht = top - gy;
+    const C = new THREE.Vector3(info.x, gy + ht * 0.5, info.z);
+    // (out in front and off to one side, low — the side nearer you, so the cut back to your eyes isn't a jump across the field)
+    const sd = ((pl.pos.x - info.x) * along.x + (pl.pos.z - info.z) * along.z) >= 0 ? 1 : -1, back = 10 + span * 0.5 + (info.tower ? 5 : 0);
+    const from = C.clone().addScaledVector(out, back).addScaledVector(along, sd * (span * 0.4 + 6)), to = C.clone().addScaledVector(out, back * 0.85).addScaledVector(along, sd * (span * 0.1 + 2));
+    from.y = gy + ht * 0.35 + 2.2; to.y = gy + ht * 0.25 + 1.8;
+    const wasFrozen = pl.frozen, t0 = G.time, LEN = 3.2, pos = new THREE.Vector3(), look = new THREE.Vector3();
+    pl.frozen = true; UI.show("hud", false); FILM.bars(true); FILM.note(""); document.body.classList.add("cine");
+    const cam = c => {
+      // (in the game's own time, as the wall falls in it: a slow machine, or a pause, holds the picture with it)
+      const k = Math.min(1, (G.time - t0) / LEN), e = k * k * (3 - 2 * k); if (k >= 1) setTimeout(done, 0);
+      pos.lerpVectors(from, to, e); pos.y = Math.max(pos.y, H(pos.x, pos.z) + 1.6);
+      // (a little jolt when it lands, felt in the picture as on the ground)
+      const j = k > 0.12 && k < 0.3 ? (0.3 - k) * 0.5 : 0; pos.x += (Math.random() - 0.5) * j; pos.y += (Math.random() - 0.5) * j;
+      c.position.copy(pos); c.up.set(0, 1, 0);
+      // (the eye on the face as it goes, then down to the heap)
+      look.copy(C); look.y = gy + ht * (0.55 - 0.35 * e); c.lookAt(look);
+    };
+    G.deathCam = cam;
+    let ended = false;
+    const done = () => {
+      if (ended) return; ended = true;
+      removeEventListener("keydown", skip, true); removeEventListener("mousedown", skip, true); clearTimeout(tm);
+      // (only given back if the picture's still ours: fallen meanwhile, or the battle over, the eye's someone else's to give)
+      if (G.deathCam !== cam) { FILM.off(); document.body.classList.remove("cine"); if (G.arena === this && !this.over) UI.show("hud", true); return; }
+      G.deathCam = null; G.wasDeathCam = true; if (G.player === pl) pl.frozen = wasFrozen;
+      UI.show("hud", true); FILM.off(); document.body.classList.remove("cine");
+    };
+    const skip = e => { if (e.type === "keydown" && e.repeat) return; e.preventDefault && e.preventDefault(); e.stopPropagation && e.stopPropagation(); done(); };
+    // (a moment's grace before a key or a click can cut it short — the key that fired the gun shouldn't)
+    setTimeout(() => { if (!ended) { addEventListener("keydown", skip, true); addEventListener("mousedown", skip, true); } }, 350);
+    const tm = setTimeout(done, 20000);   // (and come what may, not for ever)
+    this.breachCamEnd = done;
+  }
   // up again for the next round: the ragdoll let go of, your eye your own again
   rise() {
     const pl = G.player;
@@ -3622,6 +3671,7 @@ class Arena {
     AUDIO.melee && AUDIO.melee(Math.min(1, fight / 7), Math.min(1, run / 9));
   }
   stop() {
+    if (this.breachCamEnd) { this.breachCamEnd(); this.breachCamEnd = null; }
     if (G.arena !== this) return;
     for (const D of this.deadHorses || []) G.scene.remove(D.h.root); this.deadHorses = null;
     AUDIO.melee && AUDIO.melee(0, 0); clearGore();
