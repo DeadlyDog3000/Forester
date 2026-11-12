@@ -521,7 +521,8 @@ class Battle {
   close() {
     cancelAnimationFrame(this.raf); removeEventListener("keydown", this.onKey, true); removeEventListener("keyup", this.onKey, true); removeEventListener("mouseup", this.onUp); removeEventListener("mousemove", this.onMove); removeEventListener("resize", this.onResize);
     try { FOLEY.wash(0); FOLEY.sea(0); } catch (e) {}
-    this.renderer.dispose(); this.el.remove();
+    // (its own drawing context given back at once, everything on it with it — not left for the collector, a sea battle at a time)
+    this.renderer.dispose(); try { this.renderer.forceContextLoss(); } catch (e) {} this.el.remove();
     if (this.o.onEnd) this.o.onEnd(this.result || { won: false, left: true, mine: [], theirs: [] });
   }
 }
