@@ -7,6 +7,12 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.293", date: "12 November 2026", title: "Lighter after battle",
+    items: [
+      "A battle by the sea gives back the sea's surface and the colours both sides carried when it ends, and a fight at sea hands back its drawing at once when you leave it. Long evenings of battle after battle sit lighter on your machine.",
+    ],
+  },
+  {
     v: "1.99.292", date: "12 November 2026", title: "Every man counted",
     items: [
       "The pay for a battle reckons the odds from every man who fought on each side. A man of yours whose place you took when you fell went uncounted, so your side looked a man smaller for each one and a win paid a little more than it should. He's counted now.",
