@@ -7,6 +7,15 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.291", date: "11 November 2026", title: "Round the works",
+    items: [
+      "Horse charging an enemy dug in behind gabions, banks or chevaux-de-frise no longer piles up against them. A trooper who's getting nowhere rides round by a way he can see to his man; if there isn't one, he wheels off and picks someone he can reach. Riding through after a blow, he makes for open ground, not into the works behind his man.",
+      "Storming a walled town, the horse waits out of musket shot for a breach instead of standing under the walls.",
+      "What's in a crate: a button in the Crates tab shows every troop a crate can hold, by rarity, with its picture, its own chance, and whether you have it already. The tab itself now lists only the troops you have.",
+      "Horse archers, light hussars, hussars and cuirassiers have a picture in the muster where they had none.",
+    ],
+  },
+  {
     v: "1.99.290", date: "11 November 2026", title: "Drawn again",
     items: [
       "A troop drawn again from a crate now strikes two percent harder each time, not half a percent — up to twice as hard, after fifty. Troops you've drawn again already count at the new rate.",

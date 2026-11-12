@@ -1903,7 +1903,7 @@ let planFrame = -1, plansNow = 0;
 const PLANS_PER_FRAME = 8;
 // would someone standing here be inside something? (the same height band you collide in)
 // (y is the ground height, found once per search: sampling the terrain for every cell is the slow part)
-function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
+export function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
   for (const o of w.col.near(x, z, pad + 1.3)) {
     if (o.disabled || y + 0.3 > o.y1 - 0.05 || y + 1.7 < o.y0) continue;
     if (o.type === "box") { if (x > o.x0 - pad && x < o.x1 + pad && z > o.z0 - pad && z < o.z1 + pad) return true; }
@@ -1913,7 +1913,7 @@ function blockedAt(w, x, z, pad = NPC_R, y = w.heightAt(x, z)) {
   return false;
 }
 // can one walk straight from a to b? (a start already against something is let off its first steps)
-function clearLine(w, ax, az, bx, bz, y) {
+export function clearLine(w, ax, az, bx, bz, y) {
   const l = Math.hypot(bx - ax, bz - az), n = Math.ceil(l / 0.25);
   const startStuck = blockedAt(w, ax, az, NPC_R * 0.9, y);
   for (let i = 1; i <= n; i++) {

@@ -10,7 +10,7 @@
 
 import { THREE, camera, makeFlame } from "./core.js";
 const CHAR = new THREE.Color(0x17110c);
-import { G, Actor, setWorld, setAtmo, input } from "./engine.js";
+import { G, Actor, setWorld, setAtmo, input, blockedAt, clearLine } from "./engine.js";
 import { UI } from "./ui.js";
 import { smokeAlong } from "./powder.js";
 import { Band, tuneFor } from "./band.js";
@@ -177,6 +177,7 @@ export function initPvp(c) {
   }, () => army().uniform);
   $("musTabs").addEventListener("click", e => { const b = e.target.closest("[data-mt]"); if (!b) return; musTab = b.dataset.mt; drawMuster(); sfx("page"); });
   $("musCrates").addEventListener("click", e => {
+    if (e.target.closest("[data-crate-look]")) { crateLook(teamNow()); sfx("page"); return; }
     if (!e.target.closest("[data-crate]")) return;
     const T = teamNow(), r = openCrate(T); if (!r) { drawCrates(); return; }
     lastCrate = { ...r, team: T }; sfx("buy", 4);
@@ -517,11 +518,11 @@ function drawCrates() {
   const L = lastCrate && lastCrate.team === T ? lastCrate : null;
   el.innerHTML = `<div class="pv-h big">Crates</div>
     <div class="pv-sn">A crate holds one of the ${esc(TEAM_NAME(T))} troops — common, uncommon, rare, epic, legendary or mythic, the rarer the less often. A troop you have already, drawn again, strikes two percent harder each time, up to twice as hard. ${troopOk(T, "bow") ? "" : "Bowmen were never this kingdom's own: for it they're mythic."}</div>
-    <div class="cr-buy"><button class="btn primary" data-crate="1"${can ? "" : " disabled"}>Open a crate · ${money(CRATE_COST)}</button>${can ? "" : `<span class="pv-sn">${money(CRATE_COST - ducats())} more wanted in the purse — won in battle.</span>`}</div>
+    <div class="cr-buy"><button class="btn primary" data-crate="1"${can ? "" : " disabled"}>Open a crate · ${money(CRATE_COST)}</button><button class="btn" data-crate-look="1">What's in a crate</button>${can ? "" : `<span class="pv-sn">${money(CRATE_COST - ducats())} more wanted in the purse — won in battle.</span>`}</div>
     ${L ? `<div class="cr-got" style="border-color:${rarityById(L.rarity).col}">${tag(L.kind)} <b>${esc(TROOPS[L.kind].name)}</b> — ${L.dup ? `drawn again: they strike ${((boostOf(T, L.kind) - 1) * 100).toFixed(1)}% harder now` : "new: yours to raise in the company"}</div>` : ""}
     <div class="pv-h">The odds</div><div class="cr-odds">${RARITY.map(R => `<span><b style="color:${R.col}">${R.name}</b> ${(R.p * 100).toFixed(R.p < 0.02 ? 1 : 0)}%</span>`).join("")}</div>
-    <div class="pv-h">${esc(TEAM_NAME(T))} troops</div>
-    <div class="cr-list">${pool.map(k => k in U ? `<div class="cr-row">${tag(k)} <b>${esc(TROOPS[k].name)}</b><small>${U[k] ? `drawn ${U[k] + 1} times · +${((boostOf(T, k) - 1) * 100).toFixed(1)}% harm` : "yours"}</small></div>`
+    <div class="pv-h">Your ${esc(TEAM_NAME(T))} troops <small class="pv-sn">· ${pool.filter(k => k in U).length} of ${pool.length}</small></div>
+    <div class="cr-list">${pool.filter(k => k in U).map(k => k in U ? `<div class="cr-row">${tag(k)} <b>${esc(TROOPS[k].name)}</b><small>${U[k] ? `drawn ${U[k] + 1} times · +${((boostOf(T, k) - 1) * 100).toFixed(1)}% harm` : "yours"}</small></div>`
       : `<div class="cr-row cr-locked">${tag(k)} <b>${esc(TROOPS[k].name)}</b><small>not yet drawn</small></div>`).join("")}</div>`;
 }
 function drawPurse() { $("musPurse").classList.toggle("hidden", !!must && must.kind === "cmp"); $("musPurse").innerHTML = `${esc(TEAM_NAME(teamNow()))} purse: <b>${money(ducats())}</b>`; $("musPurse").title = `Paid in ${coinName()} — each kingdom has its own purse, in its own coin`; }
@@ -1119,6 +1120,35 @@ export function openCrate(team) {
   const k = cands[Math.floor(Math.random() * cands.length)], U = { ...unitsFor(team) }, dup = k in U;
   U[k] = dup ? (U[k] | 0) + 1 : 0; setUnits(U, team);
   return { kind: k, rarity: rarityOf(team, k), dup, n: U[k] };
+}
+// (each troop's own chance from one crate: its rarity's share, split among that rarity's troops, plus the share of any
+//  rarity this kingdom has none of that falls to its own, as openCrate does it)
+export function crateOdds(team) {
+  const pool = Object.keys(TROOPS).filter(k => crateable(team, k)), P = {};
+  RARITY.forEach((R, i) => {
+    let cands = []; for (let d = 0; d < RARITY.length && !cands.length; d++) for (const j of [i - d, i + d]) if (!cands.length && j >= 0 && j < RARITY.length) cands = pool.filter(k => rarityOf(team, k) === RARITY[j].id);
+    for (const k of cands) P[k] = (P[k] || 0) + R.p / cands.length;
+  });
+  return P;
+}
+// (what a crate holds, laid out: every troop it can hold, by rarity, its picture, its chance, and whether it's yours)
+function crateLook(T) {
+  document.querySelector(".cr-look")?.remove();
+  const U = unitsFor(T), P = crateOdds(T), pct = p => p >= 0.1 ? (p * 100).toFixed(0) + "%" : p >= 0.01 ? (p * 100).toFixed(1) + "%" : (p * 100).toFixed(2) + "%";
+  const el = document.createElement("div"); el.className = "cr-look";
+  const groups = RARITY.map(R => [R, Object.keys(P).filter(k => rarityOf(T, k) === R.id).sort((a, b) => TROOPS[a].cost - TROOPS[b].cost)]).filter(([, ks]) => ks.length);
+  el.innerHTML = `<div class="cr-look-in" role="dialog" aria-label="What's in a crate"><button class="cr-look-x" data-x="1" title="Close (Esc)">✕</button>
+    <div class="pv-h big">What's in a ${esc(TEAM_NAME(T))} crate</div>
+    <div class="pv-sn">One troop to a crate. Each one's chance is shown under it; one you have already strikes ${DUP_BONUS * 100}% harder for each time it's drawn again, up to twice as hard.</div>
+    ${groups.map(([R, ks]) => `<div class="cr-look-r" style="--cr:${R.col}"><div class="cr-look-h"><b>${R.name}</b><span>${pct(ks.reduce((t, k) => t + P[k], 0))} of crates</span></div>
+      <div class="cr-look-g">${ks.map(k => { const img = plateOf(wayOfUniform(T), k), have = k in U;
+        return `<div class="cr-card${have ? "" : " no"}">${img ? `<img src="${img}" alt="">` : "<i></i>"}<b>${esc(TROOPS[k].name)}</b><small>${pct(P[k])}</small><em>${have ? U[k] ? `yours · +${((boostOf(T, k) - 1) * 100).toFixed(0)}%` : "yours" : "not yet drawn"}</em></div>`; }).join("")}</div></div>`).join("")}
+  </div>`;
+  const shut = () => { el.remove(); removeEventListener("keydown", key, true); };
+  const key = e => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); shut(); } };
+  el.addEventListener("click", e => { if (e.target === el || e.target.closest("[data-x]")) { shut(); sfx("click"); } });
+  addEventListener("keydown", key, true);
+  document.body.appendChild(el);
 }
 // (whether the crates govern this muster: against bots or a player, not a campaign's battle or a historical one)
 const lockOn = () => !!must && (must.kind === "bots" || must.kind === "mp");
@@ -4151,7 +4181,12 @@ class Bot extends Fighter {
       else go(way.inn.x, way.inn.z + (Math.random() - 0.5) * 3, 3.4);
       return true;
     }
-    if (this.mounted) return false;   // (horse can't climb a ladder: they wait for a way in)
+    // (horse can't climb a ladder: they wait for a way in, drawn up out of musket shot of the walls)
+    if (this.mounted) {
+      const W = S.wall, u = (a.pos.x - W.ox) * W.ux, hx = W.ox + W.ux * (W.faceU - 40);
+      if (u > W.faceU - 34) go(hx, a.pos.z, 4.2); else { a.path = []; a.faceTo(a.pos.x + W.ux * 10, a.pos.z); }
+      return true;
+    }
     // the gate: the axemen and the grenadiers, and a share of the rest, at its doors
     const gb = A.field && A.field.breaks.find(b => b.gate && !b.down);
     const W = S.wall, idx = this.info.idx || 0;
@@ -4233,6 +4268,33 @@ class Bot extends Fighter {
     // (never a place more than a few paces off: a man doesn't leave his fight for a place in the line)
     return Math.hypot(p.x - this.pos.x, p.z - this.pos.z) > 5 ? null : p;
   }
+  // ---- a horseman riding at his man and getting nowhere — up against the gabions, a bank, the chevaux-de-frise, the
+  //  works round their battery: the horse can't jump them. He rides round by a way he can see to the man, or (none to
+  //  be seen) leaves him to the foot, wheels off and looks for another. True while he's riding round or wheeling ----
+  unstick(dt, T, fp) {
+    const a = this.a, w = G.world;
+    if (this.roundT > 0) { this.roundT -= dt; if (a.path.length) return true; this.roundT = 0; }
+    const an = this.anchor;
+    if (!an || Math.hypot(a.pos.x - an.x, a.pos.z - an.z) > 1.5) { this.anchor = { x: a.pos.x, z: a.pos.z, t: 0 }; return false; }
+    if ((an.t += dt) < 1.6 || !w || !w.col) return false;
+    this.anchor = null;
+    const ok = (x, z) => !blockedAt(w, x, z) && clearLine(w, a.pos.x, a.pos.z, x, z);
+    let best = null, bs = Infinity, off = null, os = -Infinity;
+    for (const r of [6, 12]) for (let k = 0; k < 14; k++) {
+      const g = k / 14 * Math.PI * 2, x = a.pos.x + Math.sin(g) * r, z = a.pos.z + Math.cos(g) * r;
+      if (!ok(x, z)) continue;
+      const dT = Math.hypot(fp.x - x, fp.z - z);
+      if (dT > os) { os = dT; off = { x, z }; }
+      if (r + dT < bs && clearLine(w, x, z, fp.x, fp.z)) { bs = r + dT; best = { x, z }; }
+    }
+    const run = 4.2 + this.s;
+    if (best) { this.roundT = 3; a.walk([[best.x, best.z], [fp.x, fp.z]], run); return true; }
+    // (no way to him from here: another man, and away from the works to come again)
+    (this.noReach ??= new Map()).set(T, G.time + 12);
+    this.pickT = 0;
+    if (off) { this.roundT = 2.5; a.walkTo(off.x, off.z, run); return true; }
+    return false;
+  }
   pick() {
     const O = this.arena.orderOf && this.arena.orderOf(this), foes = this.arena.enemiesOf(this.team);
     if (O && O.target && O.target.alive && foes.includes(O.target)) return O.target;
@@ -4261,6 +4323,7 @@ class Bot extends Fighter {
       if (sharp && d > 4.5) d *= (f.cover && f.a && f.a.person.crouching ? 1.5 : 1) * (f.hp != null && f.hp < 55 ? 0.7 : 1) * (f.crewOf ? 0.75 : 1) * (1 + 0.12 * Math.max(0, (on.get(f) || 0) - 2));
       // (a trooper rides for what horse is good against — the gun crews, men running, men out on their own — and
       //  keeps clear of the pikes)
+      if (this.mounted && this.noReach && (this.noReach.get(f) || 0) > G.time) d *= 6;
       if (this.mounted) { const pike = f.steel && f.steel() === "spear", alone = !foes.some(g => g !== f && Math.hypot(g.pos.x - f.pos.x, g.pos.z - f.pos.z) < 4); d *= (pike ? 2.6 : 1) * (f.crewOf ? 0.6 : 1) * (f.routing ? 0.5 : 1) * (alone ? 0.7 : 1); }
       if (d < bd) { bd = d; best = f; }
     }
@@ -4377,7 +4440,17 @@ class Bot extends Fighter {
       }
       // (a trooper charges in at the gallop, strikes in passing, and rides on through to wheel and come again)
       const B = this.blade(), reach = B.reach - 0.5, run = this.mounted ? 4.2 + s : 3.2 + s * 1.4;
-      if (this.mounted && d < 1.6 && this.stepT <= 0) { this.stepT = 1.2; const ang = Math.atan2(a.pos.x - fp.x, a.pos.z - fp.z) + (Math.random() - 0.5) * 0.6; a.walkTo(fp.x - Math.sin(ang) * 9, fp.z - Math.cos(ang) * 9, run); return; }
+      if (this.mounted && d < 1.6 && this.stepT <= 0) {
+        this.stepT = 1.2; const a0 = Math.atan2(a.pos.x - fp.x, a.pos.z - fp.z) + (Math.random() - 0.5) * 0.6, w = G.world;
+        // (beyond him, where there's open ground to ride on to: not into the gabions at his back)
+        let to = null;
+        for (const da of [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9]) for (const r of [9, 5]) {
+          if (to) break;
+          const x = fp.x - Math.sin(a0 + da) * r, z = fp.z - Math.cos(a0 + da) * r;
+          if (!w || !w.col || (!blockedAt(w, x, z) && clearLine(w, a.pos.x, a.pos.z, x, z))) to = { x, z };
+        }
+        if (to) { a.walkTo(to.x, to.z, run); return; }
+      }
       // (riding in: the sabre held out straight at the point, the whole weight of man and horse behind it — and the
       //  guard again as he closes)
       if (this.mounted && this.wind <= 0) a.person.setPose(d > 7 && a.speed > 4 ? "point" : "guard");
@@ -4390,7 +4463,10 @@ class Bot extends Fighter {
         // (in his place: his man in reach, a blow; else he waits there for one to come, facing across)
         if (d > B.reach - 0.3) { a.path = []; a.faceTo(fp.x, fp.z); this.pickT = Math.min(this.pickT, 0.2); return; }
       }
-      if (d > reach + 0.5) { if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); } }
+      if (d > reach + 0.5) {
+        if (this.mounted && this.unstick(dt, T, fp)) return;
+        if (!a.path.length || this.stepT <= 0) { this.stepT = 0.35; a.approach(fp, reach - 0.2, run); }
+      }
       else if (d < 1.0) { if (this.stepT <= 0) { this.stepT = 0.5; a.approach(fp, 1.5, 2.4); } }
       else if (this.cool <= 0) {
         a.path = [];
