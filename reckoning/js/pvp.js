@@ -2165,7 +2165,7 @@ class Arena {
   //  a fight of companies: everyone in their places, the word given, and the field until one side's gone
   // ---------------------------------------------------------------------------
   beginBattle() {
-    this.round = 1; this.live = false; this.ended = false; this.killed = 0; this.lost = 0; this.clock = 0;
+    this.round = 1; this.live = false; this.ended = false; this.killed = 0; this.lost = 0; this.tookN = 0; this.clock = 0;
     this.rise();
     const pl = G.player, mine = this.spawns[0], theirs = this.spawns[1];
     G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.panting = 0; G.hitShake = 0;
@@ -2938,6 +2938,7 @@ class Arena {
       pl.place(given.x, given.z, Math.atan2(-(th.x - given.x), -(th.z - given.z)));
       this.takeUp(this.lo.long !== "none" ? this.lo.long : this.lo.side === "pistol" ? "pistol" : this.lo.blade);
       this.net.send({ t: "dhp", hp: HP, r: this.round });
+      this.tookN = (this.tookN || 0) + 1;
       this.showHud(); UI.hint(`Up — in his place. ${mates.length - 1} of your company still standing.`, 3);
       return;
     }
@@ -2946,7 +2947,7 @@ class Arena {
     UI.fadeNow(1); UI.fade(0, 0.9);
     // (his body where yours lay: the fallen man is the one there now)
     u.quiet = true; u.hp = 0; u.a.place(was.x, was.z, u.a.yaw); u.fallDown(this.spawns[1]);
-    this.units.splice(this.units.indexOf(u), 1); this.lost = (this.lost || 0) + 1;
+    this.units.splice(this.units.indexOf(u), 1); this.lost = (this.lost || 0) + 1; this.tookN = (this.tookN || 0) + 1;
     if (this.host) this.net.send({ t: "bgone", id: u.uid, x: +was.x.toFixed(1), z: +was.z.toFixed(1) });
     this.rise(); this.watching = false;
     G.downed = false; G.health = 1; G.stamina = 1; G.hurtT = 0; G.lockMove = false; pl.frozen = false;
@@ -3518,7 +3519,7 @@ class Arena {
     // (pay, in the coin of the colours fought in: every battle and duel earns some, a win more, a day's first win more again — not a campaign's or the story's,
     //  and not a historical battle's: many of them are easily won, the field set up for the side that won it)
     // (the odds: every man who fought on each side, the fallen and the fled among them — the bigger company is paid the less)
-    const sideN = mine => this.units.filter(u => !u.musician && (this.alOf(u.team) === 0) === mine).length, oursN = sideN(true) + 1, theirsN = sideN(false);
+    const sideN = mine => this.units.filter(u => !u.musician && (this.alOf(u.team) === 0) === mine).length, oursN = sideN(true) + 1 + (this.tookN | 0), theirsN = sideN(false);
     const odds = this.multi && theirsN ? theirsN / oursN : 1;
     const pay = cmpB || lastMode === "story" || this.hist ? null : earn({ vsPlayer: rated, won: won && !left, kills: this.multi ? this.killed | 0 : (this.wins[0] | 0) * 3, left, under: this.battle && this.army ? underdog(this.army.uniform, rated).k : 1, odds });
     $("pvpEndS").innerHTML = `${score}${this.foeInfo.bot && !this.multi ? " · against a bot" : ""}${cmpB ? "" : "<br>"}${cmpB ? "" : rated ? `Rating <b>${Math.round(r.rating)}</b> <span class="${delta >= 0 ? "up" : "down"}">${delta >= 0 ? "+" : ""}${delta}</span> · ${rankOf(r.rating)} · ${r.w} won, ${r.l} lost` : `Against bots: not rated · your rating stays <b>${Math.round(R.rating)}</b>`}`;
