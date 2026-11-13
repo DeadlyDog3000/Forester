@@ -1724,7 +1724,10 @@ class Arena {
         const t = b.gate ? "The gate's down!" : b.kind === "tower" ? "A tower's down — a breach!" : "A breach in the wall!";
         const k = ORDER_LIST.filter(o => !o.battle || this.battle).findIndex(o => o.id === "charge") + 1, O = this.orders && this.orders[0];
         const ours = this.siege && this.siege.side !== 0 && this.alliesOf(0).some(u => u.alive && !u.crewOf);
-        UI.hint(ours && O && !O.charge && k > 0 ? `${t} Press ${k % 10} — Charge! — to send your men in.` : t, ours ? 4.5 : 3);
+        // (yours to hold, if it's your town: which key sends your men to stand in it)
+        const kA = ORDER_LIST.filter(o => !o.battle || this.battle).findIndex(o => o.id === "advance") + 1;
+        const held = this.siege && this.siege.side === 0 && this.alliesOf(0).some(u => u.alive && !u.crewOf);
+        UI.hint(ours && O && !O.charge && k > 0 ? `${t} Press ${k % 10} — Charge! — to send your men in.` : held && kA > 0 ? `${t} Look at it and press ${kA % 10} — Advance, there — to put your men in the gap.` : t, ours || held ? 4.5 : 3);
       };
       // (and seen: a few seconds' picture of it coming down — see breachCam)
       this.field.onCollapse = info => this.breachCam(info);

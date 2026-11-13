@@ -12,7 +12,7 @@ export const CHANGELOG = [
       "Gun crews went over the wall with the storming party — up the ladders and into the town — and the battery fell silent. They stay at their guns now.",
       "A gunner standing exactly at his place in the drill was counted as gone from some guns, so the gun never fired again. Fixed.",
       "A breach takes longer to batter open: a minute or so of two guns laid on it, not a few shots — time for the defenders to see it coming.",
-      "When your guns open a breach, the word of it says which key sends your men in to storm it.",
+      "When a breach opens, the word of it says which key sends your men in to storm it — or, holding the town, which puts them in the gap.",
       "Laying a gun yourself at a wall, each ball that strikes it tells you how far that length has given.",
       "A palisade of logs goes in about half the round shot a stone wall takes.",
       "A walled town's garrison holds its walls: it fires down on you as you come on and volleys, instead of marching out into the field at you. When a breach opens it forms up behind it, and only goes at you with the steel once you're inside — not out through its own breach after the men still outside.",
