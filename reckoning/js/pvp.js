@@ -3620,7 +3620,7 @@ class Arena {
       const down = this.field.breaks.filter(b => b.down && !(this.preDown && this.preDown.has(b))), walls = down.filter(b => !b.gate && b.kind !== "tower").length, towers = down.filter(b => b.kind === "tower").length, gate = down.some(b => b.gate);
       const bits = []; if (walls > 0) bits.push(`${walls} breach${walls > 1 ? "es" : ""} battered open`); if (towers) bits.push(`${towers} tower${towers > 1 ? "s" : ""} brought down`); if (gate) bits.push("the gate broken in");
       const ours = this.siege.side !== 0;
-      $("pvpEndS").innerHTML += `<div class="pv-pay"><b>The walls:</b> ${bits.length ? bits.join(" · ") + (ours ? "" : " by the enemy") : ours ? "your guns never made a breach" : "they held — no breach made"}</div>`;
+      $("pvpEndS").innerHTML += `<div class="pv-pay"><b>The walls:</b> ${bits.length ? bits.join(" · ") + (ours ? "" : " by the enemy") : ours ? "no breach made — they held" : "they held — no breach made"}</div>`;
     }
     // (the roll called: who of your regiment came through, who fell, who was made corporal or sergeant for it)
     if (this.regOn && this.army) {
