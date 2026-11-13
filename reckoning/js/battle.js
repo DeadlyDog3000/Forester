@@ -657,7 +657,19 @@ export class Field {
   snap() { return { c: this.cols.length, p: this.pieces.length, s: this.spots.map(l => l.length) }; }
   mark(kind, obj, s0, x, z, ry, len, depth, high, hp) {
     if (this.inBetween || !obj) return;
-    (this.hard ||= []).push({ kind, obj, x, z, ry, len, depth, high, hp, max: hp, cols: this.cols.slice(s0.c), pieces: this.pieces.slice(s0.p), spots: this.spots.map((l, i) => l.slice(s0.s[i])) });
+    (this.hard ||= []).push({ kind, obj, x, z, ry, len, depth, high, hp, max: hp, key: `${kind}:${Math.round(x * 10)},${Math.round(z * 10)}`, cols: this.cols.slice(s0.c), pieces: this.pieces.slice(s0.p), spots: this.spots.map((l, i) => l.slice(s0.s[i])) });
+  }
+  // brought down because the host's game says so: that length of wall (by its place in the list, the same on both games
+  //  — the town is built from the same seed), or that work (by where it stands)
+  forceDown(i, dir = null) {
+    const b = this.breaks[i]; if (!b || b.down) return;
+    this.forcing = true;
+    try { b.hp = 0; if (!b.half) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; b.rub.visible = true; } b.down = true; b.col.disabled = true; for (const m of b.merl) this.topple(b, m, dir); b.merl = []; this.collapse(b, dir); this.onBreach && this.onBreach(b); }
+    finally { this.forcing = false; }
+  }
+  forceWork(key) {
+    const w = this.hard && this.hard.find(h => h.key === key); if (!w) return;
+    this.forcing = true; try { w.hp = 0; this.hitWork(w, 1, null, new THREE.Vector3(w.x, this.y(w.x, w.z) + w.high * 0.6, w.z)); } finally { this.forcing = false; }
   }
   // the work a point in the air is in, if any (a little margin round it: the ball's own size)
   workAt(p) {
@@ -672,7 +684,7 @@ export class Field {
   // struck: earth or splinters off it; and if that's the end of it, burst apart — the cover it gave gone
   hitWork(w, dmg, dir, at) {
     if (!this.hard.includes(w)) return false;
-    w.hp -= dmg;
+    w.hp -= dmg; if (w.hp <= 0 && this.follow && !this.forcing) w.hp = 0.5;
     const root = this.w.root, F = window.__foley, gy = this.y(w.x, w.z), up = new THREE.Vector3(0, 1, 0), earth = w.kind === "gabion";
     const fwd = dir && Math.hypot(dir.x, dir.z) > 0.01 ? new THREE.Vector3(dir.x, 0, dir.z).normalize() : new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
     if (w.hp > 0) {
@@ -834,10 +846,12 @@ export class Field {
   //  (f: how much battering, 0 to 1 and more; the gate's left to the assault — the guns were laid on the walls)
   preBatter(f) {
     if (!(f > 0)) return 0;
+    { let k = (Math.abs(Math.round((this.C.x * 7 + this.C.z * 13) * 10)) % 2147483646) + 1; this.rr = () => (k = k * 16807 % 2147483647) / 2147483647; }
     let down = 0;
     for (const b of this.breaks) {
       if (b.gate || b.down) continue;
-      b.hp -= b.max * f * (b.kind === "tower" ? 0.5 : 1) * (0.35 + Math.random() * 1.1);
+      // (from the field's own seed, not chance: both games of a battle online open the same breaches)
+      b.hp -= b.max * f * (b.kind === "tower" ? 0.5 : 1) * (0.35 + this.rr() * 1.1);
       if (b.hp < b.max * 0.75) for (const m of b.merl.splice(0, Math.ceil(b.merl.length * 0.6))) m.visible = false;
       if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) m.visible = false; b.merl = []; b.rub.visible = true; }
       if (b.hp <= 0) { b.down = true; b.grp.visible = false; b.rub.visible = true; b.col.disabled = true; down++; }
@@ -857,11 +871,14 @@ export class Field {
       // (a merlon knocked off: it goes over, tumbling down the face, and lies at the foot)
       if (b.merl.length && Math.random() < 0.6) this.topple(b, b.merl.splice(Math.floor(Math.random() * b.merl.length), 1)[0], dir);
       if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) this.topple(b, m, dir); b.merl = []; b.rub.visible = true; }
+      // (in a game with another player, the other's game — the host's — says when a wall's down: this one only follows)
+      if (b.hp <= 0 && this.follow && !this.forcing) b.hp = 1;
       if (b.hp <= 0) {
         b.down = true; b.col.disabled = true;
         for (const m of b.merl) this.topple(b, m, dir); b.merl = [];
         this.collapse(b, dir);
         this.onBreach && this.onBreach(b);
+        this.onDown && this.onDown(b);
       }
       return true;
     }

@@ -1743,7 +1743,7 @@ class Arena {
         // (and then turned about: the east line, and the guns there, are ours here)
         this.spawns.reverse();
         for (const g of this.field.guns) g.side = 1 - g.side;
-        this.field.spots.reverse(); this.field.remote = true;
+        this.field.spots.reverse(); this.field.remote = true; this.field.follow = true;
       }
       // (the fort's people start inside it, at its front wall)
       if (this.field.fortAt) this.spawns[this.fortSide] = this.clearSpot(this.field.fortAt.anchor.x, this.field.fortAt.anchor.z);
@@ -1843,6 +1843,10 @@ class Arena {
       this.wireBattle(net); this.wireColours(net);
       if (this.host) { this.field.onFire = g => net.send({ t: "bgun", i: this.field.guns.indexOf(g) }); this.field.onNade = (f, v, side, fuse) => net.send({ t: "bnade", f: [f.x, f.y, f.z].map(n => +n.toFixed(2)), v: [v.x, v.y, v.z].map(n => +n.toFixed(2)), fuse: +fuse.toFixed(2) }); }
       else net.on.bnade = m => this.field && this.field.nade(new THREE.Vector3(...m.f.map(Number)), new THREE.Vector3(...m.v.map(Number)), 0, +m.fuse || 2);
+      // (a length of wall, a tower, the gate, a run of palisade brought down; a work shot to pieces: the host's game
+      //  says so, and the other's brings it down too — else one saw a breach the other's men couldn't go through)
+      if (this.host) { this.field.onDown = b => net.send({ t: "bwall", i: this.field.breaks.indexOf(b) }); this.field.onWorkDown = w => net.send({ t: "bwork", k: w.key }); }
+      else { net.on.bwall = m => this.field && this.field.forceDown(+m.i | 0); net.on.bwork = m => this.field && this.field.forceWork(String(m.k || "")); }
     }
     // (all of it written down as it's fought, to be played over again: see replay.js)
     this.stageSetup = { pd: this.plantedD || null, battle: this.battle, multi: this.multi, seed: ground ? ground.seed : 0, x: C.x, z: C.z, fieldSeed: this.fieldSeed || 0, hostFort: this.hostFort ?? null, guns: this.gunsHost || null,
@@ -2698,6 +2702,7 @@ class Arena {
         b.down = true; F.downAt = F.t; b.col.disabled = true;
         // (it goes over, burning, in a shower of sparks and smoke — see Field.collapse)
         if (this.field && this.field.collapse) this.field.collapse(b, null, { burnt: true }); else { b.grp.visible = false; b.rub.visible = true; }
+        if (this.host && this.net && this.field) this.net.send({ t: "bwall", i: this.field.breaks.indexOf(b) });
         FOLEY.crash && FOLEY.crash(0.55, { x: b.x, z: b.z });
         if (Math.hypot(G.player.pos.x - b.x, G.player.pos.z - b.z) < 70) UI.hint("The palisade's burnt through: a way in!", 3);
       }

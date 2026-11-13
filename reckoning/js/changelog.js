@@ -12,6 +12,7 @@ export const CHANGELOG = [
       "Gun crews went over the wall with the storming party — up the ladders and into the town — and the battery fell silent. They stay at their guns now.",
       "A gunner standing exactly at his place in the drill was counted as gone from some guns, so the gun never fired again. Fixed.",
       "A breach takes longer to batter open: a minute or so of two guns laid on it, not a few shots — time for the defenders to see it coming.",
+      "Against another player, the walls and works come down on both your games at once. Before, each game battered its own walls, so one of you could see a breach the other couldn't get through — and a town besieged before the battle opened different breaches on each.",
     ],
   },
   {
