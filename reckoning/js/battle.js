@@ -824,7 +824,16 @@ export class Field {
       if (F.small) { this.stepBits(F, dt, t); if (t > 15.2) { F.deb.parent && F.deb.parent.remove(F.deb); F.deb.dispose(); this.collapses.splice(this.collapses.indexOf(F), 1); } continue; }
       // (it shudders a moment, then drops — faster as it goes — sinking into the heap of itself, leaning out)
       const k = Math.max(0, t - 0.12), drop = Math.min(F.H * 1.05, 0.5 * 11 * k * k), jit = t < 0.5 ? (0.5 - t) * 0.12 : 0;
-      if (b.grp.visible) {
+      // (a gate: its doors go over flat, inward, the way they were forced — pivoting on their foot — and lie there)
+      if (b.gate) {
+        const k = Math.max(0, t - 0.15), full = 1.5, th0 = Math.min(full, 0.5 * 7 * k * k), at = Math.sqrt(2 * full / 7) + 0.15;
+        const th = th0 < full ? th0 : full - 0.08 * Math.abs(Math.sin((t - at) * 11)) * Math.exp(-(t - at) * 4);
+        const axis = F.along, up = new THREE.Vector3(0, 1, 0), sg = new THREE.Vector3().crossVectors(axis, up).dot(F.out) > 0 ? -1 : 1;
+        const q = new THREE.Quaternion().setFromAxisAngle(axis, sg * th), P0 = new THREE.Vector3(b.x, F.gy + 0.1, b.z);
+        b.grp.quaternion.copy(q); b.grp.position.copy(P0).sub(P0.clone().applyQuaternion(q)).add(new THREE.Vector3(F.grpX, F.grpY, F.grpZ));
+        if (!F.slam && th0 >= full) { F.slam = true; cloud(root, new THREE.Vector3(b.x, F.gy + 0.3, b.z).addScaledVector(F.out, -2.5), up, { n: 12, colour: 0x7a6448, life: 4, speed: 4, size: 1.8, opacity: 0.6 }); const Fo = window.__foley; Fo && Fo.fall && Fo.fall("timberFall", P0, 1); }
+      }
+      else if (b.grp.visible) {
         b.grp.position.set(F.grpX + F.out.x * drop * 0.18 + (Math.random() - 0.5) * jit, F.grpY - drop, F.grpZ + F.out.z * drop * 0.18 + (Math.random() - 0.5) * jit);
         if (drop >= F.H * 1.05) { b.grp.visible = false; b.grp.position.set(F.grpX, F.grpY, F.grpZ); }
       }
@@ -836,7 +845,7 @@ export class Field {
       if (t0 < 1.7 && t >= 1.7) cloud(root, new THREE.Vector3(b.x, F.gy + 2.5, b.z).addScaledVector(F.out, 3), new THREE.Vector3(0, 1, 0), { n: 10, colour: F.dust, life: 14, speed: 1.2, size: 5, opacity: 0.32 });
       for (const [when, fn] of F.sfx) if (t0 < when && t >= when) fn();
       this.stepBits(F, dt, t);
-      if (t > 15.2) { F.deb.parent && F.deb.parent.remove(F.deb); F.deb.dispose(); this.collapses.splice(this.collapses.indexOf(F), 1); if (b.grp.visible) b.grp.visible = false; b.rub.position.y = 0; }
+      if (t > 15.2) { F.deb.parent && F.deb.parent.remove(F.deb); F.deb.dispose(); this.collapses.splice(this.collapses.indexOf(F), 1); if (b.grp.visible && !b.gate) b.grp.visible = false; b.rub.position.y = 0; }
     }
   }
   // ---- battering: a ball (or a bomb, or men at the gate) into the town's wall; a length of it, its tower, its gate,
