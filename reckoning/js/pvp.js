@@ -35,7 +35,7 @@ import { SHIPS, navalBattle, enemyOfName } from "./naval.js";
 import { shapeField, buildThings, fieldMap, groundMap } from "./histmap.js";
 import { initCampaign, openCampaign, openMpCampaign } from "./campaign.js";
 import { lookOpts, randomLook, isF } from "./mp/look.js";
-import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS } from "./battle.js";
+import { UNIFORMS, soldierLook, inUniform, rankDress, armDress, Field, Orders, OrderBook, FORMATIONS, ORDER_LIST } from "./battle.js";
 import { wayOfUniform, plateOf } from "./unitart.js";
 import { rekeyText } from "./keys.js";
 import { crateShow, warmCrate } from "./crateshow.js";
@@ -1718,7 +1718,14 @@ class Arena {
       if (this.palisade) this.palisadeSetup();
       // (besieged a year or more before this: the walls as the guns left them, breaches already open)
       if (this.things && this.things.battered) { const n = this.field.preBatter(this.things.battered); this.breachedAtStart = n; }
-      this.field.onBreach = b => { if (G.arena === this) UI.hint(b.gate ? "The gate's down!" : b.kind === "tower" ? "A tower's down — a breach!" : "A breach in the wall!", 3); };
+      // (yours to storm, if you're the one outside: which key sends them in)
+      this.field.onBreach = b => {
+        if (G.arena !== this) return;
+        const t = b.gate ? "The gate's down!" : b.kind === "tower" ? "A tower's down — a breach!" : "A breach in the wall!";
+        const k = ORDER_LIST.filter(o => !o.battle || this.battle).findIndex(o => o.id === "charge") + 1, O = this.orders && this.orders[0];
+        const ours = this.siege && this.siege.side !== 0 && this.alliesOf(0).some(u => u.alive && !u.crewOf);
+        UI.hint(ours && O && !O.charge && k > 0 ? `${t} Press ${k % 10} — Charge! — to send your men in.` : t, ours ? 4.5 : 3);
+      };
       // (and seen: a few seconds' picture of it coming down — see breachCam)
       this.field.onCollapse = info => this.breachCam(info);
       // (a gun wrecked: its crew take up their swords and fall in with the rest)
