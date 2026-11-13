@@ -2802,6 +2802,22 @@ class Arena {
       if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) { K.volT = 9 + Math.random() * 6; O.volleyAt = G.time + 1.1; shout(1.1); }
       return;
     }
+    // (holding a walled town: on the walk behind the parapet, firing down as you come on — not marching out into the
+    //  field at you. A breach opened: they gather behind it to hold it, and go at you with the steel only once you're in
+    //  — they used to charge out through their own breach and be cut down in the open)
+    if (this.siege && this.alOf(co) === this.siege.side && this.siege.wall) {
+      // (in: off the ladder and over the parapet, or through the breach — a man still on the rungs isn't in yet)
+      const W0 = this.siege.wall, inside = ours.filter(u => u.alive && !u.climb && (u.pos.x - W0.ox) * W0.ux > W0.faceU + 1);
+      const brk = this.field.breaks.filter(b => b.down && !b.gate);
+      if (brk.length) {
+        // (the nearest breach to where they stand, and a few paces in behind it)
+        let bb = null, bd = Infinity; for (const b of brk) { const dd = Math.hypot(b.x - a.x, b.z - a.z); if (dd < bd) { bd = dd; bb = b; } }
+        const W = this.siege.wall; O.mode = "hold"; O.at = K.brkAt && K.brkB === bb ? K.brkAt : (K.brkB = bb, K.brkAt = { x: bb.x + W.ux * 6, z: bb.z });
+      }
+      O.charge = inside.length > 0; O.cover = false;
+      if ((K.volT -= dt) <= 0 && d < 80 && !O.charge) { K.volT = 8 + Math.random() * 5; O.volleyAt = G.time + 1.1; O.fire = true; shout(1.1); }
+      return;
+    }
     // (holding a palisaded town: they stay inside it, at the stakes, and loose and fire through the gaps as you come on;
     //  only once you're inside — by the way in, or a length burnt through — do they go at you with the club)
     if (this.palisade && this.alOf(co) === this.palisade.side) {
@@ -4392,6 +4408,9 @@ class Bot extends Fighter {
       // (a trooper rides for what horse is good against — the gun crews, men running, men out on their own — and
       //  keeps clear of the pikes)
       if (this.noReach && (this.noReach.get(f) || 0) > G.time) d *= 6;
+      // (a town's defenders fight the men who've got in, not the ones still outside: out after them through their own
+      //  breach, they were cut down in the open)
+      if (this.arena.siege && this.al === this.arena.siege.side && f.pos && this.arena.outside(f.pos) && !this.arena.outside(this.a.pos)) d *= 4;
       if (this.mounted) { const pike = f.steel && f.steel() === "spear", alone = !foes.some(g => g !== f && Math.hypot(g.pos.x - f.pos.x, g.pos.z - f.pos.z) < 4); d *= (pike ? 2.6 : 1) * (f.crewOf ? 0.6 : 1) * (f.routing ? 0.5 : 1) * (alone ? 0.7 : 1); }
       if (d < bd) { bd = d; best = f; }
     }

@@ -14,6 +14,7 @@ export const CHANGELOG = [
       "A breach takes longer to batter open: a minute or so of two guns laid on it, not a few shots — time for the defenders to see it coming.",
       "When your guns open a breach, the word of it says which key sends your men in to storm it.",
       "A palisade of logs goes in about half the round shot a stone wall takes.",
+      "A walled town's garrison holds its walls: it fires down on you as you come on and volleys, instead of marching out into the field at you. When a breach opens it forms up behind it, and only goes at you with the steel once you're inside — not out through its own breach after the men still outside.",
       "Men storming into a town went for the gunners at the guns on the wall, couldn't get to them past the carriage and the embrasure, and stood there in guard for good while the defenders shot them down. They find a way round now, or go for another man.",
       "Against another player, the walls and works come down on both your games at once. Before, each game battered its own walls, so one of you could see a breach the other couldn't get through — and a town besieged before the battle opened different breaches on each.",
     ],
