@@ -3366,7 +3366,8 @@ class Arena {
   //  the enemy on you, not in a game with others (the world doesn't wait), and not twice in quick succession ----
   breachCam(info) {
     const pl = G.player;
-    if (G.arena !== this || G.mp || this.remote || this.over || G.deathCam || G.freecam || G.deploying || this.watching || UI.dialogOpen || G.mode !== "play") return;
+    // (not against another player — host or not, the battle goes on without waiting for you)
+    if (G.arena !== this || G.mp || this.net || this.netBattle || this.remote || this.over || G.deathCam || G.freecam || G.deploying || this.watching || UI.dialogOpen || G.mode !== "play") return;
     if (!pl || !pl.pos || (G.health != null && G.health <= 0)) return;
     if (G.time - (this.breachCamAt ?? -99) < 20) return;
     const d = Math.hypot(pl.pos.x - info.x, pl.pos.z - info.z); if (d > 320) return;
