@@ -20,6 +20,7 @@ export const CHANGELOG = [
       "A walled town's garrison holds its walls: it fires down on you as you come on and volleys, instead of marching out into the field at you. When a breach opens it forms up behind it, and only goes at you with the steel once you're inside — not out through its own breach after the men still outside.",
       "Men storming into a town went for the gunners at the guns on the wall, couldn't get to them past the carriage and the embrasure, and stood there in guard for good while the defenders shot them down. They find a way round now, or go for another man.",
       "Against another player, the walls and works come down on both your games at once. Before, each game battered its own walls, so one of you could see a breach the other couldn't get through — and a town besieged before the battle opened different breaches on each.",
+      "And against another player the picture of a wall coming down no longer takes your eyes away — the battle doesn't wait for you.",
     ],
   },
   {
