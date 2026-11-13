@@ -13,6 +13,7 @@ export const CHANGELOG = [
       "A gunner standing exactly at his place in the drill was counted as gone from some guns, so the gun never fired again. Fixed.",
       "A breach takes longer to batter open: a minute or so of two guns laid on it, not a few shots — time for the defenders to see it coming.",
       "When your guns open a breach, the word of it says which key sends your men in to storm it.",
+      "Men storming into a town went for the gunners at the guns on the wall, couldn't get to them past the carriage and the embrasure, and stood there in guard for good while the defenders shot them down. They find a way round now, or go for another man.",
       "Against another player, the walls and works come down on both your games at once. Before, each game battered its own walls, so one of you could see a breach the other couldn't get through — and a town besieged before the battle opened different breaches on each.",
     ],
   },

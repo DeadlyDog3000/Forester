@@ -4391,7 +4391,7 @@ class Bot extends Fighter {
       if (sharp && d > 4.5) d *= (f.cover && f.a && f.a.person.crouching ? 1.5 : 1) * (f.hp != null && f.hp < 55 ? 0.7 : 1) * (f.crewOf ? 0.75 : 1) * (1 + 0.12 * Math.max(0, (on.get(f) || 0) - 2));
       // (a trooper rides for what horse is good against — the gun crews, men running, men out on their own — and
       //  keeps clear of the pikes)
-      if (this.mounted && this.noReach && (this.noReach.get(f) || 0) > G.time) d *= 6;
+      if (this.noReach && (this.noReach.get(f) || 0) > G.time) d *= 6;
       if (this.mounted) { const pike = f.steel && f.steel() === "spear", alone = !foes.some(g => g !== f && Math.hypot(g.pos.x - f.pos.x, g.pos.z - f.pos.z) < 4); d *= (pike ? 2.6 : 1) * (f.crewOf ? 0.6 : 1) * (f.routing ? 0.5 : 1) * (alone ? 0.7 : 1); }
       if (d < bd) { bd = d; best = f; }
     }
@@ -4524,6 +4524,9 @@ class Bot extends Fighter {
       if (this.mounted && this.wind <= 0) a.person.setPose(d > 7 && a.speed > 4 ? "point" : "guard");
       // (in a battle's line: he closes to the place on his own side of his man, square across the front — the lines meet
       //  face to face, not in a ring round each other)
+      // (on foot, at a man who'll never come out to him — a gunner boxed in behind his gun and the embrasure, a defender
+      //  up in a town's works — he doesn't stand waiting in his place for ever: a way round to him, or another man)
+      if (!this.mounted && this.arena.battle && d > B.reach + 0.5 && (T.crewOf || this.arena.siege) && this.unstick(dt, T, fp)) return;
       const st = O && this.arena.battle && !this.mounted && !T.isPlayer && d < 16 && this.lineSpot(B.reach);
       if (st) {
         const sd = Math.hypot(st.x - a.pos.x, st.z - a.pos.z);
