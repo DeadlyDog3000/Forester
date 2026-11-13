@@ -863,7 +863,8 @@ export class Field {
   batter(p, dmg, dir = null) {
     for (const b of this.breaks) {
       if (b.down || Math.abs(p.x - b.x) > b.hw || Math.abs(p.z - b.z) > b.hd || p.y > b.top + 1.5) continue;
-      b.hp -= dmg;
+      // (logs stood in the earth splinter under round shot as masonry doesn't: a palisade goes in half the balls)
+      b.hp -= b.kind === "palisade" && dmg > 2 ? dmg * 1.9 : dmg;
       cloud(this.w.root, p.clone(), new THREE.Vector3(0, 1, 0), { n: 8, colour: b.gate ? 0x6a5236 : 0x9a917f, life: 2.6, speed: 3.5, size: 1.2, opacity: 0.65 });
       // (the merlons knocked off one by one as it's hit; the parapet low and broken once it's half gone)
       // (heard: the ball's crack on the stone, or the gate's oak splitting)
