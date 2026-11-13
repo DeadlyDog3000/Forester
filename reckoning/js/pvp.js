@@ -1728,6 +1728,8 @@ class Arena {
       };
       // (and seen: a few seconds' picture of it coming down — see breachCam)
       this.field.onCollapse = info => this.breachCam(info);
+      this.field.onYourHit = b => { if (G.arena !== this) return; const k = Math.round(100 * (1 - Math.max(0, b.hp) / b.max)), what = b.gate ? "the gate" : b.kind === "tower" ? "the tower" : b.kind === "palisade" ? "the palisade" : "the wall";
+        UI.hint(k >= 70 ? `On ${what} — it's nearly down (${k}%)` : `On ${what} — that length ${k >= 40 ? "is giving" : "takes it"} (${k}%)`, 1.8); };
       // (a gun wrecked: its crew take up their swords and fall in with the rest)
       this.field.onGunDown = g => { for (const u of g.crew) if (u && u.alive) { u.crewOf = null; u.wasCrew = null; u.a.path = []; u.hold && u.hold(u.lo.long !== "none" ? u.lo.long : u.lo.blade); } g.crew = []; if (G.arena === this && g.side === 0) UI.hint("One of your guns is wrecked.", 2.5); };
       if (camps) { let k = 0; for (const c of camps) for (let j = 0; j < Math.min(2, c.guns); j++) if (this.field.guns[k]) this.field.guns[k++].co = c.co; }

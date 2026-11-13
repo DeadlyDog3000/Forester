@@ -869,6 +869,8 @@ export class Field {
       // (the merlons knocked off one by one as it's hit; the parapet low and broken once it's half gone)
       // (heard: the ball's crack on the stone, or the gate's oak splitting)
       if (dmg > 1 && b.hp > 0) { const F = window.__foley; F && F.wallHit && F.wallHit(p, 0.8, b.gate); }
+      // (your own shot, from a gun you're laying yourself: how far that length has given)
+      if (this.byHand && b.hp > 0 && this.onYourHit) this.onYourHit(b);
       // (a merlon knocked off: it goes over, tumbling down the face, and lies at the foot)
       if (b.merl.length && Math.random() < 0.6) this.topple(b, b.merl.splice(Math.floor(Math.random() * b.merl.length), 1)[0], dir);
       if (!b.half && b.hp < b.max * 0.5) { b.half = true; b.col.y1 -= 1.1; b.top -= 1.1; for (const m of b.merl) this.topple(b, m, dir); b.merl = []; b.rub.visible = true; }
@@ -1669,7 +1671,8 @@ export class Field {
         const struck = b.v.length() > 8 && b.t > 0.035 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0);
         // (into a town's wall: it takes the blow, and the ball's spent)
         // (a breach is the work of many balls on one place: two guns laid on a length take a minute and more, not a few shots)
-        if (struck && this.breaks.length && this.batter(b.p, 12 * Math.min(1.4, b.v.length() / 120), b.v)) { b.v.set(0, 0, 0); b.done = true; continue; }
+        if (struck && this.breaks.length && (this.byHand = !!(b.gun && b.gun.byHand), this.batter(b.p, 12 * Math.min(1.4, b.v.length() / 120), b.v))) { this.byHand = false; b.v.set(0, 0, 0); b.done = true; continue; }
+        this.byHand = false;
         // (into the works: a basket of earth takes the ball and may burst; stakes and chevaux-de-frise are smashed, and a
         //  ball that smashes them goes on through, slower)
         if (struck && this.hard && this.hard.length) { const w = this.workAt(b.p); if (w && !(b.gun && Math.hypot(w.x - b.gun.x, w.z - b.gun.z) < 4)) { const gone = this.hitWork(w, 18 * Math.min(1.4, b.v.length() / 120), b.v, b.p); if (gone && w.kind !== "gabion") { b.v.multiplyScalar(0.6); continue; } b.v.set(0, 0, 0); b.done = true; continue; } }
