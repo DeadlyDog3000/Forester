@@ -7,6 +7,14 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.297", date: "13 November 2026", title: "The battery stays at its guns",
+    items: [
+      "Gun crews went over the wall with the storming party — up the ladders and into the town — and the battery fell silent. They stay at their guns now.",
+      "A gunner standing exactly at his place in the drill was counted as gone from some guns, so the gun never fired again. Fixed.",
+      "A breach takes longer to batter open: a minute or so of two guns laid on it, not a few shots — time for the defenders to see it coming.",
+    ],
+  },
+  {
     v: "1.99.296", date: "13 November 2026", title: "A breaching battery",
     items: [
       "Besieging a walled town or a palisaded village, a side's guns no longer just fire at whoever's thickest on the walk: they're laid on one stretch of the wall, the nearest to them, and kept on it shot after shot until it comes down. Then they turn on the men. Your own guns do the same unless you've given them a target.",

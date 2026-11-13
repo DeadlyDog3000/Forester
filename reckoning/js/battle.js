@@ -1550,7 +1550,9 @@ export class Field {
     if (T.lin.visible) { const f = gunner.yaw + Math.PI / 2; T.lin.position.set(gunner.pos.x + Math.sin(f) * 0.28, gunner.pos.y + 0.1, gunner.pos.z + Math.cos(f) * 0.28); T.lin.rotation.set(0, gunner.yaw, 0.12); T.lin.userData.match.scale.setScalar(0.8 + Math.random() * 0.5); }
   }
   // how many of its crew are at it
-  manned(g) { return g.crew.filter(u => u.alive && Math.hypot(u.pos.x - g.x, u.pos.z - g.z) < 2.6).length; }
+  // (at the gun, or at his place in the drill — which on some guns is a pace further out than the rest: a man stood
+  //  exactly where he was told was counted as gone, and the gun never fired again)
+  manned(g) { return g.crew.filter((u, i) => { if (!u || !u.alive) return false; if (Math.hypot(u.pos.x - g.x, u.pos.z - g.z) < 2.6) return true; const w = this.station(g, u.crewIdx ?? i); return Math.hypot(u.pos.x - w.x, u.pos.z - w.z) < 1.2; }).length; }
   // laid there, now, and fired (a gun you work yourself)
   layAndFire(g, at) {
     const dx = at.x - g.x, dz = at.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
@@ -1648,7 +1650,8 @@ export class Field {
         const gy = this.y(b.p.x, b.p.z);
         const struck = b.v.length() > 8 && b.t > 0.035 && this.w.col.solidAt(b.p.x, b.p.y, b.p.z, 0);
         // (into a town's wall: it takes the blow, and the ball's spent)
-        if (struck && this.breaks.length && this.batter(b.p, 18 * Math.min(1.4, b.v.length() / 120), b.v)) { b.v.set(0, 0, 0); b.done = true; continue; }
+        // (a breach is the work of many balls on one place: two guns laid on a length take a minute and more, not a few shots)
+        if (struck && this.breaks.length && this.batter(b.p, 12 * Math.min(1.4, b.v.length() / 120), b.v)) { b.v.set(0, 0, 0); b.done = true; continue; }
         // (into the works: a basket of earth takes the ball and may burst; stakes and chevaux-de-frise are smashed, and a
         //  ball that smashes them goes on through, slower)
         if (struck && this.hard && this.hard.length) { const w = this.workAt(b.p); if (w && !(b.gun && Math.hypot(w.x - b.gun.x, w.z - b.gun.z) < 4)) { const gone = this.hitWork(w, 18 * Math.min(1.4, b.v.length() / 120), b.v, b.p); if (gone && w.kind !== "gabion") { b.v.multiplyScalar(0.6); continue; } b.v.set(0, 0, 0); b.done = true; continue; } }

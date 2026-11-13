@@ -4223,6 +4223,8 @@ class Bot extends Fighter {
   storm(dt, T, O) {
     const A = this.arena, S = A.siege, a = this.a;
     if (!S || !S.wall || this.al === S.side || !A.battle) return false;
+    // (a gun's crew serve the gun: they don't go over the wall with the stormers — they went, and the battery fell silent)
+    if (this.crewOf && !this.climb) return false;
     if (this.climb) { this.climbTick(dt); return true; }
     if (!A.outside(a.pos) || (T && A.outside(T.pos))) return false;
     const shooter = ["musket", "bow", "crossbow"].includes(this.lo.long);
