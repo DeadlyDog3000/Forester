@@ -640,6 +640,20 @@ export class Field {
   }
   // ---- works that shot can break: a gabion, a run of palisade, chevaux-de-frise. What each added to the field — its
   //  solid shape, its cover — kept with it, so when it goes all of that goes with it (an earth bank only soaks shot up) ----
+  // the stretch of wall a side's guns are battering, if it's besieging: one length (or a run of palisade), the nearest
+  //  to its guns, held to until it's down — a breach already open, and they fire on the men instead
+  breachFor(side) {
+    const def = this.siege ? this.siege.side : this.w.woods ?? null;
+    if (def == null || side === def || !this.breaks || !this.breaks.length) return null;
+    const B = (this.breachAim ||= {});
+    if (B[side] && !B[side].down) return B[side];
+    if (B[side] === false || this.breaks.some(b => b.down && !b.gate)) { B[side] = false; return null; }
+    const mine = this.guns.filter(g => g.side === side && !g.dead); if (!mine.length) return null;
+    const cx = mine.reduce((t, g) => t + g.x, 0) / mine.length, cz = mine.reduce((t, g) => t + g.z, 0) / mine.length;
+    let best = null, bd = Infinity;
+    for (const b of this.breaks) { if (b.down || b.gate || b.kind === "tower") continue; const d = Math.hypot(b.x - cx, b.z - cz); if (d < bd) { bd = d; best = b; } }
+    return (B[side] = best || false) || null;
+  }
   snap() { return { c: this.cols.length, p: this.pieces.length, s: this.spots.map(l => l.length) }; }
   mark(kind, obj, s0, x, z, ry, len, depth, high, hp) {
     if (this.inBetween || !obj) return;
@@ -1587,14 +1601,17 @@ export class Field {
       if (!g.target) {
         const foes = units.filter(u => (u.al ?? u.team) !== g.side && u.alive);
         const stale = !g.aim || !foes.some(u => Math.hypot(u.pos.x - g.aim.x, u.pos.z - g.aim.z) < 6);
-        if ((g.next -= dt) <= 0 || (stale && g.loaded)) { g.next = 6; const t = this.thickest(foes); g.aim = t ? { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 } : null; }
+        // (a besieger's battery: laid on one stretch of the wall until it's down — a breach to storm — and only then on men)
+        const bw = this.breachFor(g.side);
+        if (bw) { if (!g.aim || g.aim.wall !== bw || (g.next -= dt) <= 0) { g.next = 6; const sp = Math.max(0, Math.max(bw.hd, bw.hw) - 0.8), a = (this.r() - 0.5) * 2 * sp * 0.7, gy0 = this.y(bw.x, bw.z), lz = bw.hd >= bw.hw; g.aim = { x: bw.x + (lz ? 0 : a), z: bw.z + (lz ? a : 0), y: gy0 + Math.max(1, (bw.top - gy0) * (0.4 + this.r() * 0.3)), wall: bw }; } }
+        else if ((g.next -= dt) <= 0 || (stale && g.loaded) || (g.aim && g.aim.wall)) { g.next = 6; const t = this.thickest(foes); g.aim = t ? { x: t.x + (this.r() - 0.5) * 3.5, z: t.z + (this.r() - 0.5) * 3.5 } : null; }
       }
       else g.aim = g.target;
       if (g.aim && !g.manned) {
         const dx = g.aim.x - g.x, dz = g.aim.z - g.z, want = Math.atan2(-dx, -dz), d = Math.hypot(dx, dz);
         const dy = Math.atan2(Math.sin(want - g.ry), Math.cos(want - g.ry));
         g.yaw += (clamp(dy, -0.9, 0.9) - g.yaw) * Math.min(1, dt * 1.5);
-        const need = 0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + (this.y(g.aim.x, g.aim.z) - this.y(g.x, g.z) - 0.9) / Math.max(4, d);
+        const need = 0.5 * Math.asin(clamp(d * 9.8 / (140 * 140), -1, 1)) + ((g.aim.y ?? this.y(g.aim.x, g.aim.z)) - this.y(g.x, g.z) - 0.9) / Math.max(4, d);
         g.pitch += (need - g.pitch) * Math.min(1, dt * 1.5);
         if (g.loaded && g.firing && crewN && !g.byHand && this.active !== false && this.opened > 7 + g.side * 2 && Math.abs(clamp(dy, -0.9, 0.9) - g.yaw) < 0.04) this.fire(g);
       }
@@ -1634,7 +1651,7 @@ export class Field {
         if (struck && this.breaks.length && this.batter(b.p, 18 * Math.min(1.4, b.v.length() / 120), b.v)) { b.v.set(0, 0, 0); b.done = true; continue; }
         // (into the works: a basket of earth takes the ball and may burst; stakes and chevaux-de-frise are smashed, and a
         //  ball that smashes them goes on through, slower)
-        if (struck && this.hard && this.hard.length) { const w = this.workAt(b.p); if (w) { const gone = this.hitWork(w, 18 * Math.min(1.4, b.v.length() / 120), b.v, b.p); if (gone && w.kind !== "gabion") { b.v.multiplyScalar(0.6); continue; } b.v.set(0, 0, 0); b.done = true; continue; } }
+        if (struck && this.hard && this.hard.length) { const w = this.workAt(b.p); if (w && !(b.gun && Math.hypot(w.x - b.gun.x, w.z - b.gun.z) < 4)) { const gone = this.hitWork(w, 18 * Math.min(1.4, b.v.length() / 120), b.v, b.p); if (gone && w.kind !== "gabion") { b.v.multiplyScalar(0.6); continue; } b.v.set(0, 0, 0); b.done = true; continue; } }
         if (b.p.y <= gy + 0.07 || struck) {
           b.p.y = Math.max(b.p.y, gy + 0.07);
           const sp = b.v.length();

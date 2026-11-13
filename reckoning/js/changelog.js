@@ -7,6 +7,13 @@
 
 export const CHANGELOG = [
   {
+    v: "1.99.296", date: "13 November 2026", title: "A breaching battery",
+    items: [
+      "Besieging a walled town or a palisaded village, a side's guns no longer just fire at whoever's thickest on the walk: they're laid on one stretch of the wall, the nearest to them, and kept on it shot after shot until it comes down. Then they turn on the men. Your own guns do the same unless you've given them a target.",
+      "A gun firing out through its battery doesn't smash its own gabions on the way.",
+    ],
+  },
+  {
     v: "1.99.295", date: "12 November 2026", title: "Shot through the works",
     items: [
       "Round shot breaks field works now. A gabion takes a ball or two and bursts in a spray of earth and wicker; a palisade or a row of chevaux-de-frise is smashed to splinters, and the ball goes on through. An earth bank soaks shot up, as it should.",
