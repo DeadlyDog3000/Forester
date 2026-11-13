@@ -1718,6 +1718,7 @@ class Arena {
       if (this.palisade) this.palisadeSetup();
       // (besieged a year or more before this: the walls as the guns left them, breaches already open)
       if (this.things && this.things.battered) { const n = this.field.preBatter(this.things.battered); this.breachedAtStart = n; }
+      this.preDown = new Set(this.field.breaks.filter(b => b.down));
       // (yours to storm, if you're the one outside: which key sends them in)
       this.field.onBreach = b => {
         if (G.arena !== this) return;
@@ -3612,6 +3613,14 @@ class Arena {
     // (colours taken: a reward of their own, paid with the rest — and theirs lost, said)
     if (pay && this.tookColours) { const P = grant(Math.round(25 * this.tookColours * (pay.k ?? 1)), pay.team); $("pvpEndS").innerHTML += `<div class="pv-pay">Their colours taken: <b>+${money(P.gain, P.team)}</b> · ${money(P.total, P.team)} in the ${esc(TEAM_NAME(P.team))} purse</div>`; }
     if (this.lostColours && !left) $("pvpEndS").innerHTML += `<div class="pv-pay">Your colours were lost to the enemy.</div>`;
+    // (a walled town: what the guns and the axes did to its walls, said — breaches opened in the battle, not the ones it
+    //  came with from an earlier siege)
+    if (this.siege && this.field && this.field.breaks && !left) {
+      const down = this.field.breaks.filter(b => b.down && !(this.preDown && this.preDown.has(b))), walls = down.filter(b => !b.gate && b.kind !== "tower").length, towers = down.filter(b => b.kind === "tower").length, gate = down.some(b => b.gate);
+      const bits = []; if (walls > 0) bits.push(`${walls} breach${walls > 1 ? "es" : ""} battered open`); if (towers) bits.push(`${towers} tower${towers > 1 ? "s" : ""} brought down`); if (gate) bits.push("the gate broken in");
+      const ours = this.siege.side !== 0;
+      $("pvpEndS").innerHTML += `<div class="pv-pay"><b>The walls:</b> ${bits.length ? bits.join(" · ") + (ours ? "" : " by the enemy") : ours ? "your guns never made a breach" : "they held — no breach made"}</div>`;
+    }
     // (the roll called: who of your regiment came through, who fell, who was made corporal or sergeant for it)
     if (this.regOn && this.army) {
       const men = this.units.filter(u => u.info && u.info.roll && this.alOf(u.team) === 0).map(u => ({ ...u.info.roll, alive: !!u.alive }));
