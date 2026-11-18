@@ -6611,11 +6611,10 @@ $("bpDismantle").addEventListener("click", () => {
 
 // ===== Empire: Europe map, nations, war, settlements =====
 
-// The coarse grid is the political map — one cell to a stretch of country. The
-// fine grid is twice that in each direction, and is what the coastlines are
-// drawn on: sampling the coarse map through a noise warp turns square borders
-// into something a cartographer might have inked.
-const MG_W = 100, MG_H = 56, SCALE = 2, FW = MG_W * SCALE, FH = MG_H * SCALE;
+// The grid is the political map — one cell, a league, to a stretch of country.
+// What the player sees is drawn from it by the atlas further down, which turns
+// its squares into coasts and frontiers a cartographer might have inked.
+const MG_W = 100, MG_H = 56;
 // stylized 1683 Europe in English, painted as rect blobs on a grid
 const NATIONS = {
   scotland:  { name: "Scotland", color: "#a0344a", strength: 1, blobs: [[19,2,6,3],[18,4,7,3]] },
@@ -6654,19 +6653,32 @@ const NATIONS = {
   tunis:     { name: "Tunis", color: "#3a8e4a", strength: 2, blobs: [[33,36,4,4]] },
   tripoli:   { name: "Tripolitania", color: "#3a8e4a", strength: 2, blobs: [[38,39,9,3],[46,40,6,3]] },
 };
-const LABELS = [
-  ["Scotland",21,4],["England",21,10],["Ireland",13,8],["France",28,21],["Castile",18,30],
-  ["Aragon",26,29],["Portugal",13,32],["Holy Roman\nEmpire",37,15],["Brandenburg",44,11],
-  ["Saxony",45,16],["Bavaria",41,20],["Austria",46,22],["Milan",36,23],["Savoy",35,26],
-  ["Venice",41,24],["Tuscany",38,27],["Papal\nStates",40,29],["Naples",46,34],["Sicily",43,40],
-  ["Swedish Empire",44,2],["Denmark",35,6],["Poland–Lithuania",52,12],["Tsardom of Russia",76,8],
-  ["Cossacks",62,22],["Crimean\nKhanate",64,25],["Hungary",49,23],["Transylvania",54,20],
-  ["Moldavia",58,17],["Wallachia",55,26],["Ottoman Empire",63,36],["Algiers",27,39],
-  ["Tunis",35,38],["Tripolitania",42,41],
-];
 const EMPIRE_HOME = { mx: 37, my: 11 };   // the woods beyond Hamburg
 
-let mapGrid = null, baseGrid = null;
+let mapGrid = null, baseGrid = null, siteGrid = null;
+// The blobs leave holes no atlas of 1683 would: a lake where Bohemia should be,
+// another across the Tyrol and the Swiss cantons, a sea through Upper Hungary,
+// a strait between Poland and Muscovy, open water from the Crimea to Persia and
+// nothing at all south of the Barbary coast. Each is land now. Where a crown
+// held it, it is that crown's ([x, y, w, h, crown]); the rest belongs to nobody
+// in the game and is only drawn ([x, y, w, h, 2] country, 3 desert): the Swiss,
+// the United Provinces, Circassia, Persia, Morocco and the deserts. A column
+// crosses those as it always did and a click there finds no one to treat with.
+const LAND_FILL = [
+  [42,17,5,1,"austria"],[44,18,1,2,"austria"],
+  [49,19,7,1,"hungary"],[50,20,2,1,"hungary"],
+  [35,22,5,1,2],[35,23,1,1,2],[40,22,3,1,"austria"],
+  [43,24,6,1,"austria"],[46,25,3,1,"ottoman"],[37,25,4,1,"venice"],
+  [52,23,4,1,"wallachia"],[56,21,3,3,"moldavia"],
+  [30,14,3,3,2],[20,13,3,1,"england"],[24,26,5,1,"aragon"],
+  [41,1,3,1,"sweden"],[38,4,2,1,"sweden"],
+  [57,1,3,4,"sweden"],[59,7,1,9,"poland"],
+  [70,25,12,3,2],[79,28,7,2,2],[71,35,3,2,"ottoman"],
+  [86,30,14,8,2],
+  [14,37,8,19,2],[22,38,2,2,"algiers"],
+  [22,40,16,16,3],[38,42,8,1,3],[38,43,26,13,3],[52,42,12,1,3],[64,47,12,9,3],
+  [78,38,22,18,3],
+];
 function hexRGB(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -6681,9 +6693,6 @@ function vnoise(x, y, seed) {
   const a = h(xi, yi), b = h(xi + 1, yi), c2 = h(xi, yi + 1), d = h(xi + 1, yi + 1);
   return a + (b - a) * fx + (c2 - a + (a - b + d - c2) * fx) * fy;
 }
-
-let fineGrid = null, FID = null, FIDX = null, FID_RGB = null;
-const SEA_RGB = hexRGB("#16303f");
 
 function buildMapGrid() {
   mapGrid = Array.from({ length: MG_H }, () => Array(MG_W).fill(null));
@@ -6702,24 +6711,18 @@ function buildMapGrid() {
   // overlap each other and the seas cut holes in them, so "which cells does
   // Austria actually hold" is a question only the finished grid can answer —
   // and the cities have to be laid down on THAT, or Vienna ends up in Poland or
-  // in the Baltic.
+  // in the Baltic. (They are laid down on it as it was before the holes below
+  // were filled, so that no city moved when they were.)
+  siteGrid = mapGrid.map(row => row.slice());
+  for (const [x, y, w, h, who] of LAND_FILL) {
+    if (typeof who !== "string") continue;
+    for (let r = y; r < y + h && r < MG_H; r++) for (let c = x; c < x + w && c < MG_W; c++)
+      if (!mapGrid[r][c]) mapGrid[r][c] = who;
+  }
   baseGrid = mapGrid.map(row => row.slice());
   // land taken in the wars of Europe
   for (const cq of conquests) if (mapGrid[cq.r] && mapGrid[cq.r][cq.c]) mapGrid[cq.r][cq.c] = cq.to;
 
-  // 1px fine grid: sample the coarse map through a noise warp so every
-  // border becomes an organic pixel coastline
-  FID = ["sea", "wilds", ...Object.keys(NATIONS)];
-  FIDX = Object.fromEntries(FID.map((id, i) => [id, i]));
-  FID_RGB = FID.map(id => id === "sea" ? SEA_RGB : id === "wilds" ? hexRGB("#55614e") : hexRGB(NATIONS[id].color));
-  fineGrid = new Uint8Array(FW * FH);
-  for (let r = 0; r < FH; r++) for (let c = 0; c < FW; c++) {
-    const wx = c + (vnoise(c * 3, r * 3, 1) - 0.5) * 3.2;
-    const wy = r + (vnoise(c * 3, r * 3, 2) - 0.5) * 3.2;
-    const cc = Math.max(0, Math.min(MG_W - 1, Math.floor(wx / SCALE)));
-    const rr = Math.max(0, Math.min(MG_H - 1, Math.floor(wy / SCALE)));
-    fineGrid[r * FW + c] = FIDX[mapGrid[rr][cc] || "sea"];
-  }
   n_wars_init();
 }
 function n_wars_init() { for (const n of Object.values(NATIONS)) { if (n.atWar === undefined) { n.atWar = false; n.warT = 0; n.lost = 0; } } }
@@ -9580,6 +9583,20 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 27, date: "18 November 2026", title: "The map drawn as an atlas of the day, and the edge of what you know left as blank paper",
+    lines: [
+      "The country seen from a height is an atlas of the period now. The coasts are inked, with the engraver's ripples running out from them. Each crown is washed in its colour, with the stronger band along its frontier that the colourists laid on. The mountains are rows of little shaded hills, the woods stand in clumps, the great rivers run to the sea, and all of it is lettered in the types of the day.",
+      "From just above your roofs the map was squares of colour the size of a house. The country round your home is drawn on a finer sheet of its own, which comes up as you come down.",
+      "The blanks were black squares, and past the edge of the map lay open sea anyone could look across. What nobody has charted for you is bare paper now, ruled with the chart-maker's lines, and the country fades into it through a brown tide-mark where the drawing stops. There is nothing beyond the sheet either.",
+      "Ground you have charted but cannot see this hour lies under a faint wash, and the country in sight of your towns, columns and scouts is clear. A column on the road is still drawn only where it can be seen; now you can see where that is.",
+      "There were lakes where Bohemia, the Tyrol and Upper Hungary should be, a strait between Poland and Muscovy, and open water from the Crimea to Persia. They are land now, held by the crowns that held them in 1683. The Swiss, the United Provinces, Persia, Morocco and the deserts are drawn and named, and belong to nobody in the game.",
+      "In a colony begun from now on, every city stands where it really is: Danzig at the mouth of the Vistula, Vienna on the Danube, Kraków, Riga and Buda where they belong. A colony already under way keeps its towns where it found them, so nothing marching on one is stranded.",
+      "The names of the crowns go where their ground is and move when a border moves. A conquered Hungary no longer says \"Hungary\" over Ottoman soil, and Sicily is no longer written across Tripolitania. Each crown is named in the middle of what you know of it, so a half-charted Muscovy is named as well.",
+      "No name is printed over another. The crowns, the capitals, the lesser towns, the rivers and the seas are set down in that order wherever there is room, and a town's name tries above, below and beside it before it gives up. A duchy named for its city is named once.",
+      "The map wrote the exact strength under every enemy column it drew, while the panel beside it said strength uncertain. A column's numbers show once an agent at its court has the muster rolls, or once a scout or column of yours has met it and counted it.",
+      "A crown at war with you is struck through in red. Your trade routes are ruled from your capital to theirs, and two crowns at war with each other have crossed swords set between them.",
+      "A scale of leagues, a compass rose, a graduated border round the sheet, and a title in the ocean to the south-west that gives the year.",
+    ] },
   { v: 26, date: "31 October 2026", title: "Thirty-two faults found by going through the game a part at a time, and put right",
     lines: [
       "After a reload, any building that had never been damaged fell to a single blow from an occupying company.",
@@ -12874,6 +12891,51 @@ const CITY_NAMES = {
   tunis: ["Tunis", "Kairouan"],
   tripoli: ["Tripoli", "Benghazi"],
 };
+// Where each of those towns actually stands, in leagues on the grid, in the same
+// order as their names. They used to be scattered at random over the crown's
+// ground, so Danzig turned up in the south of Poland, Riga in Lapland and Buda
+// on the Adriatic, and a map that is meant to be read was full of lies about
+// the one thing everybody knows. Each is now set down on the crown's own league
+// nearest the place it really is. (A colony begun before this keeps the towns
+// where it found them — see citySites — because a town that moved under a
+// running game would strand whatever was already marching on it.)
+const CITY_SITES = {
+  scotland: [[22,4.5],[19.5,4.5],[23,2.5],[20.5,2.5]],
+  england: [[23.5,12.5],[22,9],[18.5,12],[24.5,10.5],[22.5,7.5]],
+  ireland: [[15,8],[12.5,10.5],[12.3,7.8]],
+  france: [[26.5,18.5],[31,22.5],[31,25.3],[23.5,23],[24.5,17.5],[27,25]],
+  castile: [[19,30.5],[18.5,31.8],[16.5,34.5],[18,28.5],[20,27.5]],
+  aragon: [[25,28.5],[28,28.5],[25.5,31]],
+  portugal: [[12.4,32],[12.5,28.5],[13.3,30]],
+  hre: [[35.5,17],[33.5,15.5],[38.5,17],[34.5,17.8],[38,20.5]],
+  brandenburg: [[41.5,11.5],[40.5,12.3],[42.5,11]],
+  saxony: [[44,15.5],[42.5,14.5],[43.5,15]],
+  bavaria: [[40.5,20.5],[41,18.5],[40,19.5]],
+  austria: [[46.5,20.5],[45.5,22.5],[43.5,22.5],[44.5,20]],
+  milan: [[36.5,23.5],[36.8,24.3],[36.3,23.1]],
+  savoy: [[35,25],[34.5,24.5],[34.5,26.5]],
+  venice: [[41.5,24],[40.5,24.2],[38.8,23.6],[38,23.3]],
+  tuscany: [[38.5,26.6],[37.5,26.8],[38.6,27.5],[37.4,27.5]],
+  papal: [[40,29.5],[40,27.2],[41.8,28]],
+  naples: [[43.5,32.5],[46,33.5],[44.5,33.5]],
+  sicily: [[41.8,38.5],[44.3,38.4],[43.8,38.9]],
+  sweden: [[44.5,4.5],[55.5,4.5],[38.5,4.5],[49,3],[56,2.5]],
+  denmark: [[39.5,7.5],[35.5,7.5],[36.5,8.5]],
+  poland: [[51.5,12.5],[50.5,17.5],[55.5,9.5],[49.5,9.3],[55,16.5]],
+  russia: [[68,10],[62,5],[70,1.5],[80,10],[85,23.5],[63.5,10]],
+  cossacks: [[62,21],[63.5,23]],
+  crimea: [[63,27.5],[65,27]],
+  hungary: [[47.5,21.2],[51,20.5],[47,21.8]],
+  transylvania: [[53,21.5],[53,20.5],[55,21.8]],
+  moldavia: [[58,18],[57,17.3]],
+  wallachia: [[56,24.8],[54.5,24.4]],
+  ottoman: [[56.5,31.5],[54,30.5],[50.5,32.5],[58.5,34],[48,26.5],[51.5,28.5],[48,26],[51,35.5],[76,36.5],[75.5,39.5]],
+  algiers: [[28,37.5],[24,37.5],[31.5,37.5]],
+  tunis: [[34.5,36.5],[34.5,38.5]],
+  tripoli: [[40,40],[48,40.5]],
+};
+// 1: the old scattered sites (saves from before the towns were placed); 2: real ones
+let citySites = 2;
 // a deterministic little roll, so the same world lays its cities down the same
 // way every time it is opened — a city that wandered between sessions would make
 // every scouting report a lie
@@ -12887,19 +12949,33 @@ let CITIES = [];
 // march and every spy a lie about where things are; when the ground under a city
 // changes hands the city stays exactly where it is and changes hands with it.
 function buildCities() {
-  if (!mapGrid || !baseGrid) buildMapGrid();
+  if (!mapGrid || !siteGrid) buildMapGrid();
   const keep = new Map(CITIES.map(c => [c.id, c]));    // whatever has already happened to them
   CITIES = [];
   for (const [id, n] of Object.entries(NATIONS)) {
     const names = CITY_NAMES[id] || [n.name];
     const own = [];
     for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++)
-      if (baseGrid[r][c] === id) own.push([c, r]);
+      if (siteGrid[r][c] === id) own.push([c, r]);
     if (!own.length) continue;
     const rnd = srnd(seedFrom(id) ^ 0x51ed27);
     const want = Math.min(names.length, Math.max(2, 1 + n.strength));
     // spread them out: the roomiest sites first, then relax until we have enough
     const picked = [];
+    const sites = citySites >= 2 && CITY_SITES[id];
+    if (sites) {
+      // each to the nearest league of its own crown that no other town has taken
+      for (let i = 0; i < want && i < sites.length; i++) {
+        const [tx, ty] = sites[i];
+        let best = null, bd = 1e9;
+        for (const [c, r] of own) {
+          if (picked.some(p => p[0] === c && p[1] === r)) continue;
+          const d = Math.hypot(c + 0.5 - tx, r + 0.5 - ty);
+          if (d < bd) { bd = d; best = [c, r]; }
+        }
+        if (best) picked.push(best);
+      }
+    }
     for (let apart = 8; apart >= 1 && picked.length < want; apart--) {
       const pool = own.slice().sort(() => rnd() - 0.5);
       for (const [c, r] of pool) {
@@ -12980,13 +13056,15 @@ function nationArts(id) {
 // name, no city — and a blank is not merely ugly: an army can cross it and you
 // will not know until it is at your gate.
 const charted = new Set();
-let fogBuf = null, fogDirty = true;
+// (the sheet the fog is painted on lives with the atlas, further down; these
+// two say how much of it a newly charted league has made stale)
+let fogDirty = true, fogRect = null;
 const isCharted = (mx, my) => charted.has(ckey(mx, my));
 function chartCell(mx, my) {
   if (mx < 0 || my < 0 || mx >= MG_W || my >= MG_H) return false;
   const k = ckey(mx, my);
   if (charted.has(k)) return false;
-  charted.add(k); fogDirty = true;
+  charted.add(k); fogTouch(mx, my);
   return true;
 }
 function chartAround(mx, my, rad) {
@@ -13090,6 +13168,12 @@ function marchVisible(m) {
   if (knowsArmies(m.nation)) return true;
   return sighted(m.x, m.y);
 }
+// Seeing a column is not counting it. Its numbers are yours once an agent at
+// their court has read the muster rolls, or once a scout or column of yours has
+// met it on the road and counted the files; a column merely sighted from your
+// walls is a column of no known size. (The map wrote the exact number under
+// every pennant it drew, while the panel beside it said "strength uncertain".)
+const columnCounted = m => m.side === "you" || knowsArmies(m.nation) || !!m.spottedBy;
 
 // A crown's column, sent at another crown. The wars of Europe used to be a
 // dice roll every forty seconds; now the dice are still there but a column has
@@ -13675,181 +13759,1251 @@ function updateFlight(dt) {
 }
 const cancelFlight = () => { flight = null; };
 
-// ===== drawing the country =====
-// The same raster the old MAP screen drew, only now it is laid down in world
-// coordinates underneath the colony instead of in a window beside it. It is
-// rebuilt only when something on it actually changes — a border moving, a town
-// founded, a city sacked — because at two hundred by a hundred and twelve pixels
-// it is cheap to make and ruinous to make every frame.
-let stratBuf = null, stratDirty = true;
-function buildStratBuf() {
-  if (!fineGrid || !mapGrid) buildMapGrid();
-  if (!stratBuf) { stratBuf = document.createElement("canvas"); stratBuf.width = FW; stratBuf.height = FH; }
-  const g = stratBuf.getContext("2d");
-  const mine = empireCells();
-  const img = g.createImageData(FW, FH);
-  const px = img.data, myCol = hexRGB(territoryColor);
-  const coarse = i => Math.floor(i / SCALE);
-  const eidAt = (cc, rr) => {
-    if (cc < 0 || rr < 0 || cc >= FW || rr >= FH) return 0;
-    const nid = fineGrid[rr * FW + cc];
-    if (nid !== 0 && mine.has(coarse(cc) + "," + coarse(rr))) return 255;
-    return nid;
-  };
-  for (let r = 0; r < FH; r++) for (let c = 0; c < FW; c++) {
-    const i = r * FW + c, eid = eidAt(c, r);
-    const base = eid === 255 ? myCol : FID_RGB[fineGrid[i]];
-    let f = 0.92 + vnoise(c * 1.4, r * 1.4, 7) * 0.12;
-    if (eid !== 0 && (eidAt(c - 1, r) !== eid || eidAt(c + 1, r) !== eid ||
-                      eidAt(c, r - 1) !== eid || eidAt(c, r + 1) !== eid)) f *= 0.42;
-    px[i * 4] = base[0] * f; px[i * 4 + 1] = base[1] * f; px[i * 4 + 2] = base[2] * f; px[i * 4 + 3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-  stratDirty = false;
+// ===== drawing the country: the atlas =====
+// The map used to be the old MAP screen's raster, two pixels to a league, laid
+// down under the colony: from up close every league was a flat square of colour
+// the size of a house, and from far off it was a child's jigsaw of Europe with
+// lakes where Bohemia and the Alps ought to be. It is drawn as an atlas of the
+// period now: a sheet sixteen pixels to the league, the coast inked and rippled,
+// the crowns washed in their colours with the stronger band along the frontier
+// that hand-colourists laid on, the mountains as little shaded hills, the great
+// rivers, and the woods. It is built in three layers that change at different
+// rates, so each is redone only when its own part of the world moves:
+//   the ground (once), the crowns (when a border moves), the fog (when a league
+//   is charted) — and composited into one sheet the frame then simply draws.
+const AR = 16, GW = MG_W * AR, GH = MG_H * AR;
+const ATLAS_INK = [58, 42, 28];
+const ATLAS_PAPER = [232, 222, 196];
+const ATLAS_PAPER_CSS = "rgb(232,222,196)";
+
+// the blank country the atlas draws but nobody holds: 2 plain, 3 desert
+function atlasFillKind(c, r) {
+  for (const f of LAND_FILL) if (typeof f[4] === "number" && c >= f[0] && c < f[0] + f[2] && r >= f[1] && r < f[1] + f[3]) return f[4];
+  return 0;
 }
-function buildFogBuf() {
-  if (!fogBuf) { fogBuf = document.createElement("canvas"); fogBuf.width = MG_W; fogBuf.height = MG_H; }
-  const g = fogBuf.getContext("2d");
-  g.clearRect(0, 0, MG_W, MG_H);
-  g.fillStyle = "#080c0a";
+// the high ground, as a cartographer of the day drew it: a row of little hills
+// strung along the line of the range (in leagues, the left edge of a league
+// being its whole number)
+const ATLAS_HILLS = [
+  [[18.6,2.9],[21,3.6],[23.6,4.3]],
+  [[36.3,0.9],[37.6,2.7],[39,4.5]],
+  [[16,26.6],[20,26.5],[24,26.4],[28.7,26.7]],
+  [[33.7,25.4],[34.5,23.6],[36,22.6],[39,22.4],[42,22.5],[45,22.9],[47.6,23.3]],
+  [[37.6,26.4],[39.5,27.7],[41,29.5],[42.6,31.5],[44.3,33.8],[45.2,35.2]],
+  [[48.6,19.3],[51,19.1],[54,19.5],[56.4,20.6],[57.3,22.3],[55.8,23.6],[52.6,23.8]],
+  [[49.2,27.4],[52,27.6],[55,27.4]],
+  [[45.7,25.3],[47,27],[48.3,29.3],[49.2,31.5],[49.6,33.6]],
+  [[58,34.8],[62,35.4],[66,35.3],[70,34.9],[74,34.5]],
+  [[69,26.4],[73,26.9],[77,27.4],[81,28.5]],
+  [[15,39.2],[19,38.6],[23,38.9],[28,39.3],[33,39.1]],
+  [[96.6,1.6],[97,6],[96.8,11],[97.3,15]],
+  [[14.6,31],[18,30.6],[22,30.8]],
+  [[15,34],[19,33.8],[22.5,34]],
+  [[27,22.4],[28.4,23.6]],
+  [[41.6,16.8],[44.6,16.9]],
+  [[86.6,31],[89,34],[92,36.6]],
+  [[75.2,38.3],[75.6,40.4]],
+];
+// the great rivers, source to mouth; each runs on until the coast takes it
+const ATLAS_RIVERS = [
+  [[19.5,12.6],[22,12.3],[24.4,12.4],[26.4,12.1]],
+  [[29.5,21.5],[27.5,19.6],[25.5,18.6],[23.6,17.6],[22.8,16.4]],
+  [[30.5,23.5],[28.5,21.8],[26,21.2],[23,20.6],[20.5,20.4],[19.4,20.4]],
+  [[28,25.2],[26,24.5],[24.5,24],[23.2,23.4],[22.2,23.2]],
+  [[35.5,22.6],[33.5,23],[32.3,23.8],[31.8,25.2],[31.5,26.7]],
+  [[37.6,22.2],[36.2,21.3],[35,19.6],[34.2,17.6],[33,15.8],[31.8,14.8],[30.2,13.9],[29.2,13.5]],
+  [[44.5,17.4],[43,16],[41,14.8],[39,14],[36.6,13.5],[34.6,12.2],[33.3,10.6],[32.3,9.8]],
+  [[47.5,17.8],[46.6,15.5],[45.6,13.8],[45,12.5]],
+  [[51.5,18.6],[51,16],[49.8,13],[49.4,10.5],[49.5,9.2],[49.5,8.3]],
+  [[63,10],[60.5,9],[58.5,8],[57,7.2],[56.5,6.5]],
+  [[35.6,20.4],[38,20.2],[40.5,20.6],[43,20.7],[45.5,21],[47.3,21.8],[48.6,23],[49.3,24.6],[51,25.6],[53.5,25.9],[56,25.7],[58,25.3],[59.5,24.7]],
+  [[67.5,7],[66.5,10],[65,14],[63.6,18],[62.6,21],[61.4,23.4],[60.2,24.5]],
+  [[54.5,18.5],[56.5,20],[58.5,22.5],[59.6,24.3]],
+  [[71,11],[72.6,15],[73,19],[71.4,22],[69.6,24],[68.6,25.3]],
+  [[67,5],[72,6.5],[77,8],[82,10],[85,13.5],[86,17.5],[84.5,21],[86,23.5],[87.5,25.4]],
+  [[34.8,24.4],[37,24.7],[39.5,25.2],[41.4,25.5]],
+  [[22.5,28.6],[20,29.6],[17,30.6],[14,31.2],[12.2,31.6],[11.5,31.6]],
+  [[21,27.6],[18,27.8],[15,28.2],[12.5,28.5],[11.5,28.5]],
+  [[20,26.9],[23,27.8],[26,29.2],[28.4,30.5],[29.5,30.9]],
+  [[21.8,33.3],[19,34.2],[16.5,35],[15,35.7],[14.6,36.5]],
+  [[70.5,55.5],[70,50],[69.5,46],[68.6,43],[68.5,41.3]],
+  [[75.5,32.5],[77.5,35.5],[80.5,38.5],[84,41.5],[87,44]],
+];
+// their names, in the same order, lettered along the stream; the great ones
+// (marked true) are named from higher up than the rest
+const ATLAS_RIVER_NAMES = [
+  ["Thames"], ["Seine"], ["Loire"], ["Garonne"], ["Rhône"], ["Rhine", true], ["Elbe", true], ["Oder"],
+  ["Vistula", true], ["Dvina"], ["Danube", true], ["Dnieper", true], ["Dniester"], ["Don", true],
+  ["Volga", true], ["Po"], ["Tagus"], ["Douro"], ["Ebro"], ["Guadalquivir"], ["Nile", true], ["Euphrates"],
+];
+// where the woods stand thick enough to be worth drawing: [x, y, w, h, density]
+const ATLAS_WOODS = [
+  [60,1,38,12,0.22],[47,9,12,10,0.28],[47,0,10,6,0.3],[34,0,10,6,0.2],
+  [33,13,9,8,0.2],[40,10,7,7,0.25],[52,17,4,4,0.2],[18,2,6,4,0.12],[23,17,12,8,0.1],
+];
+
+// ===== the sheets =====
+// The atlas is drawn on two sheets. The whole of Europe goes on one at sixteen
+// pixels to the league, which is plenty from a height. But a colony with no
+// charts yet sees the map only from just above its own roofs, where a league is
+// four hundred pixels across and that sheet is a blur — so the country around
+// home is drawn again on a second sheet three times finer, which fades in as
+// you come down and out as you rise. Both are drawn by the same hand: every
+// coast, wash, hill and stain is worked out in leagues, never in the pixels of
+// one sheet, so the two agree wherever they overlap.
+function makeSheet(c0, r0, cw, ch, res, inner, fres = res / 2) {
+  return {
+    c0, r0, cw, ch, res, W: cw * res, H: ch * res,
+    // k: how many of this sheet's pixels make one of the main sheet's; ps: how
+    // much heavier its lines are drawn (less than k, so a finer sheet is finer)
+    k: res / AR, ps: Math.sqrt(res / AR),
+    fres, FW: cw * fres, FH: ch * fres,
+    inner, geo: null, aa: null, cell: null, pol: null, polSig: "", fog: null,
+    fogWarp: null, fogImg: null, map: null, feather: null, job: null, fogFull: true, fogRect: null,
+  };
+}
+const HOME_R = 9;
+const SHEETS = [
+  makeSheet(0, 0, MG_W, MG_H, AR, null),
+  makeSheet(EMPIRE_HOME.mx - HOME_R - 2, EMPIRE_HOME.my - HOME_R - 2, HOME_R * 2 + 5, HOME_R * 2 + 5, 48,
+            [EMPIRE_HOME.mx - HOME_R, EMPIRE_HOME.my - HOME_R, HOME_R * 2 + 1, HOME_R * 2 + 1], 48),
+];
+const SHEET_MAIN = SHEETS[0], SHEET_HOME = SHEETS[1];
+let atlasPolSig = "", atlasNatLabels = [];
+let stratDirty = true;
+const ATLAS_NONE = 65535;
+
+// Distance, in pixels, from every pixel to the nearest one picked out: two
+// passes of a 3-4 chamfer, which is plenty for ripples and colour bands. The
+// rows are done in plain functions, a band at a time, so the build between
+// frames can stop after any band (a loop inside a generator runs several
+// times slower than the same loop outside one).
+function distForward(D, w, y0, y1) {
+  for (let y = y0; y < y1; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    let d = D[i];
+    if (x > 0) d = Math.min(d, D[i - 1] + 1);
+    if (y > 0) {
+      d = Math.min(d, D[i - w] + 1);
+      if (x > 0) d = Math.min(d, D[i - w - 1] + 1.414);
+      if (x < w - 1) d = Math.min(d, D[i - w + 1] + 1.414);
+    }
+    D[i] = d;
+  }
+}
+function distBackward(D, w, h, y1, y0) {
+  for (let y = y1 - 1; y >= y0; y--) for (let x = w - 1; x >= 0; x--) {
+    const i = y * w + x;
+    let d = D[i];
+    if (x < w - 1) d = Math.min(d, D[i + 1] + 1);
+    if (y < h - 1) {
+      d = Math.min(d, D[i + w] + 1);
+      if (x < w - 1) d = Math.min(d, D[i + w + 1] + 1.414);
+      if (x > 0) d = Math.min(d, D[i + w - 1] + 1.414);
+    }
+    D[i] = d;
+  }
+}
+function distSeed(D, src, land) {
+  for (let i = 0; i < D.length; i++) D[i] = (src[i] >= 0.5) === land ? 0 : 1e6;
+}
+function* atlasDistanceGen(w, h, src, land, out) {
+  const D = new Float32Array(w * h);
+  distSeed(D, src, land);
+  yield;
+  const R = 48;
+  for (let y = 0; y < h; y += R) { distForward(D, w, y, Math.min(h, y + R)); yield; }
+  for (let y = h; y > 0; y -= R) { distBackward(D, w, h, y, Math.max(0, y - R)); yield; }
+  out.D = D;
+}
+// a smooth line through a list of points, in leagues
+function atlasPath(g, pts) {
+  g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i][0] + pts[i + 1][0]) / 2, my = (pts[i][1] + pts[i + 1][1]) / 2;
+    g.quadraticCurveTo(pts[i][0], pts[i][1], mx, my);
+  }
+  g.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+}
+
+// The woods and the hills, rolled once for every sheet alike, so a hill on the
+// fine sheet stands where the same hill stands on the coarse one.
+let atlasGlyphs = null;
+function atlasGlyphList() {
+  if (atlasGlyphs) return atlasGlyphs;
+  const rnd = srnd(0x5eed);
+  const trees = [];
+  for (const [x0, y0, w, hh, dens] of ATLAS_WOODS.concat([[33, 7, 7, 6, 0.9], [34, 13, 5, 1, 0.8]])) {
+    const clumps = Math.round(w * hh * dens * 0.45);
+    for (let k = 0; k < clumps; k++) {
+      const cx = x0 + rnd() * w, cy = y0 + rnd() * hh;
+      const n = 3 + Math.floor(rnd() * 5);
+      for (let t = 0; t < n; t++)
+        trees.push({ x: cx + (rnd() - 0.5) * 0.7, y: cy + (rnd() - 0.5) * 0.45, s: (1.6 + rnd() * 0.8) / AR, fir: rnd() < 0.55 });
+    }
+  }
+  trees.sort((a, b) => a.y - b.y);
+  const hills = [];
+  for (const range of ATLAS_HILLS) {
+    for (let k = 0; k < range.length - 1; k++) {
+      const [u0, v0] = range[k], [u1, v1] = range[k + 1];
+      const steps = Math.max(1, Math.round(Math.hypot(u1 - u0, v1 - v0) * AR / 5.2));
+      for (let s = 0; s < steps; s++) {
+        const t = (s + rnd() * 0.5) / steps;
+        const hx = u0 + (u1 - u0) * t + (rnd() - 0.5) * 3 / AR;
+        const hy = v0 + (v1 - v0) * t + (rnd() - 0.5) * 3 / AR;
+        hills.push({ x: hx, y: hy, s: (4.2 + rnd() * 2.6) / AR });
+        const extra = rnd() < 0.35, ex = (rnd() - 0.5) * 6 / AR, ey = (-3 - rnd() * 2) / AR, es = (3 + rnd() * 1.6) / AR;
+        if (extra) hills.push({ x: hx + ex, y: hy + ey, s: es });
+      }
+    }
+  }
+  hills.sort((a, b) => a.y - b.y);
+  return atlasGlyphs = { trees, hills };
+}
+
+// ---- the ground: coast, sea, paper, hills, rivers, woods. Built once. ----
+// It is the better part of a second of work for the two sheets, so it is done a
+// few milliseconds a frame while the colony is being played, long before
+// anyone rises to look at it; only if the map is wanted before then is the
+// rest of the main sheet finished on the spot.
+function atlasGeoStep(budget) {
+  const S = SHEETS.find(s => !s.geo);
+  if (!S) return true;
+  if (!S.job) S.job = sheetGeoSteps(S);
+  const t0 = performance.now();
+  while (performance.now() - t0 < budget) if (S.job.next().done) { S.job = null; return false; }
+  return false;
+}
+function buildSheetGeo(S) {
+  if (!S.job) S.job = sheetGeoSteps(S);
+  while (!S.job.next().done) {}
+  S.job = null;
+}
+// The two passes over every pixel, a band of rows at a time (T carries the
+// sheet's work in progress between bands).
+function geoCoverRows(T, y0, y1) {
+  const { S, L, W, res, cover, cellOf, aaOf, desert, aaW } = T;
+  const cs = [0, 0, 0, 0], rs = [0, 0, 0, 0], ws = [0, 0, 0, 0], ids = [null, null, null, null];
+  const kindAt = (c, r) => (c < 0 || r < 0 || c >= MG_W || r >= MG_H) ? 0 : L[r * MG_W + c];
+  const baseAt = (c, r) => (c < 0 || r < 0 || c >= MG_W || r >= MG_H) ? null : (baseGrid[r][c] || (L[r * MG_W + c] ? "~blank" : null));
+  for (let y = y0; y < y1; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    // in the main sheet's pixels, wherever this sheet's pixel happens to lie
+    const P = (S.c0 + (x + 0.5) / res) * AR, Q = (S.r0 + (y + 0.5) / res) * AR;
+    // a broad swell that bends the coast, and a finer crinkle that roughens it
+    const wx = (vnoise(P * 0.9, Q * 0.9, 11) - 0.5) * 0.62 + (vnoise(P * 4.3, Q * 4.3, 12) - 0.5) * 0.17;
+    const wy = (vnoise(P * 0.9, Q * 0.9, 13) - 0.5) * 0.62 + (vnoise(P * 4.3, Q * 4.3, 14) - 0.5) * 0.17;
+    const u = P / AR - 0.5 + wx, v = Q / AR - 0.5 + wy;
+    const c0 = Math.floor(u), r0 = Math.floor(v);
+    let fx = u - c0, fy = v - r0;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    cs[0] = c0; rs[0] = r0; ws[0] = (1 - fx) * (1 - fy);
+    cs[1] = c0 + 1; rs[1] = r0; ws[1] = fx * (1 - fy);
+    cs[2] = c0; rs[2] = r0 + 1; ws[2] = (1 - fx) * fy;
+    cs[3] = c0 + 1; rs[3] = r0 + 1; ws[3] = fx * fy;
+    let f = 0, dz = 0;
+    for (let q = 0; q < 4; q++) {
+      const kd = kindAt(cs[q], rs[q]);
+      if (kd) f += ws[q];
+      if (kd === 3) dz += ws[q];
+      ids[q] = baseAt(cs[q], rs[q]);
+    }
+    cover[i] = f; desert[i] = dz;
+    aaOf[i] = Math.max(0, Math.min(255, Math.round(((f - 0.5) / aaW + 0.5) * 255)));
+    // which league this pixel belongs to: the crown with the most weight here,
+    // and of that crown's corners the heaviest — so a frontier rounds off the
+    // way the coast does, instead of stepping league by league
+    if (f < 0.5) { cellOf[i] = ATLAS_NONE; continue; }
+    let bestId = null, bestW = -1;
+    for (let q = 0; q < 4; q++) {
+      if (!ids[q]) continue;
+      let wsum = 0;
+      for (let j = 0; j < 4; j++) if (ids[j] === ids[q]) wsum += ws[j];
+      if (wsum > bestW) { bestW = wsum; bestId = ids[q]; }
+    }
+    let bk = -1, bw = -1;
+    for (let q = 0; q < 4; q++) if (ids[q] === bestId && ws[q] > bw) { bw = ws[q]; bk = q; }
+    cellOf[i] = bk < 0 ? ATLAS_NONE : rs[bk] * MG_W + cs[bk];
+  }
+}
+const ATLAS_RIP = [[1.0, 0.85], [3.2, 0.36], [6.0, 0.26], [9.6, 0.17], [14.2, 0.1], [20, 0.05]];
+function geoPaintRows(T, y0, y1) {
+  const { S, W, res, K, ps, aaOf, desert, dSea, dLand, px } = T;
+  for (let y = y0; y < y1; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    const P = (S.c0 + (x + 0.5) / res) * AR, Q = (S.r0 + (y + 0.5) / res) * AR;
+    const grain = ((Math.imul(x * 73856093 ^ y * 19349663, 0x27d4eb2d) >>> 0) & 255) / 255 - 0.5;
+    const mott = 0.95 + vnoise(P * 0.33, Q * 0.33, 21) * 0.07 + vnoise(P * 1.9, Q * 1.9, 22) * 0.035 + grain * 0.025;
+    // the sea: pale, a little greener near the shore, with the engraver's
+    // ripples following the coast out
+    const ds = dSea[i] / ps;
+    const near = Math.max(0, 1 - dSea[i] / K / 26);
+    let sr = (172 - near * 14) * mott, sg = (186 - near * 8) * mott, sb = (176 - near * 4) * mott;
+    let rip = 0;
+    for (let q = 0; q < ATLAS_RIP.length; q++) {
+      const d0 = ATLAS_RIP[q][0];
+      const t = 1 - Math.abs(ds - d0) / (d0 < 1.5 ? 1.2 : 0.8);
+      if (t > 0) rip = Math.max(rip, t * ATLAS_RIP[q][1]);
+    }
+    sr += (64 - sr) * rip; sg += (82 - sg) * rip; sb += (88 - sb) * rip;
+    // the land: laid paper, browner in the deserts, with a faint shadow along
+    // the inside of the coast
+    const dz = desert[i];
+    const dl = dLand[i] / ps;
+    const shore = dl < 4 ? (1 - dl / 4) * 0.07 : 0;
+    let lr = (214 + dz * 8) * mott * (1 - shore), lg = (196 + dz * 4) * mott * (1 - shore), lb = (152 - dz * 14) * mott * (1 - shore);
+    if (dz > 0.4 && (grain > 0.44 || (grain < -0.47 && ((x + y) & 1)))) { lr *= 0.82; lg *= 0.8; lb *= 0.78; }
+    if (dl < 1.1) { const t = 0.7 * (1.1 - dl); lr += (ATLAS_INK[0] - lr) * t; lg += (ATLAS_INK[1] - lg) * t; lb += (ATLAS_INK[2] - lb) * t; }
+    const a = aaOf[i] / 255;
+    px[i * 4] = sr + (lr - sr) * a;
+    px[i * 4 + 1] = sg + (lg - sg) * a;
+    px[i * 4 + 2] = sb + (lb - sb) * a;
+    px[i * 4 + 3] = 255;
+  }
+}
+function alphaFrom(data, a8) { for (let i = 0; i < a8.length; i++) data[i * 4 + 3] = a8[i]; }
+function featherRows(S, data) {
+  const { W, H, res } = S, [ic, ir, iw, ih] = S.inner, band = 1.6;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const u = S.c0 + (x + 0.5) / res, v = S.r0 + (y + 0.5) / res;
+    const d = Math.min(u - ic, ic + iw - u, v - ir, ir + ih - v);
+    const t = d <= 0 ? 0 : d >= band ? 1 : d / band;
+    data[(y * W + x) * 4 + 3] = Math.round(t * t * (3 - 2 * t) * 255);
+  }
+}
+function* sheetGeoSteps(S) {
+  if (!baseGrid) buildMapGrid();
+  const L = new Uint8Array(MG_W * MG_H);
   for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++)
-    if (!charted.has(ckey(c, r))) g.fillRect(c, r, 1, 1);
-  fogDirty = false;
+    L[r * MG_W + c] = baseGrid[r][c] ? 1 : atlasFillKind(c, r);
+  const { W, H, res, k: K, ps } = S;
+  const N = W * H;
+  const cover = new Float32Array(N);
+  const cellOf = new Uint16Array(N), aaOf = new Uint8Array(N);
+  const desert = new Float32Array(N);
+  const T = { S, L, W, H, res, K, ps, cover, cellOf, aaOf, desert, aaW: 0.09 / K };
+  // (bands of about six thousand pixels: a couple of milliseconds apiece)
+  const band = Math.max(1, Math.round(6000 / W));
+  for (let y = 0; y < H; y += band) { geoCoverRows(T, y, Math.min(H, y + band)); yield; }
+  const box = {};
+  yield* atlasDistanceGen(W, H, cover, true, box);
+  const dSea = box.D;
+  yield* atlasDistanceGen(W, H, cover, false, box);
+  const dLand = box.D;
+  yield;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d");
+  const im = g.createImageData(W, H), px = im.data;
+  T.dSea = dSea; T.dLand = dLand; T.px = px;
+  for (let y = 0; y < H; y += band) { geoPaintRows(T, y, Math.min(H, y + band)); yield; }
+  g.putImageData(im, 0, 0);
+  yield;
+  // the relief, drawn on its own sheet in leagues and then cut to the land, so
+  // a river ends where the coast is and a hill never stands in the sea
+  const rel = document.createElement("canvas"); rel.width = W; rel.height = H;
+  const h = rel.getContext("2d");
+  h.setTransform(res, 0, 0, res, -S.c0 * res, -S.r0 * res);
+  const ink = `rgb(${ATLAS_INK.join(",")})`;
+  const px1 = ps / res;
+  // (on the fine sheet the symbols are drawn smaller against the league, as a
+  // county map draws its woods finer than an atlas of the continent)
+  const big = S === SHEET_MAIN ? 1 : 0.75, leafy = S === SHEET_MAIN ? 1 : 0.5;
+  const inSheet = (x, y, m) => x > S.c0 - m && y > S.r0 - m && x < S.c0 + S.cw + m && y < S.r0 + S.ch + m;
+  const coverAt = (x, y) => {
+    const ix = Math.floor((x - S.c0) * res), iy = Math.floor((y - S.r0) * res);
+    return ix < 0 || iy < 0 || ix >= W || iy >= H ? 0 : cover[iy * W + ix];
+  };
+  const { trees, hills } = atlasGlyphList();
+  // woods first, so the hills stand in front of them. A tree is a crown on a
+  // trunk, green; a hill is a hump, bare — so the two can never be read for
+  // each other.
+  // and three to every one, so a wood drawn finer is still a wood
+  const cluster = S === SHEET_MAIN ? [[0, 0]] : [[0, 0], [0.085, 0.045], [-0.07, 0.06]];
+  const stand = [];
+  for (const t of trees) for (const [ox, oy] of cluster) stand.push({ x: t.x + ox, y: t.y + oy, s: t.s, fir: ox > 0 ? !t.fir : t.fir });
+  if (cluster.length > 1) stand.sort((a, b) => a.y - b.y);
+  for (const t of stand) {
+    if (!inSheet(t.x, t.y, 0.3) || coverAt(t.x, t.y) < 0.62) continue;
+    const { x: tx, y: ty } = t, s = t.s * leafy;
+    h.lineWidth = 0.7 * px1 * leafy; h.strokeStyle = ink;
+    h.beginPath(); h.moveTo(tx, ty - s * 0.6); h.lineTo(tx, ty + s * 0.9); h.stroke();
+    if (t.fir) {
+      h.fillStyle = "rgba(78,104,58,0.85)";
+      h.beginPath(); h.moveTo(tx, ty - s * 2.6); h.lineTo(tx + s * 0.75, ty - s * 0.1); h.lineTo(tx - s * 0.75, ty - s * 0.1); h.closePath();
+      h.fill(); h.stroke();
+    } else {
+      h.fillStyle = "rgba(96,118,64,0.85)";
+      h.beginPath(); h.arc(tx, ty - s * 1.2, s * 0.95, 0, 7); h.fill(); h.stroke();
+    }
+  }
+  // the hills, back to front, each a hump with its far flank cut in short
+  // strokes, as an engraver would
+  for (const hl of hills) {
+    if (!inSheet(hl.x, hl.y, 0.5)) continue;
+    const { x, y } = hl, s = hl.s * big;
+    h.beginPath();
+    h.moveTo(x - s, y);
+    h.quadraticCurveTo(x - s * 0.35, y - s * 1.35, x + s * 0.05, y - s * 1.12);
+    h.quadraticCurveTo(x + s * 0.55, y - s * 0.95, x + s, y);
+    h.closePath();
+    h.fillStyle = "rgb(230,214,174)"; h.fill();
+    h.lineWidth = 0.85 * px1; h.strokeStyle = ink; h.stroke();
+    h.lineWidth = 0.6 * px1; h.strokeStyle = "rgba(58,42,28,0.75)";
+    h.beginPath();
+    for (let q = 0; q < 4; q++) {
+      const sx = x + s * (0.12 + q * 0.2), sy = y - s * (1.0 - q * 0.24);
+      h.moveTo(sx, sy); h.lineTo(sx + s * 0.12, y - 0.6 * px1);
+    }
+    h.stroke();
+  }
+  // the rivers, thickening toward the sea: three strokes, each starting further
+  // downstream and a little wider, so the water swells without the line breaking
+  h.lineCap = "round"; h.lineJoin = "round";
+  for (const rv of ATLAS_RIVERS) {
+    if (!rv.some(([x, y]) => inSheet(x, y, 3))) continue;
+    for (const [lw, col] of [[2.6, "rgba(226,214,184,0.9)"], [1.1, "rgba(62,90,104,0.9)"]]) {
+      for (let s = 0; s < 3; s++) {
+        const from = Math.floor(s * (rv.length - 1) / 3);
+        if (rv.length - from < 2) continue;
+        h.lineWidth = lw * (0.6 + 0.32 * s) * px1;
+        h.strokeStyle = col;
+        atlasPath(h, rv.slice(from));
+        h.stroke();
+      }
+    }
+  }
+  yield;
+  // cut it all to the land
+  const mask = document.createElement("canvas"); mask.width = W; mask.height = H;
+  const mg = mask.getContext("2d"), mi = mg.createImageData(W, H);
+  alphaFrom(mi.data, aaOf);
+  mg.putImageData(mi, 0, 0);
+  yield;
+  h.setTransform(1, 0, 0, 1, 0, 0);
+  h.globalCompositeOperation = "destination-in";
+  h.drawImage(mask, 0, 0);
+  g.drawImage(rel, 0, 0);
+  // a finer sheet laid over the main one fades out toward its own edges, so
+  // there is no seam where it stops
+  if (S.inner) {
+    const fe = document.createElement("canvas"); fe.width = W; fe.height = H;
+    const fg = fe.getContext("2d"), fi = fg.createImageData(W, H);
+    featherRows(S, fi.data);
+    yield;
+    fg.putImageData(fi, 0, 0);
+    S.feather = fe;
+  }
+  // (published only now, all together, so nothing reads half a sheet)
+  S.cell = cellOf; S.aa = aaOf;
+  S.geo = cv;
+  S.polSig = ""; S.fogFull = true; S.ownPrev = null;
+}
+
+// ---- the crowns: a wash of each colour, the frontier band, the dotted line ----
+const NATION_SHORT = {
+  scotland: "Scotland", england: "England", ireland: "Ireland", france: "France", castile: "Castile",
+  aragon: "Aragon", portugal: "Portugal", hre: "Holy Roman\nEmpire", brandenburg: "Brandenburg",
+  saxony: "Saxony", bavaria: "Bavaria", austria: "Austria", milan: "Milan", savoy: "Savoy",
+  venice: "Venice", tuscany: "Tuscany", papal: "Papal\nStates", naples: "Naples", sicily: "Sicily",
+  sweden: "Swedish Empire", denmark: "Denmark", poland: "Poland–\nLithuania", russia: "Tsardom of Russia",
+  cossacks: "Cossacks", crimea: "Crimean\nKhanate", hungary: "Hungary", transylvania: "Transylvania",
+  moldavia: "Moldavia", wallachia: "Wallachia", ottoman: "Ottoman Empire", algiers: "Algiers",
+  tunis: "Tunis", tripoli: "Tripolitania",
+};
+const ATLAS_NAT_IDS = Object.keys(NATIONS);
+// who holds each league right now, as one small number apiece:
+// 0 sea, 1 nobody's country, 2 the free woods, 3.. a crown, 255 yours
+function atlasOwners() {
+  const mine = empireCells();
+  const own = new Uint8Array(MG_W * MG_H);
+  for (let r = 0; r < MG_H; r++) for (let c = 0; c < MG_W; c++) {
+    const id = mapGrid[r][c], i = r * MG_W + c;
+    if (!id) { const k = atlasFillKind(c, r); own[i] = k === 3 ? 254 : k ? 1 : 0; continue; }
+    if (mine.has(c + "," + r)) { own[i] = 255; continue; }
+    own[i] = id === "wilds" ? 2 : 3 + ATLAS_NAT_IDS.indexOf(id);
+  }
+  return own;
+}
+// Returns "all", the rectangle of the sheet that changed, or null. A war
+// moves a handful of leagues, and redrawing all of Europe's colours for it was
+// fifty milliseconds; only the leagues that changed hands (and a margin round
+// them for the frontier band) are redrawn now, unless the colours themselves
+// have changed.
+function buildSheetPol(S, own, sig) {
+  if (S.polSig === sig && S.pol) return null;
+  S.polSig = sig;
+  const { W, H, ps, res } = S;
+  const war = ATLAS_NAT_IDS.map(id => !!NATIONS[id].atWar);
+  let full = !S.pol || !S.ownPrev || S.colPrev !== territoryColor;
+  let rx0 = 0, ry0 = 0, rx1 = W, ry1 = H;
+  if (!full) {
+    let c0 = 1e9, r0 = 1e9, c1 = -1, r1 = -1;
+    const warFlip = o => o >= 3 && o < 254 && war[o - 3] !== S.warPrev[o - 3];
+    for (let k = 0; k < own.length; k++) {
+      if (own[k] === S.ownPrev[k] && !warFlip(own[k])) continue;
+      const c = k % MG_W, r = (k / MG_W) | 0;
+      if (c < c0) c0 = c; if (c > c1) c1 = c; if (r < r0) r0 = r; if (r > r1) r1 = r;
+    }
+    S.ownPrev = own.slice(); S.warPrev = war;
+    if (c1 < 0) return null;
+    rx0 = Math.max(0, Math.floor((c0 - 1 - S.c0) * res)); ry0 = Math.max(0, Math.floor((r0 - 1 - S.r0) * res));
+    rx1 = Math.min(W, Math.ceil((c1 + 2 - S.c0) * res)); ry1 = Math.min(H, Math.ceil((r1 + 2 - S.r0) * res));
+    if (rx1 <= rx0 || ry1 <= ry0) return null;
+  } else {
+    S.ownPrev = own.slice(); S.warPrev = war; S.colPrev = territoryColor;
+  }
+  // the frontier band reaches a few pixels; it is worked out over a slightly
+  // larger window than is redrawn, so a border just outside still counts
+  const E = Math.ceil(6 * ps) + 2;
+  const ox0 = Math.max(0, rx0 - E), oy0 = Math.max(0, ry0 - E), ox1 = Math.min(W, rx1 + E), oy1 = Math.min(H, ry1 + E);
+  const ow = ox1 - ox0, oh = oy1 - oy0, ON = ow * oh;
+  const O = new Uint8Array(ON);
+  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) {
+    const c = S.cell[(y + oy0) * W + x + ox0];
+    O[y * ow + x] = c === ATLAS_NONE ? 0 : own[c];
+  }
+  const seedB = new Float32Array(ON);
+  for (let k = 0; k < ON; k++) {
+    const o = O[k], x = k % ow;
+    seedB[k] = o && ((x < ow - 1 && O[k + 1] && O[k + 1] !== o) || (k + ow < ON && O[k + ow] && O[k + ow] !== o)) ? 1 : 0;
+  }
+  const dB = new Float32Array(ON);
+  distSeed(dB, seedB, true);
+  distForward(dB, ow, 0, oh);
+  distBackward(dB, ow, oh, oh, 0);
+  const cols = [null, null, null, ...ATLAS_NAT_IDS.map(id => hexRGB(NATIONS[id].color))];
+  const myCol = hexRGB(territoryColor);
+  // country nobody in the game holds: a dull olive, so it is never mistaken for
+  // the blank paper of the uncharted
+  const NOBODY = [118, 122, 84];
+  const atWar = [false, false, false, ...war];
+  const hatch = Math.max(5, Math.round(7 * ps)), dash = 2 * ps, line = 0.8 * ps;
+  if (!S.pol) { S.pol = document.createElement("canvas"); S.pol.width = W; S.pol.height = H; }
+  const g = S.pol.getContext("2d");
+  if (!S.polImg) S.polImg = g.createImageData(W, H);
+  const px = S.polImg.data;
+  for (let y = ry0; y < ry1; y++) for (let x = rx0; x < rx1; x++) {
+    const i = y * W + x, k = (y - oy0) * ow + (x - ox0), o = O[k];
+    let r = 0, gg = 0, b = 0, a = 0;
+    if (o) {
+      const aa = S.aa[i] / 255, d = dB[k];
+      const col = o === 255 ? myCol : o === 1 ? NOBODY : cols[o];
+      if (col) {
+        const dd = d / ps;
+        const band = dd < 5.5 ? Math.pow(1 - dd / 5.5, 1.4) : 0;
+        a = o === 1 ? 0.2 + band * 0.18 : (o === 255 ? 0.36 : 0.3) + band * (o === 255 ? 0.56 : 0.52);
+        r = col[0]; gg = col[1]; b = col[2];
+        // a crown at war with you is struck through in red, the way a clerk
+        // would mark it on the chart in the war room
+        if (atWar[o] && ((x + y) % hatch === 0)) { r = 168; gg = 46; b = 36; a = Math.max(a, 0.55); }
+      }
+      // the frontier itself: a dotted line between crowns, a firm one round yours
+      if (d < line) {
+        const xr = x - ox0;
+        const touchesYou = o === 255 || (xr < ow - 1 && O[k + 1] === 255) || (k + ow < ON && O[k + ow] === 255);
+        if (touchesYou || Math.floor((x + y) / dash) % 3 !== 0) {
+          r = touchesYou ? myCol[0] * 0.45 : ATLAS_INK[0]; gg = touchesYou ? myCol[1] * 0.45 : ATLAS_INK[1]; b = touchesYou ? myCol[2] * 0.45 : ATLAS_INK[2];
+          a = touchesYou ? 0.95 : 0.72;
+        }
+      }
+      a *= aa;
+    }
+    px[i * 4] = r; px[i * 4 + 1] = gg; px[i * 4 + 2] = b; px[i * 4 + 3] = Math.round(a * 255);
+  }
+  g.putImageData(S.polImg, 0, 0, rx0, ry0, rx1 - rx0, ry1 - ry0);
+  return full ? "all" : { x: rx0, y: ry0, w: rx1 - rx0, h: ry1 - ry0 };
+}
+// Where each crown's name goes: the league deepest inside its own ground, near
+// its middle. The old names were pinned to where the crowns stood in 1683, so a
+// conquered Hungary still said "Hungary" over Ottoman soil, and "Sicily" was
+// written across Tripolitania.
+// Only the leagues you have charted count: the name sits in the middle of what
+// you know of a crown, so half-charted Muscovy is still named, and the name
+// tells you nothing about the half you have never seen.
+let atlasLabelsDirty = true;
+function atlasPlaceNames(own) {
+  const out = [];
+  const groups = new Map();
+  for (let i = 0; i < own.length; i++) if (own[i] >= 3 && own[i] !== 254 && isCharted(i % MG_W, (i / MG_W) | 0)) {
+    if (!groups.has(own[i])) groups.set(own[i], []);
+    groups.get(own[i]).push(i);
+  }
+  for (const [o, cells] of groups) {
+    const id = o === 255 ? "you" : ATLAS_NAT_IDS[o - 3];
+    const set = new Set(cells);
+    // how deep each league lies inside the crown's ground
+    const depth = new Map(), q = [];
+    for (const i of cells) {
+      const c = i % MG_W, r = (i / MG_W) | 0;
+      const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+        const cc = c + dx, rr = r + dy;
+        return cc < 0 || rr < 0 || cc >= MG_W || rr >= MG_H || !set.has(rr * MG_W + cc);
+      });
+      if (edge) { depth.set(i, 1); q.push(i); }
+    }
+    for (let h = 0; h < q.length; h++) {
+      const i = q[h], c = i % MG_W, r = (i / MG_W) | 0, d = depth.get(i);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const j = (r + dy) * MG_W + c + dx;
+        if (set.has(j) && !depth.has(j)) { depth.set(j, d + 1); q.push(j); }
+      }
+    }
+    let mx = 0, my = 0;
+    for (const i of cells) { mx += i % MG_W; my += (i / MG_W) | 0; }
+    mx /= cells.length; my /= cells.length;
+    let best = cells[0], bs = -1e9;
+    for (const i of cells) {
+      const c = i % MG_W, r = (i / MG_W) | 0;
+      const s = Math.min(4, depth.get(i) || 1) * 1.0 - Math.hypot(c - mx, r - my) * 0.16;
+      if (s > bs) { bs = s; best = i; }
+    }
+    const bc = best % MG_W, br = (best / MG_W) | 0;
+    // how wide the crown runs along the label's own row, for the size of the type
+    let run = 1;
+    for (let c = bc + 1; c < MG_W && set.has(br * MG_W + c); c++) run++;
+    for (let c = bc - 1; c >= 0 && set.has(br * MG_W + c); c--) run++;
+    out.push({ id, mx: bc, my: br, n: cells.length, run });
+  }
+  return out;
+}
+
+// ---- the fog: what nobody has charted for you is blank paper ----
+// The edge of the known is not a line of black squares any more. It is where
+// the cartographer stopped: the country fades into the bare sheet through a
+// brown tide-mark, as if the ink had been washed out to the last thing anybody
+// told him. Unknown sea and unknown land look the same, because to the man
+// drawing it they were.
+function fogTouch(mx, my) {
+  if (!fogRect) fogRect = { c0: mx, r0: my, c1: mx, r1: my };
+  else {
+    fogRect.c0 = Math.min(fogRect.c0, mx); fogRect.r0 = Math.min(fogRect.r0, my);
+    fogRect.c1 = Math.max(fogRect.c1, mx); fogRect.r1 = Math.max(fogRect.r1, my);
+  }
+}
+let fogK = null;
+// where the rhumb lines radiate from, in leagues, and how many points each rose has
+const FOG_ROSES = [[24, 30, 32], [62, 12, 32], [74, 40, 16]];
+function fogGrid() {
+  const K = new Uint8Array(MG_W * MG_H);
+  for (const k of charted) {
+    const j = k.indexOf(",");
+    const c = +k.slice(0, j), r = +k.slice(j + 1);
+    if (c >= 0 && r >= 0 && c < MG_W && r < MG_H) K[r * MG_W + c] = 1;
+  }
+  return K;
+}
+// returns the part of the sheet that changed, in its own pixels, or null
+function buildSheetFog(S, K) {
+  const { FW, FH, fres } = S;
+  if (!S.fog) { S.fog = document.createElement("canvas"); S.fog.width = FW; S.fog.height = FH; }
+  const g = S.fog.getContext("2d");
+  if (!S.fogWarp) {
+    S.fogWarp = new Float32Array(FW * FH * 3);
+    for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
+      const i = (y * FW + x) * 3;
+      const P = (S.c0 + (x + 0.5) / fres) * AR, Q = (S.r0 + (y + 0.5) / fres) * AR;
+      S.fogWarp[i] = (vnoise(P * 0.55, Q * 0.55, 31) - 0.5) * 0.7 + (vnoise(P * 2.5, Q * 2.5, 32) - 0.5) * 0.2;
+      S.fogWarp[i + 1] = (vnoise(P * 0.55, Q * 0.55, 33) - 0.5) * 0.7 + (vnoise(P * 2.5, Q * 2.5, 34) - 0.5) * 0.2;
+      S.fogWarp[i + 2] = 0.955 + vnoise(P * 0.3, Q * 0.3, 35) * 0.06 + vnoise(P * 1.6, Q * 1.6, 36) * 0.03;
+    }
+  }
+  if (!S.fogImg) S.fogImg = g.createImageData(FW, FH);
+  const at = (c, r) => (c < 0 || r < 0 || c >= MG_W || r >= MG_H) ? 0 : K[r * MG_W + c];
+  let x0 = 0, y0 = 0, x1 = FW, y1 = FH;
+  if (!S.fogFull) {
+    const R = S.fogRect;
+    if (!R) return null;
+    x0 = Math.max(0, Math.floor((R.c0 - 2 - S.c0) * fres)); y0 = Math.max(0, Math.floor((R.r0 - 2 - S.r0) * fres));
+    x1 = Math.min(FW, Math.ceil((R.c1 + 3 - S.c0) * fres)); y1 = Math.min(FH, Math.ceil((R.r1 + 3 - S.r0) * fres));
+    S.fogRect = null;
+    if (x1 <= x0 || y1 <= y0) return null;
+  }
+  const px = S.fogImg.data, Wp = S.fogWarp;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    const wi = (y * FW + x) * 3, i = (y * FW + x) * 4;
+    const u = S.c0 + (x + 0.5) / fres - 0.5 + Wp[wi], v = S.r0 + (y + 0.5) / fres - 0.5 + Wp[wi + 1];
+    const c0 = Math.floor(u), r0 = Math.floor(v);
+    let fx = u - c0, fy = v - r0;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    const a = at(c0, r0), b = at(c0 + 1, r0), c = at(c0, r0 + 1), d = at(c0 + 1, r0 + 1);
+    const k = (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
+    const known = k <= 0.36 ? 0 : k >= 0.6 ? 1 : (t => t * t * (3 - 2 * t))((k - 0.36) / 0.24);
+    // a broad brown wash where the drawing gives out, and in it a darker line
+    // where the wash dried
+    const wash = Math.exp(-Math.pow((k - 0.32) / 0.13, 2)) * 0.55;
+    const line = Math.exp(-Math.pow((k - 0.25) / 0.035, 2)) * 0.5;
+    const stain = Math.min(0.85, wash + line);
+    const blank = 1 - known;
+    const m = Wp[wi + 2];
+    px[i] = (ATLAS_PAPER[0] * m) * (1 - stain) + 112 * stain;
+    px[i + 1] = (ATLAS_PAPER[1] * m) * (1 - stain) + 80 * stain;
+    px[i + 2] = (ATLAS_PAPER[2] * m) * (1 - stain) + 48 * stain;
+    px[i + 3] = Math.round(Math.min(1, blank + stain * 0.7 * (1 - blank)) * 255);
+  }
+  g.putImageData(S.fogImg, 0, 0, x0, y0, x1 - x0, y1 - y0);
+  // the rhumb lines of a chart nobody has filled in yet: the construction the
+  // cartographer ruled first, still showing wherever he never drew the country
+  g.save();
+  g.beginPath(); g.rect(x0, y0, x1 - x0, y1 - y0); g.clip();
+  g.globalCompositeOperation = "source-atop";
+  g.setTransform(fres, 0, 0, fres, -S.c0 * fres, -S.r0 * fres);
+  g.lineWidth = (S === SHEET_MAIN ? 1 : 1.6) / fres;
+  for (const [cx, cy, n] of FOG_ROSES) {
+    for (let q = 0; q < n; q++) {
+      const a = q * Math.PI * 2 / n;
+      g.strokeStyle = q % 4 === 0 ? "rgba(104,74,46,0.24)" : "rgba(104,74,46,0.12)";
+      g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * 160, cy + Math.sin(a) * 160); g.stroke();
+    }
+  }
+  g.restore();
+  const wasFull = S.fogFull;
+  S.fogFull = false;
+  const up = S.res / fres;
+  return wasFull ? "all" : { x: x0 * up, y: y0 * up, w: (x1 - x0) * up, h: (y1 - y0) * up };
+}
+// lay a sheet's three layers together, all of it or just the part that changed
+function composeSheet(S, r) {
+  if (!S.map) { S.map = document.createElement("canvas"); S.map.width = S.W; S.map.height = S.H; }
+  const g = S.map.getContext("2d");
+  g.save();
+  if (r) { g.beginPath(); g.rect(r.x, r.y, r.w, r.h); g.clip(); }
+  g.clearRect(0, 0, S.W, S.H);
+  g.imageSmoothingEnabled = true;
+  g.drawImage(S.geo, 0, 0);
+  g.drawImage(S.pol, 0, 0);
+  g.drawImage(S.fog, 0, 0, S.FW, S.FH, 0, 0, S.W, S.H);
+  if (S.feather) { g.globalCompositeOperation = "destination-in"; g.drawImage(S.feather, 0, 0); }
+  g.restore();
+}
+let atlasCheckT = 0;
+function atlasEnsure() {
+  if (!SHEET_MAIN.geo) buildSheetGeo(SHEET_MAIN);
+  // the fine sheet keeps being built in the background; if the frames are
+  // being drawn but the colony is not running, it is helped along here
+  if (!SHEET_HOME.geo) atlasGeoStep(4);
+  // your own ground grows with your people: look again every second whether
+  // anyone's borders have moved, and redraw the crowns only if they have
+  const now = performance.now();
+  if (now - atlasCheckT > 1000) { atlasCheckT = now; stratDirty = true; }
+  let own = null;
+  if (stratDirty) {
+    stratDirty = false;
+    if (!mapGrid) buildMapGrid();
+    own = atlasOwners();
+    const war = ATLAS_NAT_IDS.map(id => NATIONS[id].atWar ? 1 : 0).join("");
+    const sig = territoryColor + war + own.join(",");
+    if (sig !== atlasPolSig) { atlasPolSig = sig; atlasLabelsDirty = true; }
+  }
+  // the charting since last time, handed to every sheet
+  if (fogDirty || fogRect) {
+    atlasLabelsDirty = true;
+    for (const S of SHEETS) {
+      if (fogDirty) S.fogFull = true;
+      else if (fogRect) {
+        const R = S.fogRect;
+        S.fogRect = R ? { c0: Math.min(R.c0, fogRect.c0), r0: Math.min(R.r0, fogRect.r0), c1: Math.max(R.c1, fogRect.c1), r1: Math.max(R.r1, fogRect.r1) }
+                      : { ...fogRect };
+      }
+    }
+    fogDirty = false; fogRect = null;
+    fogK = null;
+  }
+  for (const S of SHEETS) {
+    if (!S.geo) continue;
+    // the fine sheet is only brought up to date while it is being looked at
+    if (S !== SHEET_MAIN && CELL_W * zoom <= 22) continue;
+    let full = false;
+    if (S.polSig !== atlasPolSig) {
+      const r = buildSheetPol(S, own || atlasOwners(), atlasPolSig);
+      if (r === "all") full = true;
+      else if (r) composeSheet(S, r);
+    }
+    if (S.fogFull || S.fogRect) {
+      if (!fogK) fogK = fogGrid();
+      const r = buildSheetFog(S, fogK);
+      if (r === "all") full = true;
+      else if (r && !full) composeSheet(S, r);
+    }
+    if (full || !S.map) composeSheet(S, null);
+  }
+  if (atlasLabelsDirty) { atlasLabelsDirty = false; atlasNatLabels = atlasPlaceNames(own || atlasOwners()); }
 }
 // the country itself, drawn in world space under everything
+// (through the dissolve the sheets are laid together on a layer of their own
+// first, and the layer faded as one; faded one over the other, the country
+// round home came up twice as solid as the rest)
+let stratLayer = null;
 function drawStratGround(amt) {
-  if (stratDirty) buildStratBuf();
-  if (fogDirty) buildFogBuf();
+  atlasEnsure();
+  const direct = amt >= 0.999;
+  let g = ctx;
+  if (!direct) {
+    if (!stratLayer) stratLayer = document.createElement("canvas");
+    if (stratLayer.width !== canvas.width || stratLayer.height !== canvas.height) { stratLayer.width = canvas.width; stratLayer.height = canvas.height; }
+    g = stratLayer.getContext("2d");
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, canvas.width, canvas.height);
+    g.setTransform(ctx.getTransform());
+  }
+  g.save();
+  g.globalAlpha = 1;
+  // past the edge of the sheet nobody has drawn anything at all
+  const vx = cam.x - 10, vy = cam.y - 10, vw = canvas.width / zoom + 20, vh = canvas.height / zoom + 20;
+  g.fillStyle = ATLAS_PAPER_CSS;
+  g.beginPath();
+  g.rect(vx, vy, vw, vh);
+  g.rect(MAP_X0, MAP_Y0, MAP_W, MAP_H);
+  g.fill("evenodd");
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = "high";
+  const M = SHEET_MAIN;
+  g.drawImage(M.map, 0, 0, M.W, M.H, MAP_X0, MAP_Y0, MAP_W, MAP_H);
+  // the fine sheet, once a league is big enough on the screen to want it
+  const cellPx = CELL_W * zoom, S = SHEET_HOME;
+  const fine = clamp01((cellPx - 22) / 18);
+  if (fine > 0 && S.map) {
+    const x = MAP_X0 + S.c0 * CELL_W, y = MAP_Y0 + S.r0 * CELL_W;
+    if (x < cam.x + vw && y < cam.y + vh && x + S.cw * CELL_W > cam.x && y + S.ch * CELL_W > cam.y) {
+      g.globalAlpha = fine;
+      g.drawImage(S.map, 0, 0, S.W, S.H, x, y, S.cw * CELL_W, S.ch * CELL_W);
+    }
+  }
+  g.imageSmoothingEnabled = false;
+  g.restore();
+  if (!direct) {
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = amt;
+    ctx.drawImage(stratLayer, 0, 0);
+    ctx.restore();
+  }
+  drawSightVeil(amt);
+}
+// ===== what your eyes reach, on the chart =====
+// Charted is memory and sighted is eyesight, and the map never showed the
+// difference: a column could walk across ground you had charted years ago and
+// simply not be there. Everything you hold on paper but cannot see this hour is
+// under a faint wash now, and the ground in sight of your towns, columns and
+// scouts is clear — so an empty road reads as "nobody is looking", not "nobody
+// is there".
+let veilCv = null;
+function drawSightVeil(amt) {
+  const W = canvas.width, H = canvas.height, k = 4;
+  const w = Math.ceil(W / k), h = Math.ceil(H / k);
+  if (!veilCv) veilCv = document.createElement("canvas");
+  if (veilCv.width !== w || veilCv.height !== h) { veilCv.width = w; veilCv.height = h; }
+  const g = veilCv.getContext("2d");
+  g.globalCompositeOperation = "source-over";
+  g.clearRect(0, 0, w, h);
+  g.fillStyle = "rgba(52,40,26,0.16)";
+  g.fillRect(0, 0, w, h);
+  g.globalCompositeOperation = "destination-out";
+  for (const p of sightPosts()) {
+    const x = SX(p.x) / k, y = SY(p.y) / k, r = p.r * zoom / k;
+    if (r < 0.5 || x < -r || y < -r || x > w + r || y > h + r) continue;
+    const gr = g.createRadialGradient(x, y, r * 0.6, x, y, r);
+    gr.addColorStop(0, "rgba(0,0,0,1)");
+    gr.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = gr;
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  g.globalCompositeOperation = "source-over";
   ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = amt;
-  // the ocean, out past the edge of the paper
-  ctx.fillStyle = "#16303f";
-  ctx.fillRect(cam.x - 10, cam.y - 10, canvas.width / zoom + 20, canvas.height / zoom + 20);
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(stratBuf, 0, 0, FW, FH, MAP_X0, MAP_Y0, MAP_W, MAP_H);
-  // the blanks on the paper: soft, because the edge of what you know is not a
-  // straight line, and because a grid of hard black squares looks like a bug
   ctx.imageSmoothingEnabled = true;
-  ctx.globalAlpha = amt * 0.96;
-  ctx.drawImage(fogBuf, 0, 0, MG_W, MG_H, MAP_X0, MAP_Y0, MAP_W, MAP_H);
-  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(veilCv, 0, 0, w, h, 0, 0, W, H);
   ctx.restore();
 }
 
 // ===== the marks on it: names, towns, columns =====
 // Drawn in screen space, not world space, so a city's name is the same size to
-// read whether you are looking at one duchy or at the whole continent.
+// read whether you are looking at one duchy or at the whole continent. Lettered
+// as the atlas is: the crowns in spaced capitals, the towns and the seas in the
+// engraver's italic. Every name is set down in order of importance and none is
+// written over another, which is what made the old continental view a smear of
+// "Milan Venice Tuscany Florence" printed through each other.
 const SX = wx => (wx - cam.x) * zoom, SY = wy => (wy - cam.y) * zoom;
 let mapSelCity = null, mapSelMarch = null, mapHover = null;
 function cityDotR(c) { return Math.max(2.5, Math.min(9, 2.2 + Math.sqrt(c.pop) * 0.7)); }
+const MAP_FELL = "'IM Fell English', Georgia, 'Times New Roman', serif";
+const MAP_CAPS = "Cinzel, 'IM Fell English', Georgia, serif";
+const MAP_INK = "#2b2016", MAP_HALO = "rgba(238,227,200,0.88)";
+try { if (document.fonts && document.fonts.load) { document.fonts.load(`12px ${MAP_FELL}`); document.fonts.load(`italic 12px ${MAP_FELL}`); document.fonts.load(`12px ${MAP_CAPS}`); } } catch (e) {}
+// the seas, and the country nobody in the game holds, in the names an English
+// atlas of the time gave them: [name, x, y, size, angle]
+const ATLAS_SEA_NAMES = [
+  ["The Western\nOcean", 6.5, 22, 1.15, 0], ["The German\nOcean", 29.6, 8.2, 0.85, 0],
+  ["The Baltick", 47.6, 7.3, 0.7, -0.25], ["Bay of\nBiscay", 17.4, 21.6, 0.7, 0],
+  ["The Channel", 22.6, 16.1, 0.55, -0.05], ["Mediterranean Sea", 31, 33.6, 0.95, 0],
+  ["The Levant", 61, 39.3, 0.75, 0], ["Black Sea", 57.6, 28.4, 0.65, 0],
+  ["Caspian\nSea", 91, 26.8, 0.7, 0], ["Adriatick", 45.1, 28.9, 0.42, 1.0],
+  ["Archipelago", 54, 34, 0.45, 1.25], ["Gulph of\nBothnia", 45.5, 2.6, 0.45, 0],
+  ["Red Sea", 77, 49, 0.45, 1.45], ["Frozen Ocean", 80, 0.55, 0.75, 0],
+];
+const ATLAS_LAND_NAMES = [
+  ["Swisserland", 38.8, 22.7, 0.42, 0], ["United\nProvinces", 31.6, 15.2, 0.42, 0],
+  ["Persia", 93, 34, 0.95, 0], ["Fez and\nMorocco", 17.8, 42, 0.8, 0],
+  ["Zaara, or the Desart", 33, 47, 0.95, 0], ["Arabia", 88.5, 46, 1, 0],
+  ["Circassia", 75.5, 26.3, 0.55, 0], ["Barbary", 31, 40.8, 0.6, 0],
+];
+function mapText(txt, x, y, font, fill, spacing, halo = MAP_HALO, hw = 3) {
+  ctx.font = font;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = spacing || "0px";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = hw; ctx.strokeStyle = halo; ctx.strokeText(txt, x, y);
+  ctx.fillStyle = fill; ctx.fillText(txt, x, y);
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+}
+function mapMeasure(txt, font, spacing) {
+  ctx.font = font;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = spacing || "0px";
+  const w = ctx.measureText(txt).width;
+  if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+  return w;
+}
 function drawStratMarks(amt) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.save();
   ctx.globalAlpha = amt;
   ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
   const W = canvas.width, H = canvas.height;
   const vis = (x, y, pad = 70) => x > -pad && x < W + pad && y > -pad && y < H + pad;
-  const cellPx = CELL_W * zoom;                 // how many screen pixels a league-square is
+  const cellPx = CELL_W * zoom;
+  // the room already taken on the sheet
+  // (the town dots are kept apart from the lettering: a crown's name may run
+  // across a town, as on any map, but no town's own name may sit on another town)
+  const taken = [], dots = [];
+  const hits = (list, x0, y0, x1, y1) => {
+    for (const t of list) if (x0 < t[2] && x1 > t[0] && y0 < t[3] && y1 > t[1]) return true;
+    return false;
+  };
+  let blockDots = true;
+  const free = (x0, y0, x1, y1) => !hits(taken, x0, y0, x1, y1) && !(blockDots && hits(dots, x0, y0, x1, y1));
+  const claim = (x0, y0, x1, y1) => { taken.push([x0, y0, x1, y1]); };
+  const claimDot = (x0, y0, x1, y1) => { dots.push([x0, y0, x1, y1]); };
+  // a block of lines centred on (x, y): claimed and drawn only if it fits
+  // (x, y) may be a list of places to try, best first: above a town, then
+  // below it, then to either side
+  const block = (lines, x, y, font, size, fill, spacing, force, ang = 0) => {
+    const lh = size * 1.08;
+    let w = 0;
+    for (const ln of lines) w = Math.max(w, mapMeasure(ln, font, spacing));
+    const hgt = lh * lines.length;
+    // (a turned name takes the box its corners sweep, not the square round it)
+    const cs = Math.abs(Math.cos(ang)), sn = Math.abs(Math.sin(ang));
+    const hw = (w / 2 + 2) * cs + (hgt / 2) * sn, hh = (w / 2 + 2) * sn + (hgt / 2) * cs;
+    if (typeof x === "function") {
+      let at = null;
+      for (const [px, py] of x(hw, hh)) if (free(px - hw, py - hh, px + hw, py + hh)) { at = [px, py]; break; }
+      if (!at) { if (!force) return false; at = x(hw, hh)[0]; }
+      x = at[0]; y = at[1];
+    } else if (!force && !free(x - hw, y - hh, x + hw, y + hh)) return false;
+    claim(x - hw, y - hh, x + hw, y + hh);
+    ctx.save();
+    ctx.translate(x, y); if (ang) ctx.rotate(ang);
+    lines.forEach((ln, i) => mapText(ln, 0, -hgt / 2 + lh * (i + 0.78), font, fill, spacing));
+    ctx.restore();
+    return true;
+  };
 
-  // --- the names of the crowns, while there is room for them ---
-  if (cellPx < 42) {
-    ctx.font = "bold 13px 'Courier New', monospace";
-    for (const [name, mx, my] of LABELS) {
-      if (!isCharted(Math.round(mx), Math.round(my))) continue;
-      const p = cellWorld(mx, my), x = SX(p.x), y = SY(p.y);
-      if (!vis(x, y)) continue;
-      const lines = name.split("\n");
-      lines.forEach((ln, i) => {
-        ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillText(ln, x + 1, y + 1 + i * 12);
-        ctx.fillStyle = "rgba(232,236,234,0.82)"; ctx.fillText(ln, x, y + i * 12);
-      });
-      // and, once there is room under it, what the crown is actually worth
-      if (cellPx > 15) {
-        const id = mapGrid[Math.round(my)] && mapGrid[Math.round(my)][Math.round(mx)];
-        const n = id && NATIONS[id];
-        if (n && !n.defeated) {
-          const bits = [`str ${natStrength(n)}/10`];
-          if (knowsArmies(id)) bits.push(nationCities(id).reduce((t, c) => t + c.garrison, 0) + " men");
-          if (n.atWar) bits.push("AT WAR");
-          else if (n.trade) bits.push("trading");
-          if (n.calT) bits.push(String(n.calName || "stricken").toLowerCase());
-          const sy2 = y + lines.length * 12;
-          ctx.font = "9px 'Courier New', monospace";
-          ctx.fillStyle = "rgba(0,0,0,0.6)"; ctx.fillText(bits.join(" · "), x + 1, sy2 + 1);
-          ctx.fillStyle = n.atWar ? "rgba(216,106,90,0.9)" : "rgba(154,176,162,0.8)";
-          ctx.fillText(bits.join(" · "), x, sy2);
-          ctx.font = "bold 13px 'Courier New', monospace";
+  // --- the sheet's own furniture: its graduated border, and its title ---
+  {
+    const x0 = SX(MAP_X0), y0 = SY(MAP_Y0), x1 = SX(MAP_X0 + MAP_W), y1 = SY(MAP_Y0 + MAP_H);
+    if (x0 < W && y0 < H && x1 > 0 && y1 > 0) {
+      const gb = 6;
+      ctx.save();
+      ctx.strokeStyle = MAP_INK; ctx.lineWidth = 1.4;
+      ctx.strokeRect(x0 - gb, y0 - gb, x1 - x0 + gb * 2, y1 - y0 + gb * 2);
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+      // a league in five, inked and left blank in turn, as a border of degrees
+      ctx.fillStyle = MAP_INK;
+      const step = cellPx * 5;
+      if (step > 6) {
+        for (let k = 0, x = x0; x < x1; x += step, k++) if (k % 2 === 0 && x + step > 0 && x < W) {
+          const w = Math.min(step, x1 - x);
+          ctx.fillRect(x, y0 - gb + 1, w, gb - 2); ctx.fillRect(x, y1 + 1, w, gb - 2);
+        }
+        for (let k = 0, y = y0; y < y1; y += step, k++) if (k % 2 === 0 && y + step > 0 && y < H) {
+          const h = Math.min(step, y1 - y);
+          ctx.fillRect(x0 - gb + 1, y, gb - 2, h); ctx.fillRect(x1 + 1, y, gb - 2, h);
         }
       }
+      ctx.restore();
     }
-  }
-
-  // --- the cities of Europe ---
-  // At continental height a hundred and nine names on top of each other is not
-  // a map, it is a smear. The capitals keep their names all the way out; the
-  // rest earn theirs back as you come down, and any city under the pointer or
-  // picked out of the panel is named whatever the height.
-  const NAME_ALL = 26, NAME_CAPS = 9;
-  const dotK = Math.max(0.5, Math.min(1, cellPx / NAME_ALL));
-  for (const c of CITIES) {
-    if (c.fallen || !isCharted(c.mx, c.my)) continue;
-    if (c.town) continue;               // it is standing in timber below; drawn as a town
-    const p = cityWorld(c), x = SX(p.x), y = SY(p.y);
-    if (!vis(x, y, 40)) continue;
-    const showNames = cellPx > NAME_ALL || (c.cap && cellPx > NAME_CAPS);
-    const n = NATIONS[c.owner];
-    const r = cityDotR(c) * (c.cap ? 1.3 : 1) * dotK;
-    const sel = mapSelCity === c.id, hov = mapHover && mapHover.kind === "city" && mapHover.ref === c;
-    ctx.fillStyle = "#0a0f0c";
-    ctx.beginPath(); ctx.arc(x, y, r + 1.6, 0, 7); ctx.fill();
-    ctx.fillStyle = c.owner === "you" ? territoryColor : c.siege > 0 ? "#d86a5a" : (n ? n.color : "#8a8a8a");
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
-    if (c.cap) { ctx.strokeStyle = "#e8d9b8"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, r + 2.6, 0, 7); ctx.stroke(); }
-    if (sel || hov) {
-      ctx.strokeStyle = sel ? "#ffe9b0" : "#9ab0a2"; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.arc(x, y, r + 5.5, 0, 7); ctx.stroke();
-    }
-    if (showNames || sel || hov) {
-      ctx.font = (c.cap ? "bold " : "") + "10px 'Courier New', monospace";
-      ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
-      ctx.strokeText(c.name, x, y - r - 4);
-      ctx.fillStyle = c.cap ? "#e8d9b8" : "#b9c7bd";
-      ctx.fillText(c.name, x, y - r - 4);
-      // Close enough in to read a town's books off the map itself: its size,
-      // and — only if you have an agent in that country — its garrison.
-      if (cellPx > 44 || sel || hov) {
-        const stat = `${thousands(c.pop)}` +
-          (c.owner === "you" ? " · yours" : knowsArmies(c.owner) ? ` · ${c.garrison} men` : " · ? men");
-        ctx.font = "9px 'Courier New', monospace";
-        ctx.strokeText(stat, x, y + r + 11);
-        ctx.fillStyle = c.siege > 0 ? "#d86a5a" : "#8fa397";
-        ctx.fillText(stat, x, y + r + 11);
+    // the title, in a cartouche on the empty ocean to the south-west, where an
+    // engraver of the day would have put it
+    if (cellPx > 5 && cellPx < 34) {
+      const p = cellWorld(6.5, 47), cx = SX(p.x), cy = SY(p.y);
+      const bw = cellPx * 11, bh = cellPx * 7.2;
+      // (it gives way to the scale and the rose in the corners of the screen)
+      const underFurniture = cy + bh / 2 > H - 150 && (cx - bw / 2 < 230 || cx + bw / 2 > W - 110);
+      if (vis(cx, cy, bw) && !underFurniture) {
+        ctx.save();
+        ctx.fillStyle = "rgba(236,226,198,0.94)";
+        ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+        ctx.strokeStyle = MAP_INK; ctx.lineWidth = 1.6;
+        ctx.strokeRect(cx - bw / 2, cy - bh / 2, bw, bh);
+        ctx.lineWidth = 0.7;
+        const ins = Math.max(3, cellPx * 0.3);
+        ctx.strokeRect(cx - bw / 2 + ins, cy - bh / 2 + ins, bw - ins * 2, bh - ins * 2);
+        // a scroll at each corner
+        for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+          const qx = cx + sx * bw / 2, qy = cy + sy * bh / 2, rr = ins * 2.2;
+          ctx.beginPath(); ctx.arc(qx, qy, rr, 0, 7);
+          ctx.fillStyle = "rgb(236,226,198)"; ctx.fill(); ctx.lineWidth = 1.1; ctx.stroke();
+          ctx.beginPath(); ctx.arc(qx, qy, rr * 0.45, 0, 7); ctx.stroke();
+        }
+        const u = cellPx;
+        ctx.textAlign = "center";
+        const lines = [
+          ["A NEW MAP OF", `500 ${(u * 0.55).toFixed(1)}px ${MAP_CAPS}`, (u * 0.12).toFixed(1) + "px", -2.3],
+          ["EUROPE", `700 ${(u * 1.25).toFixed(1)}px ${MAP_CAPS}`, (u * 0.3).toFixed(1) + "px", -0.8],
+          ["as far as it is known at", `italic ${(u * 0.55).toFixed(1)}px ${MAP_FELL}`, "0px", 0.6],
+          [settlementName || "Neu Hamburg", `${(u * 0.75).toFixed(1)}px ${MAP_FELL}`, "0.5px", 1.6],
+          [`Anno ${colonyYear}`, `italic ${(u * 0.55).toFixed(1)}px ${MAP_FELL}`, "1px", 2.6],
+        ];
+        for (const [t, f, sp, dy] of lines) mapText(t, cx, cy + dy * u, f, MAP_INK, sp, "rgba(0,0,0,0)", 0);
+        ctx.restore();
+        claim(cx - bw / 2 - ins * 2, cy - bh / 2 - ins * 2, cx + bw / 2 + ins * 2, cy + bh / 2 + ins * 2);
       }
     }
   }
 
-  // --- your own towns, always lit ---
+  // --- the roads of trade, and the wars of the crowns, under everything ---
+  // An open route was a word in the panel and nothing on the map; the wars the
+  // crowns fought among themselves were a line in the chronicle. A route is
+  // ruled from your capital to theirs now, and two crowns at war have crossed
+  // swords set between them, where you can see both of them.
+  const capOf = id => { const cs = nationCities(id); return cs.find(c => c.cap) || cs[0] || null; };
+  const home = { x: SX(CAPITAL_X), y: SY(CAPITAL_Y) };
+  for (const [id, n] of Object.entries(NATIONS)) {
+    if (!n.trade || n.atWar || n.defeated) continue;
+    const c = capOf(id);
+    if (!c || !isCharted(c.mx, c.my)) continue;
+    const p = cityWorld(c), x = SX(p.x), y = SY(p.y);
+    if (!vis(x, y, 2000) && !vis(home.x, home.y, 2000)) continue;
+    ctx.save();
+    ctx.strokeStyle = MAP_HALO; ctx.lineWidth = 4; ctx.globalAlpha = amt * 0.6;
+    const mx0 = (x + home.x) / 2, my0 = (y + home.y) / 2, l0 = Math.hypot(x - home.x, y - home.y) || 1;
+    const bx0 = mx0 - (y - home.y) / l0 * l0 * 0.08, by0 = my0 + (x - home.x) / l0 * l0 * 0.08;
+    ctx.beginPath(); ctx.moveTo(home.x, home.y); ctx.quadraticCurveTo(bx0, by0, x, y); ctx.stroke();
+    ctx.globalAlpha = amt;
+    ctx.strokeStyle = "rgba(112,72,12,0.95)"; ctx.lineWidth = 2; ctx.setLineDash([2, 4]); ctx.lineCap = "round";
+    // a gentle bow, as a road would run, rather than a ruler's line
+    const mx = (x + home.x) / 2, my = (y + home.y) / 2, len = Math.hypot(x - home.x, y - home.y);
+    const bx = mx - (y - home.y) / (len || 1) * len * 0.08, by = my + (x - home.x) / (len || 1) * len * 0.08;
+    ctx.beginPath(); ctx.moveTo(home.x, home.y); ctx.quadraticCurveTo(bx, by, x, y); ctx.stroke();
+    ctx.restore();
+    if (len > 90 && cellPx > 5) mapText("trade", (mx + bx) / 2, (my + by) / 2 - 4, `italic 11px ${MAP_FELL}`, "rgba(110,76,18,0.95)", "0.5px");
+  }
+  for (const w of natWars) {
+    const A = capOf(w.a), B = capOf(w.b);
+    if (!A || !B || !isCharted(A.mx, A.my) || !isCharted(B.mx, B.my)) continue;
+    const pa = cityWorld(A), pb = cityWorld(B);
+    const x = SX((pa.x + pb.x) / 2), y = SY((pa.y + pb.y) / 2);
+    if (!vis(x, y, 30)) continue;
+    const r = 7;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.lineCap = "round";
+    for (const sgn of [1, -1]) {
+      ctx.strokeStyle = MAP_HALO; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(-r * sgn, -r); ctx.lineTo(r * sgn, r); ctx.stroke();
+    }
+    for (const sgn of [1, -1]) {
+      ctx.strokeStyle = "#8c2216"; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(-r * sgn, -r); ctx.lineTo(r * sgn, r); ctx.stroke();
+      // the hilts
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(r * sgn * 0.45 - 3 * sgn, r * 0.45 + 3); ctx.lineTo(r * sgn * 0.45 + 3 * sgn, r * 0.45 - 3); ctx.stroke();
+    }
+    ctx.restore();
+    claim(x - r - 2, y - r - 2, x + r + 2, y + r + 2);
+  }
+
+  // --- first, the things that are always written: your own towns ---
   const mine = [{ x: CAPITAL_X, y: CAPITAL_Y, name: settlementName || "Neu Hamburg", cap: true }];
   for (const st of settlements) if (st.x !== undefined) mine.push({ x: st.x, y: st.y, name: st.name });
+  const myInk = (() => { const [r, g, b] = hexRGB(territoryColor); return `rgb(${r * 0.42 | 0},${g * 0.42 | 0},${b * 0.42 | 0})`; })();
   for (const t of mine) {
     const x = SX(t.x), y = SY(t.y);
     if (!vis(x, y, 40)) continue;
-    ctx.fillStyle = "#0a0f0c"; ctx.fillRect(x - 4, y - 4, 8, 8);
-    ctx.fillStyle = "#ffe9b0"; ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
-    ctx.font = "bold 10px 'Courier New', monospace";
-    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
-    ctx.strokeText(t.name, x, y - 8); ctx.fillStyle = "#ffe9b0"; ctx.fillText(t.name, x, y - 8);
+    const s = t.cap ? 4.5 : 3.6;
+    ctx.fillStyle = MAP_INK; ctx.fillRect(x - s - 1.4, y - s - 1.4, s * 2 + 2.8, s * 2 + 2.8);
+    ctx.fillStyle = "#f3d98a"; ctx.fillRect(x - s, y - s, s * 2, s * 2);
+    if (t.cap) { ctx.fillStyle = MAP_INK; ctx.fillRect(x - 1.3, y - 1.3, 2.6, 2.6); }
+    claim(x - s - 2, y - s - 2, x + s + 2, y + s + 2);
+    block([t.name], x, y - s - 9, `${t.cap ? 15 : 13}px ${MAP_FELL}`, t.cap ? 15 : 13, myInk, "0.5px", true);
   }
   // and the enemy border towns actually standing on your ground
   for (const ft of foreignTowns) {
     if (ft.fallen) continue;
     const x = SX(ft.x), y = SY(ft.y);
     if (!vis(x, y, 40)) continue;
-    ctx.fillStyle = "#0a0f0c"; ctx.fillRect(x - 4, y - 4, 8, 8);
-    ctx.fillStyle = "#d86a5a"; ctx.fillRect(x - 2.5, y - 2.5, 5, 5);
-    ctx.font = "10px 'Courier New', monospace";
-    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
-    ctx.strokeText(ft.name, x, y - 8); ctx.fillStyle = "#d86a5a"; ctx.fillText(ft.name, x, y - 8);
+    ctx.fillStyle = MAP_INK; ctx.fillRect(x - 4.4, y - 4.4, 8.8, 8.8);
+    ctx.fillStyle = "#b8402e"; ctx.fillRect(x - 3, y - 3, 6, 6);
+    claim(x - 5, y - 5, x + 5, y + 5);
+    block([ft.name], x, y - 13, `italic 12px ${MAP_FELL}`, 12, "#8a2a1c", "0px", true);
+  }
+
+  // --- the cities of Europe: the dots first, so no name hides a town ---
+  // At continental height a hundred and nine names cannot all be written. The
+  // capitals have first claim; the rest earn theirs back as you come down; any
+  // city under the pointer or picked out of the panel is named whatever the
+  // height and whatever it covers.
+  const NAME_ALL = 26, NAME_CAPS = 7;
+  const dotK = Math.max(0.55, Math.min(1, cellPx / NAME_ALL));
+  const cityNames = [];
+  for (const c of CITIES) {
+    if (c.fallen || !isCharted(c.mx, c.my)) continue;
+    if (c.town) continue;
+    const p = cityWorld(c), x = SX(p.x), y = SY(p.y);
+    if (!vis(x, y, 40)) continue;
+    const n = NATIONS[c.owner];
+    const r = cityDotR(c) * (c.cap ? 1.25 : 1) * dotK * 0.85;
+    const sel = mapSelCity === c.id, hov = mapHover && mapHover.kind === "city" && mapHover.ref === c;
+    ctx.fillStyle = MAP_INK;
+    ctx.beginPath(); ctx.arc(x, y, r + 1.3, 0, 7); ctx.fill();
+    ctx.fillStyle = c.owner === "you" ? territoryColor : c.siege > 0 ? "#c0442f" : (n ? n.color : "#8a8a8a");
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+    if (c.cap) {
+      ctx.strokeStyle = MAP_INK; ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.arc(x, y, r + 3.4, 0, 7); ctx.stroke();
+    }
+    if (c.siege > 0) {
+      // the lines of a siege, drawn round it the way an engineer would
+      ctx.strokeStyle = "rgba(160,40,28,0.9)"; ctx.lineWidth = 1.2; ctx.setLineDash([2, 2]);
+      ctx.beginPath(); ctx.arc(x, y, r + 6, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (sel || hov) {
+      ctx.strokeStyle = sel ? "#7a4b10" : "rgba(43,32,22,0.7)"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, r + 6.5, 0, 7); ctx.stroke();
+    }
+    claimDot(x - r - 1, y - r - 1, x + r + 1, y + r + 1);
+    const want = cellPx > NAME_ALL || (c.cap && cellPx > NAME_CAPS) || sel || hov;
+    if (want) cityNames.push({ c, x, y, r, sel, hov, pri: (sel || hov ? 0 : c.cap ? 1 : 3) - c.pop / 1000 });
+  }
+  cityNames.sort((a, b) => a.pri - b.pri);
+
+  // --- the names of the crowns, while there is room for them ---
+  const natNames = [];
+  {
+    for (const L of atlasNatLabels) {
+      if (!isCharted(L.mx, L.my)) continue;
+      const p = cellWorld(L.mx, L.my), x = SX(p.x), y = SY(p.y);
+      if (!vis(x, y, 200)) continue;
+      const name = L.id === "you" ? (empireName || "") : (NATION_SHORT[L.id] || (NATIONS[L.id] && NATIONS[L.id].name) || "");
+      if (!name) continue;
+      if (L.id === "you" && cellPx > 26) continue;
+      const size = Math.max(9, Math.min(cellPx > 60 ? 30 : 24, Math.sqrt(L.n) * cellPx * 0.17));
+      natNames.push({ L, x, y, name, size, pri: 2 - L.n / 5000 });
+    }
+  }
+  // in order: the picked city, then the crowns and the capitals by importance,
+  // then the lesser towns
+  const jobs = [];
+  for (const cn of cityNames) jobs.push({ kind: "city", pri: cn.sel || cn.hov ? 0 : cn.c.cap ? 0.9 : 3, o: cn });
+  for (const nn of natNames) jobs.push({ kind: "nat", pri: 1 + (nn.size < 12 ? 1 : 0) - nn.L.n / 100000, o: nn });
+  jobs.sort((a, b) => a.pri - b.pri);
+  // a duchy named for its city needs its name only once: "Venice" over the
+  // town, not "VENICE" printed again beneath it
+  const namedTowns = new Set();
+  for (const j of jobs) {
+    blockDots = j.kind !== "nat";
+    if (j.kind === "nat") {
+      const { L, x, y, name } = j.o;
+      let size = j.o.size;
+      if (size < 12 && namedTowns.has(name)) continue;
+      const lines = name.toUpperCase().split("\n");
+      const n = NATIONS[L.id];
+      const picked = mapSelNation === L.id;
+      const fill = L.id === "you" ? myInk : n && n.atWar ? "rgba(140,34,22,0.88)" : picked ? "#1c140c" : "rgba(52,38,24,0.78)";
+      // a name is set no wider than the crown runs (or a little past it, for
+      // the duchies too small to hold any name at all): the type shrinks to
+      // fit, and only below the smallest size worth reading is it left out
+      const fontAt = z => `${L.id === "you" ? 700 : 500} ${z.toFixed(1)}px ${MAP_CAPS}`;
+      const room = Math.max(L.run * cellPx * 1.5, 64);
+      let wdt = Math.max(...lines.map(l => mapMeasure(l, fontAt(size), (size * 0.22).toFixed(1) + "px")));
+      if (wdt > room) { size = size * room / wdt; wdt = room; }
+      if (size < 8.5) continue;
+      const font = fontAt(size), sp = (size * 0.22).toFixed(1) + "px";
+      // in the middle of the crown if there is room, or a little above or below
+      const step = Math.max(size * 1.3, cellPx * 0.9);
+      if (!block(lines, () => [[x, y], [x, y - step], [x, y + step], [x, y - step * 2], [x, y + step * 2]],
+                 0, font, size, fill, sp, false)) continue;
+      // (where it went: the box it has just claimed)
+      const box = taken[taken.length - 1], ly = (box[1] + box[3]) / 2;
+      // the crown picked out in the panel is ruled under, as a clerk would mark it
+      if (picked) {
+        ctx.strokeStyle = "rgba(122,75,16,0.9)"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(box[0] + 4, box[3] + 2); ctx.lineTo(box[2] - 4, box[3] + 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(box[0] + 10, box[3] + 5); ctx.lineTo(box[2] - 10, box[3] + 5); ctx.stroke();
+      }
+      // and, once there is room under it, what the crown is actually worth
+      if (cellPx > 34 && n && !n.defeated) {
+        const bits = [`strength ${natStrength(n)}`];
+        if (knowsArmies(L.id)) bits.push(nationCities(L.id).reduce((t, c) => t + c.garrison, 0) + " men");
+        if (n.atWar) bits.push("at war with you");
+        else if (n.trade) bits.push("trading");
+        if (n.calT) bits.push(String(n.calName || "stricken").toLowerCase());
+        const sy2 = ly + lines.length * size * 0.54 + 9;
+        block([bits.join(" · ")], x, sy2, `italic 11px ${MAP_FELL}`, 11, n.atWar ? "#8c2216" : "rgba(52,38,24,0.8)", "0px", false);
+      }
+    } else {
+      const { c, x, y, r, sel, hov } = j.o;
+      const size = c.cap ? 14 : 12;
+      const font = `${c.cap ? "" : "italic "}${size}px ${MAP_FELL}`;
+      const gap = r + 2.5;
+      const placed = block([c.name], (hw, hh) => [[x, y - gap - hh], [x, y + gap + hh], [x + gap + hw, y], [x - gap - hw, y]],
+                           0, font, size, MAP_INK, "0.3px", sel || hov);
+      if (placed && c.cap) namedTowns.add(c.name);
+      // close enough in to read a town's books off the map itself: its size,
+      // and — only if you have an agent in that country — its garrison
+      if (placed && (cellPx > 44 || sel || hov)) {
+        const stat = `${thousands(c.pop)}` +
+          (c.owner === "you" ? " · yours" : knowsArmies(c.owner) ? ` · ${c.garrison} men` : " · ? men");
+        block([stat], (hw, hh) => [[x, y + gap + hh], [x, y + gap + hh + 13], [x + gap + hw, y + 12]], 0,
+              `italic 10px ${MAP_FELL}`, 10, c.siege > 0 ? "#8c2216" : "rgba(52,38,24,0.82)", "0px", sel || hov);
+      }
+    }
+  }
+  // --- the rivers' names, along the water ---
+  blockDots = true;
+  if (cellPx > 7 && cellPx < 90) {
+    ATLAS_RIVERS.forEach((rv, ri) => {
+      const [name, great] = ATLAS_RIVER_NAMES[ri] || [];
+      if (!name || (!great && cellPx < 14)) return;
+      // the middle reach, where the river is most itself
+      const k = Math.max(0, Math.min(rv.length - 2, Math.floor((rv.length - 1) * 0.45)));
+      const [u0, v0] = rv[k], [u1, v1] = rv[k + 1];
+      const mu = (u0 + u1) / 2, mv = (v0 + v1) / 2;
+      if (!isCharted(Math.floor(mu), Math.floor(mv))) return;
+      const p = cellWorld(mu - 0.5, mv - 0.5), x = SX(p.x), y = SY(p.y);
+      if (!vis(x, y, 60)) return;
+      let ang = Math.atan2(v1 - v0, u1 - u0);
+      if (ang > Math.PI / 2) ang -= Math.PI; else if (ang < -Math.PI / 2) ang += Math.PI;
+      const size = Math.max(10, Math.min(15, cellPx * 0.5));
+      // set a little to one side of the water, never on it
+      const off = size * 0.75, ox = -Math.sin(ang) * off, oy = Math.cos(ang) * off;
+      block([name], x + ox, y + oy, `italic ${size.toFixed(1)}px ${MAP_FELL}`, size, "rgba(40,70,86,0.88)", "1px", false, ang);
+    });
+  }
+  // --- the seas and the blank country, last, wherever there is still room ---
+  blockDots = true;
+  if (cellPx > 4 && cellPx < 48) {
+    for (const [name, mx, my, k, ang] of ATLAS_SEA_NAMES.concat(ATLAS_LAND_NAMES)) {
+      if (!isCharted(Math.floor(mx), Math.floor(my))) continue;
+      const p = cellWorld(mx - 0.5, my - 0.5), x = SX(p.x), y = SY(p.y);
+      if (!vis(x, y, 120)) continue;
+      const size = Math.max(9, Math.min(20, cellPx * 0.95 * k));
+      const sea = ATLAS_SEA_NAMES.some(s => s[0] === name);
+      block(name.split("\n"), x, y, `italic ${size.toFixed(1)}px ${MAP_FELL}`, size,
+            sea ? "rgba(44,66,74,0.78)" : "rgba(84,62,40,0.72)", (size * 0.12).toFixed(1) + "px", false, ang);
+    }
   }
 
   // --- the columns on the road ---
@@ -13859,13 +15013,13 @@ function drawStratMarks(amt) {
     if (!marchVisible(m)) continue;
     const x = SX(m.x), y = SY(m.y);
     const yours = m.side === "you";
-    const col = yours ? (m.kind === "scout" ? "#8fd3c0" : m.kind === "spy" ? "#c6a0d8" : "#ffe9b0") : "#d86a5a";
+    const col = yours ? (m.kind === "scout" ? "#3f8f7a" : m.kind === "spy" ? "#7d4f9a" : "#f3d98a") : "#b8402e";
     // the road still to walk
     const tx = SX(m.tx), ty = SY(m.ty);
     if (vis(x, y, 200) || vis(tx, ty, 200)) {
       ctx.save();
-      ctx.setLineDash([4, 5]); ctx.lineWidth = 1.2;
-      ctx.strokeStyle = yours ? "rgba(255,233,176,0.5)" : "rgba(216,106,90,0.5)";
+      ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4;
+      ctx.strokeStyle = yours ? "rgba(43,32,22,0.6)" : "rgba(150,40,26,0.7)";
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
       ctx.restore();
     }
@@ -13873,27 +15027,83 @@ function drawStratMarks(amt) {
     // a little pennant, leaning the way it is going
     const a = Math.atan2(m.ty - m.y, m.tx - m.x);
     ctx.save(); ctx.translate(x, y); ctx.rotate(a);
-    ctx.fillStyle = "#0a0f0c"; ctx.beginPath();
-    ctx.moveTo(7, 0); ctx.lineTo(-5, -5); ctx.lineTo(-5, 5); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = MAP_INK; ctx.beginPath();
+    ctx.moveTo(8, 0); ctx.lineTo(-5.5, -5.5); ctx.lineTo(-5.5, 5.5); ctx.closePath(); ctx.fill();
     ctx.fillStyle = col; ctx.beginPath();
-    ctx.moveTo(5.5, 0); ctx.lineTo(-3.6, -3.6); ctx.lineTo(-3.6, 3.6); ctx.closePath(); ctx.fill();
+    ctx.moveTo(5.8, 0); ctx.lineTo(-3.8, -3.8); ctx.lineTo(-3.8, 3.8); ctx.closePath(); ctx.fill();
     ctx.restore();
-    if (!yours) { ctx.globalAlpha = amt * pulse; ctx.strokeStyle = "#d86a5a"; ctx.lineWidth = 1.2;
-                  ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke(); ctx.globalAlpha = amt; }
+    if (!yours) { ctx.globalAlpha = amt * pulse; ctx.strokeStyle = "#a8321f"; ctx.lineWidth = 1.4;
+                  ctx.beginPath(); ctx.arc(x, y, 10, 0, 7); ctx.stroke(); ctx.globalAlpha = amt; }
     if (mapSelMarch === m.id) {
-      ctx.strokeStyle = "#ffe9b0"; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.arc(x, y, 12, 0, 7); ctx.stroke();
+      ctx.strokeStyle = "#7a4b10"; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(x, y, 13, 0, 7); ctx.stroke();
     }
     if (cellPx > 14 || mapHover && mapHover.ref === m) {
-      ctx.font = "9px 'Courier New', monospace";
       const lbl = yours ? (m.kind === "scout" ? "scout" : m.kind === "spy" ? "agent" : `${(m.men || []).length || m.str} men`)
-                        : `${m.str} men`;
-      ctx.lineWidth = 3; ctx.strokeStyle = "rgba(4,7,5,0.9)";
-      ctx.strokeText(lbl, x, y + 16); ctx.fillStyle = col; ctx.fillText(lbl, x, y + 16);
+                        : columnCounted(m) ? `${m.str} men` : "? men";
+      mapText(lbl, x, y + 19, `italic 12px ${MAP_FELL}`, yours ? MAP_INK : "#8c2216", "0px");
     }
   }
+  if (amt > 0.3) drawMapFurniture(amt);
   ctx.restore();
   ctx.globalAlpha = 1;
+}
+// ===== the furniture of a map: a compass, and a scale of leagues =====
+// Without a scale the only way to know how far Vienna was from your gate was to
+// send somebody and count the days.
+function drawMapFurniture(amt) {
+  const W = canvas.width, H = canvas.height;
+  // clear of the row of buttons along the bottom, in the corners the bar leaves free
+  const acts = $("actions"), cr = canvas.getBoundingClientRect();
+  const ar = acts ? acts.getBoundingClientRect() : null;
+  const floorY = ar && ar.height ? (ar.top - cr.top) * (H / (cr.height || H)) : H;
+  const base = floorY - 30;
+  ctx.save();
+  ctx.globalAlpha = amt * 0.92;
+  // the scale: the largest round number of leagues that fits in a hand's width
+  const cellPx = CELL_W * zoom;
+  let lg = 1;
+  for (const n of [1, 2, 5, 10, 20, 25, 50, 100]) if (n * cellPx <= 170) lg = n;
+  const len = lg * cellPx;
+  if (len >= 40 && len <= 260) {
+    const x0 = 22, y0 = base;
+    const segs = lg >= 5 && lg % 5 === 0 ? 5 : lg >= 2 ? 2 : 4;
+    ctx.fillStyle = MAP_HALO;
+    ctx.fillRect(x0 - 8, y0 - 22, len + 16, 40);
+    ctx.strokeStyle = MAP_INK; ctx.lineWidth = 1;
+    ctx.strokeRect(x0 - 8 + 0.5, y0 - 22 + 0.5, len + 15, 39);
+    for (let i = 0; i < segs; i++) {
+      ctx.fillStyle = i % 2 ? "rgb(238,227,200)" : MAP_INK;
+      ctx.fillRect(x0 + len * i / segs, y0, len / segs, 5);
+    }
+    ctx.strokeRect(x0 + 0.5, y0 + 0.5, len, 5);
+    ctx.textAlign = "center";
+    mapText("0", x0, y0 + 15, `10px ${MAP_FELL}`, MAP_INK, "0px", "rgba(0,0,0,0)", 0);
+    mapText(String(lg), x0 + len, y0 + 15, `10px ${MAP_FELL}`, MAP_INK, "0px", "rgba(0,0,0,0)", 0);
+    mapText(lg === 1 ? "A League" : "Leagues", x0 + len / 2, y0 - 8, `italic 12px ${MAP_FELL}`, MAP_INK, "1px", "rgba(0,0,0,0)", 0);
+  }
+  // the rose, eight points, north uppermost
+  // (on a phone the right-hand edge is the column of round buttons, so the
+  // rose stands over the scale on the left instead)
+  const cx = IS_TOUCH ? 52 : W - 58, cy = IS_TOUCH ? base - 74 : base - 26, R = 28;
+  ctx.translate(cx, cy);
+  ctx.fillStyle = "rgba(238,227,200,0.82)";
+  ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, 7); ctx.fill();
+  ctx.strokeStyle = MAP_INK; ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, R * 0.42, 0, 7); ctx.stroke();
+  for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4 - Math.PI / 2, long = k % 2 === 0, r = long ? R : R * 0.58, w = long ? 5 : 3.2;
+    const px = Math.cos(a), py = Math.sin(a), qx = -py, qy = px;
+    // each point in two halves, one inked and one left as paper, as they were cut
+    ctx.fillStyle = MAP_INK;
+    ctx.beginPath(); ctx.moveTo(px * r, py * r); ctx.lineTo(qx * w, qy * w); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "rgb(238,227,200)";
+    ctx.beginPath(); ctx.moveTo(px * r, py * r); ctx.lineTo(-qx * w, -qy * w); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+  ctx.textAlign = "center";
+  mapText("N", 0, -R - 9, `600 12px ${MAP_CAPS}`, MAP_INK, "0px", "rgba(238,227,200,0.9)", 3);
+  ctx.restore();
 }
 // ===== a column, close to =====
 // Out at map height a march is a pennant on a chart. Down among the trees it
@@ -13987,6 +15197,40 @@ function worldPick(sx, sy) {
 }
 const thousands = p => (p >= 1 ? Math.round(p) : 1) + ",000";
 const WALL_WORD = ["open", "palisaded", "walled", "bastioned"];
+// The ground under the pointer, when there is no town or column there: which
+// crown holds it, or which of the lands the game leaves to themselves, or —
+// where nothing has been charted — nothing at all.
+const NOBODYS_LANDS = [
+  [35, 22, 5, 2, "The Swiss cantons", "They keep out of the wars of the crowns"],
+  [30, 14, 3, 3, "The United Provinces", "Merchants and dykes; no quarrel of yours"],
+  [70, 25, 16, 5, "Circassia", "Mountain princes who answer to nobody"],
+  [86, 30, 14, 8, "Persia", "The Shah's dominions, beyond the reach of Europe"],
+  [14, 37, 8, 19, "Fez and Morocco", "The Sultan's country, across the strait"],
+  [78, 38, 22, 18, "Arabia", "Desert, and the road to the holy cities"],
+  [22, 40, 54, 16, "The Zaara, or the Desart", "Sand, as far as anyone has gone"],
+];
+function groundLines(sx, sy) {
+  // (only once the map has the screen to itself, where a click on bare ground
+  // is a click on the country; through the dissolve the ground is the colony's)
+  if (stratAmt() < 0.8) return null;
+  const cl = worldCell(cam.x + sx / zoom, cam.y + sy / zoom);
+  if (!isCharted(cl.mx, cl.my)) return null;
+  const id = mapGrid && mapGrid[cl.my] ? mapGrid[cl.my][cl.mx] : null;
+  if (!id) {
+    const k = atlasFillKind(cl.mx, cl.my);
+    if (!k) return null;
+    const L = NOBODYS_LANDS.find(([x, y, w, h]) => cl.mx >= x && cl.mx < x + w && cl.my >= y && cl.my < y + h);
+    return L ? { title: L[4], lines: [L[5]] } : null;
+  }
+  if (empireCells().has(ckey(cl.mx, cl.my))) return { title: empireName || "Your country", lines: ["Your own ground"] };
+  if (id === "wilds") return { title: "The free woods", lines: ["Nobody's yet — yours to grow into"] };
+  const n = NATIONS[id];
+  if (!n) return null;
+  const out = [n.atWar ? "AT WAR WITH YOU" : n.trade ? "At peace · a trade route is open" : "At peace"];
+  if (n.calT) out.push(`Stricken by ${n.calName}`);
+  out.push("Click to treat with them");
+  return { title: n.name, lines: out };
+}
 // what a city will tell a stranger, and what it will only tell an agent
 function cityLines(c) {
   const n = NATIONS[c.owner], out = [];
@@ -14012,7 +15256,7 @@ function marchLines(m) {
     if (m.state === "return") out.push("Riding home");
   } else {
     out.push(`Column of ${NATIONS[m.nation] ? NATIONS[m.nation].name : "?"}`);
-    out.push(knowsArmies(m.nation) ? `${m.str} under arms` : "Strength uncertain");
+    out.push(columnCounted(m) ? `${m.str} under arms` : "Strength uncertain — nobody has counted it");
     out.push(m.kind === "war" ? `Bound for ${m.town ? m.town.name : settlementName || "the capital"}`
                               : "Marching to a war of their own");
   }
@@ -14024,9 +15268,13 @@ function worldTipSync(sx, sy) {
   if (!onMap() || buildMode || roadMode) { tip.style.display = "none"; mapHover = null; return; }
   const hit = worldPick(sx, sy);
   mapHover = hit;
-  if (!hit) { tip.style.display = "none"; return; }
   let title = "", lines = [];
-  if (hit.kind === "city") { title = hit.ref.name; lines = cityLines(hit.ref); }
+  if (!hit) {
+    // bare ground: whose it is, if you have it on paper at all
+    const g = groundLines(sx, sy);
+    if (!g) { tip.style.display = "none"; return; }
+    title = g.title; lines = g.lines;
+  } else if (hit.kind === "city") { title = hit.ref.name; lines = cityLines(hit.ref); }
   else if (hit.kind === "march") { title = "On the road"; lines = marchLines(hit.ref); }
   else if (hit.kind === "ftown") {
     title = hit.name;
@@ -14233,6 +15481,8 @@ function updateWorld(dt) {
   updateCities(dt);
   updateCityLod(dt);
   updateNotifs(dt);
+  // a few milliseconds a frame toward the atlas, until it is drawn
+  if (!SHEET_HOME.geo && baseGrid) atlasGeoStep(3);
 }
 
 // ===== what the world writes down =====
@@ -14282,6 +15532,7 @@ function worldSave(ci) {
   const si = t => (t ? settlements.indexOf(t) : -1);
   return {
     chart: chartedPack(),
+    sites: citySites,
     // A hundred and nine cities written out with their names came to a third of
     // the whole save. They go down as bare numbers in generation order, which is
     // deterministic, and the count is checked on the way back in: if it does not
@@ -14295,6 +15546,7 @@ function worldSave(ci) {
       str: m.str, t: r1(m.t || 0), target: m.target, name: m.name, seen: m.seen || undefined,
       invest: m.invest || undefined, homeward: m.homeward || undefined, chase: m.chase || undefined,
       town: si(m.town), home: m.home, chartedN: m.chartedN || undefined, spotted: m.spotted || undefined,
+      spottedBy: m.spottedBy || undefined,
       men: m.men ? m.men.map(ci).filter(i => i >= 0) : undefined,
     })),
     intel: Object.fromEntries(Object.entries(intel).map(([k, v]) => [k, { armies: v.armies, arts: v.arts, by: v.by, city: v.city }])),
@@ -14308,6 +15560,7 @@ function worldNewGame() {
   mapSelNation = null; scoutArmed = false; marchSeq = 1;
   for (const k of Object.keys(intel)) delete intel[k];
   for (const c of civs) c.afield = false;
+  citySites = 2;
   CITIES = []; buildMapGrid(); buildCities(); relinkCityTowns();
   charted.clear(); fogDirty = true; stratDirty = true;
   chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
@@ -14317,6 +15570,7 @@ function worldLoad(d) {
   marches = []; notifs = []; flight = null; mapSelCity = null; mapSelMarch = null; scoutArmed = false;
   for (const k of Object.keys(intel)) delete intel[k];
   CITIES = [];        // (fresh, not carried from whatever was open before: another slot's breaches and sieges came along)
+  citySites = (d && d.sites) || 1;
   buildCities();
   chartedUnpack(d && d.chart);
   if (!charted.size) chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
