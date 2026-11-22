@@ -784,7 +784,9 @@ function faithErrand(c) {
                                       b.faith === faithOf(c) && !b.fire && !b.site)
                          .sort((a, b) => Math.hypot(a.x - c.x, a.y - c.y) - Math.hypot(b.x - c.x, b.y - c.y))[0];
   if (house && Math.random() < 0.12) {
-    order(c, { kind: "walk", x: house.x + (Math.random() * 40 - 20), y: house.y + 18 });
+    // (before the door, not on its step: they stood in a forty-pixel strip on
+    //  the threshold, six names printed through one another)
+    order(c, { kind: "walk", x: house.x + (Math.random() * 110 - 55), y: house.y + 30 + Math.random() * 34 });
     return true;
   }
   return false;
@@ -1464,11 +1466,16 @@ function pedlarCall() {
   res.dm += paid;
   SFX.coin();
   toast(`A pedlar buys ${bought.join(" and ")} for ${paid} DM.`);
-  tell("work", `A pedlar came up the road and bought ${bought.join(" and ")} for ${paid} DM. ` +
-               `A market of your own would pay more, and would not walk on.`);
+  // (the advice once a day at most, and only to a colony that has no market:
+  //  every two and a half hours, word for word, it was wallpaper)
+  const advise = !buildings.some(b => b.type === "market" && !b.site) && worldT - pedlarAdvisedAt > DAY;
+  if (advise) pedlarAdvisedAt = worldT;
+  tell("work", `A pedlar came up the road and bought ${bought.join(" and ")} for ${paid} DM.` +
+               (advise ? " A market of your own would pay more, and would not walk on." : ""));
   syncUI();
   return true;
 }
+let pedlarAdvisedAt = -1e9;
 let arrears = 0;                // what last tax day could not pay, and who resents it
 const cabinCapacity = () => has("landownership") ? 3 : 2;
 const dismantleRefund = () => has("ownership") ? 0.75 : 0.5;
@@ -1689,7 +1696,7 @@ let territoryColor = "#7da083", borderColor = "#c9a86a";
 const territory = new Set();          // "cx,cy" world cells, 96px each
 const TCELL = 96;
 const SETTLE_FIRST = 1500, SETTLE_AGAIN = 1500;   // 25 minutes to the first offer, and 25 more after each
-let sackedCamps = 0, playT = 0, nextSettleAt = SETTLE_FIRST, settlePending = false;
+let sackedCamps = 0, playT = 0, nextSettleAt = SETTLE_FIRST, settlePending = false, settleDeclines = 0;
 // where the woods stood when we last said so. Set from the colony at the start
 // of a game rather than guessed — see endCutscene.
 let lastTier = 1, lastTierToldT = -999;
@@ -1795,6 +1802,9 @@ const mouse = { x: 0, y: 0, wx: 0, wy: 0 };
 const edge = { x: 0, y: 0, on: false };
 
 const buildings = [], farms = [], civs = [], visitors = [], raiders = [], camps = [], floaters = [], smokes = [], corpses = [], graves = [];
+// What is only seen, never saved: a tree going over as the last stroke lands,
+// and a raider where he fell, for the few seconds before the woods take him.
+const fellings = [], fallenFoes = [];
 // enemy ground: a foreign crown's border town, standing in the world to be stormed
 const foreign = [], foreignTowns = [], foreignFolk = [];
 const balls = [];   // musket shot in flight — it goes where it was pointed, and no further
@@ -1804,6 +1814,11 @@ const roads = new Set();
 const rkey = (rx, ry) => rx + "," + ry;
 const roadCellOf = (wx, wy) => [Math.floor(wx / ROAD), Math.floor(wy / ROAD)];
 const chunks = new Map();
+// The saplings still growing, wherever they stand. Growth used to be ticked
+// only in the chunks on the screen, which at the far zoom meant generating the
+// forest of half of Europe every tick (a tenth of a second a frame), and a
+// sapling planted out of sight never grew.
+const growing = new Set();
 
 // ===== the world's own seed =====
 // genChunk hashed the chunk's coordinates and a fixed constant, and nothing
@@ -1862,7 +1877,7 @@ function setWorld(label) {
   worldLabel = String(label || "").trim().toUpperCase();
   worldSeed = worldLabel ? seedFrom(worldLabel) : LEGACY_SEED;
   WORLD = worldLabel ? worldCharacter(worldSeed) : { trees: 1, stone: 1, forage: 1 };
-  chunks.clear();                                        // the old forest is not this one
+  chunks.clear(); growing.clear();                       // the old forest is not this one
 }
 // how the country reads, for the player who wants to know what they drew
 function worldTell() {
@@ -1907,6 +1922,14 @@ let simSpeed = 1, simSpeedHeld = 1;
 let worldT = 3 * HOUR;               // the game opens at nine in the morning
 const YEAR = Math.round(DAY * 2.133), WINTER_AT = Math.round(YEAR * 0.625);
 function season() { return (worldT % YEAR) >= WINTER_AT ? "winter" : "summer"; }
+// how deep in winter the year is, 0 to 1: the snow comes on over the first days
+// of it and goes over the last (for the map, which shows it falling and thawing)
+function snowAmt() {
+  const t = worldT % YEAR;
+  if (t < WINTER_AT) return 0;
+  const f = (t - WINTER_AT) / (YEAR - WINTER_AT);
+  return Math.max(0, Math.min(1, Math.min(f, 1 - f) / 0.08));
+}
 let lastSeason = "summer";
 let colonyYear = 1683;
 // ===== which tree stands where =====
@@ -2104,10 +2127,14 @@ function applyChunkDelta(key, d) {
   for (const i of d.td || []) if (ch.trees[i]) ch.trees[i].alive = false;
   for (const i of d.sd || []) if (ch.stones[i]) ch.stones[i].alive = false;
   for (const i of d.pd || []) if (ch.patches[i]) ch.patches[i].alive = false;
-  for (const [i, g] of d.tg || []) if (ch.trees[i]) ch.trees[i].growth = g;
+  for (const [i, g] of d.tg || []) if (ch.trees[i]) { ch.trees[i].growth = g; if (g < 1) growing.add(ch.trees[i]); }
   // planted, and marked so on the way in — the flag is derived from which list
   // they came back in, so it never has to be written down
-  for (const [x, y, g] of d.tp || []) ch.trees.push({ x, y, alive: true, progress: -1, growth: g, planted: true });
+  for (const [x, y, g] of d.tp || []) {
+    const t = { x, y, alive: true, progress: -1, growth: g, planted: true };
+    ch.trees.push(t);
+    if (g < 1) growing.add(t);
+  }
   ch.dirty = true;
   chunks.set(key, ch);
 }
@@ -2190,6 +2217,22 @@ function mkRaider(camp, state) {
            camp, target: null,
            state, anim: 0, facing: 1, atkT: 0, foe: null, carry: 0, wpx: camp.x, wpy: camp.y };
 }
+// A raid used to end in silence: the last raider was cut down or slipped away
+// with the coin, and nothing said it was over. Now the colony is told, once,
+// how it went.
+const raidTally = { on: false, cut: 0, coin: 0, lost: 0 };
+function raidOver() {
+  if (!raidTally.on || attackersAfield() > 0) return;
+  raidTally.on = false;
+  const { cut, coin } = raidTally;
+  const fell = cut ? `${cut} raider${cut === 1 ? "" : "s"} cut down` : "";
+  if (coin && fell) toast(`The raid is over: ${fell}, but ${coin} DM is gone with the rest.`);
+  else if (coin) toast(`The raiders are gone into the woods, and ${coin} DM with them.`);
+  else if (fell) toast(`The raid is beaten off — ${fell}, and nothing taken.`);
+  else toast("The raiders have melted back into the woods.");
+  chron("war", coin ? `A raid on the colony: ${coin} DM carried off${cut ? `, ${cut} raider${cut === 1 ? "" : "s"} killed` : ""}.`
+                           : `A raid on the colony beaten off${cut ? `: ${cut} raider${cut === 1 ? "" : "s"} killed` : ""}.`);
+}
 function spawnRaid() {
   if (!camps.length || attackersAfield() >= attackerCap()) return;
   // raiders go where the coin is — an empty chest is not worth the walk
@@ -2213,12 +2256,20 @@ function spawnRaid() {
     r.target = targets[Math.floor(Math.random() * targets.length)];
     raiders.push(r);
   }
+  if (!raidTally.on) Object.assign(raidTally, { on: true, cut: 0, coin: 0, lost: 0 });
   lesson("raid");                       // the first horn is the moment to explain walls
   SFX.warHorn();
-  if (buildings.some(b => b.type === "watchtower" && !b.fire)) {
-    const dir = Math.abs(camp.x) > Math.abs(camp.y) ? (camp.x > 0 ? "east" : "west") : (camp.y > 0 ? "south" : "north");
+  // which way they come, from where they are bound: the warning said only
+  // "near the colony", which sent the player hunting round the edges of the
+  // screen for them (the arrows at the edge point the rest of the way)
+  const tc = town && town.x !== undefined ? town : { x: CAPITAL_X, y: CAPITAL_Y };
+  const ddx = camp.x - tc.x, ddy = camp.y - tc.y;
+  const dir = Math.abs(ddx) > Math.abs(ddy) * 2 ? (ddx > 0 ? "east" : "west")
+            : Math.abs(ddy) > Math.abs(ddx) * 2 ? (ddy > 0 ? "south" : "north")
+            : (ddy > 0 ? "south" : "north") + (ddx > 0 ? "-east" : "-west");
+  if (buildings.some(b => b.type === "watchtower" && !b.fire))
     toast(`⚠ The watchtower sounds the alarm — raiders approach from the ${dir}${town ? ", making for " + town.name : ""}!`);
-  } else toast(`⚠ Raiders have been sighted near ${town ? town.name : "the colony"}!`);
+  else toast(`⚠ Raiders sighted to the ${dir} of ${town ? town.name : "the colony"}!`);
 }
 
 function updateRaider(r, dt) {
@@ -2448,7 +2499,7 @@ function updateRaider(r, dt) {
       // rob the town they are standing in — not the capital's coffers from afar
       const led = ledgerAt(r.x, r.y), town = townAt(r.x, r.y);
       const take = Math.min(15, Math.max(0, (led.dm || 0) - (led === res ? treasuryFloor() : 0)));
-      led.dm -= take; r.carry = take;
+      led.dm -= take; r.carry = take; raidTally.coin += take;
       SFX.coinLoss();
       float(r.x, r.y - 70, "-" + take + " DM", "#d86a5a");
       toast(`⚠ A raider makes off with ${take} DM${town ? " from " + town.name : ""}!`);
@@ -2480,12 +2531,17 @@ function strikeUnit(a, b, dmg) {
     dmg = Math.max(1, dmg - turned);       // no armour is proof against everything
   }
   b.hp -= dmg;
-  float(b.x, b.y - 70, "-" + dmg + (turned ? ` (${turned} turned)` : ""), turned ? "#c9a86a" : "#d86a5a");
+  // (whole numbers on the floater: a blow came up as "-16.4")
+  float(b.x, b.y - 70, "-" + Math.max(1, Math.round(dmg)) + (turned ? ` (${turned} turned)` : ""), turned ? "#c9a86a" : "#d86a5a");
   SFX.hit();
   if (b.hp <= 0) {
     if (raiders.includes(b)) {
       raiders.splice(raiders.indexOf(b), 1);
       SFX.death();
+      const crownB = b.nation && NATIONS[b.nation];
+      fallenFoes.push({ x: b.x, y: b.y, facing: b.facing < 0 ? -1 : 1, t: 0,
+                        frame: crownB ? foeCoat(crownB.color, "soldierU0") : img.hunter0 });
+      if (!b.garrison) raidTally.cut++;
       if (b.carry) { res.dm += b.carry; float(b.x, b.y - 50, "+" + b.carry + " DM", "#7da083"); }
       toast(b.nation && NATIONS[b.nation] ? `A soldier of ${NATIONS[b.nation].name} has been cut down.` : "A raider has been cut down.");
     } else if (civs.includes(b)) {
@@ -2893,9 +2949,23 @@ function collideMove(c, nx, ny, dt = 1 / 60) {
   }
   // (stuck is "made under a third of the step", in the world's own seconds: a fixed
   //  half-pixel a frame read a man wading through snow on a 144 Hz screen as stuck)
-  if (stepLen > 0 && Math.hypot(c.x - ox, c.y - oy) < stepLen * 0.3) {
+  // Headway, not motion. Pressed against a wall, a man sidesteps along it, and
+  // every sidestep is a step taken, so he never once counted as stuck: in a
+  // walled town people spent whole nights inching along the stone with a body
+  // to bury or a gate to reach, never nearer it. If four seconds of walking have
+  // not brought him nearer where he is headed, he is stuck, however busy his feet.
+  let noHeadway = false;
+  if (c.isCiv && stepLen > 0) {
+    const dNow = Math.hypot(c.tx - c.x, c.ty - c.y);
+    if (c.hwTx !== c.tx || c.hwTy !== c.ty) { c.hwTx = c.tx; c.hwTy = c.ty; c.hwD = dNow; c.hwT = 0; }
+    else if ((c.hwT += dt) > 4) {
+      noHeadway = c.hwD - dNow < 24;
+      c.hwD = dNow; c.hwT = 0;
+    }
+  }
+  if ((stepLen > 0 && Math.hypot(c.x - ox, c.y - oy) < stepLen * 0.3) || noHeadway) {
     c.stuckT += dt;
-    if (c.stuckT > 1.2) {
+    if (c.stuckT > 1.2 || noHeadway) {
       c.stuckT = 0;
       // replan the route from here before cruder measures
       if (c.task && c.task.kind !== "attack" && !c.replanned) {
@@ -3114,6 +3184,25 @@ function houseCiv(c, nearX, nearY) {
   return true;
 }
 
+// A bad hour said as one. Eleven men of the garrison fell in a game morning and
+// the colony heard it as eleven separate lines in the scroll, "was slain", each
+// as quiet as the last; nothing said the garrison was gone or what took it.
+// Three deaths inside an hour is a blow, and it is named as one, with the names.
+let lossRecent = [], lossToldAt = -1e9;
+function lossTally(c, why) {
+  lossRecent.push({ t: worldT, name: c.name, why, x: c.x, y: c.y });
+  lossRecent = lossRecent.filter(l => worldT - l.t < HOUR);
+  if (lossRecent.length < 3 || worldT - lossToldAt < HOUR) return;
+  lossToldAt = worldT;
+  const causes = {};
+  for (const l of lossRecent) causes[l.why] = (causes[l.why] || 0) + 1;
+  const top = Object.entries(causes).sort((a, b) => b[1] - a[1])[0][0];
+  const names = lossRecent.map(l => l.name);
+  const last = lossRecent[lossRecent.length - 1];
+  notify({ icon: "✝", cls: "bad", text: `${names.length} of your people dead within the hour.`,
+           sub: `${names.slice(0, 5).join(", ")}${names.length > 5 ? " and others" : ""}. ${names.length === lossRecent.filter(l => l.why === top).length ? "All" : "Most"} of them ${top.replace(/^was /, "were ")}. The colony numbers ${civs.length}.`,
+           x: last.x, y: last.y, z: Math.max(zoomFloor(), 0.6) });
+}
 function killCiv(c, why) {
   if (!civs.includes(c)) return;
   refundTask(c, null);   // (what he was paid out for and never made goes back to the store)
@@ -3153,6 +3242,7 @@ function killCiv(c, why) {
   SFX.death();
   tally.died++;
   tell("death", `${c.name}${c.age !== undefined ? `, ${c.age},` : ""} ${why}. The colony numbers ${civs.length}.`);
+  lossTally(c, why);
   // the eulogy: a trade nobody else can carry dies with the person who held it
   if (lost) {
     tally.mastersLost = (tally.mastersLost || 0) + 1;
@@ -4266,7 +4356,9 @@ function tryPlace(type, wx, wy) {
   }
   if (type === "sapling") {
     const [cx, cy] = chunkOf(wx, wy);
-    getChunk(cx, cy).trees.push({ x: wx, y: wy, alive: true, progress: -1, growth: 0, planted: true });
+    const sap = { x: wx, y: wy, alive: true, progress: -1, growth: 0, planted: true };
+    getChunk(cx, cy).trees.push(sap);
+    growing.add(sap);
     markChunkDirty(wx, wy);
     toast("Spruce sapling planted.");
   } else if (type === "farm") {
@@ -4554,6 +4646,54 @@ function eatFromStores(c) {
   return false;
 }
 
+// ===== the colony mends its own roofs =====
+// After a raid the ruins stood until the player ordered each one rebuilt, and a
+// colony left to itself (or a player busy elsewhere) watched its people freeze
+// beside the logs that would have roofed them. Someone with nothing to do now
+// takes it on, through the same repair the player would order — paid from the
+// town's store, timber and a door — and says so, so it is never a surprise
+// where the wood went. If the store has the timber but no door, a door is hewn
+// first. One pair of hands to each ruin; never in a fight or a winter storm of
+// trouble (raiders inside the borders), and never what the player is doing.
+function autoRebuild(c) {
+  // the tutorial's first roof is the player's to order: until that step is
+  // behind them, the ruin waits for their click
+  if (tutStep >= 0 && tutStep <= 6) return false;
+  if (raiders.some(r => r.state !== "patrol" && !r.garrison && inTerritory(r.x, r.y))) return false;
+  const taken = new Set(civs.map(o => o.task && o.task.target).filter(Boolean));
+  let best = null, bd = 1400;
+  for (const b of buildings) {
+    if (b.type !== "burned" || (b.was || "cabin") !== "cabin" || taken.has(b)) continue;
+    const d = Math.hypot(b.x - c.x, b.y - c.y);
+    if (d < bd) { bd = d; best = b; }
+  }
+  if (!best) return false;
+  const led = ledgerAt(best.x, best.y);
+  // (repairs already on their way to a ruin of this store have not paid yet:
+  //  they count against it, or three set out for one door and two turned back)
+  const pending = civs.filter(o => o.task && o.task.kind === "repair" && !o.task.paid &&
+                                   ledgerAt(o.task.x, o.task.y) === led).length;
+  const need = Object.fromEntries(Object.entries(REPAIR_COST).map(([k, q]) => [k, q * (pending + 1)]));
+  if (canPay(need, led)) {
+    order(c, { kind: "repair", target: best, x: best.x, y: best.y + 16 });
+    tell("build", `${c.name} sets about rebuilding a burned cabin${townAt(best.x, best.y) ? " in " + townAt(best.x, best.y).name : ""}, with timber and a door from the store.`);
+    return true;
+  }
+  // timber enough for the cabin and a door, but no door: hew one (once — a door
+  // already being hewn by somebody is the door for this ruin)
+  const hewing = civs.some(o => o.state === "crafting" || (o.task && o.task.kind === "craft"));
+  // (a finished door goes to the capital's store, so only a capital ruin is
+  //  served by hewing one here)
+  if (!hewing && led === res && (led.doors || 0) < 1 && (led.logs || 0) >= REPAIR_COST.logs + doorCost() && (led.dm || 0) >= REPAIR_COST.dm) {
+    const cost = doorCost();
+    led.logs -= cost;
+    order(c, { kind: "craft", x: c.x, y: c.y, paid: [[led, "logs", cost]] });
+    toast(`${c.name} hews a door for the burned cabin.`);
+    return true;
+  }
+  return false;
+}
+
 // --- autonomy ---
 function wander(c, base, minD, maxD) {
   for (let i = 0; i < 6; i++) {
@@ -4603,6 +4743,10 @@ function autonomy(c, dt) {
     if (Math.random() < 0.7) wander(c, c.home || c, 40, 130);   // children actually play
     return;
   }
+
+  // a burned cabin is rebuilt by whoever has nothing else to do, if the town
+  // has the timber and a door for it — or the timber to hew one first
+  if (!isForce(c) && !c.feudWith && autoRebuild(c)) return;
 
   const shopF = buildings.find(b => b.type === "forge" && !b.fire && !b.site && (b.shop || []).length);
   if (shopF && c.profession !== "blacksmith") {
@@ -4827,7 +4971,58 @@ function autonomy(c, dt) {
   // An idle man finds a reason to be elsewhere; an industrious one finds the
   // work. Same errand ladder above — this is only what happens once it runs out.
   const roam = isT(c, "idle") ? 0.78 : isT(c, "industrious") ? 0.34 : 0.55;
+  // Everyone who comes out of a door is set down on the same doorstep, and the
+  // idle simply stood there, six people in one pair of boots. Whoever finds
+  // somebody standing in them takes a step or two aside first.
+  if (!c.post && civs.some(o => o !== c && o.state === "idle" && Math.abs(o.x - c.x) < 12 && Math.abs(o.y - c.y) < 8)) {
+    const a = Math.random() * Math.PI * 2, r = 26 + Math.random() * 30;
+    order(c, { kind: "walk", x: c.x + Math.cos(a) * r, y: c.y + 6 + Math.abs(Math.sin(a)) * r * 0.6 });
+    return;
+  }
+  if (!c.post && !isForce(c) && eveningGather(c)) return;
   if (!c.post && Math.random() < roam) wander(c, c.home || c, 60, 180);
+}
+// ===== the evening =====
+// When the day's work runs out in the last light, nobody in a village of 1690
+// wanders off alone to stand in a field: they go where the others are. The
+// well, where the water is drawn and the news is traded; their own house of
+// worship; the market; the town hall steps. From an hour and a half before
+// dusk until bedtime the idle drift there and stand about in twos and threes,
+// and at dark they go home from there.
+const GATHER_AT = ["temple", "well", "market", "townhall"];
+function eveningGather(c) {
+  const h = clockHours();
+  if (h < DUSK - 1.5 || h >= DUSK + 0.5 || c.child || c.rebel || c.feudWith) return false;
+  if (season() === "winter" && c.coldT > 40) return false;      // (the fire first)
+  const town = townAt(c.x, c.y);
+  // already standing about at one of them: stay put a while, turned to the others
+  // (whichever it is: weighing them afresh sent people shuttling between two)
+  const here = buildings.find(b => !b.site && !b.fire && GATHER_AT.includes(b.type) &&
+                                   (b.type !== "temple" || b.faith === faithOf(c)) &&
+                                   Math.hypot(b.x - c.x, b.y + 40 - c.y) < 150);
+  if (here) {
+    const o = civs.find(x => x !== c && x.state === "idle" && Math.hypot(x.x - c.x, x.y - c.y) < 80);
+    if (o) c.facing = o.x < c.x ? -1 : 1;
+    c.autoT = Math.max(c.autoT, 6 + Math.random() * 6);
+    return true;
+  }
+  let best = null, bd = 700;
+  for (const b of buildings) {
+    if (b.site || b.fire || !GATHER_AT.includes(b.type)) continue;
+    if (b.type === "temple" && b.faith !== faithOf(c)) continue;   // nobody gossips on another creed's steps
+    if (townAt(b.x, b.y) !== town) continue;
+    // their own church before the well, the well before the market
+    // and a crowd already at the church sends the next man to the well
+    const there = civs.filter(o => o !== c && Math.abs(o.x - b.x) < 150 && Math.abs(o.y - b.y - 40) < 110).length;
+    const d = Math.hypot(b.x - c.x, b.y - c.y) * (1 + GATHER_AT.indexOf(b.type) * 0.35) * (1 + there * 0.3);
+    if (d < bd) { bd = d; best = b; }
+  }
+  if (!best) return false;
+  // (a loose ring in front of the door, wide enough that the names over their
+  //  heads do not print through each other)
+  const a = Math.random() * Math.PI, r = 56 + Math.random() * 64;
+  order(c, { kind: "walk", x: best.x + Math.cos(a) * r * 1.2, y: best.y + 40 + Math.sin(a) * r * 0.55 });
+  return true;
 }
 
 // --- happiness & rebellion ---
@@ -4963,8 +5158,17 @@ function nudgeOpinion(c, o, by) {
 // Whatever passes between two people, both of them remember it.
 function fallOut(a, b, by) { nudgeOpinion(a, b, by); nudgeOpinion(b, a, by * 0.6); }
 
+// Blood between the two who walked out of Hamburg together is not spilled over
+// a borrowed axe, and a clearing of two or three is a family, not a town: in a
+// first game the siblings fell out on the first afternoon, one burned the only
+// roof and the other was dead by dark. Quarrels and hard words still come; the
+// knife waits, as rebellion waits on Policing, for a colony big enough to have
+// strangers in it.
+const FOUNDERS = new Set(["brother", "sister"]);
+const blood = (c, o) => FOUNDERS.has(c.nativeWho) && FOUNDERS.has(o.nativeWho);
 function startFeud(c, o) {
   if (c.rebel || c.child || !civs.includes(o) || o.child) return;
+  if (blood(c, o) || civs.filter(x => !x.child).length < 4) return;
   if (c.feudWith) return;                       // one quarrel at a time
   if (isJailed(c) || c.state === "abed" || c.state === "borne") return;   // (it stood a prisoner up in his cell, never to be jailed again, to freeze there)
   // and the colony as a whole only carries so many before it is just a massacre
@@ -6192,16 +6396,25 @@ $("cpDeposit").addEventListener("click", () => {
   if (!selected) return;
   const band = soldierGroup();
   let moved = 0;
+  const what = {};
   for (const c of band) {
     const inv = c.inv, led = ledgerOf(c);
     moved += inv.logs + inv.seeds + inv.stone + inv.iron + inv.wheat + inv.bread + inv.meat;
+    for (const k of ["logs", "seeds", "stone", "iron", "wheat", "bread", "meat"]) if (inv[k]) what[k] = (what[k] || 0) + inv[k];
     led.logs += inv.logs; led.seeds += inv.seeds; led.stone += inv.stone; led.iron += inv.iron;
     led.wheat += inv.wheat; led.bread += inv.bread; led.meat += inv.meat;
     inv.logs = inv.seeds = inv.stone = inv.iron = inv.wheat = inv.bread = inv.meat = 0;
   }
   const town = selected.home && townOf(selected.home);
   const who = band.length > 1 ? `${band.length} hand` : `${selected.name} hands`;
-  toast(moved ? `${who} ${moved} item(s) to ${town ? town.name + "'s" : "the town"} storage.`
+  // what was handed over, by name, and a mark of it over the store itself
+  const list = Object.entries(what).map(([k, n]) => `${n} ${k}`).join(", ");
+  if (moved) {
+    const at = town && town.x !== undefined ? town : { x: CAPITAL_X, y: CAPITAL_Y };
+    float(at.x, at.y - 110, "+" + list, "#c9a86a");
+    for (const c of band) float(c.x, c.y - 70, "stored", "#9ab0a2");
+  }
+  toast(moved ? `${who} ${list} to ${town ? town.name + "'s" : "the town"} storage.`
               : (band.length > 1 ? "They are carrying nothing to hand over." : `${selected.name} has nothing to hand over.`));
   syncUI();
 });
@@ -6855,6 +7068,8 @@ let calamityT = 240;
 // pile runs out the chimneys go quiet — you can see winter arrive at the
 // woodpile before you feel it in the people.
 const FUEL_INTERVAL = 30;
+// what a whole winter burns, which is what the colony has to be told before it
+const winterFuel = () => Math.ceil((YEAR - WINTER_AT) / FUEL_INTERVAL);
 let fuelT = FUEL_INTERVAL, hearthsLit = true, fuelWarned = false;
 function updateFuel(dt) {
   if (season() !== "winter") { fuelT = FUEL_INTERVAL; hearthsLit = true; fuelWarned = false; return; }
@@ -7078,7 +7293,8 @@ function updateCalamities(dt) {
     n.calT -= dt;
     if (n.calT <= 0) {
       n.calT = 0; n.mod = 0; n.hungry = false; n.revolt = false;
-      if (!n.defeated) toast(`${n.name} has recovered from the ${n.calName || "calamity"}.`);
+      // (a line in the chronicle: a toast for every crown's recovery was noise)
+      if (!n.defeated) chron("war", `${n.name} has recovered from the ${n.calName || "calamity"}.`);
     }
   }
   calamityT -= dt;
@@ -7096,7 +7312,7 @@ function updateCalamities(dt) {
   // (a nation on its knees used to 'lose ground to its neighbours' by having a cell written into the list of the
   //  ground YOU have taken — so a plague in Muscovy painted a patch of Russia in your colours and made it your
   //  neighbour. The blow is in its strength, above; the map is no longer handed to you for it.)
-  eventCard(cal.line(n), "event_war", cal.sub);
+  eventCard(cal.line(n), "event_war", cal.sub, !n.atWar);
   mapInfoSync(); renderMap();
 }
 
@@ -7120,12 +7336,19 @@ function nationNeighbours(id) {
 
 // news from the wider world, shown as a card with a picture rather than a line of
 // small text that scrolls past unread. Click it away, or let it go on its own.
-let eventCardT = null;
-function eventCard(title, image, sub) {
+let eventCardT = null, farCardAt = -1e9;
+function eventCard(title, image, sub, far) {
   // Word from afar is exactly the sort of thing a player wants to look up later:
   // which crown declared war, which winter starved which kingdom. Every card
   // writes itself into the chronicle, so nothing that got a picture is lost.
   chron("war", sub ? `${title} ${sub}` : title);
+  // Crowns quarrelling a thousand miles off are no business of somebody still
+  // learning to fell a tree: in the first steps of the tutorial that news goes
+  // to the chronicle only, and the card stays clear of their colonist's sheet.
+  if (far && tutStep >= 0 && tutStep < 11) return;
+  // and after it, a picture of somebody else's war at most once in three hours:
+  // thirty-eight of them in one game day made the card a thing to swat
+  if (far) { if (worldT - farCardAt < 3 * HOUR) return; farCardAt = worldT; }
   const card = $("eventCard");
   $("eventImg").src = `assets/sprites/ui/${image}.png`;
   setEmph($("eventText"), title);
@@ -7149,7 +7372,7 @@ function startNatWar() {
   if (!nbs.length) return;
   const b = nbs[Math.floor(Math.random() * nbs.length)];
   natWars.push({ a, b, t: 30 + Math.random() * 20, battles: 0 });
-  eventCard(`${NATIONS[a].name} and ${NATIONS[b].name} are at war!`, "event_war", "Word arrives from afar");
+  eventCard(`${NATIONS[a].name} and ${NATIONS[b].name} are at war!`, "event_war", "Word arrives from afar", true);
 }
 
 function remainingCells(id) {
@@ -7179,7 +7402,7 @@ function checkDefeated(id) {
   n.atWar = false;
   standDown(n);
   natWars = natWars.filter(w => w.a !== id && w.b !== id);
-  eventCard(`${n.name} has been destroyed.`, "event_defeat", "Its name passes into history");
+  eventCard(`${n.name} has been destroyed.`, "event_defeat", "Its name passes into history", true);
   return true;
 }
 function cellCount(id) {
@@ -7210,7 +7433,7 @@ function resolveBattle(war, victor) {
     mapGrid[r][c] = winner;
   }
   war.battles++;
-  if (take > 0) eventCard(`${NATIONS[winner].name} seizes land from ${NATIONS[loser].name}!`, "event_conquest", "The borders of Europe shift");
+  if (take > 0) eventCard(`${NATIONS[winner].name} seizes land from ${NATIONS[loser].name}!`, "event_conquest", "The borders of Europe shift", true);
   // rebuild the pixel map so borders visibly move — live if the map is open
   buildMapGrid();
   buildCities();                       // the towns follow their borders
@@ -7218,7 +7441,7 @@ function resolveBattle(war, victor) {
   if (checkDefeated(loser)) return;
   if ((war.battles >= 3 && Math.random() < 0.3) || (!frontier.length && take === 0)) {
     natWars.splice(natWars.indexOf(war), 1);
-    eventCard(`${NATIONS[war.a].name} and ${NATIONS[war.b].name} make peace.`, "event_peace", "A weary truce is signed");
+    eventCard(`${NATIONS[war.a].name} and ${NATIONS[war.b].name} make peace.`, "event_peace", "A weary truce is signed", true);
   }
 }
 
@@ -7368,7 +7591,7 @@ document.getElementById("mapToggle").addEventListener("click", () => {
     flyTo(mid, midY, floor, 1.15);
     const next = nextZoomTier();
     toast(next ? `The country, as far as your charts go. ${TECH[next.tech].name} would open ${next.what}.`
-               : "The whole of Europe. Click a city to look at it, or a column to follow it.");
+               : `The whole of Europe. ${IS_TOUCH ? "Tap" : "Click"} a city to look at it, or a column to follow it.`);
   }
 });
 
@@ -7379,7 +7602,7 @@ function mapInfoSync() {
   citySync();                                                        // the town half of the panel
   if (!mapSelNation) {
     document.getElementById("miName").textContent = "—";
-    document.getElementById("miDetail").textContent = "Click a country or a city out on the map.";
+    document.getElementById("miDetail").textContent = `${IS_TOUCH ? "Tap" : "Click"} a country or a city out on the map.`;
     w.style.display = pc.style.display = as.style.display = "none";
     return;
   }
@@ -8456,8 +8679,13 @@ function maybeOfferSettlement() {
 document.getElementById("settleNo").addEventListener("click", () => {
   document.getElementById("settleModal").style.display = "none";
   settlePending = false; setPause(pauseOpen);
-  nextSettleAt = playT + 600;   // they will ask again
-  toast("The scouts are told to wait. They will ask again.");
+  // They ask again, but each refusal buys a longer quiet: ten minutes, then
+  // twenty, then forty. At ten every time, a player content with one town was
+  // stopped by the same modal three times in a game day.
+  settleDeclines = Math.min(settleDeclines + 1, 3);
+  const wait = 600 * Math.pow(2, settleDeclines - 1);
+  nextSettleAt = playT + wait;
+  toast(`The scouts are told to wait. They will ask again in ${Math.round(wait / 60)} minutes.`);
 });
 document.getElementById("settleGo").addEventListener("click", () => {
   const chosen = [...document.querySelectorAll("#settleList input:checked")].map(i => civs[+i.dataset.idx]).filter(c => c && !c.afield && canMarch(c));
@@ -8507,6 +8735,7 @@ document.getElementById("settleGo").addEventListener("click", () => {
   document.getElementById("settleModal").style.display = "none";
   settlePending = false; setPause(pauseOpen);
   nextSettleAt = playT + SETTLE_AGAIN;   // the scouts rest 20 minutes before looking again
+  settleDeclines = 0;
   expandFrontier(6);
   tell("land", `${chosen.length} settler(s) set out to found ${name} — follow them, or watch for its marker at the screen's edge.`);
   setTimeout(() => vignette("firstSettlement"), 400);
@@ -9018,6 +9247,37 @@ const AMBITIONS = [
     test: () => (tally.townsTaken || 0) >= 1 },
 ];
 const AMBITIONS_TO_END = 6;
+// How near each one is, said in the ambition's own terms. A list of goals with
+// no count against them, kept behind a button in the chronicle, was a list
+// nobody in the second year knew they were climbing.
+const AMB_PROGRESS = {
+  roots:    () => [civs.filter(c => c.home).length, 10, "housed"],
+  endure:   () => [tally.winters || 0, 5, "winters"],
+  village:  () => [civs.length, 25, "souls"],
+  physic:   () => [tally.cured || 0, 20, "cured"],
+  master:   () => [Math.max(0, ...civs.map(c => Math.max(...SKILLS.map(sk => skillLvl(c, sk.id))))), SKILL_MAX, "best skill"],
+  quiet:    () => [tally.camps || 0, 8, "camps burned"],
+  twotowns: () => [settlements.length, 1, "settlements"],
+  learned:  () => [Object.values(TECH).filter(t => t.done).length, 20, "technologies"],
+  solvent:  () => [tally.billsPaid || 0, 10, "tax days paid"],
+  walled:   () => [buildings.filter(b => !b.site && !b.fire && WALLLIKE.has(b.type)).length, 20, "lengths of wall"],
+  crowned:  () => [tally.townsTaken || 0, 1, "towns taken"],
+};
+function ambProgress(a) {
+  const f = AMB_PROGRESS[a.id]; if (!f) return null;
+  try { const [have, need, unit] = f(); return { have: Math.min(have, need), need, unit, frac: Math.min(1, have / need) }; }
+  catch (e) { return null; }
+}
+// the unmet ambition nearest to done: what the corner list offers to aim at
+function nextAmbition() {
+  let best = null, bf = -1;
+  for (const a of AMBITIONS) {
+    if (achieved[a.id]) continue;
+    const p = ambProgress(a); if (!p) continue;
+    if (p.frac > bf) { bf = p.frac; best = { a, p }; }
+  }
+  return best;
+}
 let achieved = {};                 // id -> the year it was done
 let ambT = 3;
 function checkAmbitions(dt) {
@@ -9140,35 +9400,90 @@ function drawMinimap() {
   const cx = cam.x + canvas.width / zoom / 2, cy = cam.y + canvas.height / zoom / 2;
   const x0 = cx - span / 2, y0 = cy - spanY / 2;
   const P = (x, y) => [(x - x0) * k, (y - y0) * k];
-  g.fillStyle = "#1a2a1e"; g.fillRect(0, 0, W, H);
-  // your ground
-  g.fillStyle = "rgba(125,160,131,0.16)";
-  const tc = TCELL * k;
+  // A chart of the parish, drawn by the same hand as the atlas: laid paper,
+  // your ground washed in your colour inside an inked line, the woods in little
+  // marks, and blank paper wherever the world has not yet been walked.
+  g.fillStyle = "rgb(226,215,186)"; g.fillRect(0, 0, W, H);
+  // the ground the world has made, a shade warmer than the blank around it
+  const [ca, cb] = chunkOf(x0, y0), [cc, cd] = chunkOf(x0 + span, y0 + spanY);
+  const ck = CHUNK * k;
+  g.fillStyle = "rgb(214,198,156)";
+  for (let j = cb; j <= cd; j++) for (let i = ca; i <= cc; i++) {
+    if (!chunks.has(chunkKey(i, j))) continue;
+    const [px, py] = P(i * CHUNK, j * CHUNK);
+    g.fillRect(Math.floor(px), Math.floor(py), Math.ceil(ck) + 1, Math.ceil(ck) + 1);
+  }
+  // and in winter, white over it, as on the atlas
+  const sa = snowAmt();
+  if (sa > 0) {
+    g.fillStyle = `rgba(246,248,250,${0.55 * sa})`;
+    for (let j = cb; j <= cd; j++) for (let i = ca; i <= cc; i++) {
+      if (!chunks.has(chunkKey(i, j))) continue;
+      const [px, py] = P(i * CHUNK, j * CHUNK);
+      g.fillRect(Math.floor(px), Math.floor(py), Math.ceil(ck) + 1, Math.ceil(ck) + 1);
+    }
+  }
+  // your ground, and its edge
+  const tc = TCELL * k, [tr, tg, tb] = hexRGB(territoryColor);
+  g.fillStyle = `rgba(${tr},${tg},${tb},0.32)`;
+  const edges = [];
   for (const key of territory) {
     const [tx, ty] = key.split(",").map(Number), [px, py] = P(tx * TCELL, ty * TCELL);
-    if (px > -tc && py > -tc && px < W && py < H) g.fillRect(px, py, tc + 0.5, tc + 0.5);
+    if (px < -tc || py < -tc || px > W || py > H) continue;
+    g.fillRect(px, py, tc + 0.5, tc + 0.5);
+    if (!territory.has((tx - 1) + "," + ty)) edges.push([px, py, px, py + tc]);
+    if (!territory.has((tx + 1) + "," + ty)) edges.push([px + tc, py, px + tc, py + tc]);
+    if (!territory.has(tx + "," + (ty - 1))) edges.push([px, py, px + tc, py]);
+    if (!territory.has(tx + "," + (ty + 1))) edges.push([px, py + tc, px + tc, py + tc]);
   }
-  // the woods: only chunks the world has already made (the map never invents ground)
-  g.fillStyle = "#3d6447";
-  const [ca, cb] = chunkOf(x0, y0), [cc, cd] = chunkOf(x0 + span, y0 + spanY);
+  g.strokeStyle = `rgb(${tr * 0.45 | 0},${tg * 0.45 | 0},${tb * 0.45 | 0})`; g.lineWidth = 1.1;
+  g.beginPath(); for (const [a, b, c2, d] of edges) { g.moveTo(a, b); g.lineTo(c2, d); } g.stroke();
+  // the woods: only chunks the world has already made (the map never invents
+  // ground), each tree a little inked crown, the stones as grey specks
   for (let j = cb; j <= cd; j++) for (let i = ca; i <= cc; i++) {
     const ch = chunks.get(chunkKey(i, j)); if (!ch) continue;
-    for (const t of ch.trees) if (t.alive) { const [px, py] = P(t.x, t.y); g.fillRect(px - 1, py - 1, 2, 2); }
-    g.fillStyle = "#6f7a74";
-    for (const st of ch.stones) if (st.alive) { const [px, py] = P(st.x, st.y); g.fillRect(px - 0.75, py - 0.75, 1.5, 1.5); }
-    g.fillStyle = "#3d6447";
+    g.fillStyle = "rgba(70,96,56,0.85)";
+    for (const t of ch.trees) if (t.alive) {
+      const [px, py] = P(t.x, t.y);
+      if (px < -2 || py < -3 || px > W + 2 || py > H + 2) continue;
+      g.beginPath(); g.moveTo(px, py - 2.6); g.lineTo(px + 1.4, py + 0.6); g.lineTo(px - 1.4, py + 0.6); g.closePath(); g.fill();
+    }
+    g.fillStyle = "rgba(110,104,92,0.9)";
+    for (const st of ch.stones) if (st.alive) { const [px, py] = P(st.x, st.y); g.fillRect(px - 0.8, py - 0.8, 1.6, 1.6); }
   }
-  const dot = (x, y, r, col) => { const [px, py] = P(x, y); if (px < -4 || py < -4 || px > W + 4 || py > H + 4) return; g.fillStyle = col; g.fillRect(px - r, py - r, r * 2, r * 2); };
-  for (const f of farms) dot(f.x, f.y, 2, "#9a8a4a");
-  for (const b of buildings) dot(b.x, b.y, b.type === "wall" || b.type === "gate" ? 1.2 : 2.2, b.fire ? "#e07a3a" : b.type === "wall" || b.type === "gate" ? "#9aa49e" : "#c9a86a");
-  for (const b of foreign) dot(b.x, b.y, 2.2, "#b0564a");
-  for (const cp of camps) dot(cp.x, cp.y, 3, "#d86a5a");
-  for (const c of civs) if (!c.afield) dot(c.x, c.y, 1.2, isForce(c) ? "#8fb4d8" : "#e8e2d0");
-  for (const r of raiders) dot(r.x, r.y, 1.6, "#ff6a55");
-  // where the camera is looking
+  // roads, as a dotted track
+  g.fillStyle = "rgba(120,86,46,0.75)";
+  for (const key of roads) {
+    const [rx, ry] = key.split(",").map(Number), [px, py] = P((rx + 0.5) * ROAD, (ry + 0.5) * ROAD);
+    if (px > -2 && py > -2 && px < W + 2 && py < H + 2) g.fillRect(px - 0.7, py - 0.7, 1.4, 1.4);
+  }
+  const dot = (x, y, r, col, ring) => {
+    const [px, py] = P(x, y); if (px < -4 || py < -4 || px > W + 4 || py > H + 4) return;
+    g.fillStyle = MAP_INK; g.fillRect(px - r - 0.7, py - r - 0.7, r * 2 + 1.4, r * 2 + 1.4);
+    g.fillStyle = col; g.fillRect(px - r, py - r, r * 2, r * 2);
+    if (ring) { g.strokeStyle = col; g.lineWidth = 1; g.beginPath(); g.arc(px, py, r + 2.5, 0, 7); g.stroke(); }
+  };
+  for (const f of farms) { const [px, py] = P(f.x, f.y); g.fillStyle = "rgba(150,124,52,0.8)"; g.fillRect(px - 2, py - 1.5, 4, 3); }
+  for (const b of buildings) {
+    const wall = b.type === "wall" || b.type === "gate" || b.type === "stonewall" || b.type === "stonegate";
+    if (wall) { const [px, py] = P(b.x, b.y); g.fillStyle = MAP_INK; g.fillRect(px - 0.9, py - 0.9, 1.8, 1.8); continue; }
+    dot(b.x, b.y, 1.6, b.fire ? "#e07a3a" : "#f3d98a");
+  }
+  for (const b of foreign) dot(b.x, b.y, 1.6, "#b8402e");
+  for (const cp of camps) dot(cp.x, cp.y, 1.8, "#b8402e", true);
+  for (const c of civs) if (!c.afield) { const [px, py] = P(c.x, c.y); if (px < 0 || py < 0 || px > W || py > H) continue; g.fillStyle = isForce(c) ? "#2f5d8a" : "#3b2a1a"; g.fillRect(px - 0.8, py - 0.8, 1.6, 1.6); }
+  for (const r of raiders) { const [px, py] = P(r.x, r.y); if (px < 0 || py < 0 || px > W || py > H) continue; g.fillStyle = "#c0301f"; g.beginPath(); g.arc(px, py, 1.8, 0, 7); g.fill(); }
+  // where the camera is looking, ruled in ink
   const [vx, vy] = P(cam.x, cam.y);
-  g.strokeStyle = "rgba(232,226,208,0.85)"; g.lineWidth = 1;
+  g.setLineDash([3, 2]); g.strokeStyle = "rgba(43,32,22,0.85)"; g.lineWidth = 1;
   g.strokeRect(Math.round(vx) + 0.5, Math.round(vy) + 0.5, Math.round(canvas.width / zoom * k), Math.round(canvas.height / zoom * k));
+  g.setLineDash([]);
+  // a north mark, and the double rule of a chart's frame
+  g.fillStyle = MAP_INK;
+  g.beginPath(); g.moveTo(W - 9, 5); g.lineTo(W - 6, 13); g.lineTo(W - 12, 13); g.closePath(); g.fill();
+  g.font = `600 8px ${MAP_CAPS}`; g.textAlign = "center"; g.fillText("N", W - 9, 22);
+  g.strokeStyle = MAP_INK; g.lineWidth = 1; g.strokeRect(0.5, 0.5, W - 1, H - 1);
+  g.lineWidth = 0.6; g.strokeRect(2.5, 2.5, W - 5, H - 5);
 }
 function miniLook(e, start) {
   const cv = $("minimap"), r = cv.getBoundingClientRect();
@@ -9256,33 +9571,106 @@ function stewardItems() {
   people("starving", here.filter(c => c.hunger < 20 && !isJailed(c)), "starving", "starving", 1);
   people("sick", here.filter(c => isSick(c) && c.state !== "abed" && c.state !== "borne"), "sick and not in a bed", "sick and not in a bed", 1);
   people("roof", here.filter(c => !c.home && !c.child && !isJailed(c) && c.state !== "abed"), "without a roof", "without a roof", season() === "winter" ? 1 : 2);
+  // the larder, said while there is summer left to fill it: the eight-hour
+  // warning before the frost is a fine alarm but a poor plan
+  { const inYear = worldT % YEAR;
+    if (here.length && inYear > WINTER_AT * 0.35 && inYear < WINTER_AT) {
+      const food = (res.bread || 0) + (res.meat || 0) + here.reduce((n, c) => n + (c.inv.bread || 0) + (c.inv.meat || 0), 0);
+      const hours = food / Math.max(1, here.length * HUNGER_PER_DAY / 35) * 24;
+      const winterH = (YEAR - WINTER_AT) / HOUR, toFrost = Math.ceil((WINTER_AT - inYear) / HOUR);
+      const logs = Math.floor(res.logs || 0), fuel = winterFuel();
+      if (logs < fuel)
+        out.push({ key: "wood", sev: toFrost <= 8 ? 1 : 2,
+                   text: `Woodpile ${logs} of the ${fuel} logs a winter burns`,
+                   list: [{ x: CAPITAL_X, y: CAPITAL_Y }] });
+      if (hours < winterH)
+        out.push({ key: "larder", sev: toFrost <= 8 ? 1 : 2,
+                   text: `Frost in ${toFrost} h; food for ${Math.floor(hours)} of its ${Math.round(winterH)} h`,
+                   list: [{ x: CAPITAL_X, y: CAPITAL_Y }] });
+    } }
+  // A chest of four thousand DM and nothing being learned, or a war declared
+  // with nobody under arms: the money that piles up in the second year had
+  // nothing on the screen asking for it.
+  { const war = ATLAS_NAT_IDS.filter(id => NATIONS[id].atWar && !NATIONS[id].defeated);
+    if (war.length && !civs.some(isForce) && (res.dm || 0) >= 40)
+      out.push({ key: "unarmed", sev: 1, text: `At war with ${NATIONS[war[0]].name}, and no one under arms`,
+                 list: [{ x: CAPITAL_X, y: CAPITAL_Y, open: "milToggle" }] });
+    const can = !research && Object.values(TECH).some(t => techAvailable(t) && techCost(t) <= (res.dm || 0));
+    if (can && here.length >= 4)
+      out.push({ key: "learn", sev: 3, text: `Nothing being learned, with ${Math.floor(res.dm)} DM in the chest`,
+                 list: [{ x: CAPITAL_X, y: CAPITAL_Y, open: "techToggle" }] });
+  }
+  // a grown colony with nowhere to sell: its people's pockets stay empty, and
+  // so does every tax day, and nothing on the screen ever said why
+  if (here.length >= 8 && !buildings.some(b => b.type === "market"))
+    out.push({ key: "market", sev: 3, text: has("trading") ? "No market: your people have nowhere to sell" : "No market: research Trading to raise one",
+               list: [{ x: CAPITAL_X, y: CAPITAL_Y, open: has("trading") ? "buildToggle" : "techToggle" }] });
   const sites = buildings.filter(b => b.site && !(b.builder && civs.includes(b.builder)));
   if (sites.length) out.push({ key: "site", sev: 3, text: `${sites.length} ${sites.length === 1 ? "site waits" : "sites wait"} for a builder`, list: sites });
   const ruins = buildings.filter(b => b.type === "burned");
-  if (ruins.length) out.push({ key: "ruin", sev: 3, text: `${ruins.length} ${ruins.length === 1 ? "ruin" : "ruins"} to rebuild`, list: ruins });
-  if (feastState(townAt(cam.x + canvas.width / zoom / 2, cam.y + canvas.height / zoom / 2)).ok)
+  // and what will become of them: after a raid ten ruins stood listed with no
+  // word that the colony rebuilds on its own once the raiders are gone
+  if (ruins.length) {
+    const n = `${ruins.length} ${ruins.length === 1 ? "ruin" : "ruins"}`;
+    const mending = civs.filter(c => c.task && c.task.kind === "repair").length;
+    const foesIn = raiders.some(r => r.state !== "patrol" && !r.garrison && inTerritory(r.x, r.y));
+    const short = (res.logs || 0) < REPAIR_COST.logs ? `${REPAIR_COST.logs} logs` : (res.dm || 0) < REPAIR_COST.dm ? `${REPAIR_COST.dm} DM` : null;
+    out.push({ key: "ruin", sev: 3, list: ruins,
+      text: foesIn ? `${n}: rebuilt once the raiders are gone`
+          : mending ? `${n}: ${mending} at work rebuilding`
+          : short ? `${n}: each wants ${short} in store`
+          : `${n}: idle hands will rebuild them` });
+  }
+  // (never urged while the larder is short of the winter, which the feast
+  // would eat, nor with raiders in the streets or a roof alight)
+  if (!out.some(i => i.key === "larder" || i.sev <= 1) && feastState(townAt(cam.x + canvas.width / zoom / 2, cam.y + canvas.height / zoom / 2)).ok)
     out.push({ key: "feast", sev: 4, text: "The harvest feast can be held", list: [{ x: CAPITAL_X, y: CAPITAL_Y, open: "govToggle" }] });
-  return out.sort((a, b) => a.sev - b.sev).slice(0, 5);
+  return out.sort((a, b) => a.sev - b.sev);
 }
 const stewardShown = () => !IS_TOUCH && gameState === "playing" && stratAmt() < 0.05;
+// A phone has no room for the list in the corner, and so a phone player was
+// never told the woodpile would not see out the winter. The urgent lines are
+// said once each as a notice instead, when they first come up.
+const stewardTold = new Set();
+function stewardTouch() {
+  if (!IS_TOUCH || gameState !== "playing") return;
+  const items = stewardItems().filter(i => i.key === "wood" || i.key === "larder" || i.key === "starving" || i.key === "unarmed");
+  const keys = new Set(items.map(i => i.key));
+  for (const k of [...stewardTold]) if (!keys.has(k)) stewardTold.delete(k);   // (said again if it comes back)
+  const fresh = items.find(i => !stewardTold.has(i.key));
+  if (fresh) { stewardTold.add(fresh.key); toast(fresh.text + "."); }
+}
 function stewardSync() {
   const box = $("steward"); if (!box) return;
+  stewardTouch();
   const items = stewardShown() ? stewardItems() : [];
-  box.style.display = items.length ? "block" : "none";
+  const next = stewardShown() && gameState === "playing" && tutStep < 0 ? nextAmbition() : null;
+  box.style.display = items.length || next ? "block" : "none";
   box.classList.toggle("low", !settings.minimap);      // (with the map put away, it drops into its place)
   STEWARD.items = items;
-  const html = items.map((it, i) => `<div class="stw sev${it.sev}" data-i="${i}" role="button" tabindex="0">${esc(it.text)}</div>`).join("");
-  if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = `<div class="stwHead">Needs seeing to</div>` + html; }
+  // Four lines at most, worst first. In a bad hour it ran to six and seven and
+  // stood over the minimap; the rest are counted, and come up as the first are
+  // dealt with.
+  const SHOW = 4, more = items.length - SHOW;
+  let html = (items.length ? `<div class="stwHead">Needs seeing to</div>` : "") +
+    items.slice(0, SHOW).map((it, i) => `<div class="stw sev${it.sev}" data-i="${i}" role="button" tabindex="0">${esc(it.text)}</div>`).join("") +
+    (more > 0 ? `<div class="stwMore">and ${more} thing${more === 1 ? "" : "s"} more</div>` : "");
+  if (next) html += `<div class="stwHead stwAimHead">Next ambition</div><div class="stw stwAim" data-amb="1" role="button" tabindex="0">${esc(next.a.name)}: ${next.p.have} of ${next.p.need} ${esc(next.p.unit)}</div>`;
+  if (box.dataset.html !== html) { box.dataset.html = html; box.innerHTML = html; }
 }
 function stewardGo(i) {
   const it = STEWARD.items && STEWARD.items[i]; if (!it) return;
   const k = (STEWARD.rot[it.key] = ((STEWARD.rot[it.key] || 0) + 1)) % it.list.length;
   const o = it.list[k];
-  if (o.open) { if (!isOpen("govPanel")) $(o.open).click(); return; }
+  if (o.open) { if (o.open !== "govToggle" || !isOpen("govPanel")) $(o.open).click(); return; }
   if (civs.includes(o)) { selected = o; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = groupable(o) ? [o] : []; syncUI(); }
   flyTo(o.x, o.y, Math.max(zoom, 0.9), 0.6);
 }
-$("steward").addEventListener("click", e => { const l = e.target.closest(".stw"); if (l) stewardGo(+l.dataset.i); });
+$("steward").addEventListener("click", e => {
+  const l = e.target.closest(".stw"); if (!l) return;
+  if (l.dataset.amb) { chronShowing = "ambitions"; if ($("chronPanel").style.display !== "flex") openChronicle(); chronViewSync(); return; }
+  stewardGo(+l.dataset.i);
+});
 $("steward").addEventListener("keydown", e => { const l = e.target.closest(".stw"); if (l && e.key === "Enter") { e.stopPropagation(); stewardGo(+l.dataset.i); } });
 function toggleMinimap() { settings.minimap = !settings.minimap; saveSettings(); syncSettings(); drawMinimap(); toast(settings.minimap ? "The map in the corner is back. N hides it." : "The map in the corner is put away. N brings it back."); }
 
@@ -9374,7 +9762,7 @@ function renderAmbitions() {
     const row = document.createElement("div");
     row.className = "ambRow " + (year ? "done" : "todo");
     row.innerHTML = `<span class="ambName">${year ? "✦" : "○"} ${esc(a.name)}</span>` +
-                    `<span class="ambWant">${esc(a.want)}</span>` +
+                    `<span class="ambWant">${esc(a.want)}${!year && ambProgress(a) ? ` — ${ambProgress(a).have} of ${ambProgress(a).need}` : ""}</span>` +
                     `<span class="ambYear">${year ? year : ""}</span>`;
     list.appendChild(row);
   }
@@ -9583,6 +9971,107 @@ function renderFolk() {
 // is marked new. Bump it for a change worth a mark on the button and leave it
 // alone for a typo. Dates are the real ones these things landed on.
 const CHANGELOG = [
+  { v: 38, date: "22 November 2026", title: "A list that says what happens next, and a stone that matters",
+    lines: [
+      "The list of what needs seeing to keeps to four lines, worst first, and counts the rest. In a bad hour it ran to seven and stood over the map in the corner.",
+      "Ruins on the list say what will become of them: rebuilt once the raiders are gone, so many at work rebuilding, or what the store is short of. After a raid there used to be ten of them listed and no word that the colony would mend them itself.",
+      "At war with a crown and nobody under arms is on the list now, near the top, and on a phone it comes up as a notice. So is a colony of eight or more with no market to sell in, which is why every tax day came back near empty, and research standing idle while the chest is full.",
+      "The pedlar's advice to build a market comes once a day at most, and only to a colony without one. It was word for word every two and a half hours.",
+      "A gravestone eases the grief of whoever mourns the dead: they grieve half as long once it stands, and take a little heart from it. The burial says so, when there is somebody to ease.",
+    ] },
+  { v: 37, date: "22 November 2026", title: "Something to aim at, and less of other people's wars",
+    lines: [
+      "Under the list of what needs seeing to, the colony's next ambition now stands with its count, the one nearest done: Well Kept, 5 of 10 tax days paid. Click it for the whole list, which shows every ambition's count too. They used to sit behind a button in the chronicle with no word of how near any of them was.",
+      "In the second year every city on the charted map is known, and every siege between two other crowns came up as a notice, about one a game hour. Those sieges now get a notice only when they are near your country or one side is at war with you; the rest go in the chronicle. A picture card for a war that is not yours comes at most once in three hours.",
+      "Turning the scouts away with \"Not yet\" made them ask again in ten minutes, every time. Each refusal now buys a longer quiet: ten minutes, then twenty, then forty.",
+      "Three or more of your people dying within an hour is told as one notice, with their names and what took them, rather than as separate lines nobody adds up.",
+      "The harvest feast is not suggested while raiders are in the streets or a roof is burning.",
+    ] },
+  { v: 36, date: "22 November 2026", title: "Evenings in the square, and no more nights against the wall",
+    lines: [
+      "In a walled town people could spend a whole night pressed against the stone, sidestepping along it with a body to bury or a gate to reach and never getting any nearer. Every sidestep counted as a step, so nobody was ever thought stuck. They are judged by headway now: four seconds without getting nearer and they look for the gate or give it up.",
+      "In the last hour and a half of daylight, those with nothing left to do go where the others are: their own church, the well, the market, the town hall steps. They stand about in twos and threes until dark, then go home from there.",
+      "Everyone who came out of a door was set down on the same doorstep, so the idle stood six to a pair of boots with their names printed through each other. Whoever finds somebody standing in them steps aside, and churchgoers stand before the door rather than on its threshold.",
+    ] },
+  { v: 35, date: "22 November 2026", title: "The first winter can be lived through",
+    lines: [
+      "A first game played exactly as the tutorial said froze in its first winter: every log had gone on the Recruitment Center and the Market, and nothing ever said that the hearths burn wood. The winter step and the winter lesson say so now (a log every half hour, about 39 a winter), the warning before the frost says how many the woodpile holds, and from midsummer the list of what needs seeing to says how far short it is.",
+      "On a phone that list has no room, so its warnings about food and firewood come up once each as a notice.",
+      "Brother and Sister could fall out on the first afternoon and settle it with an axe by nightfall, which ended the game before it began. Quarrels and hard words still happen, but no blood feud starts between the two founders, or in a colony of fewer than four grown people.",
+      "The steps that ask you to build say what the store still lacks (the Wheat Farm wants 3 logs, the Recruitment Center 30) and point at felling until you have it, instead of pointing at a BUILD sheet where the card is greyed out.",
+      "Trading is on the Military Philosophy page of the research tree. The step says so, and the gold ring shows the page and then the node.",
+      "The pointer no longer marks somebody asleep indoors, where a click cannot reach them.",
+      "The harvest feast is not suggested while the larder is short of the winter.",
+      "News from far away no longer covers the sheet of the person you have selected; it waits beside it.",
+      "The lessons on coin and upkeep say the same in a third of the words, and on a phone a long lesson scrolls rather than running over the buttons.",
+    ] },
+  { v: 34, date: "22 November 2026", title: "A lighter frame at every height",
+    lines: [
+      "Saplings were grown only in the woods on the screen, and at the far end of the map that meant raising the forest of half of Europe on every tick: a tenth of a second a frame with the whole continent in view. Saplings are kept in a list of their own now, and the tick is back to a couple of milliseconds. A sapling planted out of sight grows now too; before, it waited for you to look at it.",
+      "The map is drawn with the plain filter while it is being blown up, which is the whole of the colony's end of the zoom. The careful one cost a third of the frame there for nothing anyone could see. The map view in particular draws in about a third of the time it did.",
+      "Only the part of the map on the screen is copied, and the grass is laid as one pattern rather than seventeen hundred tiles at the height where the ground gives way.",
+      "From high up, each patch of woods is drawn once and laid down whole, and drawn again only when a tree in it falls or grows or the season turns.",
+    ] },
+  { v: 33, date: "22 November 2026", title: "The first steps point the way",
+    lines: [
+      "The opening steps now point at what they ask for: a gold mark over the nearest spruce, the tuft of grass, the burnt cabin, the farm, and a gold ring round the button to press. Somebody who has never played no longer has to guess which of forty trees is a spruce.",
+      "If a step has gone a while without getting anywhere, one more short line says what is usually missed: select someone first, set the other one felling too, the Deposit button is at the foot of the sheet.",
+      "The steps say what they need in fewer words. The talk about money, taxes and winter is half as long and says the same.",
+      "The burnt cabin waits for your order while the tutorial is teaching you to give it; nobody rebuilds it for you before you get the chance.",
+      "News of crowns at war a thousand miles away waits in the chronicle during the first steps, instead of covering the colonist's sheet.",
+      "From the middle of summer, the list of what needs seeing to says when the larder will not last the winter, and how far short it is.",
+    ] },
+  { v: 32, date: "22 November 2026", title: "Burned cabins raised again, and raiders you can tell from your own",
+    lines: [
+      "A cabin burned in a raid used to stand black until you ordered it mended. Now an idle hand with nothing better to do sets about rebuilding it, if the stores hold the logs, and the chronicle says who. If there is no door in the store, one is hewn first.",
+      "When a hewn door is finished it is marked over the man who made it.",
+      "The warning of a raid says which way they are coming from and which town they are making for.",
+      "Raiders on the attack wear a red ring under them, and one carrying off your coin says how much.",
+      "The Build sheet sits below the tutorial's instructions now instead of on top of them.",
+    ] },
+  { v: 31, date: "22 November 2026", title: "The map and the menu on a phone",
+    lines: [
+      "On a phone the whole of Europe sat in the lower two thirds of the screen under a band of bare margin. The map keeps to the sheet now, on a phone or anywhere it is narrower than the view.",
+      "On a phone the compass rose stands in the top corner, clear of the bar and the notices, and a tap on it opens the key to the map (and closes it). On a computer, a click does the same as resting the pointer there.",
+      "The bar that says how high you are moves under the top bar on a phone, where the notices along the bottom cannot run into it. With a city's sheet open, the notices move up out of the way of its buttons.",
+      "The pad of round buttons on a phone sat on top of a city's March and Send buttons and took the taps meant for them. The sheet keeps clear of the pad now, as the other sheets do.",
+      "The map's hints say tap, not click, on a phone.",
+      "On a phone the main menu ran underneath the card for Reckoning, hiding the version line. The menu starts nearer the top now.",
+    ] },
+  { v: 30, date: "22 November 2026", title: "A felled tree falls, a beaten raid is called beaten, and a wound shows",
+    lines: [
+      "A tree no longer vanishes on the last stroke. It leans, goes over away from the man who felled it, and lands in a puff of needles, or of snow in winter.",
+      "A raider cut down lies where he fell for a few seconds before the woods take him.",
+      "A raid used to end in silence. When the last raider is cut down or slips away, the colony is told how it went: how many fell, and what they got away with. The Chronicle keeps it too.",
+      "A wound shows on the bar over a man's head: green while it is a scratch, ochre when it is serious, red when the next blow may be the last. It was one dark red on dark grass at every health.",
+      "The arrows at the screen's edge that point to raiders out of sight keep to the part of the screen nothing covers. With a person's panel open, the arrow for raiders coming from the east was drawn underneath it.",
+      "Handing goods to the store says what was handed over (\"5 logs, 2 seeds\", not \"7 item(s)\") and marks it over the store.",
+      "A blow's damage is shown as a whole number.",
+      "After a bad raid the colony could starve beside a full store: meals were only taken between jobs, and survivors going from one burial to the next, or soldiers from one post to another, were never between jobs. Anyone truly hungry now eats on the way, unless they are in a fight.",
+      "A man burnt out of his cabin was rehoused only when he had nothing to do, so a busy one froze in the open with empty cabins nearby. When the cold starts to bite, he looks for a roof first.",
+      "A horseman, or anyone quick, could pace back and forth across his own doorstep without ever reaching it when the game ran slowly, and freeze twelve paces from his door. Nobody walks past the spot they are making for now.",
+      "The atlas round the capital was charted again every second and a half, four thousand leagues of it under Mercator. It is charted once, and again only when a new chart is bought.",
+    ] },
+  { v: 29, date: "22 November 2026", title: "Winter on the map, and the corner map drawn as a chart",
+    lines: [
+      "Winter comes to the atlas as it comes to the woods. Snow lies on the land, thickest in the north, its southern edge broken and wandering. The far northern coasts freeze a little way out, every hill wears a cap, and the woods, the hills and the rivers stand up out of it. It comes on over the first days of winter and goes over the last.",
+      "The map in the corner is drawn by the same hand as the atlas: laid paper, your ground washed in your colour inside an inked line, the woods as little marks, your buildings, people and roads, the camps and raiders in red, and blank paper wherever the world has not yet been walked. It whitens in winter too.",
+      "At night the darkness lay over the map as it came up through the ground, so the chart was ink on black. It eases off as the map takes the screen.",
+    ] },
+  { v: 28, date: "20 November 2026", title: "The atlas drawn finer wherever you look closely, and a column's last known place left on the paper",
+    lines: [
+      "The finer sheet that came up as you came down over your own country now follows you. Settle over Italy, or Muscovy, and a moment later that country is drawn as finely, with the coarse sheet standing in until it is ready.",
+      "The frontiers ran in steps a league square, your own ground most of all. Each is shared out by weight between the leagues either side of it now, so it rounds off the way the old borders do, and its line is drawn with a soft edge instead of in stairs.",
+      "From just above your roofs the chart's woods were dark blots over the real trees. They fade away as you come down.",
+      "When an enemy column passes out of sight, a pennant in outline stays where it was last seen, fading as the news goes stale.",
+      "A scout's reach is ruled round him in a dotted circle, and the road every column has still to walk carries chevrons pointing the way it is going.",
+      "The Alps, the Pyrenees and the Caucasus are drawn as peaks. Ladoga, Onega, Peipus, Geneva, Constance, Balaton, Vänern and Vättern are on the map, and left uncoloured as water is. The rhumb lines run on across the open sea, and the Tyrrhene and Ionian seas and the Gulph of Lyon are named.",
+      "The rhumb lines meet at small compass roses out on the open water, as on a sea chart. The great ranges are named, and so are the Free Woods round your home.",
+      "Resting the pointer on a crown's ground picks out its name, as choosing it does. Rest it on the compass rose and the map explains its marks in a box beside it.",
+      "The margin past the edge of the sheet is a shade darker, so the sheet reads as a sheet.",
+      "A crown's name moved out of its way by a town's no longer lands in a neighbour's country.",
+      "A window with no size (minimised, or a hidden tab) threw an error every frame the map was up.",
+    ] },
   { v: 27, date: "18 November 2026", title: "The map drawn as an atlas of the day, and the edge of what you know left as blank paper",
     lines: [
       "The country seen from a height is an atlas of the period now. The coasts are inked, with the engraver's ripples running out from them. Each crown is washed in its colour, with the stronger band along its frontier that the colourists laid on. The mountains are rows of little shaded hills, the woods stand in clumps, the great rivers run to the sea, and all of it is lettered in the types of the day.",
@@ -10236,7 +10725,7 @@ function saveGame() {
       empireName, territoryColor, borderColor, uniformColor,
       territory: [...territory],
       roads: [...roads],
-      sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), tutStep, colonyYear, vigSeen,
+      sackedCamps, playT: r1(playT), nextSettleAt: r1(nextSettleAt), settleDeclines, tutStep, colonyYear, vigSeen,
       // without these a reload re-teaches winter, plague and the rest from scratch
       lessonSeen, lessonQueue, lessonsOff,
       worldLabel,                   // the country itself; absent means the original forest
@@ -10421,7 +10910,7 @@ function loadGame() {
     for (const cd of d.camps) camps.push({ ...cd });
     raiders.length = 0; visitors.length = 0; floaters.length = 0; balls.length = 0;
     selected = null; selectedBldg = null; selectedCamp = null; selectedGrave = null; selGroup = [];
-    chunks.clear();
+    chunks.clear(); growing.clear();
     for (const [k, ch] of (d.chunks || [])) {
       if (ch && ch.trees) {
         // legacy save: whole forests were written out. Keep them, but mark where
@@ -10430,6 +10919,7 @@ function loadGame() {
         ch.wild = { t: Math.min(base.trees.length, ch.trees.length), s: ch.stones.length, p: ch.patches.length };
         ch.dirty = true;
         chunks.set(k, ch);
+        for (const t of ch.trees) if (t.alive && t.growth < 1) growing.add(t);
       } else if (ch) applyChunkDelta(k, ch);
     }
     empireName = d.empireName || "";
@@ -10443,6 +10933,7 @@ function loadGame() {
     if (!territory.size) { expandAround(0, -40, 2); for (const b of buildings) expandAround(b.x, b.y, 1); }
     sackedCamps = d.sackedCamps || 0; playT = d.playT || 0;
     nextSettleAt = d.nextSettleAt === undefined ? SETTLE_FIRST : d.nextSettleAt;
+    settleDeclines = d.settleDeclines || 0;
     tutStep = d.tutStep === undefined ? -1 : d.tutStep;
     colonyYear = d.colonyYear || 1683;
     plagueT = d.plagueT !== undefined ? d.plagueT : 600 + Math.random() * 600;
@@ -10725,51 +11216,144 @@ $("cutscene").addEventListener("click", () => {
 // panels pause the game, and a paused game used to freeze the tutorial solid.
 let tutStep = -1;
 const tutSeen = { map: false, gov: false, tech: false, talked: false };
+// The steps that ask for something in the world also point at it: a gold mark
+// over the nearest spruce, the ruin, the tuft of grass, or a ring round the
+// button to press. A first-timer does not know which of forty trees is a
+// spruce, and the step used to say so only in words. `aim` gives the world
+// point or the button; `stall` is one more line, offered only once the player
+// has been on the step a while without getting anywhere.
+const tutNearest = (list, x, y) => {
+  let best = null, bd = 1e18;
+  for (const t of list) { const d = (t.x - x) ** 2 + (t.y - y) ** 2; if (d < bd) { bd = d; best = t; } }
+  return best;
+};
+const tapW = () => IS_TOUCH ? "tap" : "click";
+const tutCiv = () => (selected && civs.includes(selected)) ? selected : null;
+// (somebody you can actually click: not asleep behind a door)
+const tutOut = c => !c.child && !c.afield && !INDOORS.has(c.state);
+const tutHand = () => tutCiv() || civs.find(tutOut) || null;
+const tutHewing = () => civs.some(c => c.task && c.task.kind === "craft");
+const tutChopping = () => civs.filter(c => c.task && c.task.kind === "chop").length;
+function tutSpruce() {
+  const w = tutHand(); if (!w) return null;
+  return tutNearest(nearThings("trees", w.x, w.y, 700)
+    .filter(t => t.alive && t.growth >= 1 && TREE_NAME[treeKind(t)] === "spruce"), w.x, w.y);
+}
+function tutGrass() {
+  const w = tutHand(); if (!w) return null;
+  return tutNearest(nearThings("patches", w.x, w.y, 700).filter(p => p.alive), w.x, w.y);
+}
+// logs wanted in store: a full pack is handed in, an idle pair of hands is set felling
+function tutLogsAim() {
+  const full = civs.find(c => (c.inv.logs || 0) >= 4 && !(c.task && c.task.kind === "chop"));
+  if (full) return tutCiv() === full ? "#cpDeposit" : full;
+  if (tutChopping() >= Math.min(2, civs.length)) return null;
+  // somebody idle to set felling: point at them first, then at the tree
+  const sel = tutCiv(), busy = c => c.task && c.task.kind === "chop";
+  if (sel && !busy(sel)) return tutSpruce();
+  return civs.find(c => tutOut(c) && !busy(c)) || null;
+}
+const tutLogsStall = () => tutChopping() < Math.min(2, civs.length)
+  ? `It goes twice as fast with both of them felling: select the other one and ${tapW()} a spruce too.`
+  : IS_TOUCH ? "When a pack is full, select them and press Deposit." : "When a pack is full, select them and press Deposit (or G).";
+// what a building still wants from the store, said in the step itself: the
+// pointer at BUILD led a new player to a greyed card and no word of why
+function tutShort(type) {
+  const c = costOf(type) || {};
+  for (const k of ["logs", "stone", "seeds", "dm"]) if (c[k] && (res[k] || 0) < c[k]) return { k, need: c[k], have: Math.floor(res[k] || 0) };
+  return null;
+}
+const tutShortText = type => {
+  const s = tutShort(type); if (!s) return "";
+  const what = s.k === "dm" ? "DM" : s.k;
+  return ` It wants ${s.need} ${what} in store; you have ${s.have}.` + (s.k === "logs" ? " Fell and deposit first." : "");
+};
+const tutBuildAim = type => { const s = tutShort(type); if (s) return s.k === "logs" ? tutLogsAim() : null; return buildMode || sheetOpen("buildSheet") ? null : "#buildToggle"; };
+const sheetOpen = id => $(id) && $(id).style.display && $(id).style.display !== "none";
 const TUT_STEPS = [
   { text: () => "That burnt cabin was here long before you were — whoever raised it is gone. Start by clicking your Brother or Sister to select them.",
+    aim: () => civs.find(c => !c.child) || null,
+    stall: () => "They are the two figures by the cabin, under the gold mark.",
     done: () => !!selected },
   { text: () => IS_TOUCH
-      ? "That is how every order is given: pick someone, then tap the thing you want done. Press and hold a moment before letting go and a plaque tells you what the tap will do. With them still picked, tap a spruce tree to fell it."
-      : "That is how every order is given: pick someone, then click the thing you want done. Right-click cancels. With them still selected, click a spruce tree to fell it.",
+      ? "Every order works that way: pick someone, then tap what you want done. Hold a moment before letting go and a plaque says what the tap will do. Now tap a spruce, one of the dark pointed trees, to fell it."
+      : "Every order works that way: pick someone, then click what you want done. Right-click cancels. Now click a spruce, one of the dark pointed trees, to fell it.",
+    aim: () => tutChopping() ? null : (tutCiv() ? tutSpruce() : tutHand()),
+    stall: () => tutCiv() ? "The gold mark is over the nearest spruce." : "Select someone first, then the tree.",
     done: () => civs.some(c => c.inv.logs > 0) || res.logs > 0 },
   { text: () => "Logs ride in their pack, where the town cannot use them. Select the woodcutter and press \"Deposit goods to town storage\".",
+    aim: () => { const w = civs.find(c => c.inv.logs > 0); return !w ? null : tutCiv() === w ? "#cpDeposit" : w; },
+    stall: () => IS_TOUCH ? "Tapping the woodcutter opens their sheet; the Deposit button is in it." : "Clicking the woodcutter opens their sheet; the Deposit button is at its foot. G does the same.",
     done: () => res.logs > 0 },
   { text: () => `Keep felling and depositing until the store holds 5 logs. (${Math.min(5, res.logs)}/5)`,
+    aim: tutLogsAim, stall: tutLogsStall,
     done: () => res.logs >= 5 },
-  { text: () => "A cabin needs a door. Open CRAFT ▾ and order one — 5 logs, and your civilian will hew it.",
+  { text: () => "A cabin needs a door. With someone selected, open CRAFT ▾ and order one — 5 logs, and they hew it.",
+    aim: () => tutHewing() ? null : !tutCiv() ? tutHand() : $("craftDrop").classList.contains("open") ? "#miDoor" : "#craftToggle",
+    stall: () => tutHewing() ? "" : tutCiv() ? "CRAFT ▾ is on the bar along the bottom." : "Select someone first: they do the hewing.",
     done: () => res.doors >= 1 },
   { text: () => `Rebuilding takes 20 logs in store. Fell and deposit until you have them. (${Math.min(20, res.logs)}/20)`,
+    aim: tutLogsAim, stall: tutLogsStall,
     done: () => res.logs >= 20 },
-  { text: () => "Now, with a civilian selected, click the burnt cabin to order the repair. That is your first roof.",
+  { text: () => "Now, with someone selected, click the burnt cabin to order the repair. That is your first roof.",
+    aim: () => civs.some(c => c.task && c.task.kind === "repair") ? null
+      : tutCiv() ? buildings.find(b => b.type === "burned") || null : tutHand(),
+    stall: () => `Select someone, then ${tapW()} the blackened cabin under the gold mark.`,
     done: () => !buildings.some(b => b.type === "burned") },
-  { text: () => "Wheat next. With a civilian selected, click a tuft of wild grass to gather seeds, deposit them, then press BUILD and lay out a Wheat Farm. Bread comes later, out of a bakery, once somebody has learned to bake.",
+  { text: () => res.seeds >= farmSeedCost()
+      ? `Wheat next. You have the seed: press BUILD and lay out a Wheat Farm.` + tutShortText("farm")
+      : `Wheat next. With someone selected, click a tuft of wild grass to gather seeds, and deposit them. A farm takes ${farmSeedCost()}. (${Math.min(farmSeedCost(), res.seeds)}/${farmSeedCost()})`,
+    aim: () => {
+      if (res.seeds >= farmSeedCost()) return tutBuildAim("farm");
+      const w = civs.find(c => (c.inv.seeds || 0) >= 2 && !(c.task && c.task.kind === "gather"));
+      if (w) return tutCiv() === w ? "#cpDeposit" : w;
+      return tutCiv() ? tutGrass() : tutHand();
+    },
+    stall: () => res.seeds >= farmSeedCost() ? (tutShort("farm") ? (tutShort("farm").k === "logs" ? tutLogsStall() : "DM comes in on tax day, from the housed, and from the pedlar who calls.") : `The Wheat Farm is on the BUILD sheet; ${tapW()} it, then ${tapW()} open ground.`)
+      : "Wild grass is the pale tufts; the gold mark is over the nearest.",
     done: () => farms.length > 0 },
-  { text: () => "Fields need hands. Select someone, use Recruit ▾ to make them a Farmer, then click the farm to assign them — they will tend it from then on.",
+  { text: () => "Fields need hands. Select someone, use Recruit ▾ to make them a Farmer, then click the farm to put them on it.",
+    aim: () => {
+      const farmer = civs.find(c => c.profession === "farmer");
+      if (farmer) return tutCiv() === farmer ? farms.find(f => !f.workers.length) || null : farmer;
+      if (!tutCiv()) return tutHand();
+      return $("recruitDrop").classList.contains("open") ? '#recruitMenu [data-prof="farmer"]' : "#recruitToggle";
+    },
+    stall: () => civs.some(c => c.profession === "farmer") ? `Select the farmer, then ${tapW()} the field.` : "Recruit ▾ is near the foot of the selected person's sheet.",
     done: () => farms.some(f => f.workers.length > 0) },
-  { text: () => "Two hands will not build a colony. Press BUILD and lay out a Recruitment Center — wanderers come out of the woods to any colony that has one, and it is the only way your numbers grow beyond the children born here.",
+  { text: () => "Two pairs of hands will not make a colony. Press BUILD and lay out a Recruitment Center: wanderers come out of the woods to it, and it is the only way your numbers grow beyond the children born here." + tutShortText("recruit"),
+    aim: () => tutBuildAim("recruit"),
+    stall: () => { const s = tutShort("recruit"); return !s ? `The Recruitment Center is on the BUILD sheet; ${tapW()} it, then open ground.` : s.k === "logs" ? tutLogsStall() : "DM comes in on tax day, from the housed, and from the pedlar who calls."; },
     done: () => buildings.some(b => b.type === "recruit") },
-  { text: () => "When a wanderer arrives, click them and talk. Win them over and they stay; press too hard and they walk back into the trees. Every soul you keep is another pair of hands.",
+  { text: () => "When a wanderer arrives, click them and talk. Win them over and they stay; press too hard and they walk back into the trees.",
+    aim: () => visitors.find(v => !v.leaving) || null,
     done: () => civs.length > 2 || tutSeen.talked },
-  { text: () => "You cannot raise a market until somebody knows how to keep one. Press RESEARCH on the bar along the bottom and take up Trading — every technology is paid for in DM and in time, and four trees run from sharper axes to battle steel and out to the far edge of the map.",
+  { text: () => "You cannot raise a market until somebody knows how to keep one. Press RESEARCH and take up Trading, on the Military Philosophy page. Every technology costs DM and time.",
+    aim: () => !sheetOpen("techPanel") ? "#techToggle"
+      : document.querySelector('#techPanel .tnode[data-tech="trading"]') ? '#techPanel .tnode[data-tech="trading"]' : "#tabMilitary",
     done: () => has("trading") || (research && research.id === "trading") },
   { text: () => has("trading")
-      ? "Now press BUILD and raise a Market Center. It sells your surplus for DM, and DM is what pays for the next thing you learn."
-      : "The scholars are at it. When Trading is known the Market Center will appear on the BUILD screen — nothing that has not been researched is offered there.",
+      ? "Now press BUILD and raise a Market Center. It sells your surplus for DM, and DM pays for the next thing you learn." + tutShortText("market")
+      : "The scholars are at it. When Trading is known, the Market Center appears on the BUILD sheet.",
+    aim: () => has("trading") ? tutBuildAim("market") : null,
+    stall: () => { const s = has("trading") && tutShort("market"); return !s ? "" : s.k === "logs" ? tutLogsStall() : "DM comes in on tax day, from the housed, and from the pedlar who calls."; },
     done: () => buildings.some(b => b.type === "market") },
   // The single thing a new player most needs and is least likely to work out:
   // where money actually comes from. A colony can be spent into a corner it
   // cannot climb out of, and this is the step that stops that happening.
-  { text: () => "That is the whole circle of money, and it is worth knowing before you spend again. A colonist who has more bread or meat than they need carries the surplus to the MARKET and comes back with DM in their own purse. On tax day, part of that purse becomes your treasury. The treasury is what pays for research, buildings, training and wages. So the market is not a convenience — it is the only reason anyone in the colony has a coin at all, and a colony without one has nothing to tax however high you set the rate.",
+  { text: () => "Where coin comes from: a colonist with more bread or meat than they need sells it at the MARKET and keeps the DM. On tax day part of their purse comes to you. No market, no coin, and nothing to tax.",
     ack: true, done: () => false },
-  { text: () => "Two things that catch people out. A farmer pays for their own field out of their OWN purse, so a colony of nothing but farms has empty pockets and an empty tax day. And nothing you raise is free to keep: every market, bakery, well, forge, mine and watchtower costs DM on every tax day, whether or not anyone works it. Always keep enough back to afford the next thing you actually need.",
+  { text: () => "Two traps. A farmer pays for their own field out of their own purse. And every market, bakery, well, forge, mine and watchtower costs DM each tax day, worked or not. Keep enough back for the next thing you need.",
     ack: true, done: () => false },
-  { text: () => "Open the GOVERNMENT panel. Taxes are set there, and housed residents pay on the countdown in the top bar. Fair taxes keep people fed and loyal; greed breeds rebels. The same panel totals what your colony costs to keep, so you can see the bill before it falls due.",
+  { text: () => "Open GOVERNMENT. Taxes are set there, and housed people pay when the countdown in the top bar runs out. Fair taxes keep them loyal. It also adds up what the colony costs to keep.",
+    aim: () => "#govToggle",
     done: () => tutSeen.gov },
-  { text: () => `Winter is the test. The fields sleep from the first frost, nothing grows, and anyone without a roof over them dies of the cold. Everything you eat in winter is what you stored before it. Keep the larder ahead of the season and keep building cabins${res.bread + res.meat > 0 ? "" : " — you have nothing in store yet"}.`,
+  { text: () => `Winter is the test. From the first frost nothing grows, and anyone without a roof freezes. You eat what you stored before it, and the hearths burn a log every half hour, about ${winterFuel()} over a winter. Keep the larder full and the woodpile high${res.bread + res.meat > 0 ? "" : " — you have no food in store yet"}.`,
     ack: true, done: () => false },
-  { text: () => "Press MAP, or simply scroll the wheel back. The ground gives way to the country: your land in your own colour, the crowns of Europe around it, and every column on every road between them. Cartography, on the Exploration tree, lifts the eye further.",
+  { text: () => "Press MAP, or scroll the wheel back. The ground gives way to the country: your land in your colour, the crowns of Europe around it, and every column on the roads between.",
+    aim: () => "#mapToggle",
     done: () => tutSeen.map },
-  { text: () => "Last thing, and then the woods are yours. PEOPLE lists every soul, their trade, their mood and their health — it is the first place to look when something is wrong. CHRONICLE keeps everything that has ever happened here. And the order of business from here is roughly: keep them fed, get everyone under a roof before winter, raise a wall before the raiders find you, and push the research that opens the next trade. Nothing else is on a timer.",
+  { text: () => "That is the start. PEOPLE lists everyone and how they are; CHRONICLE keeps what has happened. From here: feed them, roof them before winter, wall the town before raiders come, and keep researching.",
     ack: true, done: () => false },
 ];
 
@@ -10786,10 +11370,10 @@ const TUT_STEPS = [
 // twice, and a player who skipped the tutorial is not taught at all.
 const LESSONS = {
   comfort: "A Well is cheap and the colony is happier for it — and when plague comes, clean water keeps more of them on their feet. A Bakery turns your wheat into bread, and a Town Hall lets folk stock the stores without being told. Raise them when you can spare the logs.",
-  upkeep: () => `⚖ Nothing you raise is free to keep. On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended — the market, the bakery, the well, the forge, the recruitment center, the watchtower, the jail, the hospital, the town hall, and every quarry, mine, sawmill and smelter — whether or not anyone is working it. Cabins, walls, lamps and farms cost nothing once they stand. An army is a standing choice against a hospital. If the treasury cannot pay, unpaid men lose heart and the works go untended: disband someone, pull something down, or raise the tax. The GOVERNMENT panel shows the whole bill.`,
-  income: () => `\ud83e\ude99 COIN COMES FROM OUTSIDE THE COLONY. Taxes do not make money — they move a colonist's own coin into the treasury, and a colonist only has coin because they sold something. Until you raise a MARKET they have nowhere to sell, so the tax comes back empty however high you set it. Research TRADING (${techCost(TECH.trading)} DM), then build the Market (${STATIC_COSTS.market.logs} logs, ${STATIC_COSTS.market.dm} DM): your people will carry spare bread and meat to it and come back with silver you can tax. Keep enough back to afford both. And note that a farm is paid for out of the farmer's OWN purse — a colony of nothing but fields has nothing left in its pockets to tax. Meanwhile a pedlar will call every few minutes and buy what you can spare, logs included; that is a floor, not a living.`,
+  upkeep: () => `⚖ On every tax day the treasury pays ${WAGE} DM to each man under arms and ${CIVIC_UPKEEP} DM to each work that must be tended (market, bakery, well, forge, mines and the like), worked or not. Cabins, walls, lamps and farms cost nothing once they stand. If the treasury cannot pay, the works go untended. The GOVERNMENT panel shows the whole bill.`,
+  income: () => `Taxes do not make money; they take a share of what your people earned by selling. Until there is a MARKET they have nowhere to sell, and tax day comes back empty. Research TRADING (${techCost(TECH.trading)} DM), then build the Market (${STATIC_COSTS.market.logs} logs, ${STATIC_COSTS.market.dm} DM). Meanwhile a pedlar calls every few minutes and buys what you can spare.`,
   trade: "On the map you can send an envoy to a peaceful neighbour and talk their court into a trade route — gifts help, threats do not. Caravans then bring coin and goods to your gate.",
-  winter: "❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but the homeless simply die in the snow. Build roofs before riches.",
+  winter: () => `❄ Winter comes every year. The fields sleep and the cold kills: anyone left outside too long freezes. Housed folk duck indoors to warm themselves, but only while the hearths burn, and they burn a log from the store every half hour, about ${winterFuel()} a winter. The homeless simply die in the snow. Roofs and firewood before riches.`,
   raid: "⚔ Raiders come for your stores, and they come at night. Research Defending for walls and gates, and keep a watchtower to see them coming.",
   plague: "☠ Plague walks the towns of Europe — and it does not check your borders. The stricken work badly, waste away, and some do not rise again; it passes on its own in time. Wells keep more of them standing, and the fed and the housed weather it best. A skilled hand lost to fever is not quickly replaced.",
   hospital: "☤ The answer to it is a Hospital — which wants the Physick technology first, on the Growth tree — and then 25 logs, 8 stone and 14 DM and a Doctor (select a civilian, Recruit ▾ — 30 DM). Doctors go out on their own, carry the fever-struck and the badly hurt back on a stretcher, and lay them in a bed: the wasting stops, the fever burns out four times faster, and wounds close. Four beds to a hospital, and patients eat from your stores. To mend a wounded soldier, select them and press Heal and they will walk to a bed. A housed, fed man knits a little back together sleeping in his own bed, but it is slow, and it will not touch a fever.",
@@ -10882,8 +11466,19 @@ function publishBannerHeight() {
   document.documentElement.style.setProperty("--fx-tut-b", y + "px");
 }
 
+// how long the player has been on this step, and what the step points at now
+let tutStallT = 0, tutAimT = 0, tutAimNow = null, tutAimEl = null;
+function tutSetAim(a) {
+  tutAimNow = a && typeof a === "object" ? a : null;
+  const el = typeof a === "string" ? document.querySelector(a) : null;
+  if (el === tutAimEl) return;
+  if (tutAimEl) tutAimEl.classList.remove("tutAim");
+  tutAimEl = el;
+  if (el) el.classList.add("tutAim");
+}
 function tutAdvance() {
   tutStep++;
+  tutStallT = 0; tutAimT = 0; tutSetAim(null); $("tutStall").style.display = "none";
   SFX.pickup();
   if (tutStep >= TUT_STEPS.length) { tutStep = -1; $("tutBanner").style.display = "none"; publishBannerHeight(); lesson("closing"); }
 }
@@ -10893,6 +11488,7 @@ function updateTutorial(dt) {
   if (!lessonSeen.soldiers && civs.filter(groupable).length >= 2) lesson("soldiers");
   keepFileWatch();                  // twenty minutes in, if they have never kept a file
   if (tutStep >= TUT_STEPS.length) tutStep = -1;
+  if (gameState !== "playing" || tutStep < 0) { tutSetAim(null); $("tutStall").style.display = "none"; }
   if (gameState !== "playing") { banner.style.display = "none"; publishBannerHeight(); return; }
   // The opening sequence has the floor while it lasts; lessons wait behind it.
   if (tutStep < 0) {
@@ -10911,6 +11507,17 @@ function updateTutorial(dt) {
   // Most steps are finished by doing the thing. Some are worth simply reading:
   // those carry ack, show the button, and wait to be dismissed.
   $("tutNext").style.display = st.ack ? "inline-block" : "none";
+  // the pointer, worked out a few times a second rather than every frame
+  tutStallT += dt;
+  tutAimT -= dt;
+  if (tutAimT <= 0) {
+    tutAimT = 0.25;
+    tutSetAim(st.aim ? st.aim() : null);
+    const nudge = st.stall && tutStallT > 35 ? st.stall() : "";
+    const box = $("tutStall");
+    if (box.textContent !== nudge) box.textContent = nudge;
+    box.style.display = nudge ? "block" : "none";
+  }
   publishBannerHeight();
   if (!st.ack && st.done()) tutAdvance();
 }
@@ -10925,7 +11532,7 @@ $("tutNext").addEventListener("click", () => {
 });
 // Skipping means skipping: no opening steps, and no lessons later either.
 $("tutSkip").addEventListener("click", () => {
-  tutStep = -1; lessonsOff = true; lessonQueue.length = 0;
+  tutStep = -1; lessonsOff = true; lessonQueue.length = 0; tutSetAim(null); $("tutStall").style.display = "none";
   $("tutBanner").style.display = "none"; publishBannerHeight();
   toast("The woods will teach you the rest.");
 });
@@ -11762,9 +12369,13 @@ function simStep(dt) {
     if (total > 0) SFX.coin();
   }
 
-  for (const ch of visibleChunks(CHUNK * 2))
-    for (const t of ch.trees)
-      if (t.alive && t.growth < 1) t.growth = Math.min(1, t.growth + dt / (SAPLING_GROW * (has("replanting") ? 0.5 : 1)));
+  if (growing.size) {
+    const rate = dt / (SAPLING_GROW * (has("replanting") ? 0.5 : 1));
+    for (const t of growing) {
+      if (t.alive && t.growth < 1) t.growth = Math.min(1, t.growth + rate);
+      if (!t.alive || t.growth >= 1) { growing.delete(t); markChunkDirty(t.x, t.y); }
+    }
+  }
   // A warning while there is still time to act on it. The frost used to arrive
   // unannounced, and the first anyone heard of a cabin short was the first man
   // frozen in the street. Eight hours before it falls, the colony is told what
@@ -11776,11 +12387,12 @@ function simStep(dt) {
       const food = (res.bread || 0) + (res.meat || 0) + here.reduce((n, c) => n + (c.inv.bread || 0) + (c.inv.meat || 0), 0);
       const days = food / Math.max(1, here.length * HUNGER_PER_DAY / 35);
       const winterDays = (YEAR - WINTER_AT) / DAY;
-      const fed = days >= winterDays, bad = roofless > 0 || !fed;
+      const fed = days >= winterDays, wood = res.logs >= winterFuel(), bad = roofless > 0 || !fed || !wood;
       notify({ icon: "❄", cls: bad ? "bad" : "you", text: "Winter comes in eight hours.",
                sub: (roofless ? `${roofless} without a roof. ` : "Everyone has a roof. ") +
                     (fed ? "The larder holds out the whole winter."
-                         : `${days * 24 < 1 ? "Nothing in the larder" : `Food for ${Math.floor(days * 24)} hours`}; the winter lasts ${Math.round(winterDays * 24)}.`),
+                         : `${days * 24 < 1 ? "Nothing in the larder" : `Food for ${Math.floor(days * 24)} hours`}; the winter lasts ${Math.round(winterDays * 24)}.`) +
+                    (wood ? "" : ` The hearths burn ${winterFuel()} logs over the winter, and the woodpile holds ${Math.floor(res.logs)}.`),
                x: CAPITAL_X, y: CAPITAL_Y, z: Math.max(zoomFloor(), 0.6) });
     } }
   if (season() !== lastSeason) {
@@ -11991,6 +12603,7 @@ function simStep(dt) {
   for (const b of buildings) if (b.climbP) b.climbP = 0;   // climbers re-assert it below
   for (const f of foreign) if (f.climbP) f.climbP = 0;
   for (const r of [...raiders]) updateRaider(r, dt);
+  raidOver();
   // a ball flies straight from the muzzle: it does not chase, and it can miss.
   // it moves faster than a frame is long, so test the whole path it swept, not
   // just where it landed — otherwise a point-blank shot passes clean through.
@@ -12066,6 +12679,17 @@ function simStep(dt) {
       else if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); }
       else eatFromStores(c);
     }
+    // And nobody starves for being busy. Meals were taken only between jobs, so
+    // after a bad raid, when the survivors went from one burial to the next and
+    // the soldiers from one post to another without ever standing idle, the whole
+    // colony starved beside a full store. Truly hungry, a man eats on the way —
+    // unless he is in a fight.
+    else if (c.hunger < 12 && c.state !== "fighting" && c.state !== "sieging" && !INDOORS.has(c.state)) {
+      if (c.inv.bread > 0) { c.inv.bread--; eat(c, "bread"); }
+      else if (c.inv.meat > 0) { c.inv.meat--; eat(c, "meat"); }
+      else if (c.inv.wheat > 0) { c.inv.wheat--; eat(c, "wheat"); }
+      else eatFromStores(c);
+    }
     if (c.hunger <= 0) {
       c.hp -= STARVE_DPS * dt;
       if (c.hp <= 0) { killCiv(c, "starved to death"); continue; }
@@ -12136,6 +12760,12 @@ function simStep(dt) {
       }
     } else { c.coldT = 0; c.coldWarned = false; }
 
+    // A man burnt out of his cabin was only ever rehoused between jobs, and a
+    // busy one never was: he froze in the open with empty cabins across the
+    // square. When the cold starts to bite he looks for a roof first.
+    if (season() === "winter" && !c.home && !c.rebel && !c.child && c.coldT > 60 &&
+        !["fighting", "sieging"].includes(c.state) && houseCiv(c, c.x, c.y))
+      toast(`${c.name}, cold and without a roof, takes an empty cabin.`);
     // housed folk duck inside to warm up before the cold turns deadly —
     // dropping their work if the frost is close on their heels
     if (season() === "winter" && c.home && !c.rebel &&
@@ -12314,7 +12944,11 @@ function simStep(dt) {
         }
       }
       else {
-        collideMove(c, c.x + (dx / d) * speed * dt, c.y + (dy / d) * speed * dt, dt);
+        // never a stride past the mark: a horseman covers fifteen pixels in a
+        // slow frame, the doorstep is five wide, and he paced back and forth
+        // across it until the cold took him twelve pixels from his own door
+        const stride = Math.min(speed * dt, d);
+        collideMove(c, c.x + (dx / d) * stride, c.y + (dy / d) * stride, dt);
         c.facing = dx < 0 ? -1 : 1;
         c.anim += dt * 8;
         c.stepT = (c.stepT || 0) - dt;
@@ -12334,6 +12968,9 @@ function simStep(dt) {
         t.alive = false; t.progress = -1;
         markChunkDirty(t.x, t.y);
         SFX.treeFall();
+        // (it goes over away from the man who felled it, and is gone when it lands)
+        fellings.push({ x: t.x, y: t.y, kind: treeKind(t), flip: treeFlip(t), t: 0,
+                        s: TREE_SIZE * (0.35 + 0.65 * t.growth) * treeScale(t), dir: c.x < t.x ? 1 : -1 });
         c.inv.logs += logsPerTree();
         float(c.x, c.y - 70, "+" + logsPerTree() + " logs", "#7da083");
         c.state = "idle"; c.task = null;
@@ -12393,6 +13030,7 @@ function simStep(dt) {
       if (c.workT >= craftTime(c)) {
         gainSkill(c, "crafting", 3);
         res.doors++;
+        float(c.x, c.y - 70, "+1 door", "#c9a86a");
         toast(`${c.name} finished a rough plank door. Doors: ${res.doors}.`);
         c.state = "idle"; c.task = null;
       }
@@ -12479,7 +13117,9 @@ function simStep(dt) {
       if (c.workT >= 3) {
         corpses.splice(corpses.indexOf(cp), 1);
         graves.push({ x: c.task.gx, y: c.task.gy, stone: false, mason: null, deceased: cp.deceased });
-        toast(`${c.name} lays ${cp.deceased.name} to rest. A stone is owed.`);
+        const mourners = civs.filter(o => o.grief && o.grief.t > 0 && o.grief.who === cp.deceased.name).length;
+        toast(`${c.name} lays ${cp.deceased.name} to rest.` +
+              (mourners ? ` A stone over the grave would ease the ${mourners === 1 ? "one who mourns" : mourners + " who mourn"}.` : " A stone is owed."));
         c.state = "idle"; c.task = null;
       }
     } else if (c.state === "masonry") {
@@ -12490,7 +13130,15 @@ function simStep(dt) {
       if (c.workT >= 2.5) {
         if (c.inv.stone >= 1) c.inv.stone--; else if (res.stone >= 1) res.stone--;
         gv.stone = true; gv.mason = null;
-        toast(`${c.name} sets a gravestone for ${gv.deceased.name}. The colony remembers.`);
+        // The stone was a chore with nothing to show for it. It is the thing a
+        // mourner can visit: whoever grieves for the dead grieves half as long
+        // once it stands, and takes a little heart from it.
+        let eased = 0;
+        for (const o of civs) if (o.grief && o.grief.t > 0 && o.grief.who === gv.deceased.name) {
+          o.grief.t *= 0.5; o.happiness = Math.min(100, (o.happiness || 0) + 3); eased++;
+        }
+        toast(`${c.name} sets a gravestone for ${gv.deceased.name}. The colony remembers` +
+              (eased ? `, and ${eased === 1 ? "the one who mourns takes" : eased + " who mourn take"} some comfort.` : "."));
         SFX.build();
         c.state = "idle"; c.task = null;
       }
@@ -13075,12 +13723,19 @@ function chartAround(mx, my, rad) {
 }
 // the ground you hold is charted by standing on it; the rest of the near country
 // by the atlases your cartographers have bought
-let chartT = 0;
+let chartT = 0, chartedHomeR = -1;
 function updateCharting(dt) {
   chartT -= dt;
   if (chartT > 0) return;
   chartT = 1.5;
-  chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, atlasR());
+  // (the atlas round home is bought once per technology: it was re-charted,
+  // four thousand leagues of it under Mercator, every second and a half; it
+  // only needs doing again when the radius grows, or the chart was cleared)
+  const ar = atlasR();
+  if (ar !== chartedHomeR || !charted.has(ckey(EMPIRE_HOME.mx, EMPIRE_HOME.my))) {
+    chartAround(EMPIRE_HOME.mx, EMPIRE_HOME.my, ar);
+    chartedHomeR = ar;
+  }
   for (const st of settlements) if (st.x !== undefined) {
     const cl = worldCell(st.x, st.y);
     chartAround(cl.mx, cl.my, 2);
@@ -13161,6 +13816,18 @@ function marchProgress(m) {
   if (total < 1) return 1;
   return clamp01(Math.hypot(m.x - m.sx, m.y - m.sy) / total);
 }
+// How long the mark of where a column was last seen stays on the map, in the
+// world's own seconds, and the bookkeeping that leaves it there (run once a
+// step, after the columns have moved)
+const LAST_SEEN_LIFE = 2 * HOUR;
+function noteLastSeen() {
+  for (const m of marches) {
+    if (m.side === "you") continue;
+    const v = marchVisible(m);
+    if (v) { m.wasSeen = true; m.lastSeen = null; }
+    else if (m.wasSeen) { m.wasSeen = false; m.lastSeen = { x: m.x, y: m.y, t: worldT, a: Math.atan2(m.ty - m.y, m.tx - m.x) }; }
+  }
+}
 // whether this column is on your map at all: yours always, theirs only while
 // something of yours can see it, or while a spy is reading their muster rolls
 function marchVisible(m) {
@@ -13204,7 +13871,18 @@ function natColumnArrives(m) {
   const war = natWars.find(w => (w.a === m.nation && w.b === dst.owner) ||
                                 (w.b === m.nation && w.a === dst.owner)) || null;
   const win = Math.random() < m.str / (m.str + cityMight(dst));
-  const seen = knowsCity(dst) || sighted(m.x, m.y);
+  // Seen is not the same as worth a card. In the second year every city on a
+  // charted continent is known, and Aragon and Castile trading Burgos back and
+  // forth filled the corner with a siege a game hour, burying the column that
+  // was marching on your own town. A siege between two other crowns gets a card
+  // when it is near your country or one of them is at war with you; the rest go
+  // into the chronicle.
+  const near = Math.hypot(m.x - CAPITAL_X, m.y - CAPITAL_Y) < CELL_W * 10;
+  const yours = (NATIONS[m.nation] && NATIONS[m.nation].atWar) || (NATIONS[dst.owner] && NATIONS[dst.owner].atWar);
+  const seen = (knowsCity(dst) || sighted(m.x, m.y)) && (near || yours);
+  if (!seen && knowsCity(dst)) chron("war", win
+    ? `${NATIONS[m.nation].name} storms ${dst.name}. ${NATIONS[dst.owner] ? NATIONS[dst.owner].name : "The defender"} loses the field.`
+    : `${dst.name} holds against ${NATIONS[m.nation].name}.`);
   if (win) {
     dst.garrison = Math.max(1, Math.round(dst.garrison * 0.55));
     dst.pop = Math.max(2, Math.round(dst.pop * 0.88));
@@ -13774,7 +14452,6 @@ const cancelFlight = () => { flight = null; };
 const AR = 16, GW = MG_W * AR, GH = MG_H * AR;
 const ATLAS_INK = [58, 42, 28];
 const ATLAS_PAPER = [232, 222, 196];
-const ATLAS_PAPER_CSS = "rgb(232,222,196)";
 
 // the blank country the atlas draws but nobody holds: 2 plain, 3 desert
 function atlasFillKind(c, r) {
@@ -13836,6 +14513,13 @@ const ATLAS_RIVER_NAMES = [
   ["Vistula", true], ["Dvina"], ["Danube", true], ["Dnieper", true], ["Dniester"], ["Don", true],
   ["Volga", true], ["Po"], ["Tagus"], ["Douro"], ["Ebro"], ["Guadalquivir"], ["Nile", true], ["Euphrates"],
 ];
+// the great lakes, as ovals in leagues: [x, y, half-width, half-height, tilt]
+const ATLAS_LAKES = [
+  [61.6, 3.6, 0.95, 0.6, 0.3], [64.6, 2.3, 0.55, 0.95, 0.4], [58.4, 7.5, 0.3, 0.6, 0],
+  [35.3, 23.45, 0.45, 0.13, -0.15], [38.7, 21.8, 0.32, 0.13, 0.3], [48.3, 22.6, 0.5, 0.11, 0.35],
+  [38.7, 3.7, 0.6, 0.32, -0.3], [40.3, 4.4, 0.14, 0.5, 0.15],
+];
+const inLake = (x, y, k = 1) => ATLAS_LAKES.some(([lx, ly, rx, ry]) => ((x - lx) / (rx * k)) ** 2 + ((y - ly) / (ry * k)) ** 2 < 1);
 // where the woods stand thick enough to be worth drawing: [x, y, w, h, density]
 const ATLAS_WOODS = [
   [60,1,38,12,0.22],[47,9,12,10,0.28],[47,0,10,6,0.3],[34,0,10,6,0.2],
@@ -13862,13 +14546,15 @@ function makeSheet(c0, r0, cw, ch, res, inner, fres = res / 2) {
     fogWarp: null, fogImg: null, map: null, feather: null, job: null, fogFull: true, fogRect: null,
   };
 }
+// The fine sheet is drawn first round home, and afterwards wherever you settle
+// to look closely: come down over Italy and, a moment later, Italy is drawn
+// finely too, while the coarse sheet stands in until it is ready.
 const HOME_R = 9;
-const SHEETS = [
-  makeSheet(0, 0, MG_W, MG_H, AR, null),
-  makeSheet(EMPIRE_HOME.mx - HOME_R - 2, EMPIRE_HOME.my - HOME_R - 2, HOME_R * 2 + 5, HOME_R * 2 + 5, 48,
-            [EMPIRE_HOME.mx - HOME_R, EMPIRE_HOME.my - HOME_R, HOME_R * 2 + 1, HOME_R * 2 + 1], 48),
-];
-const SHEET_MAIN = SHEETS[0], SHEET_HOME = SHEETS[1];
+const nearSheetAt = (mx, my) => makeSheet(mx - HOME_R - 2, my - HOME_R - 2, HOME_R * 2 + 5, HOME_R * 2 + 5, 48,
+                                          [mx - HOME_R, my - HOME_R, HOME_R * 2 + 1, HOME_R * 2 + 1], 48);
+const SHEET_MAIN = makeSheet(0, 0, MG_W, MG_H, AR, null);
+let nearSheet = nearSheetAt(EMPIRE_HOME.mx, EMPIRE_HOME.my), pendingSheet = null;
+const liveSheets = () => pendingSheet ? [SHEET_MAIN, nearSheet, pendingSheet] : [SHEET_MAIN, nearSheet];
 let atlasPolSig = "", atlasNatLabels = [];
 let stratDirty = true;
 const ATLAS_NONE = 65535;
@@ -13944,7 +14630,10 @@ function atlasGlyphList() {
   }
   trees.sort((a, b) => a.y - b.y);
   const hills = [];
-  for (const range of ATLAS_HILLS) {
+  // (the Pyrenees, the Alps and the Caucasus are drawn as peaks, the rest as hills)
+  const TALL = new Set([2, 3, 9]);
+  ATLAS_HILLS.forEach((range, ri) => {
+    const tall = TALL.has(ri);
     for (let k = 0; k < range.length - 1; k++) {
       const [u0, v0] = range[k], [u1, v1] = range[k + 1];
       const steps = Math.max(1, Math.round(Math.hypot(u1 - u0, v1 - v0) * AR / 5.2));
@@ -13952,12 +14641,12 @@ function atlasGlyphList() {
         const t = (s + rnd() * 0.5) / steps;
         const hx = u0 + (u1 - u0) * t + (rnd() - 0.5) * 3 / AR;
         const hy = v0 + (v1 - v0) * t + (rnd() - 0.5) * 3 / AR;
-        hills.push({ x: hx, y: hy, s: (4.2 + rnd() * 2.6) / AR });
+        hills.push({ x: hx, y: hy, s: (4.2 + rnd() * 2.6) / AR * (tall ? 1.12 : 1), tall });
         const extra = rnd() < 0.35, ex = (rnd() - 0.5) * 6 / AR, ey = (-3 - rnd() * 2) / AR, es = (3 + rnd() * 1.6) / AR;
-        if (extra) hills.push({ x: hx + ex, y: hy + ey, s: es });
+        if (extra) hills.push({ x: hx + ex, y: hy + ey, s: es * (tall ? 1.12 : 1), tall });
       }
     }
-  }
+  });
   hills.sort((a, b) => a.y - b.y);
   return atlasGlyphs = { trees, hills };
 }
@@ -13968,7 +14657,7 @@ function atlasGlyphList() {
 // anyone rises to look at it; only if the map is wanted before then is the
 // rest of the main sheet finished on the spot.
 function atlasGeoStep(budget) {
-  const S = SHEETS.find(s => !s.geo);
+  const S = liveSheets().find(s => !s.geo);
   if (!S) return true;
   if (!S.job) S.job = sheetGeoSteps(S);
   const t0 = performance.now();
@@ -13983,7 +14672,7 @@ function buildSheetGeo(S) {
 // The two passes over every pixel, a band of rows at a time (T carries the
 // sheet's work in progress between bands).
 function geoCoverRows(T, y0, y1) {
-  const { S, L, W, res, cover, cellOf, aaOf, desert, aaW } = T;
+  const { S, L, W, res, cover, cellOf, aaOf, desert, aaW, gc, gr, gfx, gfy } = T;
   const cs = [0, 0, 0, 0], rs = [0, 0, 0, 0], ws = [0, 0, 0, 0], ids = [null, null, null, null];
   const kindAt = (c, r) => (c < 0 || r < 0 || c >= MG_W || r >= MG_H) ? 0 : L[r * MG_W + c];
   const baseAt = (c, r) => (c < 0 || r < 0 || c >= MG_W || r >= MG_H) ? null : (baseGrid[r][c] || (L[r * MG_W + c] ? "~blank" : null));
@@ -13998,6 +14687,9 @@ function geoCoverRows(T, y0, y1) {
     const c0 = Math.floor(u), r0 = Math.floor(v);
     let fx = u - c0, fy = v - r0;
     fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    // (kept, so the crowns can be shared out over the same four leagues later
+    // by whoever holds them then, not by who held them in 1683)
+    gc[i] = c0; gr[i] = r0; gfx[i] = Math.round(fx * 255); gfy[i] = Math.round(fy * 255);
     cs[0] = c0; rs[0] = r0; ws[0] = (1 - fx) * (1 - fy);
     cs[1] = c0 + 1; rs[1] = r0; ws[1] = fx * (1 - fy);
     cs[2] = c0; rs[2] = r0 + 1; ws[2] = (1 - fx) * fy;
@@ -14072,6 +14764,29 @@ function featherRows(S, data) {
     data[(y * W + x) * 4 + 3] = Math.round(t * t * (3 - 2 * t) * 255);
   }
 }
+// The winter sheet: snow on the land, thickest in the north, its southern edge
+// broken and wandering as a real snow line does; ice along the far northern
+// shores. Drawn once and laid over the ground in the months of winter.
+function snowRows(T, y0, y1) {
+  const { S, W, res, ps, aaOf, dSea, snowPx } = T;
+  for (let y = y0; y < y1; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x;
+    const P = (S.c0 + (x + 0.5) / res) * AR, Q = (S.r0 + (y + 0.5) / res) * AR;
+    const v = Q / AR;
+    const line = 19 + (vnoise(P * 0.5, Q * 0.5, 51) - 0.5) * 7 + (vnoise(P * 2.4, Q * 2.4, 52) - 0.5) * 1.6;
+    const grain = ((Math.imul(x * 19349663 ^ y * 83492791, 0x2c1b3c6d) >>> 0) & 255) / 255;
+    let a = Math.max(0, Math.min(1, (line - v) / 3)) * (aaOf[i] / 255);
+    // patchy where it is thin: bare ground showing through at the edge
+    if (a > 0 && a < 0.7) a *= 0.55 + 0.6 * vnoise(P * 3.1, Q * 3.1, 53);
+    // the coasts of the north frozen a little way out
+    if (aaOf[i] < 128 && v < 7.5) {
+      const d = dSea[i] / ps, ice = Math.max(0, 1 - d / (3 + (vnoise(P * 1.3, Q * 1.3, 54)) * 9)) * Math.min(1, (7.5 - v) / 2);
+      a = Math.max(a, ice * 0.85);
+    }
+    a *= 0.8 + grain * 0.2;
+    snowPx[i * 4] = 244; snowPx[i * 4 + 1] = 247; snowPx[i * 4 + 2] = 248; snowPx[i * 4 + 3] = Math.round(Math.min(1, a) * 220);
+  }
+}
 function* sheetGeoSteps(S) {
   if (!baseGrid) buildMapGrid();
   const L = new Uint8Array(MG_W * MG_H);
@@ -14082,7 +14797,8 @@ function* sheetGeoSteps(S) {
   const cover = new Float32Array(N);
   const cellOf = new Uint16Array(N), aaOf = new Uint8Array(N);
   const desert = new Float32Array(N);
-  const T = { S, L, W, H, res, K, ps, cover, cellOf, aaOf, desert, aaW: 0.09 / K };
+  const gc = new Int16Array(N), gr = new Int16Array(N), gfx = new Uint8Array(N), gfy = new Uint8Array(N);
+  const T = { S, L, W, H, res, K, ps, cover, cellOf, aaOf, desert, aaW: 0.09 / K, gc, gr, gfx, gfy };
   // (bands of about six thousand pixels: a couple of milliseconds apiece)
   const band = Math.max(1, Math.round(6000 / W));
   for (let y = 0; y < H; y += band) { geoCoverRows(T, y, Math.min(H, y + band)); yield; }
@@ -14123,18 +14839,38 @@ function* sheetGeoSteps(S) {
   const stand = [];
   for (const t of trees) for (const [ox, oy] of cluster) stand.push({ x: t.x + ox, y: t.y + oy, s: t.s, fir: ox > 0 ? !t.fir : t.fir });
   if (cluster.length > 1) stand.sort((a, b) => a.y - b.y);
+  // On the fine sheet the woods go on a sheet of their own, which fades away
+  // as you come down to the roofs: from there the real trees are in view, and
+  // a chart's tree a house high was only a dark blot over them.
+  let wood = null, th = h;
+  if (S !== SHEET_MAIN) {
+    wood = document.createElement("canvas"); wood.width = W; wood.height = H;
+    th = wood.getContext("2d");
+    th.setTransform(res, 0, 0, res, -S.c0 * res, -S.r0 * res);
+  }
   for (const t of stand) {
-    if (!inSheet(t.x, t.y, 0.3) || coverAt(t.x, t.y) < 0.62) continue;
+    if (!inSheet(t.x, t.y, 0.3) || coverAt(t.x, t.y) < 0.62 || inLake(t.x, t.y, 1.4)) continue;
     const { x: tx, y: ty } = t, s = t.s * leafy;
-    h.lineWidth = 0.7 * px1 * leafy; h.strokeStyle = ink;
-    h.beginPath(); h.moveTo(tx, ty - s * 0.6); h.lineTo(tx, ty + s * 0.9); h.stroke();
+    th.lineWidth = 0.7 * px1 * leafy; th.strokeStyle = ink;
+    th.beginPath(); th.moveTo(tx, ty - s * 0.6); th.lineTo(tx, ty + s * 0.9); th.stroke();
     if (t.fir) {
-      h.fillStyle = "rgba(78,104,58,0.85)";
-      h.beginPath(); h.moveTo(tx, ty - s * 2.6); h.lineTo(tx + s * 0.75, ty - s * 0.1); h.lineTo(tx - s * 0.75, ty - s * 0.1); h.closePath();
-      h.fill(); h.stroke();
+      th.fillStyle = "rgba(78,104,58,0.85)";
+      th.beginPath(); th.moveTo(tx, ty - s * 2.6); th.lineTo(tx + s * 0.75, ty - s * 0.1); th.lineTo(tx - s * 0.75, ty - s * 0.1); th.closePath();
+      th.fill(); th.stroke();
     } else {
-      h.fillStyle = "rgba(96,118,64,0.85)";
-      h.beginPath(); h.arc(tx, ty - s * 1.2, s * 0.95, 0, 7); h.fill(); h.stroke();
+      th.fillStyle = "rgba(96,118,64,0.85)";
+      th.beginPath(); th.arc(tx, ty - s * 1.2, s * 0.95, 0, 7); th.fill(); th.stroke();
+    }
+  }
+  // the lakes, the colour of the sea, inked round and rippled once inside
+  for (const [lx, ly, rx, ry, tilt] of ATLAS_LAKES) {
+    if (!inSheet(lx, ly, 2)) continue;
+    h.beginPath(); h.ellipse(lx, ly, rx, ry, tilt, 0, 7);
+    h.fillStyle = "rgb(168,182,172)"; h.fill();
+    h.lineWidth = 0.9 * px1; h.strokeStyle = ink; h.stroke();
+    if (Math.min(rx, ry) * res > 4 * ps) {
+      h.beginPath(); h.ellipse(lx, ly, Math.max(0, rx - 2.4 * px1), Math.max(0, ry - 2.4 * px1), tilt, 0, 7);
+      h.lineWidth = 0.6 * px1; h.strokeStyle = "rgba(64,82,88,0.45)"; h.stroke();
     }
   }
   // the hills, back to front, each a hump with its far flank cut in short
@@ -14144,15 +14880,22 @@ function* sheetGeoSteps(S) {
     const { x, y } = hl, s = hl.s * big;
     h.beginPath();
     h.moveTo(x - s, y);
-    h.quadraticCurveTo(x - s * 0.35, y - s * 1.35, x + s * 0.05, y - s * 1.12);
-    h.quadraticCurveTo(x + s * 0.55, y - s * 0.95, x + s, y);
+    if (hl.tall) {
+      // a peak: steep, a little hollow-sided, with the summit off its centre
+      h.quadraticCurveTo(x - s * 0.45, y - s * 0.9, x - s * 0.05, y - s * 1.85);
+      h.quadraticCurveTo(x + s * 0.35, y - s * 0.85, x + s, y);
+    } else {
+      h.quadraticCurveTo(x - s * 0.35, y - s * 1.35, x + s * 0.05, y - s * 1.12);
+      h.quadraticCurveTo(x + s * 0.55, y - s * 0.95, x + s, y);
+    }
     h.closePath();
     h.fillStyle = "rgb(230,214,174)"; h.fill();
     h.lineWidth = 0.85 * px1; h.strokeStyle = ink; h.stroke();
     h.lineWidth = 0.6 * px1; h.strokeStyle = "rgba(58,42,28,0.75)";
     h.beginPath();
     for (let q = 0; q < 4; q++) {
-      const sx = x + s * (0.12 + q * 0.2), sy = y - s * (1.0 - q * 0.24);
+      const top = hl.tall ? 1.6 - q * 0.38 : 1.0 - q * 0.24;
+      const sx = x + s * (0.05 + q * 0.2), sy = y - s * top;
       h.moveTo(sx, sy); h.lineTo(sx + s * 0.12, y - 0.6 * px1);
     }
     h.stroke();
@@ -14184,6 +14927,51 @@ function* sheetGeoSteps(S) {
   h.globalCompositeOperation = "destination-in";
   h.drawImage(mask, 0, 0);
   g.drawImage(rel, 0, 0);
+  // (kept, to be laid again over the winter's snow, so the woods, the hills and
+  // the rivers stand up out of it)
+  S.relief = rel;
+  // the chart-maker's rhumb lines run on across the open sea, faint, as they
+  // do on every sea chart of the day (and stop at the shore)
+  {
+    const rl = document.createElement("canvas"); rl.width = W; rl.height = H;
+    const rg = rl.getContext("2d");
+    rg.setTransform(res, 0, 0, res, -S.c0 * res, -S.r0 * res);
+    rg.lineWidth = 0.8 * px1;
+    for (const [cx, cy, n] of FOG_ROSES) for (let q = 0; q < n; q++) {
+      const a = q * Math.PI * 2 / n;
+      rg.strokeStyle = q % 4 === 0 ? "rgba(52,74,80,0.2)" : "rgba(52,74,80,0.1)";
+      rg.beginPath(); rg.moveTo(cx, cy); rg.lineTo(cx + Math.cos(a) * 160, cy + Math.sin(a) * 160); rg.stroke();
+    }
+    rg.setTransform(1, 0, 0, 1, 0, 0);
+    rg.globalCompositeOperation = "destination-out";
+    rg.drawImage(mask, 0, 0);
+    g.drawImage(rl, 0, 0);
+    // and a small rose where each set of lines meets, sixteen points, inked
+    // and left paper by halves
+    g.save();
+    g.setTransform(res, 0, 0, res, -S.c0 * res, -S.r0 * res);
+    for (const [cx, cy, n] of FOG_ROSES) {
+      if (!inSheet(cx, cy, 1.5)) continue;
+      const R = (n >= 32 ? 0.75 : 0.55) * (S === SHEET_MAIN ? 1 : 0.8);
+      g.lineWidth = 0.6 * px1; g.strokeStyle = ink;
+      g.beginPath(); g.arc(cx, cy, R * 0.32, 0, 7); g.stroke();
+      for (let q = 0; q < 16; q++) {
+        const a = q * Math.PI / 8 - Math.PI / 2, rr = q % 4 === 0 ? R : q % 2 === 0 ? R * 0.62 : R * 0.42, w = q % 4 === 0 ? R * 0.12 : R * 0.07;
+        const ux = Math.cos(a), uy = Math.sin(a), qx = -uy * w, qy = ux * w;
+        g.fillStyle = ink;
+        g.beginPath(); g.moveTo(cx + ux * rr, cy + uy * rr); g.lineTo(cx + qx, cy + qy); g.lineTo(cx, cy); g.closePath(); g.fill();
+        g.fillStyle = "rgb(226,218,190)";
+        g.beginPath(); g.moveTo(cx + ux * rr, cy + uy * rr); g.lineTo(cx - qx, cy - qy); g.lineTo(cx, cy); g.closePath(); g.fill(); g.stroke();
+      }
+    }
+    g.restore();
+  }
+  if (wood) {
+    th.setTransform(1, 0, 0, 1, 0, 0);
+    th.globalCompositeOperation = "destination-in";
+    th.drawImage(mask, 0, 0);
+    S.woods = wood;
+  }
   // a finer sheet laid over the main one fades out toward its own edges, so
   // there is no seam where it stops
   if (S.inner) {
@@ -14195,7 +14983,48 @@ function* sheetGeoSteps(S) {
     S.feather = fe;
   }
   // (published only now, all together, so nothing reads half a sheet)
-  S.cell = cellOf; S.aa = aaOf;
+  // the fine sheet's fog crinkle, too, so nothing is left to do in one go
+  if (S !== SHEET_MAIN) {
+    const wp = new Float32Array(S.FW * S.FH * 3), fb = Math.max(1, Math.round(5000 / S.FW));
+    for (let y = 0; y < S.FH; y += fb) { fogWarpRows(S, wp, y, Math.min(S.FH, y + fb)); yield; }
+    S.fogWarp = wp;
+  }
+  // the crowns' colours stop at the water's edge of a lake, as they do at the sea's
+  const lk = document.createElement("canvas"); lk.width = W; lk.height = H;
+  const lg = lk.getContext("2d");
+  lg.setTransform(res, 0, 0, res, -S.c0 * res, -S.r0 * res);
+  lg.fillStyle = "#000";
+  for (const [lx, ly, rx, ry, tilt] of ATLAS_LAKES) { lg.beginPath(); lg.ellipse(lx, ly, rx, ry, tilt, 0, 7); lg.fill(); }
+  const ld = lg.getImageData(0, 0, W, H).data;
+  const polAA = aaOf.slice();
+  for (let i = 0; i < N; i++) if (ld[i * 4 + 3] > 0) polAA[i] = Math.round(polAA[i] * (1 - ld[i * 4 + 3] / 255));
+  yield;
+  // the winter sheet, and a cap of snow on every hill, whatever the latitude
+  {
+    const sn = document.createElement("canvas"); sn.width = W; sn.height = H;
+    const sg = sn.getContext("2d"), simg = sg.createImageData(W, H);
+    T.snowPx = simg.data;
+    const sb = Math.max(1, Math.round(6000 / W));
+    for (let y = 0; y < H; y += sb) { snowRows(T, y, Math.min(H, y + sb)); yield; }
+    sg.putImageData(simg, 0, 0);
+    // (the caps on a sheet of their own, laid above the hills they sit on)
+    const cp = document.createElement("canvas"); cp.width = W; cp.height = H;
+    const cg = cp.getContext("2d");
+    cg.setTransform(res, 0, 0, res, -S.c0 * res, -S.r0 * res);
+    cg.fillStyle = "rgba(248,250,251,0.95)";
+    const bigH = S === SHEET_MAIN ? 1 : 0.75;
+    for (const hl of atlasGlyphList().hills) {
+      if (hl.x < S.c0 - 1 || hl.y < S.r0 - 1 || hl.x > S.c0 + S.cw + 1 || hl.y > S.r0 + S.ch + 1) continue;
+      const { x, y } = hl, sz = hl.s * bigH;
+      cg.beginPath();
+      if (hl.tall) { cg.moveTo(x - sz * 0.3, y - sz * 1.15); cg.quadraticCurveTo(x - sz * 0.15, y - sz * 1.5, x - sz * 0.05, y - sz * 1.85); cg.quadraticCurveTo(x + sz * 0.12, y - sz * 1.4, x + sz * 0.3, y - sz * 1.1); }
+      else { cg.moveTo(x - sz * 0.45, y - sz * 0.85); cg.quadraticCurveTo(x - sz * 0.2, y - sz * 1.2, x + sz * 0.05, y - sz * 1.12); cg.quadraticCurveTo(x + sz * 0.3, y - sz * 1.05, x + sz * 0.45, y - sz * 0.82); }
+      cg.closePath(); cg.fill();
+    }
+    S.snow = sn; S.caps = cp;
+    yield;
+  }
+  S.cell = cellOf; S.aa = polAA; S.gc = gc; S.gr = gr; S.gfx = gfx; S.gfy = gfy;
   S.geo = cv;
   S.polSig = ""; S.fogFull = true; S.ownPrev = null;
 }
@@ -14230,60 +15059,37 @@ function atlasOwners() {
 // fifty milliseconds; only the leagues that changed hands (and a margin round
 // them for the frontier band) are redrawn now, unless the colours themselves
 // have changed.
-function buildSheetPol(S, own, sig) {
-  if (S.polSig === sig && S.pol) return null;
-  S.polSig = sig;
-  const { W, H, ps, res } = S;
-  const war = ATLAS_NAT_IDS.map(id => !!NATIONS[id].atWar);
-  let full = !S.pol || !S.ownPrev || S.colPrev !== territoryColor;
-  let rx0 = 0, ry0 = 0, rx1 = W, ry1 = H;
-  if (!full) {
-    let c0 = 1e9, r0 = 1e9, c1 = -1, r1 = -1;
-    const warFlip = o => o >= 3 && o < 254 && war[o - 3] !== S.warPrev[o - 3];
-    for (let k = 0; k < own.length; k++) {
-      if (own[k] === S.ownPrev[k] && !warFlip(own[k])) continue;
-      const c = k % MG_W, r = (k / MG_W) | 0;
-      if (c < c0) c0 = c; if (c > c1) c1 = c; if (r < r0) r0 = r; if (r > r1) r1 = r;
-    }
-    S.ownPrev = own.slice(); S.warPrev = war;
-    if (c1 < 0) return null;
-    rx0 = Math.max(0, Math.floor((c0 - 1 - S.c0) * res)); ry0 = Math.max(0, Math.floor((r0 - 1 - S.r0) * res));
-    rx1 = Math.min(W, Math.ceil((c1 + 2 - S.c0) * res)); ry1 = Math.min(H, Math.ceil((r1 + 2 - S.r0) * res));
-    if (rx1 <= rx0 || ry1 <= ry0) return null;
-  } else {
-    S.ownPrev = own.slice(); S.warPrev = war; S.colPrev = territoryColor;
+// (in three passes over bands of rows, so a sheet that is being got ready
+// in the background can stop between any two; buildSheetPol does it all at once)
+function polOwnerRows(P, y0, y1) {
+  const { S, own, O, ow, ox0, oy0 } = P, W = S.W;
+  const ownAt = (c, r) => (c >= 0 && r >= 0 && c < MG_W && r < MG_H) ? own[r * MG_W + c] : 0;
+  for (let y = y0; y < y1; y++) for (let x = 0; x < ow; x++) {
+    const i = (y + oy0) * W + x + ox0;
+    if (S.cell[i] === ATLAS_NONE) continue;
+    const c0 = S.gc[i], r0 = S.gr[i], fx = S.gfx[i] / 255, fy = S.gfy[i] / 255;
+    const o0 = ownAt(c0, r0), o1 = ownAt(c0 + 1, r0), o2 = ownAt(c0, r0 + 1), o3 = ownAt(c0 + 1, r0 + 1);
+    const w0 = (1 - fx) * (1 - fy), w1 = fx * (1 - fy), w2 = (1 - fx) * fy, w3 = fx * fy;
+    // (written out longhand: this runs for every pixel of the sheet)
+    let best = 0, bw = -1, ws;
+    if (o0) { ws = w0 + (o1 === o0 ? w1 : 0) + (o2 === o0 ? w2 : 0) + (o3 === o0 ? w3 : 0); if (ws > bw) { bw = ws; best = o0; } }
+    if (o1 && o1 !== o0) { ws = w1 + (o2 === o1 ? w2 : 0) + (o3 === o1 ? w3 : 0); if (ws > bw) { bw = ws; best = o1; } }
+    if (o2 && o2 !== o0 && o2 !== o1) { ws = w2 + (o3 === o2 ? w3 : 0); if (ws > bw) { bw = ws; best = o2; } }
+    if (o3 && o3 !== o0 && o3 !== o1 && o3 !== o2) { if (w3 > bw) { bw = w3; best = o3; } }
+    O[y * ow + x] = best || own[S.cell[i]];
   }
-  // the frontier band reaches a few pixels; it is worked out over a slightly
-  // larger window than is redrawn, so a border just outside still counts
-  const E = Math.ceil(6 * ps) + 2;
-  const ox0 = Math.max(0, rx0 - E), oy0 = Math.max(0, ry0 - E), ox1 = Math.min(W, rx1 + E), oy1 = Math.min(H, ry1 + E);
-  const ow = ox1 - ox0, oh = oy1 - oy0, ON = ow * oh;
-  const O = new Uint8Array(ON);
-  for (let y = 0; y < oh; y++) for (let x = 0; x < ow; x++) {
-    const c = S.cell[(y + oy0) * W + x + ox0];
-    O[y * ow + x] = c === ATLAS_NONE ? 0 : own[c];
-  }
-  const seedB = new Float32Array(ON);
+}
+function polSeed(P) {
+  const { O, ow, ON, dB } = P;
   for (let k = 0; k < ON; k++) {
     const o = O[k], x = k % ow;
-    seedB[k] = o && ((x < ow - 1 && O[k + 1] && O[k + 1] !== o) || (k + ow < ON && O[k + ow] && O[k + ow] !== o)) ? 1 : 0;
+    dB[k] = o && ((x < ow - 1 && O[k + 1] && O[k + 1] !== o) || (k + ow < ON && O[k + ow] && O[k + ow] !== o)) ? 0 : 1e6;
   }
-  const dB = new Float32Array(ON);
-  distSeed(dB, seedB, true);
-  distForward(dB, ow, 0, oh);
-  distBackward(dB, ow, oh, oh, 0);
-  const cols = [null, null, null, ...ATLAS_NAT_IDS.map(id => hexRGB(NATIONS[id].color))];
-  const myCol = hexRGB(territoryColor);
-  // country nobody in the game holds: a dull olive, so it is never mistaken for
-  // the blank paper of the uncharted
-  const NOBODY = [118, 122, 84];
-  const atWar = [false, false, false, ...war];
-  const hatch = Math.max(5, Math.round(7 * ps)), dash = 2 * ps, line = 0.8 * ps;
-  if (!S.pol) { S.pol = document.createElement("canvas"); S.pol.width = W; S.pol.height = H; }
-  const g = S.pol.getContext("2d");
-  if (!S.polImg) S.polImg = g.createImageData(W, H);
-  const px = S.polImg.data;
-  for (let y = ry0; y < ry1; y++) for (let x = rx0; x < rx1; x++) {
+}
+function polPixelRows(P, y0, y1) {
+  const { S, O, ow, ON, ox0, oy0, dB, rx0, rx1, cols, myCol, NOBODY, atWar, hatch, dash, line, px } = P;
+  const { W, ps } = S;
+  for (let y = y0; y < y1; y++) for (let x = rx0; x < rx1; x++) {
     const i = y * W + x, k = (y - oy0) * ow + (x - ox0), o = O[k];
     let r = 0, gg = 0, b = 0, a = 0;
     if (o) {
@@ -14298,21 +15104,96 @@ function buildSheetPol(S, own, sig) {
         // would mark it on the chart in the war room
         if (atWar[o] && ((x + y) % hatch === 0)) { r = 168; gg = 46; b = 36; a = Math.max(a, 0.55); }
       }
-      // the frontier itself: a dotted line between crowns, a firm one round yours
-      if (d < line) {
+      // the frontier itself: a dotted line between crowns, a firm one round
+      // yours, each with a soft edge so it is drawn, not stepped
+      const t = d < line + 0.7 ? Math.min(1, (line + 0.7 - d) / 1.4) : 0;
+      if (t > 0) {
         const xr = x - ox0;
-        const touchesYou = o === 255 || (xr < ow - 1 && O[k + 1] === 255) || (k + ow < ON && O[k + ow] === 255);
-        if (touchesYou || Math.floor((x + y) / dash) % 3 !== 0) {
-          r = touchesYou ? myCol[0] * 0.45 : ATLAS_INK[0]; gg = touchesYou ? myCol[1] * 0.45 : ATLAS_INK[1]; b = touchesYou ? myCol[2] * 0.45 : ATLAS_INK[2];
-          a = touchesYou ? 0.95 : 0.72;
+        const touchesYou = o === 255 || (xr < ow - 1 && O[k + 1] === 255) || (k + ow < ON && O[k + ow] === 255)
+                         || (xr > 0 && O[k - 1] === 255) || (k - ow >= 0 && O[k - ow] === 255);
+        let m = 1;
+        if (!touchesYou) {
+          const ph = ((x + y) / dash) % 3;
+          m = ph < 2 ? Math.min(1, Math.min(ph, 2 - ph) * dash + 0.25) : 0;
+        }
+        const q = t * m;
+        if (q > 0) {
+          const lr = touchesYou ? myCol[0] * 0.45 : ATLAS_INK[0], lg = touchesYou ? myCol[1] * 0.45 : ATLAS_INK[1], lb = touchesYou ? myCol[2] * 0.45 : ATLAS_INK[2];
+          const la = touchesYou ? 0.95 : 0.72;
+          const na = a + (la - a) * q;
+          if (na > 0) {
+            r = (r * a * (1 - q) + lr * la * q) / na; gg = (gg * a * (1 - q) + lg * la * q) / na; b = (b * a * (1 - q) + lb * la * q) / na;
+          }
+          a = na;
         }
       }
       a *= aa;
     }
     px[i * 4] = r; px[i * 4 + 1] = gg; px[i * 4 + 2] = b; px[i * 4 + 3] = Math.round(a * 255);
   }
+}
+// out.r is left as "all", the rectangle of the sheet that changed, or null
+function* polSteps(S, own, sig, out) {
+  out.r = null;
+  if (S.polSig === sig && S.pol) return;
+  S.polSig = sig;
+  const { W, H, ps, res } = S;
+  const war = ATLAS_NAT_IDS.map(id => !!NATIONS[id].atWar);
+  const full = !S.pol || !S.ownPrev || S.colPrev !== territoryColor;
+  let rx0 = 0, ry0 = 0, rx1 = W, ry1 = H;
+  if (!full) {
+    let c0 = 1e9, r0 = 1e9, c1 = -1, r1 = -1;
+    const warFlip = o => o >= 3 && o < 254 && war[o - 3] !== S.warPrev[o - 3];
+    for (let k = 0; k < own.length; k++) {
+      if (own[k] === S.ownPrev[k] && !warFlip(own[k])) continue;
+      const c = k % MG_W, r = (k / MG_W) | 0;
+      if (c < c0) c0 = c; if (c > c1) c1 = c; if (r < r0) r0 = r; if (r > r1) r1 = r;
+    }
+    S.ownPrev = own.slice(); S.warPrev = war;
+    if (c1 < 0) return;
+    rx0 = Math.max(0, Math.floor((c0 - 1 - S.c0) * res)); ry0 = Math.max(0, Math.floor((r0 - 1 - S.r0) * res));
+    rx1 = Math.min(W, Math.ceil((c1 + 2 - S.c0) * res)); ry1 = Math.min(H, Math.ceil((r1 + 2 - S.r0) * res));
+    if (rx1 <= rx0 || ry1 <= ry0) return;
+  } else {
+    S.ownPrev = own.slice(); S.warPrev = war; S.colPrev = territoryColor;
+  }
+  // the frontier band reaches a few pixels; it is worked out over a slightly
+  // larger window than is redrawn, so a border just outside still counts
+  const E = Math.ceil(6 * ps) + 2;
+  const ox0 = Math.max(0, rx0 - E), oy0 = Math.max(0, ry0 - E), ox1 = Math.min(W, rx1 + E), oy1 = Math.min(H, ry1 + E);
+  const ow = ox1 - ox0, oh = oy1 - oy0, ON = ow * oh;
+  if (!S.pol) { S.pol = document.createElement("canvas"); S.pol.width = W; S.pol.height = H; }
+  const g = S.pol.getContext("2d");
+  if (!S.polImg) S.polImg = g.createImageData(W, H);
+  const P = {
+    S, own, O: new Uint8Array(ON), dB: new Float32Array(ON), ow, oh, ON, ox0, oy0, rx0, rx1,
+    cols: [null, null, null, ...ATLAS_NAT_IDS.map(id => hexRGB(NATIONS[id].color))],
+    myCol: hexRGB(territoryColor),
+    // country nobody in the game holds: a dull olive, so it is never mistaken
+    // for the blank paper of the uncharted
+    NOBODY: [118, 122, 84],
+    atWar: [false, false, false, ...war],
+    hatch: Math.max(5, Math.round(7 * ps)), dash: 2 * ps, line: 0.8 * ps, px: S.polImg.data,
+  };
+  // Who holds each pixel: of the four leagues round it, whichever crown has the
+  // most weight there now. (It was read off the league the pixel fell in, so a
+  // border that had moved, and your own ground, ran in steps a league square;
+  // shared out by weight it rounds off the way the frontiers of 1683 do.)
+  const band = Math.max(1, Math.round(20000 / ow));
+  for (let y = 0; y < oh; y += band) { polOwnerRows(P, y, Math.min(oh, y + band)); yield; }
+  polSeed(P);
+  yield;
+  for (let y = 0; y < oh; y += band) { distForward(P.dB, ow, y, Math.min(oh, y + band)); yield; }
+  for (let y = oh; y > 0; y -= band) { distBackward(P.dB, ow, oh, y, Math.max(0, y - band)); yield; }
+  const pb = Math.max(1, Math.round(20000 / (rx1 - rx0)));
+  for (let y = ry0; y < ry1; y += pb) { polPixelRows(P, y, Math.min(ry1, y + pb)); yield; }
   g.putImageData(S.polImg, 0, 0, rx0, ry0, rx1 - rx0, ry1 - ry0);
-  return full ? "all" : { x: rx0, y: ry0, w: rx1 - rx0, h: ry1 - ry0 };
+  out.r = full ? "all" : { x: rx0, y: ry0, w: rx1 - rx0, h: ry1 - ry0 };
+}
+function buildSheetPol(S, own, sig) {
+  const out = {}, job = polSteps(S, own, sig, out);
+  while (!job.next().done) {}
+  return out.r;
 }
 // Where each crown's name goes: the league deepest inside its own ground, near
 // its middle. The old names were pinned to where the crowns stood in 1683, so a
@@ -14383,7 +15264,8 @@ function fogTouch(mx, my) {
 }
 let fogK = null;
 // where the rhumb lines radiate from, in leagues, and how many points each rose has
-const FOG_ROSES = [[24, 30, 32], [62, 12, 32], [74, 40, 16]];
+// (each out on open water, where a portolan chart would set its roses)
+const FOG_ROSES = [[7.5, 29, 32], [29.4, 9.4, 16], [35.5, 34.5, 32], [60.5, 39.6, 16], [92, 27, 16]];
 function fogGrid() {
   const K = new Uint8Array(MG_W * MG_H);
   for (const k of charted) {
@@ -14393,21 +15275,25 @@ function fogGrid() {
   }
   return K;
 }
+// the fog's own crinkle, worked out once per sheet (a band of rows at a time
+// when it is done between frames)
+function fogWarpRows(S, wp, y0, y1) {
+  const { FW, fres } = S;
+  for (let y = y0; y < y1; y++) for (let x = 0; x < FW; x++) {
+    const i = (y * FW + x) * 3;
+    const P = (S.c0 + (x + 0.5) / fres) * AR, Q = (S.r0 + (y + 0.5) / fres) * AR;
+    // (a broad swell, a crinkle, and a fine raggedness that only shows close to)
+    wp[i] = (vnoise(P * 0.55, Q * 0.55, 31) - 0.5) * 0.7 + (vnoise(P * 2.5, Q * 2.5, 32) - 0.5) * 0.2 + (vnoise(P * 9, Q * 9, 37) - 0.5) * 0.07;
+    wp[i + 1] = (vnoise(P * 0.55, Q * 0.55, 33) - 0.5) * 0.7 + (vnoise(P * 2.5, Q * 2.5, 34) - 0.5) * 0.2 + (vnoise(P * 9, Q * 9, 38) - 0.5) * 0.07;
+    wp[i + 2] = 0.955 + vnoise(P * 0.3, Q * 0.3, 35) * 0.06 + vnoise(P * 1.6, Q * 1.6, 36) * 0.03;
+  }
+}
 // returns the part of the sheet that changed, in its own pixels, or null
 function buildSheetFog(S, K) {
   const { FW, FH, fres } = S;
   if (!S.fog) { S.fog = document.createElement("canvas"); S.fog.width = FW; S.fog.height = FH; }
   const g = S.fog.getContext("2d");
-  if (!S.fogWarp) {
-    S.fogWarp = new Float32Array(FW * FH * 3);
-    for (let y = 0; y < FH; y++) for (let x = 0; x < FW; x++) {
-      const i = (y * FW + x) * 3;
-      const P = (S.c0 + (x + 0.5) / fres) * AR, Q = (S.r0 + (y + 0.5) / fres) * AR;
-      S.fogWarp[i] = (vnoise(P * 0.55, Q * 0.55, 31) - 0.5) * 0.7 + (vnoise(P * 2.5, Q * 2.5, 32) - 0.5) * 0.2;
-      S.fogWarp[i + 1] = (vnoise(P * 0.55, Q * 0.55, 33) - 0.5) * 0.7 + (vnoise(P * 2.5, Q * 2.5, 34) - 0.5) * 0.2;
-      S.fogWarp[i + 2] = 0.955 + vnoise(P * 0.3, Q * 0.3, 35) * 0.06 + vnoise(P * 1.6, Q * 1.6, 36) * 0.03;
-    }
-  }
+  if (!S.fogWarp) { const wp = new Float32Array(FW * FH * 3); fogWarpRows(S, wp, 0, FH); S.fogWarp = wp; }
   if (!S.fogImg) S.fogImg = g.createImageData(FW, FH);
   const at = (c, r) => (c < 0 || r < 0 || c >= MG_W || r >= MG_H) ? 0 : K[r * MG_W + c];
   let x0 = 0, y0 = 0, x1 = FW, y1 = FH;
@@ -14428,14 +15314,21 @@ function buildSheetFog(S, K) {
     fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
     const a = at(c0, r0), b = at(c0 + 1, r0), c = at(c0, r0 + 1), d = at(c0 + 1, r0 + 1);
     const k = (a + (b - a) * fx) * (1 - fy) + (c + (d - c) * fx) * fy;
-    const known = k <= 0.36 ? 0 : k >= 0.6 ? 1 : (t => t * t * (3 - 2 * t))((k - 0.36) / 0.24);
+    const m = Wp[wi + 2];
+    // most of the sheet is plainly known or plainly not, and needs no more sums
+    if (k >= 0.75) { px[i + 3] = 0; continue; }
+    if (k <= 0.0005) {
+      px[i] = ATLAS_PAPER[0] * m; px[i + 1] = ATLAS_PAPER[1] * m; px[i + 2] = ATLAS_PAPER[2] * m; px[i + 3] = 255;
+      continue;
+    }
+    const tk = k <= 0.36 ? 0 : k >= 0.6 ? 1 : (k - 0.36) / 0.24;
+    const known = tk * tk * (3 - 2 * tk);
     // a broad brown wash where the drawing gives out, and in it a darker line
     // where the wash dried
     const wash = Math.exp(-Math.pow((k - 0.32) / 0.13, 2)) * 0.55;
     const line = Math.exp(-Math.pow((k - 0.25) / 0.035, 2)) * 0.5;
     const stain = Math.min(0.85, wash + line);
     const blank = 1 - known;
-    const m = Wp[wi + 2];
     px[i] = (ATLAS_PAPER[0] * m) * (1 - stain) + 112 * stain;
     px[i + 1] = (ATLAS_PAPER[1] * m) * (1 - stain) + 80 * stain;
     px[i + 2] = (ATLAS_PAPER[2] * m) * (1 - stain) + 48 * stain;
@@ -14471,6 +15364,12 @@ function composeSheet(S, r) {
   g.clearRect(0, 0, S.W, S.H);
   g.imageSmoothingEnabled = true;
   g.drawImage(S.geo, 0, 0);
+  if (S.snow && S.snowA > 0) {
+    g.globalAlpha = S.snowA; g.drawImage(S.snow, 0, 0); g.globalAlpha = 1;
+    if (S.relief) g.drawImage(S.relief, 0, 0);
+    if (S.caps) { g.globalAlpha = S.snowA; g.drawImage(S.caps, 0, 0); g.globalAlpha = 1; }
+  }
+  if (S.woods && S.woodsA > 0) { g.globalAlpha = S.woodsA; g.drawImage(S.woods, 0, 0); g.globalAlpha = 1; }
   g.drawImage(S.pol, 0, 0);
   g.drawImage(S.fog, 0, 0, S.FW, S.FH, 0, 0, S.W, S.H);
   if (S.feather) { g.globalCompositeOperation = "destination-in"; g.drawImage(S.feather, 0, 0); }
@@ -14481,7 +15380,18 @@ function atlasEnsure() {
   if (!SHEET_MAIN.geo) buildSheetGeo(SHEET_MAIN);
   // the fine sheet keeps being built in the background; if the frames are
   // being drawn but the colony is not running, it is helped along here
-  if (!SHEET_HOME.geo) atlasGeoStep(4);
+  if (!nearSheet.geo || (pendingSheet && !pendingSheet.geo)) atlasGeoStep(4);
+  // somewhere else, close enough to want the fine sheet: draw one there
+  const cpx = CELL_W * zoom;
+  if (cpx > 26 && nearSheet.geo) {
+    const u = (cam.x + canvas.width / 2 / zoom - MAP_X0) / CELL_W, v = (cam.y + canvas.height / 2 / zoom - MAP_Y0) / CELL_W;
+    const [ic, ir, iw, ih] = nearSheet.inner;
+    const inside = u > ic + 3 && u < ic + iw - 3 && v > ir + 3 && v < ir + ih - 3;
+    const mx = Math.round(u - 0.5), my = Math.round(v - 0.5);
+    if (inside) pendingSheet = null;
+    else if (!pendingSheet || Math.hypot(pendingSheet.inner[0] + HOME_R - mx, pendingSheet.inner[1] + HOME_R - my) > 3)
+      pendingSheet = nearSheetAt(mx, my);
+  }
   // your own ground grows with your people: look again every second whether
   // anyone's borders have moved, and redraw the crowns only if they have
   const now = performance.now();
@@ -14498,7 +15408,7 @@ function atlasEnsure() {
   // the charting since last time, handed to every sheet
   if (fogDirty || fogRect) {
     atlasLabelsDirty = true;
-    for (const S of SHEETS) {
+    for (const S of liveSheets()) {
       if (fogDirty) S.fogFull = true;
       else if (fogRect) {
         const R = S.fogRect;
@@ -14509,11 +15419,26 @@ function atlasEnsure() {
     fogDirty = false; fogRect = null;
     fogK = null;
   }
-  for (const S of SHEETS) {
+  for (const S of liveSheets()) {
     if (!S.geo) continue;
     // the fine sheet is only brought up to date while it is being looked at
     if (S !== SHEET_MAIN && CELL_W * zoom <= 22) continue;
     let full = false;
+    if (S.woods) {
+      // the fine sheet's woods, faded by how close you are, in tenths
+      const wa = Math.round(clamp01((300 - CELL_W * zoom) / 140) * 10) / 10;
+      if (wa !== S.woodsA) { S.woodsA = wa; full = true; }
+    }
+    // the snow comes and goes with the winter, in tenths
+    { const sa = Math.round(snowAmt() * 10) / 10; if (sa !== S.snowA) { S.snowA = sa; full = true; } }
+    // (a sheet still waiting to be shown does one heavy piece a frame)
+    if (S === pendingSheet && (S.polJob || S.polSig !== atlasPolSig)) {
+      if (!S.polJob) { S.polOut = {}; S.polJob = polSteps(S, own || atlasOwners(), atlasPolSig, S.polOut); }
+      const t0 = performance.now();
+      while (performance.now() - t0 < 4) if (S.polJob.next().done) { S.polJob = null; break; }
+      continue;
+    }
+    if (S === pendingSheet && !S.map && S.fogFull) { if (!fogK) fogK = fogGrid(); buildSheetFog(S, fogK); continue; }
     if (S.polSig !== atlasPolSig) {
       const r = buildSheetPol(S, own || atlasOwners(), atlasPolSig);
       if (r === "all") full = true;
@@ -14527,6 +15452,8 @@ function atlasEnsure() {
     }
     if (full || !S.map) composeSheet(S, null);
   }
+  // the new fine sheet, once it is wholly drawn, takes the old one's place
+  if (pendingSheet && pendingSheet.map) { nearSheet = pendingSheet; pendingSheet = null; }
   if (atlasLabelsDirty) { atlasLabelsDirty = false; atlasNatLabels = atlasPlaceNames(own || atlasOwners()); }
 }
 // the country itself, drawn in world space under everything
@@ -14534,7 +15461,23 @@ function atlasEnsure() {
 // first, and the layer faded as one; faded one over the other, the country
 // round home came up twice as solid as the rest)
 let stratLayer = null;
+// Only the part of a sheet that is on the screen is copied. Scaling the whole
+// of Europe to throw nine tenths of it away cost a third of the frame at the
+// height where the ground gives way to the map. Cut on whole sheet pixels, so
+// the piece lands exactly where the whole sheet would have put it.
+function sheetPart(g, cv, sw, sh, dx, dy, dw, dh, vx, vy, vw, vh) {
+  const ix0 = Math.max(dx, vx), iy0 = Math.max(dy, vy);
+  const ix1 = Math.min(dx + dw, vx + vw), iy1 = Math.min(dy + dh, vy + vh);
+  if (ix1 <= ix0 || iy1 <= iy0) return;
+  const kx = sw / dw, ky = sh / dh;
+  const sx0 = Math.max(0, Math.floor((ix0 - dx) * kx) - 1), sy0 = Math.max(0, Math.floor((iy0 - dy) * ky) - 1);
+  const sx1 = Math.min(sw, Math.ceil((ix1 - dx) * kx) + 1), sy1 = Math.min(sh, Math.ceil((iy1 - dy) * ky) + 1);
+  g.drawImage(cv, sx0, sy0, sx1 - sx0, sy1 - sy0, dx + sx0 / kx, dy + sy0 / ky, (sx1 - sx0) / kx, (sy1 - sy0) / ky);
+}
 function drawStratGround(amt) {
+  // (a window with no size — minimised, or a hidden tab — has nothing to draw
+  // on, and copying a sheet of no size throws and lost the rest of the frame)
+  if (!canvas.width || !canvas.height) return;
   atlasEnsure();
   const direct = amt >= 0.999;
   let g = ctx;
@@ -14548,25 +15491,31 @@ function drawStratGround(amt) {
   }
   g.save();
   g.globalAlpha = 1;
-  // past the edge of the sheet nobody has drawn anything at all
+  // past the edge of the sheet nobody has drawn anything at all: the margin,
+  // a shade darker, so the sheet reads as a sheet laid on the table
   const vx = cam.x - 10, vy = cam.y - 10, vw = canvas.width / zoom + 20, vh = canvas.height / zoom + 20;
-  g.fillStyle = ATLAS_PAPER_CSS;
+  g.fillStyle = "rgb(214,201,170)";
   g.beginPath();
   g.rect(vx, vy, vw, vh);
   g.rect(MAP_X0, MAP_Y0, MAP_W, MAP_H);
   g.fill("evenodd");
   g.imageSmoothingEnabled = true;
-  g.imageSmoothingQuality = "high";
+  // the careful filter only where a sheet is being shrunk, which is where it
+  // shows. Blown up twenty-odd times at the height the ground gives way, it cost
+  // forty milliseconds a frame for a difference nobody could see, and the map
+  // proper has always been drawn with the plain one
   const M = SHEET_MAIN;
-  g.drawImage(M.map, 0, 0, M.W, M.H, MAP_X0, MAP_Y0, MAP_W, MAP_H);
+  g.imageSmoothingQuality = MAP_W * zoom < M.W ? "high" : "low";
+  sheetPart(g, M.map, M.W, M.H, MAP_X0, MAP_Y0, MAP_W, MAP_H, vx, vy, vw, vh);
   // the fine sheet, once a league is big enough on the screen to want it
-  const cellPx = CELL_W * zoom, S = SHEET_HOME;
+  const cellPx = CELL_W * zoom, S = nearSheet;
   const fine = clamp01((cellPx - 22) / 18);
   if (fine > 0 && S.map) {
     const x = MAP_X0 + S.c0 * CELL_W, y = MAP_Y0 + S.r0 * CELL_W;
     if (x < cam.x + vw && y < cam.y + vh && x + S.cw * CELL_W > cam.x && y + S.ch * CELL_W > cam.y) {
       g.globalAlpha = fine;
-      g.drawImage(S.map, 0, 0, S.W, S.H, x, y, S.cw * CELL_W, S.ch * CELL_W);
+      g.imageSmoothingQuality = S.cw * CELL_W * zoom < S.W ? "high" : "low";
+      sheetPart(g, S.map, S.W, S.H, x, y, S.cw * CELL_W, S.ch * CELL_W, vx, vy, vw, vh);
     }
   }
   g.imageSmoothingEnabled = false;
@@ -14641,12 +15590,18 @@ const ATLAS_SEA_NAMES = [
   ["Caspian\nSea", 91, 26.8, 0.7, 0], ["Adriatick", 45.1, 28.9, 0.42, 1.0],
   ["Archipelago", 54, 34, 0.45, 1.25], ["Gulph of\nBothnia", 45.5, 2.6, 0.45, 0],
   ["Red Sea", 77, 49, 0.45, 1.45], ["Frozen Ocean", 80, 0.55, 0.75, 0],
+  ["Ladoga", 61.6, 3.65, 0.36, 0.3], ["Onega", 64.6, 2.3, 0.32, 1.2],
+  ["Tyrrhene\nSea", 37.6, 33.2, 0.5, 0], ["Ionian\nSea", 46.8, 37.6, 0.55, 0], ["Gulph of\nLyon", 31.2, 27.6, 0.42, 0],
 ];
 const ATLAS_LAND_NAMES = [
   ["Swisserland", 38.8, 22.7, 0.42, 0], ["United\nProvinces", 31.6, 15.2, 0.42, 0],
   ["Persia", 93, 34, 0.95, 0], ["Fez and\nMorocco", 17.8, 42, 0.8, 0],
   ["Zaara, or the Desart", 33, 47, 0.95, 0], ["Arabia", 88.5, 46, 1, 0],
   ["Circassia", 75.5, 26.3, 0.55, 0], ["Barbary", 31, 40.8, 0.6, 0],
+  ["The Free\nWoods", 35.4, 9.3, 0.5, 0],
+  ["The Alps", 40.2, 21.75, 0.5, 0.03], ["Pyrenees", 24.6, 25.75, 0.42, 0.04],
+  ["Carpathian Mountains", 53, 18.55, 0.42, 0.06], ["Apennine Mountains", 41.1, 30.6, 0.36, 0.95],
+  ["Mount Caucasus", 75.5, 27.65, 0.42, 0.1], ["Atlas", 23.5, 39.6, 0.42, 0.03],
 ];
 function mapText(txt, x, y, font, fill, spacing, halo = MAP_HALO, hw = 3) {
   ctx.font = font;
@@ -14920,7 +15875,7 @@ function drawStratMarks(amt) {
       if (size < 12 && namedTowns.has(name)) continue;
       const lines = name.toUpperCase().split("\n");
       const n = NATIONS[L.id];
-      const picked = mapSelNation === L.id;
+      const picked = mapSelNation === L.id || mapHoverNation === L.id;
       const fill = L.id === "you" ? myInk : n && n.atWar ? "rgba(140,34,22,0.88)" : picked ? "#1c140c" : "rgba(52,38,24,0.78)";
       // a name is set no wider than the crown runs (or a little past it, for
       // the duchies too small to hold any name at all): the type shrinks to
@@ -14933,7 +15888,14 @@ function drawStratMarks(amt) {
       const font = fontAt(size), sp = (size * 0.22).toFixed(1) + "px";
       // in the middle of the crown if there is room, or a little above or below
       const step = Math.max(size * 1.3, cellPx * 0.9);
-      if (!block(lines, () => [[x, y], [x, y - step], [x, y + step], [x, y - step * 2], [x, y + step * 2]],
+      // (and only where the crown's own ground is: a duchy's name pushed up
+      // into its neighbour's country names the wrong land)
+      const ownGround = ([px, py]) => {
+        if (L.id === "you") return true;
+        const cl = worldCell(cam.x + px / zoom, cam.y + py / zoom);
+        return mapGrid[cl.my] && mapGrid[cl.my][cl.mx] === L.id;
+      };
+      if (!block(lines, () => [[x, y], [x, y - step], [x, y + step], [x, y - step * 2], [x, y + step * 2]].filter((p, i) => i === 0 || ownGround(p)),
                  0, font, size, fill, sp, false)) continue;
       // (where it went: the box it has just claimed)
       const box = taken[taken.length - 1], ly = (box[1] + box[3]) / 2;
@@ -14967,7 +15929,7 @@ function drawStratMarks(amt) {
         const stat = `${thousands(c.pop)}` +
           (c.owner === "you" ? " · yours" : knowsArmies(c.owner) ? ` · ${c.garrison} men` : " · ? men");
         block([stat], (hw, hh) => [[x, y + gap + hh], [x, y + gap + hh + 13], [x + gap + hw, y + 12]], 0,
-              `italic 10px ${MAP_FELL}`, 10, c.siege > 0 ? "#8c2216" : "rgba(52,38,24,0.82)", "0px", sel || hov);
+              `italic 11px ${MAP_FELL}`, 11, c.siege > 0 ? "#8c2216" : "rgba(43,32,22,0.92)", "0px", sel || hov);
       }
     }
   }
@@ -15008,9 +15970,38 @@ function drawStratMarks(amt) {
 
   // --- the columns on the road ---
   const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 320);
+  // where a column was when it passed out of sight: a pennant left in outline,
+  // fading, as a clerk would pencil one in and rub it out as the news went stale
+  for (const m of marches) {
+    const ls = m.lastSeen;
+    if (!ls || m.side === "you" || marchVisible(m)) continue;
+    const age = (worldT - ls.t) / LAST_SEEN_LIFE;
+    if (age >= 1) continue;
+    const x = SX(ls.x), y = SY(ls.y);
+    if (!vis(x, y, 30)) continue;
+    ctx.save();
+    ctx.globalAlpha = amt * (1 - age) * 0.85;
+    ctx.translate(x, y); ctx.rotate(ls.a);
+    ctx.setLineDash([2, 2]); ctx.strokeStyle = "#8c2216"; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5.5, -5.5); ctx.lineTo(-5.5, 5.5); ctx.closePath(); ctx.stroke();
+    ctx.restore();
+    if (cellPx > 10) {
+      ctx.save(); ctx.globalAlpha = amt * (1 - age) * 0.85;
+      mapText("last seen", x, y + 17, `italic 11px ${MAP_FELL}`, "#8c2216", "0px");
+      ctx.restore();
+    }
+  }
   for (const m of marches) {
     if (m.state === "resident") continue;
     if (!marchVisible(m)) continue;
+    // how far a scout's glass reaches, ruled round him
+    if (m.side === "you" && m.kind === "scout" && cellPx > 8) {
+      const rr = CELL_W * 2.6 * glass() * zoom;
+      ctx.save();
+      ctx.strokeStyle = "rgba(43,70,60,0.45)"; ctx.lineWidth = 1; ctx.setLineDash([1.5, 4]);
+      ctx.beginPath(); ctx.arc(SX(m.x), SY(m.y), rr, 0, 7); ctx.stroke();
+      ctx.restore();
+    }
     const x = SX(m.x), y = SY(m.y);
     const yours = m.side === "you";
     const col = yours ? (m.kind === "scout" ? "#3f8f7a" : m.kind === "spy" ? "#7d4f9a" : "#f3d98a") : "#b8402e";
@@ -15021,6 +16012,21 @@ function drawStratMarks(amt) {
       ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4;
       ctx.strokeStyle = yours ? "rgba(43,32,22,0.6)" : "rgba(150,40,26,0.7)";
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
+      // with a chevron every so often, pointing the way it is going
+      const len = Math.hypot(tx - x, ty - y);
+      if (len > 60) {
+        const ux = (tx - x) / len, uy = (ty - y) / len;
+        ctx.setLineDash([]); ctx.lineWidth = 1.3;
+        for (let d = 34; d < len - 14; d += 46) {
+          const cx = x + ux * d, cy = y + uy * d;
+          if (!vis(cx, cy, 10)) continue;
+          ctx.beginPath();
+          ctx.moveTo(cx - ux * 4 - uy * 3.5, cy - uy * 4 + ux * 3.5);
+          ctx.lineTo(cx, cy);
+          ctx.lineTo(cx - ux * 4 + uy * 3.5, cy - uy * 4 - ux * 3.5);
+          ctx.stroke();
+        }
+      }
       ctx.restore();
     }
     if (!vis(x, y, 30)) continue;
@@ -15083,9 +16089,13 @@ function drawMapFurniture(amt) {
     mapText(lg === 1 ? "A League" : "Leagues", x0 + len / 2, y0 - 8, `italic 12px ${MAP_FELL}`, MAP_INK, "1px", "rgba(0,0,0,0)", 0);
   }
   // the rose, eight points, north uppermost
-  // (on a phone the right-hand edge is the column of round buttons, so the
-  // rose stands over the scale on the left instead)
-  const cx = IS_TOUCH ? 52 : W - 58, cy = IS_TOUCH ? base - 74 : base - 26, R = 28;
+  // (on a phone the bottom of the screen is the bar, the toasts and the round
+  // buttons, so the rose stands in the top right corner under the top bar)
+  const hud = $("hud"), hr = hud ? hud.getBoundingClientRect() : null;
+  const hudB = hr && hr.height ? (hr.bottom - cr.top) * (H / (cr.height || H)) : 60;
+  const R = IS_TOUCH ? 24 : 28;
+  const cx = IS_TOUCH ? W - R - 16 : W - 58, cy = IS_TOUCH ? hudB + R + 18 : base - 26;
+  roseAt = { x: cx, y: cy, r: R };
   ctx.translate(cx, cy);
   ctx.fillStyle = "rgba(238,227,200,0.82)";
   ctx.beginPath(); ctx.arc(0, 0, R + 6, 0, 7); ctx.fill();
@@ -15103,6 +16113,69 @@ function drawMapFurniture(amt) {
   }
   ctx.textAlign = "center";
   mapText("N", 0, -R - 9, `600 12px ${MAP_CAPS}`, MAP_INK, "0px", "rgba(238,227,200,0.9)", 3);
+  mapText(IS_TOUCH ? "tap for the key" : "the key", 0, R + 19, `italic 11px ${MAP_FELL}`, "rgba(43,32,22,0.75)", "0.5px", "rgba(238,227,200,0.85)", 3);
+  ctx.restore();
+  // rest the pointer on the rose (or tap it, on a phone) and the map explains
+  // itself, as an atlas did in a box in its corner
+  if (mapKeyOpen || (!IS_TOUCH && Math.hypot(mouse.x - cx, mouse.y - cy) < R + 10)) {
+    if (IS_TOUCH) drawMapKey(W - 10, cy + R + 30 + 243, amt);
+    else drawMapKey(cx - R - 14, cy + R + 4, amt);
+  }
+}
+// where the rose was last drawn, in canvas pixels, so a tap on it can find it
+let roseAt = null, mapKeyOpen = false;
+function drawMapKey(right, bottom, amt) {
+  const rows = [
+    ["cap", "The seat of a crown"], ["town", "A town"], ["mine", "A town of yours"],
+    ["col", "A column of yours"], ["foe", "A crown's column"], ["ghost", "Where one was last seen"],
+    ["ring", "What a scout can see"], ["war", "A crown at war with you"], ["trade", "A road of trade"],
+    ["swords", "Two crowns at war"], ["blank", "Not yet on your charts"],
+  ];
+  const w = 214, rh = 19, h = 34 + rows.length * rh, x0 = right - w, y0 = bottom - h;
+  ctx.save();
+  ctx.globalAlpha = amt;
+  ctx.fillStyle = "rgba(236,226,198,0.97)"; ctx.fillRect(x0, y0, w, h);
+  ctx.strokeStyle = MAP_INK; ctx.lineWidth = 1.4; ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+  ctx.lineWidth = 0.7; ctx.strokeRect(x0 + 4.5, y0 + 4.5, w - 9, h - 9);
+  ctx.textAlign = "center";
+  mapText("EXPLANATION", x0 + w / 2, y0 + 22, `600 12px ${MAP_CAPS}`, MAP_INK, "2px", "rgba(0,0,0,0)", 0);
+  ctx.textAlign = "left";
+  rows.forEach(([k, label], i) => {
+    const sx = x0 + 26, sy = y0 + 40 + i * rh;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.strokeStyle = MAP_INK; ctx.fillStyle = MAP_INK; ctx.lineWidth = 1.1; ctx.setLineDash([]);
+    if (k === "cap" || k === "town") {
+      ctx.beginPath(); ctx.arc(0, 0, k === "cap" ? 4.6 : 3.6, 0, 7); ctx.fill();
+      ctx.fillStyle = "#a98436"; ctx.beginPath(); ctx.arc(0, 0, k === "cap" ? 3.4 : 2.5, 0, 7); ctx.fill();
+      if (k === "cap") { ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, 7); ctx.stroke(); }
+    } else if (k === "mine") {
+      ctx.fillRect(-5, -5, 10, 10); ctx.fillStyle = "#f3d98a"; ctx.fillRect(-3.6, -3.6, 7.2, 7.2);
+    } else if (k === "col" || k === "foe" || k === "ghost") {
+      ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-5.5, -5.5); ctx.lineTo(-5.5, 5.5); ctx.closePath();
+      if (k === "ghost") { ctx.setLineDash([2, 2]); ctx.strokeStyle = "#8c2216"; ctx.stroke(); }
+      else { ctx.fill(); ctx.fillStyle = k === "col" ? "#f3d98a" : "#b8402e"; ctx.beginPath(); ctx.moveTo(5.8, 0); ctx.lineTo(-3.8, -3.8); ctx.lineTo(-3.8, 3.8); ctx.closePath(); ctx.fill(); }
+    } else if (k === "ring") {
+      ctx.setLineDash([1.5, 3]); ctx.strokeStyle = "rgba(43,70,60,0.8)"; ctx.beginPath(); ctx.arc(0, 0, 7, 0, 7); ctx.stroke();
+    } else if (k === "war") {
+      ctx.fillStyle = "rgba(160,120,60,0.35)"; ctx.fillRect(-9, -6, 18, 12);
+      ctx.strokeStyle = "rgba(168,46,36,0.8)"; ctx.lineWidth = 1;
+      ctx.save(); ctx.beginPath(); ctx.rect(-9, -6, 18, 12); ctx.clip();
+      for (let d = -18; d < 18; d += 5) { ctx.beginPath(); ctx.moveTo(d, 6); ctx.lineTo(d + 12, -6); ctx.stroke(); }
+      ctx.restore();
+    } else if (k === "trade") {
+      ctx.strokeStyle = "rgba(112,72,12,0.95)"; ctx.lineWidth = 2; ctx.setLineDash([2, 4]); ctx.lineCap = "round";
+      ctx.beginPath(); ctx.moveTo(-10, 2); ctx.quadraticCurveTo(0, -5, 10, 2); ctx.stroke();
+    } else if (k === "swords") {
+      ctx.strokeStyle = "#8c2216"; ctx.lineWidth = 1.6; ctx.lineCap = "round";
+      for (const sg of [1, -1]) { ctx.beginPath(); ctx.moveTo(-6 * sg, -6); ctx.lineTo(6 * sg, 6); ctx.stroke(); }
+    } else if (k === "blank") {
+      ctx.fillStyle = "rgb(232,222,196)"; ctx.fillRect(-9, -6, 18, 12);
+      ctx.strokeStyle = "rgba(112,80,48,0.8)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9, -6); ctx.lineTo(-9, 6); ctx.stroke();
+    }
+    ctx.restore();
+    mapText(label, sx + 20, sy + 4, `italic 12px ${MAP_FELL}`, MAP_INK, "0px", "rgba(0,0,0,0)", 0);
+  });
   ctx.restore();
 }
 // ===== a column, close to =====
@@ -15168,6 +16241,17 @@ function marchDrawables(out) {
   }
 }
 
+// Up at the height of the whole map, the camera keeps to the sheet: centred on
+// the capital, a tall phone showed a third of a screen of bare margin above
+// Europe. Where the view is narrower than the sheet it may not run off it (a
+// little margin aside); where it is wider, the sheet sits in the middle of it.
+function keepMapInView() {
+  const vw = canvas.width / zoom, vh = canvas.height / zoom, pad = CELL_W * 1.5;
+  const fit = (c, v, lo, size) => v >= size + pad * 2 ? lo + size / 2 - v / 2
+                                 : Math.max(lo - pad, Math.min(lo + size + pad - v, c));
+  cam.x = fit(cam.x, vw, MAP_X0, MAP_W);
+  cam.y = fit(cam.y, vh, MAP_Y0, MAP_H);
+}
 function renderStrategicOnly() {
   ctx.setTransform(zoom, 0, 0, zoom, -cam.x * zoom, -cam.y * zoom);
   ctx.imageSmoothingEnabled = false;
@@ -15209,7 +16293,10 @@ const NOBODYS_LANDS = [
   [78, 38, 22, 18, "Arabia", "Desert, and the road to the holy cities"],
   [22, 40, 54, 16, "The Zaara, or the Desart", "Sand, as far as anyone has gone"],
 ];
+// the crown whose ground is under the pointer, so its name can be picked out
+let mapHoverNation = null;
 function groundLines(sx, sy) {
+  mapHoverNation = null;
   // (only once the map has the screen to itself, where a click on bare ground
   // is a click on the country; through the dissolve the ground is the colony's)
   if (stratAmt() < 0.8) return null;
@@ -15226,6 +16313,7 @@ function groundLines(sx, sy) {
   if (id === "wilds") return { title: "The free woods", lines: ["Nobody's yet — yours to grow into"] };
   const n = NATIONS[id];
   if (!n) return null;
+  mapHoverNation = id;
   const out = [n.atWar ? "AT WAR WITH YOU" : n.trade ? "At peace · a trade route is open" : "At peace"];
   if (n.calT) out.push(`Stricken by ${n.calName}`);
   out.push("Click to treat with them");
@@ -15265,9 +16353,10 @@ function marchLines(m) {
 function worldTipSync(sx, sy) {
   const tip = $("worldTip");
   if (!tip) return;
-  if (!onMap() || buildMode || roadMode) { tip.style.display = "none"; mapHover = null; return; }
+  if (!onMap() || buildMode || roadMode) { tip.style.display = "none"; mapHover = null; mapHoverNation = null; return; }
   const hit = worldPick(sx, sy);
   mapHover = hit;
+  mapHoverNation = null;
   let title = "", lines = [];
   if (!hit) {
     // bare ground: whose it is, if you have it on paper at all
@@ -15371,6 +16460,9 @@ const SCOUT_COST = 10, SPY_COST = 30;
 
 // the click that lands on the country rather than on the grass
 function worldMapClick(sx, sy) {
+  // a tap or click on the compass rose opens the key to the map, and closes it
+  if (roseAt && Math.hypot(sx - roseAt.x, sy - roseAt.y) < roseAt.r + 12) { mapKeyOpen = !mapKeyOpen; return true; }
+  if (mapKeyOpen && IS_TOUCH) { mapKeyOpen = false; }
   if (scoutArmed) {
     scoutArmed = false;
     stratBarSync();
@@ -15478,11 +16570,12 @@ function updateWorld(dt) {
   if (!CITIES.length) buildCities();
   updateCharting(dt);
   updateMarches(dt);
+  noteLastSeen();
   updateCities(dt);
   updateCityLod(dt);
   updateNotifs(dt);
   // a few milliseconds a frame toward the atlas, until it is drawn
-  if (!SHEET_HOME.geo && baseGrid) atlasGeoStep(3);
+  if ((!nearSheet.geo || (pendingSheet && !pendingSheet.geo)) && baseGrid) atlasGeoStep(3);
 }
 
 // ===== what the world writes down =====
@@ -15639,7 +16732,7 @@ $("sbScout").addEventListener("click", () => {
   if (!TECH.surveying.done) return toast("Research Surveying before training scouts.");
   scoutArmed = !scoutArmed;
   stratBarSync();
-  if (scoutArmed) toast("Click anywhere on the country and the scout rides for it.");
+  if (scoutArmed) toast(`${IS_TOUCH ? "Tap" : "Click"} anywhere on the country and the scout rides for it.`);
 });
 $("marchNo").addEventListener("click", closeMarchModal);
 $("mayorNo").addEventListener("click", closeMayorModal);
@@ -15743,12 +16836,159 @@ function groundLabel(text, x, y, ink, px = 10) {
   ctx.fillStyle = ink;
   ctx.fillText(text, x, y);
 }
+// a wound reads at a glance: green while it is a scratch, ochre when it is
+// serious, red when the next blow may be the last (the old bar was one dark
+// red at every health, on dark green grass, and a man at a tenth looked like
+// a man at nine tenths)
+const hpColour = f => f > 0.6 ? "#7da083" : f > 0.3 ? "#d0a24a" : "#d8452f";
+// The part of the screen no panel, bar or plaque is lying over, in canvas
+// pixels: found by asking what is under a few points along each edge.
+function openView() {
+  const cr = canvas.getBoundingClientRect(), k = canvas.width / (cr.width || canvas.width);
+  const cover = (x, y) => {
+    let e = document.elementFromPoint(cr.left + x / k, cr.top + y / k);
+    if (!e || e === canvas || e === document.body || e === document.documentElement) return null;
+    while (e.parentElement && e.parentElement !== document.body) e = e.parentElement;
+    const r = e.getBoundingClientRect();
+    return { l: (r.left - cr.left) * k, t: (r.top - cr.top) * k, r: (r.right - cr.left) * k, b: (r.bottom - cr.top) * k };
+  };
+  const W = canvas.width, H = canvas.height;
+  let l = 0, t = 0, r = W, b = H;
+  for (const y of [H * 0.35, H * 0.5, H * 0.65]) {
+    // (a few pixels in from each edge: the side panels stand a little off it)
+    const R = cover(W - 30, y); if (R && R.l > W * 0.45) r = Math.min(r, R.l);
+    const Lf = cover(30, y); if (Lf && Lf.r < W * 0.55) l = Math.max(l, Lf.r);
+  }
+  for (const x of [W * 0.3, W * 0.5, W * 0.7]) {
+    const T = cover(x, 4); if (T && T.b < H * 0.4) t = Math.max(t, T.b);
+    const B = cover(x, H - 4); if (B && B.t > H * 0.6) b = Math.min(b, B.t);
+  }
+  return { l, t, r, b };
+}
 function bar(wx, wyTop, frac, color, w = 44) {
   ctx.fillStyle = "#0a0f0c"; ctx.fillRect(wx - w / 2 - 1, wyTop - 1, w + 2, 8);
   ctx.fillStyle = "#1c2a21"; ctx.fillRect(wx - w / 2, wyTop, w, 6);
   ctx.fillStyle = color; ctx.fillRect(wx - w / 2, wyTop, w * Math.min(1, Math.max(0, frac)), 6);
 }
 
+// The tutorial's gold mark: a bobbing chevron over the thing the step wants
+// and a ring at its foot. Off the screen, the chevron waits at the edge of the
+// open view and points the way.
+let tutView = null, tutViewT = 0;
+function drawTutAim(sAmt) {
+  const a = tutAimNow;
+  if (!a || sAmt > 0.5 || tutStep < 0 || a.alive === false) return;
+  const now = performance.now();
+  if (!tutView || now - tutViewT > 500) { tutView = openView(); tutViewT = now; }
+  const V = tutView, fade = 1 - sAmt * 2;
+  const sx = (a.x - cam.x) * zoom, sy = (a.y - cam.y) * zoom;
+  const bob = Math.sin(now / 260) * 4;
+  // high enough to clear the head, the crown or the roof of what it marks
+  const tall = civs.includes(a) || visitors.includes(a) ? 100
+    : buildings.includes(a) ? drawSizeOf(baseType(a)) + 14
+    : farms.includes(a) ? 80
+    : a.growth !== undefined ? 70 * treeScale(a) + 14
+    : 36;
+  const lift = tall * zoom;
+  ctx.save();
+  ctx.globalAlpha = fade;
+  const pad = 26;
+  const inside = sx > V.l + pad && sx < V.r - pad && sy - lift > V.t + pad && sy < V.b - pad;
+  const chevron = (x, y, ang) => {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(-12, -10); ctx.lineTo(0, 5); ctx.lineTo(12, -10); ctx.lineTo(0, -2); ctx.closePath();
+    ctx.lineWidth = 3; ctx.strokeStyle = "rgba(10,14,12,0.85)"; ctx.stroke();
+    ctx.fillStyle = "#e0bf78"; ctx.fill();
+    ctx.restore();
+  };
+  if (inside) {
+    const r = 16 * Math.max(0.7, Math.min(1.4, zoom)), pulse = 0.5 + 0.5 * Math.sin(now / 260);
+    ctx.lineWidth = 2; ctx.strokeStyle = `rgba(224,191,120,${0.55 + 0.35 * pulse})`;
+    ctx.beginPath(); ctx.ellipse(sx, sy, r + pulse * 3, (r + pulse * 3) * 0.45, 0, 0, Math.PI * 2); ctx.stroke();
+    chevron(sx, sy - lift + bob, 0);
+  } else {
+    const cx = (V.l + V.r) / 2, cy = (V.t + V.b) / 2;
+    const dx = sx - cx, dy = sy - cy, ang = Math.atan2(dy, dx);
+    const hw = (V.r - V.l) / 2 - pad, hh = (V.b - V.t) / 2 - pad;
+    const k = Math.min(hw / Math.max(1e-3, Math.abs(dx)), hh / Math.max(1e-3, Math.abs(dy)));
+    chevron(cx + dx * k + Math.cos(ang) * bob, cy + dy * k + Math.sin(ang) * bob, ang - Math.PI / 2);
+  }
+  ctx.restore();
+}
+// ===== the far woods, a chunk at a time =====
+const FOREST_BELOW = 0.33, FOREST_K = 0.36, FOREST_PAD = 48, FOREST_TOP = 92, FOREST_FOOT = 16;
+const forestHeld = new Set();
+let forestPruneT = 0;
+function forestSig(ch) {
+  let n = 0, g = 0, sn = 0, pn = 0;
+  for (const t of ch.trees) if (t.alive) { n++; if (t.growth < 1) g += Math.round(t.growth * 10); }
+  for (const q of ch.stones) if (q.alive) sn++;
+  for (const q of ch.patches) if (q.alive) pn++;
+  return (season() === "winter" ? "w" : "s") + (settings.shadows ? 1 : 0) + "|" + n + "|" + g + "|" + sn + "|" + pn;
+}
+function forestCanvas(ch, cx, cy) {
+  const sig = forestSig(ch);
+  if (ch.fc && ch.fcSig === sig) return ch.fc;
+  const WW = CHUNK + FOREST_PAD * 2, WH = CHUNK + FOREST_TOP + FOREST_FOOT;
+  const cv = ch.fc || document.createElement("canvas");
+  cv.width = Math.ceil(WW * FOREST_K); cv.height = Math.ceil(WH * FOREST_K);
+  const g = cv.getContext("2d");
+  g.setTransform(cv.width / WW, 0, 0, cv.height / WH, 0, 0);
+  g.translate(-(cx * CHUNK - FOREST_PAD), -(cy * CHUNK - FOREST_TOP));
+  g.imageSmoothingEnabled = true;
+  const items = [];
+  for (const t of ch.trees) if (t.alive) items.push(t);
+  for (const q of ch.stones) if (q.alive) items.push(q);
+  for (const q of ch.patches) if (q.alive) items.push(q);
+  items.sort((a, b) => a.y - b.y);
+  const stones = new Set(ch.stones), shade = settings.shadows;
+  const put = (im, x, y, size, flip) => {
+    if (!im) return;
+    if (flip) { g.save(); g.translate(x, y); g.scale(-1, 1); g.drawImage(im, -size / 2, -size, size, size); g.restore(); }
+    else g.drawImage(im, x - size / 2, y - size, size, size);
+  };
+  const shadow = (x, y, w) => {
+    if (!shade) return;
+    g.globalAlpha = 0.26; g.fillStyle = "#080d0a";
+    g.beginPath(); g.ellipse(x, y - 1, w * 0.5, w * 0.17, 0, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+  };
+  for (const it of items) {
+    if (it.growth !== undefined) {
+      const sz = TREE_SIZE * (0.35 + 0.65 * it.growth) * treeScale(it);
+      shadow(it.x, it.y, sz * 0.34);
+      put(wimg(treeKind(it)), it.x, it.y, sz, treeFlip(it));
+    } else if (stones.has(it)) {
+      const sz = NODE_SIZE * (0.82 + 0.36 * groundHash(it.x, it.y, 4));
+      shadow(it.x, it.y, sz * 0.5);
+      put(wimg("stone"), it.x, it.y, sz, groundHash(it.x, it.y, 5) < 0.5);
+    } else put(wimg("patch"), it.x, it.y, 40, false);
+  }
+  ch.fc = cv; ch.fcSig = sig;
+  forestHeld.add(ch);
+  return cv;
+}
+function drawFarWoods() {
+  const vw = canvas.width / zoom, vh = canvas.height / zoom, now = performance.now();
+  const [x0, y0] = chunkOf(cam.x - FOREST_PAD, cam.y - FOREST_FOOT);
+  const [x1, y1] = chunkOf(cam.x + vw + FOREST_PAD, cam.y + vh + FOREST_TOP);
+  const WW = CHUNK + FOREST_PAD * 2, WH = CHUNK + FOREST_TOP + FOREST_FOOT;
+  ctx.imageSmoothingEnabled = true;
+  for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) {
+    const ch = getChunk(cx, cy);
+    const cv = forestCanvas(ch, cx, cy);
+    ch.fcT = now;
+    ctx.drawImage(cv, cx * CHUNK - FOREST_PAD, cy * CHUNK - FOREST_TOP, WW, WH);
+  }
+  ctx.imageSmoothingEnabled = false;
+  // a canvas for every chunk ever seen from up here would be a lot of memory
+  // for woods nobody is looking at
+  if (now - forestPruneT > 3000) {
+    forestPruneT = now;
+    for (const ch of forestHeld) if (now - (ch.fcT || 0) > 8000) { ch.fc = null; ch.fcSig = null; forestHeld.delete(ch); }
+  }
+}
+const grassPat = { im: null, p: null };
 let fireAnim = 0;
 function render(dt) {
   fireAnim += dt * 8;
@@ -15760,15 +17000,29 @@ function render(dt) {
   // exactly the wrong way to spend a frame, so out here the country is the only
   // thing there is.
   const sAmt = stratAmt();
-  if (sAmt >= 0.999) { renderStrategicOnly(); return; }
+  if (sAmt >= 0.999) { keepMapInView(); renderStrategicOnly(); return; }
   ctx.setTransform(zoom, 0, 0, zoom, -cam.x * zoom, -cam.y * zoom);
   ctx.imageSmoothingEnabled = false;
 
   const vw = canvas.width / zoom, vh = canvas.height / zoom;
-  const x0 = Math.floor(cam.x / TILE) * TILE, y0 = Math.floor(cam.y / TILE) * TILE;
-  for (let y = y0; y < cam.y + vh; y += TILE)
-    for (let x = x0; x < cam.x + vw; x += TILE)
-      ctx.drawImage(wimg("grass"), x, y, TILE, TILE);
+  // the grass as one pattern rather than a drawImage a tile: at the height the
+  // map begins to show there were seventeen hundred of them a frame
+  {
+    const gi = wimg("grass");
+    if (gi && gi.width && gi.height) {
+      if (grassPat.im !== gi) {
+        grassPat.im = gi; grassPat.p = ctx.createPattern(gi, "repeat");
+        grassPat.p.setTransform(new DOMMatrix().scale(TILE / gi.width, TILE / gi.height));
+      }
+      ctx.fillStyle = grassPat.p;
+      ctx.fillRect(cam.x - 2, cam.y - 2, vw + 4, vh + 4);
+    } else {
+      const x0 = Math.floor(cam.x / TILE) * TILE, y0 = Math.floor(cam.y / TILE) * TILE;
+      for (let y = y0; y < cam.y + vh; y += TILE)
+        for (let x = x0; x < cam.x + vw; x += TILE)
+          ctx.drawImage(gi, x, y, TILE, TILE);
+    }
+  }
 
   // dirt paths worn into the grass, drawn under everything else
   {
@@ -15853,7 +17107,14 @@ function render(dt) {
   // spruces nobody can see — and there are three hundred chunks of it out there
   // at this height. Buildings and people stay (a town is still a shape you want
   // to recognise as it fades); the wild growth stops being drawn.
-  for (const ch of (sAmt > 0.75 ? [] : visibleChunks())) {
+  // Further down still, a spruce is a dozen pixels and there are a hundred
+  // chunks of them: each chunk's woods are drawn once into a small canvas and
+  // laid down whole, redrawn only when a tree in it falls or grows or the
+  // season turns. Sorting them among the roofs no longer matters at a height
+  // where nobody can see whose feet are in front of whose.
+  const farWoods = zoom < FOREST_BELOW && sAmt <= 0.75;
+  if (farWoods) drawFarWoods();
+  for (const ch of (sAmt > 0.75 || farWoods ? [] : visibleChunks())) {
     for (const t of ch.trees) {
       if (!inView(t.x, t.y)) continue;
       if (t.alive) drawables.push({ y: t.y, draw: () => {
@@ -15873,6 +17134,45 @@ function render(dt) {
     for (const p of ch.patches) if (p.alive && inView(p.x, p.y)) drawables.push({ y: p.y, draw: () => {
       drawSprite(wimg("patch"), p.x, p.y, 40, false);
       if (p.progress >= 0) bar(p.x, p.y - 46, p.progress, "#c9a86a");
+    }});
+  }
+  // a felled tree going over: it leans, then falls faster, then lies a moment
+  // in a puff of needles and dust before it is cleared away as logs
+  for (let i = fellings.length - 1; i >= 0; i--) {
+    const f = fellings[i];
+    f.t += dt;
+    if (f.t > 1.6) { fellings.splice(i, 1); continue; }
+    if (!inView(f.x, f.y)) continue;
+    drawables.push({ y: f.y, draw: () => {
+      const k = Math.min(1, f.t / 0.75), ang = f.dir * (Math.PI / 2) * k * k * 0.92;
+      const fade = f.t < 1 ? 1 : Math.max(0, 1 - (f.t - 1) / 0.6);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.translate(f.x, f.y); ctx.rotate(ang);
+      drawSprite(wimg(f.kind), 0, 0, f.s, f.flip);
+      ctx.restore();
+      if (f.t > 0.65) {
+        const q = Math.min(1, (f.t - 0.65) / 0.9);
+        ctx.save();
+        ctx.globalAlpha = (1 - q) * 0.45;
+        ctx.fillStyle = season() === "winter" ? "#e8eef0" : "#8a8f6a";
+        ctx.beginPath(); ctx.ellipse(f.x + f.dir * f.s * 0.6, f.y - 4, f.s * (0.35 + q * 0.4), 7 + q * 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+    }});
+  }
+  // a raider where he fell, lying a few seconds before he is gone
+  for (let i = fallenFoes.length - 1; i >= 0; i--) {
+    const f = fallenFoes[i];
+    f.t += dt;
+    if (f.t > 6) { fallenFoes.splice(i, 1); continue; }
+    if (!inView(f.x, f.y) || !f.frame) continue;
+    drawables.push({ y: f.y - 20, draw: () => {
+      ctx.save();
+      ctx.globalAlpha = f.t < 4.5 ? 0.9 : Math.max(0, 0.9 * (1 - (f.t - 4.5) / 1.5));
+      ctx.translate(f.x, f.y - 6); ctx.rotate(f.facing * Math.PI / 2);
+      drawSprite(f.frame, 0, CHAR_SIZE * 0.45, CHAR_SIZE, f.facing < 0);
+      ctx.restore();
     }});
   }
   for (const cp of camps) if (inView(cp.x, cp.y)) drawables.push({ y: cp.y, draw: () => {
@@ -16005,6 +17305,15 @@ function render(dt) {
     const crown = r.nation && NATIONS[r.nation];
     const frame = crown ? foeCoat(crown.color, r.foe ? "atkuni" + i : "soldierU" + i)
                         : img[(r.foe ? "atksword" : "hunter") + i];
+    // a man come to burn and rob stands in a ring of red, so he reads against
+    // the grass at a glance and is never taken for one of your own
+    if (!r.garrison && r.state !== "patrol") {
+      ctx.save();
+      ctx.globalAlpha = 0.55 + 0.25 * Math.sin(fireAnim * 0.6 + r.x * 0.01);
+      ctx.strokeStyle = "#d8452f"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(r.x, r.y - 1, 17, 6.5, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     groundShadow(r.x, r.y, CHAR_SIZE * 0.34);
     drawSprite(frame, r.x, r.y, CHAR_SIZE, r.facing < 0);
     // A man in mail has to look like one. The sprites are the sprites, so the
@@ -16027,11 +17336,14 @@ function render(dt) {
     // garrison label goes on the town, not on each man — and only the ones
     // actually coming for you are called out individually.
     if (settings.labels && !(r.garrison && r.state === "patrol")) {
-      const who = crown ? crown.name + " Enemy Soldier" : (r.state === "patrol" ? "thief" : "RAIDER");
+      // (and one running off with your coin says how much — cut him down
+      //  before he reaches the trees and it comes back)
+      const who = (crown ? crown.name + " Enemy Soldier" : (r.state === "patrol" ? "thief" : "RAIDER")) +
+                  (r.carry ? ` · ${r.carry} DM` : "");
       groundLabel(r.state === "invest" ? who + " — BESIEGING" : who, r.x, r.y - CHAR_SIZE - 4, "#d86a5a");
       if (r.kit) groundLabel(KIT_NAME[Math.min(KIT_MAX, r.kit)], r.x, r.y - CHAR_SIZE - 14, "#c9a86a", 9);
     }
-    if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - (r.kit && settings.labels ? 24 : 14), r.hp / r.maxHp, "#a05252", 34);
+    if (r.hp < r.maxHp) bar(r.x, r.y - CHAR_SIZE - (r.kit && settings.labels ? 24 : 14), r.hp / r.maxHp, hpColour(r.hp / r.maxHp), 38);
   }});
   // and the garrison's tally, once, over the town it is holding
   if (settings.labels) for (const t of foreignTowns) {
@@ -16101,7 +17413,7 @@ function render(dt) {
     const tag = c.rebel ? " [REBEL]" : c.feudWith ? ` [feud: ${c.feudWith}]` : c.child ? " (child)" :
                 ["police", "soldier", "musketeer", "cavalry"].includes(c.profession) ? ` [${c.profession}]` : "";
     if (settings.labels) groundLabel((c.sick > 0 ? "☠ " : "") + c.name + tag, c.x, c.y - CHAR_SIZE - 4, ink);
-    if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, "#a05252", 34);
+    if (c.hp < c.maxHp) bar(c.x, c.y - CHAR_SIZE - 16, c.hp / c.maxHp, hpColour(c.hp / c.maxHp), 38);
     if (c.state === "crafting" || c.state === "buildingFarm" || c.state === "smithing" || c.state === "hunting") {
       const tot = c.state === "crafting" ? craftTime(c) : c.state === "smithing" ? smithTime(c) :
                   c.state === "buildingFarm" ? farmBuildTime(c) : huntTime(c);
@@ -16131,7 +17443,9 @@ function render(dt) {
   // night falls: darkness, and warm light spilling from the doorways
   const night = nightAmt();
   if (settings.night && night > 0.01) {
-    ctx.fillStyle = `rgba(7, 10, 26, ${0.48 * night})`;
+    // (eased off as the map comes up through the ground: a chart is read by
+    // candlelight, and at night the dissolving atlas was ink on black paper)
+    ctx.fillStyle = `rgba(7, 10, 26, ${0.48 * night * (1 - 0.75 * sAmt)})`;
     ctx.fillRect(cam.x, cam.y, vw, vh);
     ctx.globalCompositeOperation = "lighter";
     for (const b of buildings) {
@@ -16213,6 +17527,7 @@ function render(dt) {
     ctx.setLineDash([]);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawTutAim(sAmt);
 
   // a name floating over every town you hold, so you always know where you are
   {
@@ -16290,14 +17605,18 @@ function render(dt) {
       if (band) { band.n++; band.x = (band.x * (band.n - 1) + r.x) / band.n; band.y = (band.y * (band.n - 1) + r.y) / band.n; }
       else bands.push({ x: r.x, y: r.y, n: 1, war: !!r.nation, target: r.wallTarget || r.target });
     }
+    // (the arrows keep to the part of the screen nothing is covering: with a
+    // person's panel open down the right, raiders coming from the east had
+    // their arrow drawn underneath it)
+    const fr = bands.length ? openView() : null;
     for (const bd of bands) {
-      const cxs = canvas.width / 2, cys = canvas.height / 2;
+      const cxs = (fr.l + fr.r) / 2, cys = (fr.t + fr.b) / 2;
       const sx = (bd.x - cam.x) * zoom, sy = (bd.y - cam.y) * zoom;
       const ang = Math.atan2(sy - cys, sx - cxs);
-      const m = 46;
+      const m = 34;
       // slide out from the middle until the arrow meets the edge of the screen
-      const tX = Math.abs(Math.cos(ang)) < 1e-3 ? Infinity : (cxs - m) / Math.abs(Math.cos(ang));
-      const tY = Math.abs(Math.sin(ang)) < 1e-3 ? Infinity : (cys - m) / Math.abs(Math.sin(ang));
+      const tX = Math.abs(Math.cos(ang)) < 1e-3 ? Infinity : ((fr.r - fr.l) / 2 - m) / Math.abs(Math.cos(ang));
+      const tY = Math.abs(Math.sin(ang)) < 1e-3 ? Infinity : ((fr.b - fr.t) / 2 - m) / Math.abs(Math.sin(ang));
       const t2 = Math.min(tX, tY);
       const ax = cxs + Math.cos(ang) * t2, ay = cys + Math.sin(ang) * t2;
       const col = bd.war ? "#e08a4a" : "#d86a5a";
@@ -16313,14 +17632,14 @@ function render(dt) {
       ctx.globalAlpha = 1;
       ctx.fillStyle = col; ctx.font = "10px monospace"; ctx.textAlign = "center";
       const label = (bd.war ? "WAR PARTY" : "RAIDERS") + (bd.n > 1 ? ` ×${bd.n}` : "");
-      const ly = ay + (ay > canvas.height - 70 ? -22 : 26);
-      ctx.fillText(label, Math.max(52, Math.min(canvas.width - 52, ax)), ly);
+      const ly = ay + (ay > fr.b - 40 ? -22 : 26);
+      ctx.fillText(label, Math.max(fr.l + 52, Math.min(fr.r - 52, ax)), ly);
       // and what they are making for, so you know where to stand
       const t = bd.target;
       if (t && buildings.includes(t)) {
         ctx.fillStyle = "#9ab0a2"; ctx.font = "9px monospace";
         ctx.fillText("→ " + (BLDG_NAMES[t.type] || t.type),
-                     Math.max(52, Math.min(canvas.width - 52, ax)), ly + 11);
+                     Math.max(fr.l + 52, Math.min(fr.r - 52, ax)), ly + 11);
       }
     }
   }
