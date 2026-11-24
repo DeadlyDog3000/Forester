@@ -14,13 +14,14 @@
 //   POST /reviews/edit     { id, rating, title, body }      → { review }
 //   POST /reviews/delete   { id }                           → { ok }
 //
-// Comments on the Old World mods (mods.html), with the same accounts. A thread is named by the mod's slug:
-//   GET  /reviews/comments?on=armies                        → { comments: [...] }   oldest first
-//   GET  /reviews/comment-counts                            → { counts: { slug: n } }
-//   POST /reviews/comment        { on, body }               → { comment }
-//   POST /reviews/comment-edit   { id, body }               → { comment }
+// Comments on the Old World mods (mods.html), with the same accounts: one board for all the mods ("mods"), where each
+// comment can be tagged with up to 5 mods (their slugs, as on the mods page) so readers can filter by mod.
+//   GET  /reviews/comments?on=mods[&tag=armies]             → { comments: [...] }   newest first
+//   GET  /reviews/comment-counts?on=mods                    → { total, counts: { slug: n } }
+//   POST /reviews/comment        { on, body, tags }         → { comment }
+//   POST /reviews/comment-edit   { id, body, tags }         → { comment }
 //   POST /reviews/comment-delete { id }                     → { ok }   (yours, or any with X-Admin)
-// Each account can leave one comment every 20 seconds and 30 an hour; each thread keeps its newest 500.
+// Each account can leave one comment every 20 seconds and 30 an hour; a board keeps its newest 2000.
 //
 // Signed in by a token in the Authorization header ("Bearer …"), handed out at signup and login. Passwords are kept
 // only as scrypt hashes, each with its own salt; tokens only as their sha256, so the file on disk can't sign anyone in.
@@ -33,7 +34,7 @@ const GAMES = new Set(["forester", "reckoning", "standards-in-smoke"]);
 const PER_GAME = 2;
 const SESSION_DAYS = 90;
 const THREAD_RX = /^[a-z0-9]+(-[a-z0-9]+)*$/;   // a mod's slug, as on the mods page
-const COMMENT_MAX = 1500, THREAD_KEEP = 500;
+const COMMENT_MAX = 1500, THREAD_KEEP = 2000, TAGS_MAX = 5;
 const USER_RX = /^[A-Za-z0-9][A-Za-z0-9_ .-]{1,22}[A-Za-z0-9]$/;
 
 module.exports = function makeReviews({ dataDir, log = () => {} }) {
@@ -87,7 +88,10 @@ module.exports = function makeReviews({ dataDir, log = () => {} }) {
       return !!want && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));
     } catch (e) { return false; }
   };
-  const pubC = c => ({ id: c.id, on: c.on, user: db.accounts[c.user] ? db.accounts[c.user].name : c.user, body: c.body, at: c.at, edited: c.edited || null, mine: false });
+  // (a comment from before the board, made on one mod's own thread, joins the board tagged with that mod)
+  for (const c of db.comments || []) if (!Array.isArray(c.tags)) { if (c.on !== "mods") { c.tags = [c.on]; c.on = "mods"; } else c.tags = []; }
+  const tagsOf = t => [...new Set((Array.isArray(t) ? t : []).map(String).filter(x => x.length <= 40 && THREAD_RX.test(x)))].slice(0, TAGS_MAX);
+  const pubC = c => ({ id: c.id, on: c.on, tags: c.tags || [], user: db.accounts[c.user] ? db.accounts[c.user].name : c.user, body: c.body, at: c.at, edited: c.edited || null, mine: false });
   const okThread = on => typeof on === "string" && on.length <= 40 && THREAD_RX.test(on);
   const pub = r => ({ id: r.id, game: r.game, user: db.accounts[r.user] ? db.accounts[r.user].name : r.user, rating: r.rating, title: r.title, body: r.body, at: r.at, edited: r.edited || null, mine: false });
 
@@ -126,13 +130,14 @@ module.exports = function makeReviews({ dataDir, log = () => {} }) {
       return send(res, 200, { reviews: list, perGame: PER_GAME, left: me ? PER_GAME - db.reviews.filter(r => r.game === game && r.user === me.key).length : null });
     }
     if (req.method === "GET" && route === "comment-counts") {
-      const counts = {}; for (const c of db.comments || []) counts[c.on] = (counts[c.on] || 0) + 1;
-      return send(res, 200, { counts });
+      const on = String(u.searchParams.get("on") || "mods"), counts = {}; let total = 0;
+      for (const c of db.comments || []) if (c.on === on) { total++; for (const t of c.tags || []) counts[t] = (counts[t] || 0) + 1; }
+      return send(res, 200, { total, counts });
     }
     if (req.method === "GET" && route === "comments") {
-      const on = String(u.searchParams.get("on") || "");
-      if (!okThread(on)) return send(res, 400, { error: "No such thread." });
-      const list = (db.comments || []).filter(c => c.on === on).sort((a, b) => a.at - b.at).map(c => ({ ...pubC(c), mine: !!me && c.user === me.key }));
+      const on = String(u.searchParams.get("on") || "mods"), tag = String(u.searchParams.get("tag") || "");
+      if (!okThread(on) || (tag && !okThread(tag))) return send(res, 400, { error: "No such thread." });
+      const list = (db.comments || []).filter(c => c.on === on && (!tag || (c.tags || []).includes(tag))).sort((a, b) => b.at - a.at).map(c => ({ ...pubC(c), mine: !!me && c.user === me.key }));
       return send(res, 200, { comments: list, max: COMMENT_MAX });
     }
     if (req.method !== "POST") return send(res, 404, {});
@@ -180,23 +185,23 @@ module.exports = function makeReviews({ dataDir, log = () => {} }) {
       db.comments = db.comments || [];
       const text = clean(b.body, COMMENT_MAX);
       if (route === "comment") {
-        const on = String(b.on || "");
+        const on = String(b.on || "mods");
         if (!okThread(on)) return send(res, 400, { error: "No such thread." });
         if (text.length < 2) return send(res, 400, { error: "Write something first." });
         if (now() - (lastComment.get(me.key) || 0) < 20e3 || tooMany("comment:" + me.key, 30)) return send(res, 429, { error: "Slow down a little: wait a moment before commenting again." });
-        const c = { id: crypto.randomBytes(8).toString("hex"), on, user: me.key, body: text, at: now() };
+        const c = { id: crypto.randomBytes(8).toString("hex"), on, tags: tagsOf(b.tags), user: me.key, body: text, at: now() };
         db.comments.push(c);
         const mine = db.comments.filter(x => x.on === on);
         if (mine.length > THREAD_KEEP) { const drop = new Set(mine.sort((a, b) => a.at - b.at).slice(0, mine.length - THREAD_KEEP)); db.comments = db.comments.filter(x => !drop.has(x)); }
         tried("comment:" + me.key); lastComment.set(me.key, now());
-        save(); log("comments: on", on, "by", me.name);
+        save(); log("comments: on", on, (c.tags.join(",") || "-"), "by", me.name);
         return send(res, 200, { comment: { ...pubC(c), mine: true } });
       }
       const c = db.comments.find(x => x.id === String(b.id || ""));
       if (!c || c.user !== me.key) return send(res, 404, { error: "That comment isn't yours, or it's gone." });
       if (route === "comment-edit") {
         if (text.length < 2) return send(res, 400, { error: "Write something first." });
-        c.body = text; c.edited = now(); save();
+        c.body = text; if (Array.isArray(b.tags)) c.tags = tagsOf(b.tags); c.edited = now(); save();
         return send(res, 200, { comment: { ...pubC(c), mine: true } });
       }
       db.comments = db.comments.filter(x => x !== c); save();
